@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="ForgeTrust.Runnable.Autofac\ForgeTrust.Runnable.Autofac.csproj" Type="Classic C#" />
+  <Project Path="ForgeTrust.Runnable.Console.Tests\ForgeTrust.Runnable.Console.Tests.csproj" Type="Classic C#" />
+  <Project Path="ForgeTrust.Runnable.Console\ForgeTrust.Runnable.Console.csproj" Type="Classic C#" />
+  <Project Path="ForgeTrust.Runnable.Core.Tests\ForgeTrust.Runnable.Core.Tests.csproj" Type="Classic C#" />
+  <Project Path="ForgeTrust.Runnable.Core\ForgeTrust.Runnable.Core.csproj" Type="Classic C#" />
+</Solution>

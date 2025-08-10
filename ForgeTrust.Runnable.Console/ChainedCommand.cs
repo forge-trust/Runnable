@@ -30,16 +30,24 @@ public abstract class ChainedCommand : ICommand
     {
         var builder = new CommandChainBuilder();
         Configure(builder);
-        var commandInfos = builder.Build();
-        var executable = commandInfos.Where(c => c.ShouldExecute()).ToList();
+        var commandGroups = builder.Build();
 
-        ValidateRequiredParameters(executable);
+        var executableGroups = commandGroups
+            .Select(g => new CommandGroup(g.Commands.Where(c => c.ShouldExecute()).ToList()))
+            .ToList();
 
-        foreach (var info in executable)
+        ValidateRequiredParameters(executableGroups.SelectMany(g => g.Commands));
+
+        foreach (var group in executableGroups)
         {
-            var command = (ICommand)CommandService.PrimaryServiceProvider.GetRequiredService(info.CommandType);
-            WireParameters(command);
-            await command.ExecuteAsync(console);
+            var tasks = group.Commands.Select(info =>
+            {
+                var command = (ICommand)CommandService.PrimaryServiceProvider.GetRequiredService(info.CommandType);
+                WireParameters(command);
+                return command.ExecuteAsync(console).AsTask();
+            });
+
+            await Task.WhenAll(tasks);
         }
     }
 
@@ -102,7 +110,7 @@ public abstract class ChainedCommand : ICommand
     /// </summary>
     protected sealed class CommandChainBuilder
     {
-        private readonly List<CommandInfo> _commandTypes = new();
+        private readonly List<CommandGroup> _commandGroups = new();
 
         /// <summary>
         /// Adds a command to the execution chain.
@@ -115,13 +123,50 @@ public abstract class ChainedCommand : ICommand
         /// </summary>
         public CommandChainBuilder AddIf<TCommand>(Func<bool> condition) where TCommand : ICommand
         {
-            _commandTypes.Add(new CommandInfo(typeof(TCommand), condition));
+            _commandGroups.Add(new CommandGroup(new[] { new CommandInfo(typeof(TCommand), condition) }));
             return this;
         }
 
-        internal IReadOnlyList<CommandInfo> Build() => _commandTypes;
+        /// <summary>
+        /// Adds a set of commands that will execute in parallel.
+        /// </summary>
+        public CommandChainBuilder AddParallel(Action<ParallelBuilder> configure)
+        {
+            var builder = new ParallelBuilder();
+            configure(builder);
+            _commandGroups.Add(new CommandGroup(builder.Build()));
+            return this;
+        }
+
+        internal IReadOnlyList<CommandGroup> Build() => _commandGroups;
+
+        /// <summary>
+        /// Builder for configuring parallel command groups.
+        /// </summary>
+        public sealed class ParallelBuilder
+        {
+            private readonly List<CommandInfo> _commandTypes = new();
+
+            /// <summary>
+            /// Adds a command to the parallel group.
+            /// </summary>
+            public ParallelBuilder Add<TCommand>() where TCommand : ICommand
+                => AddIf<TCommand>(() => true);
+
+            /// <summary>
+            /// Adds a command to the parallel group that will execute only when <paramref name="condition"/> returns true.
+            /// </summary>
+            public ParallelBuilder AddIf<TCommand>(Func<bool> condition) where TCommand : ICommand
+            {
+                _commandTypes.Add(new CommandInfo(typeof(TCommand), condition));
+                return this;
+            }
+
+            internal IReadOnlyList<CommandInfo> Build() => _commandTypes;
+        }
     }
 
     internal sealed record CommandInfo(Type CommandType, Func<bool> ShouldExecute);
+    internal sealed record CommandGroup(IReadOnlyList<CommandInfo> Commands);
 }
 

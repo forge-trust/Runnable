@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Examples/">
+    <Project Path="examples\console-app\ConsoleAppExample.csproj" Type="Classic C#" />
+    <Project Path="examples\web-app\WebAppExample.csproj" Type="Classic C#" />
+  </Folder>
   <Project Path="ForgeTrust.Runnable.Autofac\ForgeTrust.Runnable.Autofac.csproj" Type="Classic C#" />
   <Project Path="ForgeTrust.Runnable.Console.Tests\ForgeTrust.Runnable.Console.Tests.csproj" Type="Classic C#" />
   <Project Path="ForgeTrust.Runnable.Console\ForgeTrust.Runnable.Console.csproj" Type="Classic C#" />

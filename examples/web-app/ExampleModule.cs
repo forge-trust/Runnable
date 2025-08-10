@@ -27,9 +27,11 @@ public class ExampleModule : IRunnableWebModule
 
     public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
     {
-        if (app is IEndpointRouteBuilder endpoints)
-        {
-            endpoints.MapGet("/", () => "Hello from web app example!");
-        }
+
+    }
+
+    public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/", () => "Hello from web app example!");
     }
 }

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Hosting;
 namespace ForgeTrust.Runnable.Web;
 
 public abstract class WebStartup<TModule> : RunnableStartup<TModule>
-    where TModule : IRunnableHostModule, new()
+    where TModule : IRunnableWebModule, new()
 {
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
@@ -18,25 +18,38 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     {
         return builder.ConfigureWebHostDefaults(webBuilder =>
         {
-            webBuilder.Configure(app =>
-            {
-                var modules = new List<IRunnableWebModule>();
-                foreach (var dep in context.GetDependencies())
-                {
-                    if (dep is IRunnableWebModule webModule)
-                    {
-                        modules.Add(webModule);
-                    }
-                }
-                if (context.RootModule is IRunnableWebModule root)
-                {
-                    modules.Add(root);
-                }
-                foreach (var module in modules)
-                {
-                    module.ConfigureWebApplication(context, app);
-                }
-            });
+            webBuilder.Configure(app => { InitializeWebApplication(context, app); });
         });
+    }
+
+    private static void InitializeWebApplication(StartupContext context, IApplicationBuilder app)
+    {
+        var modules = new List<IRunnableWebModule>();
+        foreach (var dep in context.GetDependencies())
+        {
+            if (dep is IRunnableWebModule webModule)
+            {
+                modules.Add(webModule);
+            }
+        }
+        if (context.RootModule is IRunnableWebModule root)
+        {
+            modules.Add(root);
+        }
+        foreach (var module in modules)
+        {
+            module.ConfigureWebApplication(context, app);
+        }
+
+        app.UseRouting();
+        
+        app.UseEndpoints(endpoints =>
+        {
+            foreach (var module in modules)
+            {
+                module.ConfigureEndpoints(context, endpoints);
+            }
+        });
+        
     }
 }

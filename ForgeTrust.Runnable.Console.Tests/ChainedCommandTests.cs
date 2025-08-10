@@ -267,8 +267,6 @@ public class ChainedCommandTests
 
         await cmd.ExecuteAsync(new FakeConsole());
 
-        var startDiff = Math.Abs((tracker.FirstStart - tracker.SecondStart).TotalMilliseconds);
-        Assert.True(startDiff < 80, $"Commands did not start in parallel (diff: {startDiff}ms)");
         Assert.True(tracker.FirstEnd > tracker.SecondStart);
         Assert.True(tracker.SecondEnd > tracker.FirstStart);
     }

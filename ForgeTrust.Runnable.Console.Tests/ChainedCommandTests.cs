@@ -3,6 +3,8 @@ using CliFx.Attributes;
 using CliFx.Exceptions;
 using CliFx.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Threading.Tasks;
 
 namespace ForgeTrust.Runnable.Console.Tests;
 
@@ -14,6 +16,14 @@ public class ChainedCommandTests
         public string? FirstFoo;
         public bool SecondExecuted;
         public string? SecondBar;
+    }
+
+    private class ParallelExecutionTracker
+    {
+        public DateTime FirstStart;
+        public DateTime FirstEnd;
+        public DateTime SecondStart;
+        public DateTime SecondEnd;
     }
 
     [Command("first")]
@@ -34,6 +44,42 @@ public class ChainedCommandTests
             _tracker.FirstExecuted = true;
             _tracker.FirstFoo = Foo;
             return default;
+        }
+    }
+
+    [Command("pfirst")]
+    private class ParallelFirstCommand : ICommand
+    {
+        private readonly ParallelExecutionTracker _tracker;
+
+        public ParallelFirstCommand(ParallelExecutionTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        public async ValueTask ExecuteAsync(IConsole console)
+        {
+            _tracker.FirstStart = DateTime.UtcNow;
+            await Task.Delay(100);
+            _tracker.FirstEnd = DateTime.UtcNow;
+        }
+    }
+
+    [Command("psecond")]
+    private class ParallelSecondCommand : ICommand
+    {
+        private readonly ParallelExecutionTracker _tracker;
+
+        public ParallelSecondCommand(ParallelExecutionTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        public async ValueTask ExecuteAsync(IConsole console)
+        {
+            _tracker.SecondStart = DateTime.UtcNow;
+            await Task.Delay(100);
+            _tracker.SecondEnd = DateTime.UtcNow;
         }
     }
 
@@ -73,6 +119,26 @@ public class ChainedCommandTests
                 .Add<SecondCommand>();
     }
 
+    [Command("parallel-composite")]
+    private class ParallelCompositeCommand : ChainedCommand
+    {
+        [CommandOption("foo", IsRequired = true)]
+        public string? Foo { get; set; }
+
+        [CommandOption("bar")]
+        public string? Bar { get; set; }
+
+        protected override void Configure(CommandChainBuilder builder)
+            => builder.AddParallel(b => b.Add<FirstCommand>().Add<SecondCommand>());
+    }
+
+    [Command("parallel-delayed")]
+    private class ParallelDelayedCommand : ChainedCommand
+    {
+        protected override void Configure(CommandChainBuilder builder)
+            => builder.AddParallel(b => b.Add<ParallelFirstCommand>().Add<ParallelSecondCommand>());
+    }
+
     [Command("conditional")]
     private class ConditionalCompositeCommand : ChainedCommand
     {
@@ -98,6 +164,11 @@ public class ChainedCommandTests
         services.AddTransient<SecondCommand>();
         services.AddTransient<CompositeCommand>();
         services.AddTransient<ConditionalCompositeCommand>();
+        services.AddTransient<ParallelCompositeCommand>();
+        services.AddTransient<ParallelDelayedCommand>();
+        services.AddTransient<ParallelFirstCommand>();
+        services.AddTransient<ParallelSecondCommand>();
+        services.AddSingleton<ParallelExecutionTracker>();
         
         CommandService.PrimaryServiceProvider = services.BuildServiceProvider();
         return CommandService.PrimaryServiceProvider;
@@ -167,6 +238,39 @@ public class ChainedCommandTests
         Assert.Equal("foo", tracker.FirstFoo);
         Assert.True(tracker.SecondExecuted);
         Assert.Equal("bar", tracker.SecondBar);
+    }
+
+    [Fact]
+    public async Task ParallelCommands_ExecuteWithWiredParameters()
+    {
+        var provider = CreateProvider();
+        var tracker = provider.GetRequiredService<ExecutionTracker>();
+        var cmd = provider.GetRequiredService<ParallelCompositeCommand>();
+
+        cmd.Foo = "foo";
+        cmd.Bar = "bar";
+
+        await cmd.ExecuteAsync(new FakeConsole());
+
+        Assert.True(tracker.FirstExecuted);
+        Assert.Equal("foo", tracker.FirstFoo);
+        Assert.True(tracker.SecondExecuted);
+        Assert.Equal("bar", tracker.SecondBar);
+    }
+
+    [Fact]
+    public async Task ParallelCommands_RunConcurrently()
+    {
+        var provider = CreateProvider();
+        var tracker = provider.GetRequiredService<ParallelExecutionTracker>();
+        var cmd = provider.GetRequiredService<ParallelDelayedCommand>();
+
+        await cmd.ExecuteAsync(new FakeConsole());
+
+        var startDiff = Math.Abs((tracker.FirstStart - tracker.SecondStart).TotalMilliseconds);
+        Assert.True(startDiff < 80, $"Commands did not start in parallel (diff: {startDiff}ms)");
+        Assert.True(tracker.FirstEnd > tracker.SecondStart);
+        Assert.True(tracker.SecondEnd > tracker.FirstStart);
     }
 }
 

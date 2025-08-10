@@ -1,5 +1,7 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
+using ForgeTrust.Runnable.Web.OpenApi;
+using ForgeTrust.Runnable.Web.Scalar;
 
 public class ExampleModule : IRunnableWebModule
 {
@@ -10,7 +12,7 @@ public class ExampleModule : IRunnableWebModule
 
     public void RegisterDependentModules(ModuleDependencyBuilder builder)
     {
-        // Add module dependencies here if needed
+        builder.AddModule<RunnableWebScalarModule>();
     }
 
     public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)

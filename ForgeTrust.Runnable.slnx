@@ -4,4 +4,5 @@
   <Project Path="ForgeTrust.Runnable.Console\ForgeTrust.Runnable.Console.csproj" Type="Classic C#" />
   <Project Path="ForgeTrust.Runnable.Core.Tests\ForgeTrust.Runnable.Core.Tests.csproj" Type="Classic C#" />
   <Project Path="ForgeTrust.Runnable.Core\ForgeTrust.Runnable.Core.csproj" Type="Classic C#" />
+  <Project Path="ForgeTrust.Runnable.Web\ForgeTrust.Runnable.Web.csproj" Type="Classic C#" />
 </Solution>

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -59,6 +61,11 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
     private IHostBuilder CreateHostBuilderCore(StartupContext context)
     {
         var builder = Host.CreateDefaultBuilder();
+        builder.ConfigureHostConfiguration(config =>
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [HostDefaults.ApplicationKey] = context.ApplicationName
+            }));
         
         context.RootModule.RegisterDependentModules(context.Dependencies);
 

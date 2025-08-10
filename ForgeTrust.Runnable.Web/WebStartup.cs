@@ -1,6 +1,7 @@
 using ForgeTrust.Runnable.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -9,6 +10,14 @@ namespace ForgeTrust.Runnable.Web;
 public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     where TModule : IRunnableWebModule, new()
 {
+    Action<IEndpointRouteBuilder>? _directEndpointConfiguration;
+    public WebStartup<TModule> WithDirectConfiguration(
+        Action<IEndpointRouteBuilder>? directEndpointConfiguration = null)
+    {
+        _directEndpointConfiguration = directEndpointConfiguration;
+        return this;
+    } 
+    
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
         // No additional services required for web apps.
@@ -22,7 +31,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         });
     }
 
-    private static void InitializeWebApplication(StartupContext context, IApplicationBuilder app)
+    private void InitializeWebApplication(StartupContext context, IApplicationBuilder app)
     {
         var modules = new List<IRunnableWebModule>();
         foreach (var dep in context.GetDependencies())
@@ -49,7 +58,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             {
                 module.ConfigureEndpoints(context, endpoints);
             }
+            
+            if (_directEndpointConfiguration != null)
+            {
+                _directEndpointConfiguration(endpoints);
+            }
         });
-        
     }
 }

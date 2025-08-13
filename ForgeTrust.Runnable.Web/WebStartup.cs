@@ -25,7 +25,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         var mvcBuilder = services.AddMvc();
         // This is required to find the controllers in the main service projects.
         mvcBuilder.AddApplicationPart(context.EntryPointAssembly);
-
+        // Additional services can be configured here as needed.
     }
 
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)

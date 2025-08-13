@@ -14,7 +14,7 @@ public static class ConsoleApp<TStartup, TModule>
         .RunAsync(args);
 }
 
-public class ConsoleApp<TModule>
+public static class ConsoleApp<TModule>
     where TModule : IRunnableHostModule, new()
 {
     public static Task RunAsync(string[] args) => new GenericConsoleStartup()

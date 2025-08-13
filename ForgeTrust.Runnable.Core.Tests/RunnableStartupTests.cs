@@ -68,6 +68,19 @@ public class RunnableStartupTests
     }
 
     [Fact]
+    public void CreateHostBuilder_SetsHostApplicationName()
+    {
+        var context = new StartupContext([], new RootModule(), ApplicationName: "CustomApp");
+        var startup = new TestStartup();
+
+        var hostBuilder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = hostBuilder.Build();
+
+        var env = host.Services.GetRequiredService<IHostEnvironment>();
+        Assert.Equal("CustomApp", env.ApplicationName);
+    }
+
+    [Fact]
     public async Task RunAsync_WithArgs_InvokesCreateRootModuleAndRunsHost()
     {
         var root = new RootModule();

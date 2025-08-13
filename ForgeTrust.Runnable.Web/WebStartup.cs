@@ -1,7 +1,9 @@
+using System.Net.Mime;
 using ForgeTrust.Runnable.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -20,7 +22,10 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
-        // No additional services required for web apps.
+        var mvcBuilder = services.AddMvc();
+        // This is required to find the controllers in the main service projects.
+        mvcBuilder.AddApplicationPart(context.EntryPointAssembly);
+
     }
 
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)
@@ -63,6 +68,8 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             {
                 _directEndpointConfiguration(endpoints);
             }
+
+            endpoints.MapControllers();
         });
     }
 }

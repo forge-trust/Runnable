@@ -22,7 +22,7 @@ public class RunnableWebScalarModule : IRunnableWebModule
 
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapScalarApiReference(opt => opt.AddDocument(context.ApplicationName));
+        endpoints.MapScalarApiReference();
     }
 
     public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)

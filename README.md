@@ -17,7 +17,7 @@ types.
 - Share cross-cutting features between console and web apps without duplicating
   bootstrapping logic.
 - Keep infrastructure dependencies light so applications can stay minimal.
-- Allow drop‑in integrations with external libraries such as different DI
+- Allow drop-in integrations with external libraries such as different DI
   containers or OpenAPI generators.
 
 ## Project structure

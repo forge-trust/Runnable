@@ -1,11 +1,15 @@
 ﻿namespace ForgeTrust.Runnable.Web;
 
-public record WebOptions(OpenApiOptions OpenApi)
-{
-    public static readonly WebOptions Default = new(OpenApiOptions.Default);
-}
+using Microsoft.AspNetCore.Routing;
 
-public record OpenApiOptions(bool EnableOpenApi, bool EnableSwaggerUi)
+public record WebOptions
 {
-    public static readonly OpenApiOptions Default = new(true, true);
+    public static WebOptions Default => new();
+
+    public CorsOptions Cors { get; set; } = CorsOptions.Default;
+
+    public Action<IEndpointRouteBuilder> MapEndpoints { get; set; } = _ =>
+    {
+        // Default endpoint mapping can be empty or provide a basic route
+    };
 }

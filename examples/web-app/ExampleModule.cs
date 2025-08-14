@@ -2,6 +2,8 @@ using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
 using ForgeTrust.Runnable.Web.Scalar;
 
+namespace WebAppExample;
+
 public class ExampleModule : IRunnableWebModule
 {
     public void ConfigureServices(StartupContext context, IServiceCollection services)

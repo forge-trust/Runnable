@@ -6,6 +6,11 @@ namespace ForgeTrust.Runnable.Web;
 
 public interface IRunnableWebModule : IRunnableHostModule
 {
+    void ConfigureWebOptions(StartupContext context, WebOptions options)
+    {
+        // Default implementation does nothing, so we don't force an implementation.
+    }
+
     void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
         // Default implementation does nothing, so we don't force an implementation.

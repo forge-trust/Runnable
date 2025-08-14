@@ -1,3 +1,4 @@
+using System;
 using ForgeTrust.Runnable.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -76,19 +77,25 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         if (_options.Cors.EnableCors)
         {
+            var isDevelopment = string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                Environments.Development,
+                StringComparison.OrdinalIgnoreCase);
+
             services.AddCors(o =>
                 o.AddPolicy(
                     _options.Cors.PolicyName,
                     builder =>
                     {
-                        if (_options.Cors.AllowedOrigins.Length > 0)
+                        if (_options.Cors.AllowedOrigins.Length == 0 ||
+                            (_options.Cors.EnableAllOriginsInDevelopment && isDevelopment))
                         {
-                            builder.SetIsOriginAllowedToAllowWildcardSubdomains();
-                            builder.WithOrigins(_options.Cors.AllowedOrigins);
+                            builder.AllowAnyOrigin();
                         }
                         else
                         {
-                            builder.AllowAnyOrigin();
+                            builder.SetIsOriginAllowedToAllowWildcardSubdomains();
+                            builder.WithOrigins(_options.Cors.AllowedOrigins);
                         }
                     }));
         }

@@ -1,7 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -12,6 +11,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 {
     private Action<WebOptions>? _configureOptions;
     private WebOptions _options = WebOptions.Default;
+    private bool _modulesBuilt;
     private readonly List<IRunnableWebModule> _modules = new();
 
     public WebStartup<TModule> WithOptions(Action<WebOptions>? configureOptions = null)
@@ -23,6 +23,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
     private void BuildModules(StartupContext context)
     {
+        if (_modulesBuilt)
+        {
+            return;
+        }
+
         _modules.Clear();
         foreach (var dep in context.GetDependencies())
         {
@@ -36,11 +41,16 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         {
             _modules.Add(root);
         }
+
+        _modulesBuilt = true;
     }
 
-    protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
+    private WebOptions BuildWebOptions(StartupContext context)
     {
-        BuildModules(context);
+        if (_options != WebOptions.Default)
+        {
+            return _options;
+        }
 
         _options = WebOptions.Default;
 
@@ -51,6 +61,14 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         _configureOptions?.Invoke(_options);
 
+        return _options;
+    }
+
+    protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
+    {
+        BuildModules(context);
+        BuildWebOptions(context);
+
         var mvcBuilder = services.AddMvc();
         // This is required to find the controllers in the main service projects.
         mvcBuilder.AddApplicationPart(context.EntryPointAssembly);
@@ -59,17 +77,20 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         if (_options.Cors.EnableCors)
         {
             services.AddCors(o =>
-                o.AddPolicy(_options.Cors.PolicyName, builder =>
-                {
-                    if (_options.Cors.ConfigurePolicy != null)
+                o.AddPolicy(
+                    _options.Cors.PolicyName,
+                    builder =>
                     {
-                        _options.Cors.ConfigurePolicy(builder);
-                    }
-                    else
-                    {
-                        builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-                    }
-                }));
+                        if (_options.Cors.AllowedOrigins.Length > 0)
+                        {
+                            builder.SetIsOriginAllowedToAllowWildcardSubdomains();
+                            builder.WithOrigins(_options.Cors.AllowedOrigins);
+                        }
+                        else
+                        {
+                            builder.AllowAnyOrigin();
+                        }
+                    }));
         }
     }
 
@@ -101,8 +122,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             {
                 module.ConfigureEndpoints(context, endpoints);
             }
-
-            _options.MapEndpoints?.Invoke(endpoints);
 
             endpoints.MapControllers();
         });

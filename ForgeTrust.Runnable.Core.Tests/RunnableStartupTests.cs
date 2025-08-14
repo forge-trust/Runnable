@@ -218,7 +218,12 @@ public class RunnableStartupTests
     private class ExceptionStartup : RunnableStartup<RootModuleThrows>
     {
         private readonly RootModuleThrows _module;
-        public ExceptionStartup(RootModuleThrows module) => _module = module;
+
+        public ExceptionStartup(RootModuleThrows module)
+        {
+            _module = module;
+        }
+
         protected override RootModuleThrows CreateRootModule() => _module;
 
         protected override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)

@@ -101,7 +101,10 @@ public class ChainedCommandTests
     {
         private readonly ExecutionTracker _tracker;
 
-        public FirstCommand(ExecutionTracker tracker) => _tracker = tracker;
+        public FirstCommand(ExecutionTracker tracker)
+        {
+            _tracker = tracker;
+        }
 
         [CommandOption("foo", IsRequired = true)]
         public string? Foo { get; set; }
@@ -120,7 +123,10 @@ public class ChainedCommandTests
     {
         private readonly ExecutionTracker _tracker;
 
-        public SecondCommand(ExecutionTracker tracker) => _tracker = tracker;
+        public SecondCommand(ExecutionTracker tracker)
+        {
+            _tracker = tracker;
+        }
 
         [CommandOption("bar")]
         public string? Bar { get; set; }

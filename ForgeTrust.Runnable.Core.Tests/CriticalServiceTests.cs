@@ -81,8 +81,10 @@ public class CriticalServiceTests
             Func<CancellationToken, Task> run,
             ILogger logger,
             IHostApplicationLifetime lifetime)
-            : base(logger, lifetime) =>
+            : base(logger, lifetime)
+        {
             _run = run;
+        }
 
         protected override Task RunAsync(CancellationToken stoppingToken) => _run(stoppingToken);
         public Task InvokeExecuteAsync(CancellationToken token) => ExecuteAsync(token);

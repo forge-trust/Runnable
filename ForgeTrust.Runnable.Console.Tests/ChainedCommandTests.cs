@@ -8,88 +8,6 @@ namespace ForgeTrust.Runnable.Console.Tests;
 
 public class ChainedCommandTests
 {
-    private class ExecutionTracker
-    {
-        public bool FirstExecuted;
-        public string? FirstFoo;
-        public bool SecondExecuted;
-        public string? SecondBar;
-    }
-
-    [Command("first")]
-    private class FirstCommand : ICommand
-    {
-        [CommandOption("foo", IsRequired = true)]
-        public string? Foo { get; set; }
-
-        private readonly ExecutionTracker _tracker;
-
-        public FirstCommand(ExecutionTracker tracker)
-        {
-            _tracker = tracker;
-        }
-
-        public ValueTask ExecuteAsync(IConsole console)
-        {
-            _tracker.FirstExecuted = true;
-            _tracker.FirstFoo = Foo;
-            return default;
-        }
-    }
-
-    [Command("second")]
-    private class SecondCommand : ICommand
-    {
-        [CommandOption("bar")]
-        public string? Bar { get; set; }
-
-        private readonly ExecutionTracker _tracker;
-
-        public SecondCommand(ExecutionTracker tracker)
-        {
-            _tracker = tracker;
-        }
-
-        public ValueTask ExecuteAsync(IConsole console)
-        {
-            _tracker.SecondExecuted = true;
-            _tracker.SecondBar = Bar;
-            return default;
-        }
-    }
-
-    [Command("composite")]
-    private class CompositeCommand : ChainedCommand
-    {
-        [CommandOption("foo", IsRequired = true)]
-        public string? Foo { get; set; }
-
-        [CommandOption("bar")]
-        public string? Bar { get; set; }
-
-        protected override void Configure(CommandChainBuilder builder)
-            => builder
-                .Add<FirstCommand>()
-                .Add<SecondCommand>();
-    }
-
-    [Command("conditional")]
-    private class ConditionalCompositeCommand : ChainedCommand
-    {
-        [CommandOption("foo")]
-        public string? Foo { get; set; }
-
-        [CommandOption("bar")]
-        public string? Bar { get; set; }
-
-        public bool RunFirst { get; set; }
-
-        protected override void Configure(CommandChainBuilder builder)
-            => builder
-                .AddIf<FirstCommand>(() => RunFirst)
-                .Add<SecondCommand>();
-    }
-
     private static IServiceProvider CreateProvider()
     {
         var services = new ServiceCollection();
@@ -98,8 +16,9 @@ public class ChainedCommandTests
         services.AddTransient<SecondCommand>();
         services.AddTransient<CompositeCommand>();
         services.AddTransient<ConditionalCompositeCommand>();
-        
+
         CommandService.PrimaryServiceProvider = services.BuildServiceProvider();
+
         return CommandService.PrimaryServiceProvider;
     }
 
@@ -168,5 +87,88 @@ public class ChainedCommandTests
         Assert.True(tracker.SecondExecuted);
         Assert.Equal("bar", tracker.SecondBar);
     }
-}
 
+    private class ExecutionTracker
+    {
+        public bool FirstExecuted;
+        public string? FirstFoo;
+        public string? SecondBar;
+        public bool SecondExecuted;
+    }
+
+    [Command("first")]
+    private class FirstCommand : ICommand
+    {
+        private readonly ExecutionTracker _tracker;
+
+        public FirstCommand(ExecutionTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        [CommandOption("foo", IsRequired = true)]
+        public string? Foo { get; set; }
+
+        public ValueTask ExecuteAsync(IConsole console)
+        {
+            _tracker.FirstExecuted = true;
+            _tracker.FirstFoo = Foo;
+
+            return default;
+        }
+    }
+
+    [Command("second")]
+    private class SecondCommand : ICommand
+    {
+        private readonly ExecutionTracker _tracker;
+
+        public SecondCommand(ExecutionTracker tracker)
+        {
+            _tracker = tracker;
+        }
+
+        [CommandOption("bar")]
+        public string? Bar { get; set; }
+
+        public ValueTask ExecuteAsync(IConsole console)
+        {
+            _tracker.SecondExecuted = true;
+            _tracker.SecondBar = Bar;
+
+            return default;
+        }
+    }
+
+    [Command("composite")]
+    private class CompositeCommand : ChainedCommand
+    {
+        [CommandOption("foo", IsRequired = true)]
+        public string? Foo { get; set; }
+
+        [CommandOption("bar")]
+        public string? Bar { get; set; }
+
+        protected override void Configure(CommandChainBuilder builder) =>
+            builder
+                .Add<FirstCommand>()
+                .Add<SecondCommand>();
+    }
+
+    [Command("conditional")]
+    private class ConditionalCompositeCommand : ChainedCommand
+    {
+        [CommandOption("foo")]
+        public string? Foo { get; set; }
+
+        [CommandOption("bar")]
+        public string? Bar { get; set; }
+
+        public bool RunFirst { get; set; }
+
+        protected override void Configure(CommandChainBuilder builder) =>
+            builder
+                .AddIf<FirstCommand>(() => RunFirst)
+                .Add<SecondCommand>();
+    }
+}

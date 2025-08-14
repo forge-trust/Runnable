@@ -9,15 +9,14 @@ public record StartupContext(
     string? ApplicationName = null,
     Action<IServiceCollection>? CustomRegistrations = null)
 {
-   internal ModuleDependencyBuilder Dependencies { get; } = new ModuleDependencyBuilder();
+    internal ModuleDependencyBuilder Dependencies { get; } = new();
 
-   public Assembly EntryPointAssembly { get; } = RootModule.GetType().Assembly;
-   
-   public string ApplicationName { get; } = ApplicationName ?? RootModule.GetType().Assembly.GetName().Name ?? "RunnableApp";
-   
-   public IReadOnlyList<IRunnableModule> GetDependencies()
-   {
-       return Dependencies.Modules
-           .ToList();
-   }
+    public Assembly EntryPointAssembly { get; } = RootModule.GetType().Assembly;
+
+    public string ApplicationName { get; } =
+        ApplicationName ?? RootModule.GetType().Assembly.GetName().Name ?? "RunnableApp";
+
+    public IReadOnlyList<IRunnableModule> GetDependencies() =>
+        Dependencies.Modules
+            .ToList();
 }

@@ -5,9 +5,9 @@ namespace ForgeTrust.Runnable.Core;
 
 public abstract partial class CriticalService : BackgroundService
 {
-    private readonly string _serviceType;
-    private readonly ILogger _logger;
     private readonly IHostApplicationLifetime _applicationLifetime;
+    private readonly ILogger _logger;
+    private readonly string _serviceType;
 
     protected CriticalService(
         ILogger logger,
@@ -17,9 +17,8 @@ public abstract partial class CriticalService : BackgroundService
         _serviceType = GetType().Name;
         _applicationLifetime = applicationLifetime ?? throw new ArgumentNullException(nameof(applicationLifetime));
     }
-    
-    protected sealed override async Task ExecuteAsync(
-        CancellationToken stoppingToken)
+
+    protected sealed override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
@@ -41,18 +40,20 @@ public abstract partial class CriticalService : BackgroundService
         }
     }
 
-    protected abstract Task RunAsync(
-        CancellationToken stoppingToken);
-    
-    [LoggerMessage(Level = LogLevel.Information,
+    protected abstract Task RunAsync(CancellationToken stoppingToken);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         Message = "{ServiceType}: Initializing Critical Service")]
     public partial void LogInitialize(string serviceType);
-        
-    [LoggerMessage(Level = LogLevel.Information,
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
         Message = "{ServiceType}: Stopping Critical Service")]
     public partial void LogStopping(string serviceType);
-        
-    [LoggerMessage(Level = LogLevel.Critical,
+
+    [LoggerMessage(
+        Level = LogLevel.Critical,
         Message = "{ServiceType}: Unhandled Exception.")]
     public partial void LogException(Exception exception, string serviceType);
 }

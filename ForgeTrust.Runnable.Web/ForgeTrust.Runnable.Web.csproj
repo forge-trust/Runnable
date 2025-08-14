@@ -5,9 +5,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ForgeTrust.Runnable.Core\ForgeTrust.Runnable.Core.csproj" />
+    <ProjectReference Include="..\ForgeTrust.Runnable.Core\ForgeTrust.Runnable.Core.csproj"/>
   </ItemGroup>
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
   </ItemGroup>
 </Project>

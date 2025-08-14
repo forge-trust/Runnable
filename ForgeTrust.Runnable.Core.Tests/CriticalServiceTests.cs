@@ -1,48 +1,9 @@
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Xunit;
 
 public class CriticalServiceTests
 {
-    private class TestLogger<T> : ILogger<T>
-    {
-        public readonly List<(LogLevel Level, Exception? Exception)> Entries = new();
-        public IDisposable BeginScope<TState>(TState state) => NullScope.Instance;
-        public bool IsEnabled(LogLevel logLevel) => true;
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-        {
-            Entries.Add((logLevel, exception));
-        }
-        private class NullScope : IDisposable { public static readonly NullScope Instance = new(); public void Dispose() { } }
-    }
-
-    private class TestLifetime : IHostApplicationLifetime
-    {
-        public int StopCalled;
-        public CancellationToken ApplicationStarted => CancellationToken.None;
-        public CancellationToken ApplicationStopping => CancellationToken.None;
-        public CancellationToken ApplicationStopped => CancellationToken.None;
-        public void StopApplication() => StopCalled++;
-    }
-
-    private class TestCriticalService : CriticalService
-    {
-        private readonly Func<CancellationToken, Task> _run;
-        public TestCriticalService(Func<CancellationToken, Task> run, ILogger logger, IHostApplicationLifetime lifetime)
-            : base(logger, lifetime)
-        {
-            _run = run;
-        }
-        protected override Task RunAsync(CancellationToken stoppingToken) => _run(stoppingToken);
-        public Task InvokeExecuteAsync(CancellationToken token) => base.ExecuteAsync(token);
-    }
-
     [Fact]
     public async Task ExecuteAsync_CompletesSuccessfully_StopsApplication()
     {
@@ -75,5 +36,57 @@ public class CriticalServiceTests
         Assert.Contains(logger.Entries, e => e.Level == LogLevel.Critical && e.Exception is InvalidOperationException);
 
         Environment.ExitCode = previous;
+    }
+
+    private class TestLogger<T> : ILogger<T>
+    {
+        public readonly List<(LogLevel Level, Exception? Exception)> Entries = new();
+        public IDisposable BeginScope<TState>(TState state) => NullScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, exception));
+        }
+
+        private class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+
+            public void Dispose()
+            {
+            }
+        }
+    }
+
+    private class TestLifetime : IHostApplicationLifetime
+    {
+        public int StopCalled;
+        public CancellationToken ApplicationStarted => CancellationToken.None;
+        public CancellationToken ApplicationStopping => CancellationToken.None;
+        public CancellationToken ApplicationStopped => CancellationToken.None;
+        public void StopApplication() => StopCalled++;
+    }
+
+    private class TestCriticalService : CriticalService
+    {
+        private readonly Func<CancellationToken, Task> _run;
+
+        public TestCriticalService(
+            Func<CancellationToken, Task> run,
+            ILogger logger,
+            IHostApplicationLifetime lifetime)
+            : base(logger, lifetime)
+        {
+            _run = run;
+        }
+
+        protected override Task RunAsync(CancellationToken stoppingToken) => _run(stoppingToken);
+        public Task InvokeExecuteAsync(CancellationToken token) => ExecuteAsync(token);
     }
 }

@@ -6,6 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj" />
+    <ProjectReference Include="../../ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj"/>
   </ItemGroup>
 </Project>

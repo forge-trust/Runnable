@@ -10,30 +10,27 @@ public class RunnableWebOpenApiModule : IRunnableWebModule
 {
     public virtual void ConfigureServices(StartupContext context, IServiceCollection services)
     {
-        services.AddOpenApi( options =>
+        services.AddOpenApi(options =>
         {
-            options.AddDocumentTransformer((
-                d,
-                _,
-                _) =>
+            options.AddDocumentTransformer((d, _, _) =>
             {
                 // TODO: Update w/ real versioning strategy
                 d.Info.Title = $"{context.ApplicationName} | v1";
-                d.Tags = d.Tags.Where(x => x.Name != "ForgeTrust.Runnable.Web" ).ToList();
+                d.Tags = d.Tags.Where(x => x.Name != "ForgeTrust.Runnable.Web").ToList();
+
                 return Task.CompletedTask;
             });
-            
-            
+
             options.AddOperationTransformer((op, ctx, _) =>
             {
                 op.Tags = op.Tags
                     .Where(x => x.Name != "ForgeTrust.Runnable.Web")
                     .ToList();
-                
+
                 return Task.CompletedTask;
             });
         });
-        
+
         services.AddEndpointsApiExplorer();
     }
 

@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ForgeTrust.Runnable.Autofac;
 
 /// <summary>
-/// This class is simply a wrapper around the standard Autofac Module.
-/// Its goal is to ensure that your autofac use is consistent across your projects.
+///     This class is simply a wrapper around the standard Autofac Module.
+///     Its goal is to ensure that your autofac use is consistent across your projects.
 /// </summary>
 public abstract class RunnableAutofacModule : Module, IRunnableModule
 {

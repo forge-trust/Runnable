@@ -1,6 +1,5 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
-using ForgeTrust.Runnable.Web.OpenApi;
 using ForgeTrust.Runnable.Web.Scalar;
 
 public class ExampleModule : IRunnableWebModule
@@ -25,7 +24,6 @@ public class ExampleModule : IRunnableWebModule
 
     public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
     {
-
     }
 
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)

@@ -10,22 +10,67 @@ namespace ForgeTrust.Runnable.Web;
 public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     where TModule : IRunnableWebModule, new()
 {
-    private Action<IEndpointRouteBuilder>? _directEndpointConfiguration;
+    private Action<WebOptions>? _configureOptions;
+    private WebOptions _options = WebOptions.Default;
+    private readonly List<IRunnableWebModule> _modules = new();
 
-    public WebStartup<TModule> WithDirectConfiguration(
-        Action<IEndpointRouteBuilder>? directEndpointConfiguration = null)
+    public WebStartup<TModule> WithOptions(Action<WebOptions>? configureOptions = null)
     {
-        _directEndpointConfiguration = directEndpointConfiguration;
+        _configureOptions = configureOptions;
 
         return this;
     }
 
+    private void BuildModules(StartupContext context)
+    {
+        _modules.Clear();
+        foreach (var dep in context.GetDependencies())
+        {
+            if (dep is IRunnableWebModule webModule)
+            {
+                _modules.Add(webModule);
+            }
+        }
+
+        if (context.RootModule is IRunnableWebModule root)
+        {
+            _modules.Add(root);
+        }
+    }
+
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
+        BuildModules(context);
+
+        _options = WebOptions.Default;
+
+        foreach (var module in _modules)
+        {
+            module.ConfigureWebOptions(context, _options);
+        }
+
+        _configureOptions?.Invoke(_options);
+
         var mvcBuilder = services.AddMvc();
         // This is required to find the controllers in the main service projects.
         mvcBuilder.AddApplicationPart(context.EntryPointAssembly);
         // Additional services can be configured here as needed.
+
+        if (_options.Cors.EnableCors)
+        {
+            services.AddCors(o =>
+                o.AddPolicy(_options.Cors.PolicyName, builder =>
+                {
+                    if (_options.Cors.ConfigurePolicy != null)
+                    {
+                        _options.Cors.ConfigurePolicy(builder);
+                    }
+                    else
+                    {
+                        builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+                    }
+                }));
+        }
     }
 
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)
@@ -38,38 +83,26 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
     private void InitializeWebApplication(StartupContext context, IApplicationBuilder app)
     {
-        var modules = new List<IRunnableWebModule>();
-        foreach (var dep in context.GetDependencies())
-        {
-            if (dep is IRunnableWebModule webModule)
-            {
-                modules.Add(webModule);
-            }
-        }
-
-        if (context.RootModule is IRunnableWebModule root)
-        {
-            modules.Add(root);
-        }
-
-        foreach (var module in modules)
+        foreach (var module in _modules)
         {
             module.ConfigureWebApplication(context, app);
         }
 
         app.UseRouting();
 
+        if (_options.Cors.EnableCors)
+        {
+            app.UseCors(_options.Cors.PolicyName);
+        }
+
         app.UseEndpoints(endpoints =>
         {
-            foreach (var module in modules)
+            foreach (var module in _modules)
             {
                 module.ConfigureEndpoints(context, endpoints);
             }
 
-            if (_directEndpointConfiguration != null)
-            {
-                _directEndpointConfiguration(endpoints);
-            }
+            _options.MapEndpoints?.Invoke(endpoints);
 
             endpoints.MapControllers();
         });

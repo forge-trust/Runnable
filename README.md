@@ -14,7 +14,7 @@ types.
 ## Design goals
 
 - Encourage composition through small, focused modules that do one thing well.
-- Share cross‑cutting features between console and web apps without duplicating
+- Share cross-cutting features between console and web apps without duplicating
   bootstrapping logic.
 - Keep infrastructure dependencies light so applications can stay minimal.
 - Allow drop‑in integrations with external libraries such as different DI

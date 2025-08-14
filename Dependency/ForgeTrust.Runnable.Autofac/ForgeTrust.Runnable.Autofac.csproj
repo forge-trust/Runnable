@@ -7,7 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ForgeTrust.Runnable.Core\ForgeTrust.Runnable.Core.csproj"/>
+    <ProjectReference Include="..\..\ForgeTrust.Runnable.Core\ForgeTrust.Runnable.Core.csproj"/>
+
     <PackageReference Include="Autofac" Version="8.0.0"/>
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="9.0.0"/>
   </ItemGroup>

@@ -12,7 +12,7 @@ public record WebOptions
     public CorsOptions Cors { get; set; } = CorsOptions.Default;
 
     public Action<IEndpointRouteBuilder>? MapEndpoints { get; set; }
-        = null;
+    public Action<IEndpointRouteBuilder>? MapEndpoints { get; set; } = null;
 }
 
 public record OpenApiOptions(bool EnableOpenApi = true, bool EnableSwaggerUi = true)

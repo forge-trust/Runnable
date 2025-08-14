@@ -1,4 +1,3 @@
-using System;
 using ForgeTrust.Runnable.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -87,16 +86,21 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                     _options.Cors.PolicyName,
                     builder =>
                     {
-                        if (_options.Cors.AllowedOrigins.Length == 0 ||
-                            (_options.Cors.EnableAllOriginsInDevelopment && isDevelopment))
+                        if (_options.Cors.AllowedOrigins.Length == 0
+                            || _options.Cors.EnableAllOriginsInDevelopment && isDevelopment)
                         {
                             builder.AllowAnyOrigin();
                         }
                         else
                         {
-                            builder.SetIsOriginAllowedToAllowWildcardSubdomains();
-                            builder.WithOrigins(_options.Cors.AllowedOrigins);
+                            builder.SetIsOriginAllowedToAllowWildcardSubdomains()
+                                .WithOrigins(_options.Cors.AllowedOrigins)
+                                .AllowCredentials();
                         }
+
+                        //TODO: Make this configurable
+                        builder.AllowAnyHeader()
+                            .AllowAnyMethod();
                     }));
         }
     }
@@ -125,10 +129,14 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         app.UseEndpoints(endpoints =>
         {
+            // Map endpoints from dependencies.
             foreach (var module in _modules)
             {
                 module.ConfigureEndpoints(context, endpoints);
             }
+
+            // Map direct endpoints, if provided.
+            _options.MapEndpoints.Invoke(endpoints);
 
             endpoints.MapControllers();
         });

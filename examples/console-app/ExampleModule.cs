@@ -1,8 +1,8 @@
-namespace ConsoleAppExample;
-
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
+namespace ConsoleAppExample;
 
 public class ExampleModule : IRunnableHostModule
 {

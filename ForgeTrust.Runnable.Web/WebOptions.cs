@@ -7,5 +7,5 @@ public record WebOptions(OpenApiOptions OpenApi)
 
 public record OpenApiOptions(bool EnableOpenApi, bool EnableSwaggerUi)
 {
-    public static readonly OpenApiOptions Default = new(EnableOpenApi: true, EnableSwaggerUi: true);
+    public static readonly OpenApiOptions Default = new(true, true);
 }

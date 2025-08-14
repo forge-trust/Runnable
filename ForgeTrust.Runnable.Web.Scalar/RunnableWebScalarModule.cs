@@ -12,9 +12,8 @@ public class RunnableWebScalarModule : IRunnableWebModule
 {
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
-        
     }
-    
+
     public void RegisterDependentModules(ModuleDependencyBuilder builder)
     {
         builder.AddModule<RunnableWebOpenApiModule>();

@@ -1,5 +1,4 @@
-﻿using System.Reflection;
-using CliFx;
+﻿using CliFx;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -20,7 +19,7 @@ public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
             // Register the command type itself so it can be resolved directly by CliFx
             services.AddTransient(commandType);
         }
-        
+
         services.AddHostedService<CommandService>();
     }
 

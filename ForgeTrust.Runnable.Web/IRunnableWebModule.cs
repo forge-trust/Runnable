@@ -10,6 +10,6 @@ public interface IRunnableWebModule : IRunnableHostModule
     {
         // Default implementation does nothing, so we don't force an implementation.
     }
-    
+
     void ConfigureWebApplication(StartupContext context, IApplicationBuilder app);
 }

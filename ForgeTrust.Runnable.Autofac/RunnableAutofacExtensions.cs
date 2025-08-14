@@ -6,8 +6,8 @@ namespace ForgeTrust.Runnable.Autofac;
 
 public static class RunnableAutofacExtensions
 {
-    public static IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle> RegisterImplementations<TInterface>(
-        this ContainerBuilder builder)
+    public static IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle>
+        RegisterImplementations<TInterface>(this ContainerBuilder builder)
     {
         var assembly = typeof(TInterface).Assembly;
         var types = assembly.GetTypes()
@@ -15,5 +15,4 @@ public static class RunnableAutofacExtensions
 
         return builder.RegisterTypes(types.ToArray());
     }
-    
 }

@@ -13,6 +13,7 @@ public class GreetCommand : ICommand
     public ValueTask ExecuteAsync(IConsole console)
     {
         console.Output.WriteLine($"Hello, {Name}!");
+
         return default;
     }
 }

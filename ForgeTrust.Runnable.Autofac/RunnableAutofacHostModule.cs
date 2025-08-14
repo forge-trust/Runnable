@@ -2,7 +2,6 @@
 using Autofac.Core;
 using Autofac.Extensions.DependencyInjection;
 using ForgeTrust.Runnable.Core;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Autofac;
@@ -26,9 +25,8 @@ public abstract class RunnableAutofacHostModule : RunnableAutofacModule, IRunnab
                     b.RegisterModule(autofacModule);
                 }
             }
-            
+
             b.RegisterModule(this);
         });
     }
-    
 }

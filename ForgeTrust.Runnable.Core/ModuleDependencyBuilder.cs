@@ -2,8 +2,8 @@
 
 public sealed class ModuleDependencyBuilder
 {
-    private Dictionary<Type, IRunnableModule> _modules = new();
-    
+    private readonly Dictionary<Type, IRunnableModule> _modules = new();
+
     public IEnumerable<IRunnableModule> Modules => _modules.Values;
 
     public ModuleDependencyBuilder AddModule<T>()

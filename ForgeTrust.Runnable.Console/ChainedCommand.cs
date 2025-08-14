@@ -8,24 +8,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ForgeTrust.Runnable.Console;
 
 /// <summary>
-/// A command that can execute a sequence of other commands.
-/// Parameters and options defined on the parent command are
-/// automatically forwarded to the child commands when they share
-/// the same property name. Required parameters of child commands
-/// are validated before any command in the chain is executed.
+///     A command that can execute a sequence of other commands.
+///     Parameters and options defined on the parent command are
+///     automatically forwarded to the child commands when they share
+///     the same property name. Required parameters of child commands
+///     are validated before any command in the chain is executed.
 /// </summary>
 public abstract class ChainedCommand : ICommand
 {
-    protected ChainedCommand()
-    {
-    }
-
-    /// <summary>
-    /// Configures the sequence of commands to execute.
-    /// </summary>
-    /// <param name="builder">Fluent builder to define the chain.</param>
-    protected abstract void Configure(CommandChainBuilder builder);
-
     public async ValueTask ExecuteAsync(IConsole console)
     {
         var builder = new CommandChainBuilder();
@@ -43,6 +33,12 @@ public abstract class ChainedCommand : ICommand
         }
     }
 
+    /// <summary>
+    ///     Configures the sequence of commands to execute.
+    /// </summary>
+    /// <param name="builder">Fluent builder to define the chain.</param>
+    protected abstract void Configure(CommandChainBuilder builder);
+
     private void ValidateRequiredParameters(IEnumerable<CommandInfo> commandInfos)
     {
         var missing = new List<string>();
@@ -57,7 +53,9 @@ public abstract class ChainedCommand : ICommand
 
                 var isRequired = option?.IsRequired ?? parameter?.IsRequired ?? false;
                 if (!isRequired)
+                {
                     continue;
+                }
 
                 var parentProp = GetType().GetProperty(prop.Name);
                 if (parentProp == null || parentProp.GetValue(this) == null)
@@ -83,39 +81,48 @@ public abstract class ChainedCommand : ICommand
             var parameter = childProp.GetCustomAttribute<CommandParameterAttribute>();
 
             if (option == null && parameter == null)
+            {
                 continue;
+            }
 
-            var parentProp = parentProps.FirstOrDefault(p => p.Name == childProp.Name && p.PropertyType == childProp.PropertyType);
+            var parentProp =
+                parentProps.FirstOrDefault(p => p.Name == childProp.Name
+                                                && p.PropertyType == childProp.PropertyType);
+
             if (parentProp == null)
+            {
                 continue;
+            }
 
             var value = parentProp.GetValue(this);
             if (value == null)
+            {
                 continue;
+            }
 
             childProp.SetValue(command, value);
         }
     }
-    
+
     /// <summary>
-    /// Fluent builder used to configure the chain of commands.
+    ///     Fluent builder used to configure the chain of commands.
     /// </summary>
     protected sealed class CommandChainBuilder
     {
         private readonly List<CommandInfo> _commandTypes = new();
 
         /// <summary>
-        /// Adds a command to the execution chain.
+        ///     Adds a command to the execution chain.
         /// </summary>
-        public CommandChainBuilder Add<TCommand>() where TCommand : ICommand
-            => AddIf<TCommand>(() => true);
+        public CommandChainBuilder Add<TCommand>() where TCommand : ICommand => AddIf<TCommand>(() => true);
 
         /// <summary>
-        /// Adds a command to the chain that will execute only when <paramref name="condition"/> returns true.
+        ///     Adds a command to the chain that will execute only when <paramref name="condition" /> returns true.
         /// </summary>
         public CommandChainBuilder AddIf<TCommand>(Func<bool> condition) where TCommand : ICommand
         {
             _commandTypes.Add(new CommandInfo(typeof(TCommand), condition));
+
             return this;
         }
 
@@ -124,4 +131,3 @@ public abstract class ChainedCommand : ICommand
 
     internal sealed record CommandInfo(Type CommandType, Func<bool> ShouldExecute);
 }
-

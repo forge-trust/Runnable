@@ -7,8 +7,5 @@ namespace WebAppExample;
 public class ExampleController : ControllerBase
 {
     [HttpGet]
-    public ActionResult<string> Get()
-    {
-        return "Hello, World Controller!";
-    }
+    public ActionResult<string> Get() => "Hello, World Controller!";
 }

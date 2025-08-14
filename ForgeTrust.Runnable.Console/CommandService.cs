@@ -7,8 +7,6 @@ namespace ForgeTrust.Runnable.Console;
 
 internal class CommandService : CriticalService
 {
-    internal static IServiceProvider PrimaryServiceProvider { get; set; } = null!;
-    
     private readonly IEnumerable<ICommand> _commands;
 
     public CommandService(
@@ -21,15 +19,17 @@ internal class CommandService : CriticalService
         _commands = commands;
     }
 
+    internal static IServiceProvider PrimaryServiceProvider { get; set; } = null!;
+
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {
         var builder = new CliApplicationBuilder();
-        
-        foreach(var cmd in _commands)
+
+        foreach (var cmd in _commands)
         {
             builder.AddCommand(cmd.GetType());
         }
-        
+
         await builder
             .UseTypeActivator(PrimaryServiceProvider)
             .Build()

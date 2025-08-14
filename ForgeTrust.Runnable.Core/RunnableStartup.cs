@@ -1,6 +1,5 @@
-using System.Collections.Generic;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -9,10 +8,13 @@ namespace ForgeTrust.Runnable.Core;
 public abstract class RunnableStartup<TRootModule> : IRunnableStartup
     where TRootModule : IRunnableHostModule, new()
 {
-    public Task RunAsync(string[] args)
+    async Task IRunnableStartup.RunAsync(StartupContext context)
     {
-        return RunAsync(new StartupContext(args, CreateRootModule()));
+        await RunAsync(context);
     }
+
+    IHostBuilder IRunnableStartup.CreateHostBuilder(StartupContext context) => CreateHostBuilderCore(context);
+    public Task RunAsync(string[] args) => RunAsync(new StartupContext(args, CreateRootModule()));
 
     public async Task RunAsync(StartupContext context)
     {
@@ -43,30 +45,15 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
             .CreateLogger(GetType().Name);
     }
 
-    async Task IRunnableStartup.RunAsync(StartupContext context)
-    {
-        await RunAsync(context);
-    }
-
-    private IHost CreateHost(StartupContext context)
-    {
-        return ((IRunnableStartup)this).CreateHostBuilder(context).Build();
-    }
-
-    IHostBuilder IRunnableStartup.CreateHostBuilder(StartupContext context)
-    {
-        return CreateHostBuilderCore(context);
-    }
+    private IHost CreateHost(StartupContext context) => ((IRunnableStartup)this).CreateHostBuilder(context).Build();
 
     private IHostBuilder CreateHostBuilderCore(StartupContext context)
     {
         var builder = Host.CreateDefaultBuilder();
         builder.ConfigureHostConfiguration(config =>
-            config.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [HostDefaults.ApplicationKey] = context.ApplicationName
-            }));
-        
+            config.AddInMemoryCollection(
+                new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName }));
+
         context.RootModule.RegisterDependentModules(context.Dependencies);
 
         ConfigureHostBeforeServicesCore(context, builder);
@@ -87,17 +74,17 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
         StartupContext context,
         IHostBuilder builder)
     {
-        foreach(var dep in context.Dependencies.Modules)
+        foreach (var dep in context.Dependencies.Modules)
         {
             if (dep is IRunnableHostModule host)
             {
                 host.ConfigureHostBeforeServices(context, builder);
             }
         }
-        
+
         context.RootModule.ConfigureHostBeforeServices(context, builder);
     }
-    
+
     private void ConfigureHostAfterServicesCore(
         StartupContext context,
         IHostBuilder builder)
@@ -109,7 +96,7 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
                 host.ConfigureHostAfterServices(context, builder);
             }
         }
-        
+
         context.RootModule.ConfigureHostAfterServices(context, builder);
     }
 
@@ -126,16 +113,15 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
         StartupContext context,
         IServiceCollection services)
     {
-        foreach(var dep in context.Dependencies.Modules)
+        foreach (var dep in context.Dependencies.Modules)
         {
             dep.ConfigureServices(context, services);
         }
-        
+
         context.RootModule.ConfigureServices(context, services);
     }
 
     protected abstract void ConfigureServicesForAppType(StartupContext context, IServiceCollection services);
 
     protected virtual IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder) => builder;
-    
 }

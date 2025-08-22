@@ -74,12 +74,10 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         mvcBuilder.AddApplicationPart(context.EntryPointAssembly);
         // Additional services can be configured here as needed.
 
-        if (_options.Cors.EnableCors)
+        if (_options.Cors.EnableCors
+            || (context.IsDevelopment && _options.Cors.EnableAllOriginsInDevelopment))
         {
-            var isDevelopment = string.Equals(
-                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-                Environments.Development,
-                StringComparison.OrdinalIgnoreCase);
+
 
             services.AddCors(o =>
                 o.AddPolicy(
@@ -87,7 +85,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                     builder =>
                     {
                         if (_options.Cors.AllowedOrigins.Length == 0
-                            || _options.Cors.EnableAllOriginsInDevelopment && isDevelopment)
+                            || _options.Cors.EnableAllOriginsInDevelopment && context.IsDevelopment)
                         {
                             builder.AllowAnyOrigin();
                         }
@@ -122,7 +120,8 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         app.UseRouting();
 
-        if (_options.Cors.EnableCors)
+        if (_options.Cors.EnableCors
+            || (context.IsDevelopment && _options.Cors.EnableAllOriginsInDevelopment))
         {
             app.UseCors(_options.Cors.PolicyName);
         }

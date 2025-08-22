@@ -4,7 +4,7 @@ using Autofac.Extensions.DependencyInjection;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.Hosting;
 
-namespace ForgeTrust.Runnable.Autofac;
+namespace ForgeTrust.Runnable.Dependency.Autofac;
 
 public abstract class RunnableAutofacHostModule : RunnableAutofacModule, IRunnableHostModule
 {

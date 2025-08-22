@@ -2,7 +2,7 @@
 using Autofac.Builder;
 using Autofac.Features.Scanning;
 
-namespace ForgeTrust.Runnable.Autofac;
+namespace ForgeTrust.Runnable.Dependency.Autofac;
 
 public static class RunnableAutofacExtensions
 {

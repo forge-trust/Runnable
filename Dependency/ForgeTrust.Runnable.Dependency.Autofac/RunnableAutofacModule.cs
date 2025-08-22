@@ -2,7 +2,7 @@
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ForgeTrust.Runnable.Autofac;
+namespace ForgeTrust.Runnable.Dependency.Autofac;
 
 /// <summary>
 ///     This class is simply a wrapper around the standard Autofac Module.

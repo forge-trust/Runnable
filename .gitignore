@@ -56,3 +56,6 @@ nunit-*.xml
 # Rider
 .idea/
 *.sln.DotSettings.user
+
+# BenchmarkDotNet Artifacts
+BenchmarkDotNet.Artifacts/

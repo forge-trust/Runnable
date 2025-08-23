@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../examples/console-app/ConsoleAppExample.csproj" />
+    <ProjectReference Include="../../examples/web-app/WebAppExample.csproj" />
+    <ProjectReference Include="../../ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj" />
+    <ProjectReference Include="../../Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="Spectre.Console.Cli" Version="0.47.0" />
+    <PackageReference Include="Carter" Version="9.0.0" />
+    <PackageReference Include="Volo.Abp.AspNetCore" Version="9.3.1" />
+    <PackageReference Include="Volo.Abp.Core" Version="9.3.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="BenchmarkDotNet.Artifacts\results\WebBenchmarks-report.csv" />
+    <None Remove="BenchmarkDotNet.Artifacts\results\StartupBenchmarks.WebBenchmarks-report.html" />
+    <None Remove="BenchmarkDotNet.Artifacts\StartupBenchmarks.WebBenchmarks-20250823-123543.log" />
+  </ItemGroup>
+</Project>

@@ -4,7 +4,7 @@
     <Project Path="Console\\ForgeTrust.Runnable.Console\\ForgeTrust.Runnable.Console.csproj" Type="Classic C#" />
   </Folder>
   <Folder Name="/Dependency/">
-    <Project Path="Dependency\\ForgeTrust.Runnable.Autofac\\ForgeTrust.Runnable.Autofac.csproj" Type="Classic C#" />
+    <Project Path="Dependency\\ForgeTrust.Runnable.Dependency.Autofac\\ForgeTrust.Runnable.Dependency.Autofac.csproj" Type="Classic C#" />
   </Folder>
   <Folder Name="/Examples/">
     <Project Path="examples\\console-app\\ConsoleAppExample.csproj" Type="Classic C#" />

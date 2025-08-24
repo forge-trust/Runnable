@@ -51,7 +51,7 @@ public class Program
 
     private static Job CreateJob(string id, string define)
     {
-        const int launchCount = 5;
+        const int launchCount = 200;
 
         return Job.Default
             .WithStrategy(RunStrategy.ColdStart)

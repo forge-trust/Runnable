@@ -4,12 +4,11 @@ using Microsoft.AspNetCore.Routing;
 
 public record WebOptions
 {
-    public static WebOptions Default => new();
+    public static readonly WebOptions Default = new();
+
+    public MvcOptions Mvc { get; set; } = MvcOptions.Default;
 
     public CorsOptions Cors { get; set; } = CorsOptions.Default;
 
-    public Action<IEndpointRouteBuilder> MapEndpoints { get; set; } = _ =>
-    {
-        // Default endpoint mapping can be empty or provide a basic route
-    };
+    public Action<IEndpointRouteBuilder>? MapEndpoints { get; set; }
 }

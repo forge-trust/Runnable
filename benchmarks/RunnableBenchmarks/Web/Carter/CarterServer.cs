@@ -1,6 +1,8 @@
 ﻿using Carter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using SimpleApiController;
 
 namespace RunnableBenchmarks.Web.Carter;
 
@@ -8,11 +10,27 @@ public class CarterServer
 {
     private WebApplication? _app;
 
-    public async Task StartAsync()
+    public async Task StartMinimalAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddCarter();
         _app = builder.Build();
+        _app.MapCarter();
+
+        await _app.StartAsync();
+    }
+
+    public async Task StartControllersAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        var mvc = builder.Services.AddControllers();
+        mvc.AddApplicationPart(typeof(HelloController).Assembly);
+
+        builder.Services.AddCarter();
+
+        _app = builder.Build();
+
+        _app.MapControllers();
         _app.MapCarter();
 
         await _app.StartAsync();

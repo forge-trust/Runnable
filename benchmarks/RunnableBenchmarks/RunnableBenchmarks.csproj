@@ -10,6 +10,9 @@
     <ProjectReference Include="../../examples/web-app/WebAppExample.csproj" />
     <ProjectReference Include="../../ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj" />
     <ProjectReference Include="../../Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj" />
+    <ProjectReference Include="..\AbpSimpleController\AbpSimpleController.csproj" />
+    <ProjectReference Include="..\DependencyInjectionControllers\DependencyInjectionControllers.csproj" />
+    <ProjectReference Include="..\SimpleApiController\SimpleApiController.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />

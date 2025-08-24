@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.Builder;
+﻿using AbpSimpleController;
+using DependencyInjectionControllers;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using SimpleApiController;
 using Volo.Abp.AspNetCore;
 using Volo.Abp.Modularity;
 
@@ -9,13 +12,59 @@ public class AbpServer
 {
     private WebApplication? _app;
 
-    public async Task StartAsync()
+    public async Task StartMinimalAsync()
     {
         var builder = WebApplication.CreateBuilder();
         await builder.Services.AddApplicationAsync<AbpBenchmarkModule>();
         _app = builder.Build();
 
         _app.MapGet("/hello", () => "Hello World!");
+
+        await _app.InitializeApplicationAsync();
+        await _app.StartAsync();
+    }
+
+    public async Task StartControllersAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        var mvc = builder.Services.AddControllers();
+        mvc.AddApplicationPart(typeof(HelloController).Assembly);
+        await builder.Services.AddApplicationAsync<AbpBenchmarkModule>();
+        _app = builder.Build();
+
+        _app.UseRouting();
+        _app.UseConfiguredEndpoints(ep => ep.MapControllers());
+
+        await _app.InitializeApplicationAsync();
+        await _app.StartAsync();
+    }
+
+    public async Task StartAbpControllersAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        var mvc = builder.Services.AddControllers();
+        mvc.AddApplicationPart(typeof(HelloAbpController).Assembly);
+        await builder.Services.AddApplicationAsync<AbpBenchmarkModule>();
+        _app = builder.Build();
+
+        _app.UseRouting();
+        _app.UseConfiguredEndpoints(ep => ep.MapControllers());
+
+        await _app.InitializeApplicationAsync();
+        await _app.StartAsync();
+    }
+
+    public async Task StartDependencyInjectionAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        var mvc = builder.Services.AddControllers();
+        mvc.AddApplicationPart(typeof(DependencyInjectionController).Assembly);
+        await builder.Services.AddApplicationAsync<AbpDependencyModule>();
+        _app = builder.Build();
+
+        _app.UseRouting();
+        _app.UseConfiguredEndpoints(ep => ep.MapControllers());
+
         await _app.InitializeApplicationAsync();
         await _app.StartAsync();
     }
@@ -34,3 +83,14 @@ public class AbpServer
 public class AbpBenchmarkModule : AbpModule
 {
 }
+
+[DependsOn(typeof(AbpAspNetCoreModule))]
+public class AbpDependencyModule : AbpModule
+{
+    public override void ConfigureServices(ServiceConfigurationContext context)
+    {
+        context.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
+    }
+}
+
+

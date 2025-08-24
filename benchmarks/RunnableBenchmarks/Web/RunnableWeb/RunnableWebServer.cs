@@ -1,4 +1,5 @@
-﻿using ForgeTrust.Runnable.Core;
+﻿using DependencyInjectionControllers;
+using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -11,11 +12,14 @@ public class RunnableWebServer
 {
     private IHost? _host;
 
-    public async Task StartAsync()
+    public async Task StartMinimalAsync()
     {
-        var startup = new BenchmarkWebStartup()
+        var startup = new BenchmarkWebStartup<RunnableBenchmarkModule>()
             .WithOptions(options =>
             {
+                // Disabling MVC support when testing minimal APIs to avoid any overhead.
+                options.Mvc.MvcSupportLevel = MvcSupport.None;
+
                 options.MapEndpoints = endpoints =>
                 {
                     endpoints.MapGet("/hello", () => "Hello World!");
@@ -24,6 +28,42 @@ public class RunnableWebServer
 
         // We need to create the host builder manually to get access to start/stop.
         var context = new StartupContext([], new RunnableBenchmarkModule());
+        _host = ((IRunnableStartup)startup).CreateHostBuilder(context).Build();
+
+        await _host.StartAsync();
+    }
+
+    public async Task StartControllersAsync()
+    {
+        var startup = new BenchmarkWebStartup<RunnableBenchmarkModule>()
+            .WithOptions(options =>
+            {
+                options.Mvc.ConfigureMvc = mvc =>
+                {
+                    mvc.AddApplicationPart(typeof(SimpleApiController.HelloController).Assembly);
+                };
+            });
+
+        // We need to create the host builder manually to get access to start/stop.
+        var context = new StartupContext([], new RunnableBenchmarkModule());
+        _host = ((IRunnableStartup)startup).CreateHostBuilder(context).Build();
+
+        await _host.StartAsync();
+    }
+
+    public async Task StartDependencyInjectionAsync()
+    {
+        var startup = new BenchmarkWebStartup<RunnableDependencyBenchmarkModule>()
+            .WithOptions(options =>
+            {
+                options.Mvc.ConfigureMvc = mvc =>
+                {
+                    mvc.AddApplicationPart(typeof(DependencyInjectionController).Assembly);
+                };
+            });
+
+        // We need to create the host builder manually to get access to start/stop.
+        var context = new StartupContext([], new RunnableDependencyBenchmarkModule());
         _host = ((IRunnableStartup)startup).CreateHostBuilder(context).Build();
 
         await _host.StartAsync();
@@ -38,7 +78,8 @@ public class RunnableWebServer
         }
     }
 
-    private class BenchmarkWebStartup : WebStartup<RunnableBenchmarkModule>;
+    private class BenchmarkWebStartup<T> : WebStartup<T>
+        where T : IRunnableWebModule, new();
 
     private class RunnableBenchmarkModule : IRunnableWebModule
     {
@@ -52,10 +93,6 @@ public class RunnableWebServer
 
         public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
         {
-            builder.ConfigureWebHostDefaults(webBuilder =>
-            {
-                webBuilder.UseUrls("http://localhost:5000");
-            });
         }
 
         public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
@@ -64,6 +101,35 @@ public class RunnableWebServer
 
         public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
         {
+        }
+    }
+
+    private class RunnableDependencyBenchmarkModule : IRunnableWebModule
+    {
+
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
+        {
+            services.AddSingleton<IMyDependencyService, MyDependencyService>();
+        }
+
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
+        {
+
+        }
+
+        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
+        {
+
+        }
+
+        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
+
+        }
+
+        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+        {
+
         }
     }
 }

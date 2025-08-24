@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/Benchmarks/">
+    <Project Path="benchmarks\AbpSimpleController\AbpSimpleController.csproj" Type="Classic C#" />
+    <Project Path="benchmarks\DependencyInjectionControllers\DependencyInjectionControllers.csproj" Type="Classic C#" />
     <Project Path="benchmarks\RunnableBenchmarks\RunnableBenchmarks.csproj" Type="Classic C#" />
+    <Project Path="benchmarks\SimpleApiController\SimpleApiController.csproj" Type="Classic C#" />
   </Folder>
   <Folder Name="/Console/">
     <Project Path="Console\\ForgeTrust.Runnable.Console.Tests\\ForgeTrust.Runnable.Console.Tests.csproj" Type="Classic C#" />

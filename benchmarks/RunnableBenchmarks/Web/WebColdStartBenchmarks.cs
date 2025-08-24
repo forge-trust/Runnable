@@ -1,141 +1,84 @@
 ﻿using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Engines;
-using RunnableBenchmarks.Web.Abp;
-using RunnableBenchmarks.Web.Carter;
-using RunnableBenchmarks.Web.NativeDotnet;
+
+#if RUNNABLE_WEB
 using RunnableBenchmarks.Web.RunnableWeb;
+#elif CARTER_WEB
+using RunnableBenchmarks.Web.Carter;
+#elif ABP_WEB
+using RunnableBenchmarks.Web.Abp;
+#else
+using RunnableBenchmarks.Web.NativeDotnet;
+#endif
 
 namespace RunnableBenchmarks.Web;
 
 [MemoryDiagnoser]
-[SimpleJob(RunStrategy.ColdStart, launchCount: 200, warmupCount: 0, iterationCount: 1)]
-[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
+//[SimpleJob(RunStrategy.ColdStart, launchCount: 1, warmupCount: 0, iterationCount: 1)]
+[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByMethod,  BenchmarkLogicalGroupRule.ByJob)]
 [CategoriesColumn]
+[HideColumns(Column.Arguments)]
 public class WebColdStartBenchmarks
 {
     private HttpClient _client = new();
+    private const bool _isBaseLine =
+#if !RUNNABLE_WEB && !CARTER_WEB && !ABP_WEB
+        true;
+    #else
+        false;
+#endif
 
-    [Benchmark(Description = "Runnable.Web")]
-    [BenchmarkCategory("Minimal Endpoint")]
-    public async Task RunnableWebMinimal()
+    private static readonly IWebBenchmarkServer _server =
+#if RUNNABLE_WEB
+        new RunnableWebServer();
+#elif CARTER_WEB
+        new CarterServer();
+#elif ABP_WEB
+        new AbpServer();
+#else
+        new NativeDotnetServer();
+#endif
+
+    [Benchmark(Description = "Minimal_Endpoint")]
+    [BenchmarkCategory("Minimal API")]
+    public async Task Minimal()
     {
-        var server = new RunnableWebServer();
-        await server.StartMinimalAsync();
+        await _server.StartMinimalAsync();
         await TestEndpoint("hello");
-        await server.StopAsync();
+        await _server.StopAsync();
     }
 
-    [Benchmark(Description = "Native", Baseline = true)]
-    [BenchmarkCategory("Minimal Endpoint")]
-    public async Task NativeMinimal()
-    {
-        var server = new NativeDotnetServer();
-        await server.StartMinimalAsync();
-        await TestEndpoint("hello");
-        await server.StopAsync();
-    }
-
-    [Benchmark(Description = "Carter")]
-    [BenchmarkCategory("Minimal Endpoint")]
-    public async Task CarterMinimal()
-    {
-        var server = new CarterServer();
-        await server.StartMinimalAsync();
-        await TestEndpoint("hello");
-        await server.StopAsync();
-    }
-
-    [Benchmark(Description = "ABP")]
-    [BenchmarkCategory("Minimal Endpoint")]
-    public async Task AbpMinimal()
-    {
-        var server = new AbpServer();
-        await server.StartMinimalAsync();
-        await TestEndpoint("hello");
-        await server.StopAsync();
-    }
-
-    [Benchmark(Description = "Runnable.Web")]
+    [Benchmark(Description = "One_Controller")]
     [BenchmarkCategory("Controllers")]
-    public async Task RunnableWebControllers()
+    public async Task Controllers()
     {
-        var server = new RunnableWebServer();
-        await server.StartControllersAsync();
+        await _server.StartControllersAsync();
         await TestEndpoint("api/hello");
-        await server.StopAsync();
+        await _server.StopAsync();
     }
 
-    [Benchmark(Description = "Native", Baseline = true)]
-    [BenchmarkCategory("Controllers")]
-    public async Task NativeControllers()
-    {
-        var server = new NativeDotnetServer();
-        await server.StartControllersAsync();
-        await TestEndpoint("api/hello");
-        await server.StopAsync();
-    }
-
-    [Benchmark(Description = "Carter")]
-    [BenchmarkCategory("Controllers")]
-    public async Task CarterControllers()
-    {
-        var server = new CarterServer();
-        await server.StartControllersAsync();
-        await TestEndpoint("api/hello");
-        await server.StopAsync();
-    }
-
-    [Benchmark(Description = "ABP")]
-    [BenchmarkCategory("Controllers")]
-    public async Task AbpControllers()
-    {
-        var server = new AbpServer();
-        await server.StartControllersAsync();
-        await TestEndpoint("api/hello");
-        await server.StopAsync();
-    }
-
-    [Benchmark(Description = "ABP_AbpControllerBase")]
-    [BenchmarkCategory("Controllers")]
-    public async Task AbpAbpControllers()
-    {
-        var server = new AbpServer();
-        await server.StartAbpControllersAsync();
-        await TestEndpoint("api/hello");
-        await server.StopAsync();
-    }
-
-    [Benchmark(Description = "Runnable.Web")]
+    [Benchmark(Description = "Dependency_Injection")]
     [BenchmarkCategory("Dependency Injection")]
-    public async Task RunnableWebDependencyInjection()
+    public async Task DependencyInjection()
     {
-        var server = new RunnableWebServer();
-        await server.StartDependencyInjectionAsync();
+        await _server.StartDependencyInjectionAsync();
         await TestEndpoint("api/injected");
-        await server.StopAsync();
+        await _server.StopAsync();
     }
 
-    [Benchmark(Description = "Native", Baseline = true)]
-    [BenchmarkCategory("Dependency Injection")]
-    public async Task NativeDependencyInjection()
-    {
-        var server = new NativeDotnetServer();
-        await server.StartDependencyInjectionAsync();
-        await TestEndpoint("api/injected");
-        await server.StopAsync();
-    }
-
-    [Benchmark(Description = "ABP")]
-    [BenchmarkCategory("Dependency Injection")]
-    public async Task AbpDependencyInjection()
-    {
-        var server = new AbpServer();
-        await server.StartDependencyInjectionAsync();
-        await TestEndpoint("api/injected");
-        await server.StopAsync();
-    }
-
+// #if ABP_WEB
+//     [Benchmark(Description = "Abp_Controller", Baseline = _isBaseLine)]
+//     [BenchmarkCategory("Controllers")]
+//     public async Task AbpControllerBase()
+//     {
+//         var server = new AbpServer();
+//         await server.StartAbpControllersAsync();
+//         await TestEndpoint("api/hello");
+//         await server.StopAsync();
+//     }
+// #endif
 
     private async Task TestEndpoint(string endpoint)
     {
@@ -143,3 +86,4 @@ public class WebColdStartBenchmarks
         result.EnsureSuccessStatusCode();
     }
 }
+

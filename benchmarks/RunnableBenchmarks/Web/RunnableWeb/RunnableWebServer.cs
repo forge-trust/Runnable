@@ -1,14 +1,16 @@
-﻿using DependencyInjectionControllers;
+﻿#if RUNNABLE_WEB
+using DependencyInjectionControllers;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using RunnableBenchmarks.Web;
 
 namespace RunnableBenchmarks.Web.RunnableWeb;
 
-public class RunnableWebServer
+public class RunnableWebServer : IWebBenchmarkServer
 {
     private IHost? _host;
 
@@ -106,7 +108,6 @@ public class RunnableWebServer
 
     private class RunnableDependencyBenchmarkModule : IRunnableWebModule
     {
-
         public void ConfigureServices(StartupContext context, IServiceCollection services)
         {
             services.AddSingleton<IMyDependencyService, MyDependencyService>();
@@ -114,22 +115,19 @@ public class RunnableWebServer
 
         public void RegisterDependentModules(ModuleDependencyBuilder builder)
         {
-
         }
 
         public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
         {
-
         }
 
         public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
         {
-
         }
 
         public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
         {
-
         }
     }
 }
+#endif

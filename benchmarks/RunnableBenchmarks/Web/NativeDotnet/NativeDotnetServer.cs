@@ -5,7 +5,7 @@ using SimpleApiController;
 
 namespace RunnableBenchmarks.Web.NativeDotnet;
 
-public class NativeDotnetServer
+public class NativeDotnetServer : IWebBenchmarkServer
 {
     private WebApplication? _app;
 

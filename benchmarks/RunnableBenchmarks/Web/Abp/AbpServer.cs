@@ -1,14 +1,16 @@
-﻿using AbpSimpleController;
+﻿#if ABP_WEB
+using AbpSimpleController;
 using DependencyInjectionControllers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using SimpleApiController;
 using Volo.Abp.AspNetCore;
 using Volo.Abp.Modularity;
+using RunnableBenchmarks.Web;
 
 namespace RunnableBenchmarks.Web.Abp;
 
-public class AbpServer
+public class AbpServer : IWebBenchmarkServer
 {
     private WebApplication? _app;
 
@@ -92,5 +94,4 @@ public class AbpDependencyModule : AbpModule
         context.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
     }
 }
-
-
+#endif

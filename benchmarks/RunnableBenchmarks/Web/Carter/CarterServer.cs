@@ -1,12 +1,15 @@
-﻿using Carter;
+﻿#if CARTER_WEB
+using Carter;
+using DependencyInjectionControllers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using SimpleApiController;
+using RunnableBenchmarks.Web;
 
 namespace RunnableBenchmarks.Web.Carter;
 
-public class CarterServer
+public class CarterServer : IWebBenchmarkServer
 {
     private WebApplication? _app;
 
@@ -36,6 +39,23 @@ public class CarterServer
         await _app.StartAsync();
     }
 
+    public async Task StartDependencyInjectionAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
+        var mvc = builder.Services.AddControllers();
+        mvc.AddApplicationPart(typeof(DependencyInjectionController).Assembly);
+
+        builder.Services.AddCarter();
+
+        _app = builder.Build();
+
+        _app.MapControllers();
+        _app.MapCarter();
+
+        await _app.StartAsync();
+    }
+
     public async Task StopAsync()
     {
         if (_app is not null)
@@ -53,4 +73,4 @@ public class HelloModule : ICarterModule
         app.MapGet("/hello", () => "Hello World!");
     }
 }
-
+#endif

@@ -1,0 +1,9 @@
+﻿namespace RunnableBenchmarks.Web;
+
+internal interface IWebBenchmarkServer
+{
+    Task StartMinimalAsync();
+    Task StartControllersAsync();
+    Task StopAsync();
+    Task StartDependencyInjectionAsync();
+}

@@ -69,16 +69,27 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         BuildModules(context);
         BuildWebOptions(context);
 
-        var mvcBuilder = services.AddMvc();
-        // This is required to find the controllers in the main service projects.
-        mvcBuilder.AddApplicationPart(context.EntryPointAssembly);
-        // Additional services can be configured here as needed.
+        var mvcOpts = _options.Mvc;
+
+        if (mvcOpts.MvcSupportLevel > MvcSupport.None)
+        {
+            var mvcBuilder = mvcOpts.MvcSupportLevel switch
+            {
+                MvcSupport.Controllers => services.AddControllers(),
+                MvcSupport.ControllersWithViews => services.AddControllersWithViews(),
+                MvcSupport.Full => services.AddMvc(),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            // This is required to find the controllers in the main service projects.
+            mvcBuilder.AddApplicationPart(context.EntryPointAssembly);
+
+            mvcOpts.ConfigureMvc?.Invoke(mvcBuilder);
+        }
 
         if (_options.Cors.EnableCors
             || (context.IsDevelopment && _options.Cors.EnableAllOriginsInDevelopment))
         {
-
-
             services.AddCors(o =>
                 o.AddPolicy(
                     _options.Cors.PolicyName,
@@ -135,9 +146,12 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             }
 
             // Map direct endpoints, if provided.
-            _options.MapEndpoints.Invoke(endpoints);
+            _options.MapEndpoints?.Invoke(endpoints);
 
-            endpoints.MapControllers();
+            if (_options.Mvc.MvcSupportLevel > MvcSupport.None)
+            {
+                endpoints.MapControllers();
+            }
         });
     }
 }

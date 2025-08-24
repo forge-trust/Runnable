@@ -16,19 +16,11 @@ using RunnableBenchmarks.Web.NativeDotnet;
 namespace RunnableBenchmarks.Web;
 
 [MemoryDiagnoser]
-//[SimpleJob(RunStrategy.ColdStart, launchCount: 1, warmupCount: 0, iterationCount: 1)]
-[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByMethod,  BenchmarkLogicalGroupRule.ByJob)]
 [CategoriesColumn]
 [HideColumns(Column.Arguments)]
 public class WebColdStartBenchmarks
 {
     private HttpClient _client = new();
-    private const bool _isBaseLine =
-#if !RUNNABLE_WEB && !CARTER_WEB && !ABP_WEB
-        true;
-    #else
-        false;
-#endif
 
     private static readonly IWebBenchmarkServer _server =
 #if RUNNABLE_WEB
@@ -86,4 +78,3 @@ public class WebColdStartBenchmarks
         result.EnsureSuccessStatusCode();
     }
 }
-

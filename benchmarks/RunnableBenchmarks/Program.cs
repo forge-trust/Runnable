@@ -2,6 +2,7 @@
 using BenchmarkDotNet.Engines;
 using BenchmarkDotNet.Filters;
 using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Running;
 
 namespace RunnableBenchmarks;
@@ -10,8 +11,11 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        var config = ManualConfig.Create(
-                DefaultConfig.Instance.WithOptions(ConfigOptions.DisableParallelBuild))
+        var cfg = DefaultConfig.Instance
+            .WithOptions(ConfigOptions.JoinSummary)
+            .AddLogicalGroupRules(BenchmarkLogicalGroupRule.ByMethod, BenchmarkLogicalGroupRule.ByCategory);
+
+        var config = ManualConfig.Create(DefaultConfig.Instance)
             // .AddJob(CreateJob("Runnable.Console", "RUNNABLE_CONSOLE"))
             // .AddJob(CreateJob("Spectre.Console", "SPECTRE_CLI"))
             .AddJob(CreateJob("Runnable.Web", "RUNNABLE_WEB"))

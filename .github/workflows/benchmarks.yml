@@ -26,15 +26,7 @@ jobs:
     permissions:
       contents: read  # for this repo
       pull-requests: write
-    env:
-      RESULTS_OWNER: your-org
-      RESULTS_REPO: benchmarks
-      # base branch in the results repo mirrors the source branch name
-      RESULTS_BASE_BRANCH: ${{ github.ref_name }}
-      # publish to a short-lived branch so we can open a PR
-      RESULTS_PR_BRANCH: pr/benchmarks/${{ github.ref_name }}-${{ github.sha }}
-      SUITE_NAME: ${{ github.repository }}   # used for grouping
-      RESULTS_PATH: ./${{ github.event.repository.name }}/data.json
+
     steps:
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -48,7 +40,7 @@ jobs:
 
       - name: Run benchmarks (JSON)
         run: |
-          dotnet run --project benchmarks/RunnableBenchmarks/RunnableBenchmarks.csproj -c Release -- --filter benchmarks/RunnableBenchmarks/*
+          dotnet run --project 'benchmarks/RunnableBenchmarks/RunnableBenchmarks.csproj' -c Release -- --filter '*'
 
       - name: Publish BenchmarkDotNet artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

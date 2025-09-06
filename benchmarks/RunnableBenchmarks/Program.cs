@@ -1,5 +1,6 @@
 ﻿using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Engines;
+using BenchmarkDotNet.Exporters.Json;
 using BenchmarkDotNet.Filters;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
@@ -9,13 +10,16 @@ namespace RunnableBenchmarks;
 
 public class Program
 {
+    private const int LaunchCount = 100;
+
     public static void Main(string[] args)
     {
-        var cfg = DefaultConfig.Instance
-            .WithOptions(ConfigOptions.JoinSummary)
-            .AddLogicalGroupRules(BenchmarkLogicalGroupRule.ByMethod, BenchmarkLogicalGroupRule.ByCategory);
+        // var cfg = DefaultConfig.Instance
+        //     .WithOptions(ConfigOptions.JoinSummary)
+        //     .AddLogicalGroupRules(BenchmarkLogicalGroupRule.ByMethod, BenchmarkLogicalGroupRule.ByCategory);
 
         var config = ManualConfig.Create(DefaultConfig.Instance)
+            .AddExporter(JsonExporter.Default)
             // .AddJob(CreateJob("Runnable.Console", "RUNNABLE_CONSOLE"))
             // .AddJob(CreateJob("Spectre.Console", "SPECTRE_CLI"))
             .AddJob(CreateJob("Runnable.Web", "RUNNABLE_WEB"))
@@ -51,12 +55,10 @@ public class Program
 
     private static Job CreateJob(string id, string define)
     {
-        const int launchCount = 200;
-
         return Job.Default
             .WithStrategy(RunStrategy.ColdStart)
 
-            .WithLaunchCount(launchCount)
+            .WithLaunchCount(LaunchCount)
             .WithWarmupCount(0)
             .WithIterationCount(1)
             .WithId(id)

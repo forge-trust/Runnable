@@ -1,0 +1,72 @@
+﻿# .github/workflows/benchmarks.yml
+name: Benchmarks
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION: 1
+  NUGET_XMLDOC_MODE: skip
+  TERM: xterm
+
+on:
+  push:
+    branches: [ "main", "benchmarks" ]
+    paths-ignore:
+      - '**/*.gitattributes'
+      - '**/*.gitignore'
+      - '**/*.md'
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  run-and-publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read  # for this repo
+      pull-requests: write
+    env:
+      RESULTS_OWNER: your-org
+      RESULTS_REPO: benchmarks
+      # base branch in the results repo mirrors the source branch name
+      RESULTS_BASE_BRANCH: ${{ github.ref_name }}
+      # publish to a short-lived branch so we can open a PR
+      RESULTS_PR_BRANCH: pr/benchmarks/${{ github.ref_name }}-${{ github.sha }}
+      SUITE_NAME: ${{ github.repository }}   # used for grouping
+      RESULTS_PATH: ./${{ github.event.repository.name }}/data.json
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+
+      - name: Run benchmarks (JSON)
+        run: |
+          dotnet run -c Release --project benchmarks/RunnableBenchmarks.csproj -- --exporters json
+
+      - name: Publish BenchmarkDotNet artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: artifacts
+          path: ./BenchmarkDotNet.Artifacts/results/*
+          if-no-files-found: error
+
+      - name: Get repository name
+        id: get-repo-name
+        shell: pwsh
+        run: |
+          $repoName = ${env:GITHUB_REPOSITORY}.Split("/")[-1]
+          "repo-name=${repoName}" >> ${env:GITHUB_OUTPUT}
+
+      - name: Publish results
+        uses: martincostello/benchmarkdotnet-results-publisher@ac86c486fd2192a48c0945be2824752632aa1314 # v2.0.0
+        with:
+          branch: ${{ github.ref_name }}
+          comment-on-threshold: true
+          name: API
+          output-file-path: '${{ steps.get-repo-name.outputs.repo-name }}/data.json'
+          repo: '${{ github.repository_owner }}/benchmarks'
+          repo-token: ${{ secrets.BENCHMARKS_TOKEN }}

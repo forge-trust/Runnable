@@ -48,7 +48,7 @@ jobs:
 
       - name: Run benchmarks (JSON)
         run: |
-          dotnet run -c Release --project benchmarks/RunnableBenchmarks/RunnableBenchmarks.csproj -- --filter * --exporters json
+          dotnet run -c Release --project benchmarks/RunnableBenchmarks/RunnableBenchmarks.csproj -- --filter *
 
       - name: Publish BenchmarkDotNet artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -77,7 +77,7 @@ public class AbpServer : IWebBenchmarkServer
         var builder = WebApplication.CreateBuilder();
         var mvc = builder.Services.AddControllers();
         mvc.AddApplicationPart(typeof(ManyInjected01Controller).Assembly);
-        await builder.Services.AddApplicationAsync<AbpDependencyModule>();
+        await builder.Services.AddApplicationAsync<AbpManyDependencyModule>();
         _app = builder.Build();
 
         _app.UseRouting();
@@ -108,6 +108,15 @@ public class AbpDependencyModule : AbpModule
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
         context.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
+    }
+}
+
+[DependsOn(typeof(AbpAspNetCoreModule))]
+public class AbpManyDependencyModule : AbpModule
+{
+    public override void ConfigureServices(ServiceConfigurationContext context)
+    {
+        context.Services.AddManyDiServices();
     }
 }
 #endif

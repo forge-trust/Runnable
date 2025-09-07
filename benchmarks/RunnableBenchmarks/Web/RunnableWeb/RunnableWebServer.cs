@@ -152,7 +152,7 @@ public class RunnableWebServer : IWebBenchmarkServer
     {
         public void ConfigureServices(StartupContext context, IServiceCollection services)
         {
-            services.AddSingleton<IMyDependencyService, MyDependencyService>();
+            services.AddManyDiServices();
         }
 
         public void RegisterDependentModules(ModuleDependencyBuilder builder)

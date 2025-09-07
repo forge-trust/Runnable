@@ -60,7 +60,7 @@ public class CarterServer : IWebBenchmarkServer
     public async Task StartManyDependencyInjectionAsync()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
+        builder.Services.AddManyDiServices();
         var mvc = builder.Services.AddControllers();
         mvc.AddApplicationPart(typeof(ManyInjected01Controller).Assembly);
 

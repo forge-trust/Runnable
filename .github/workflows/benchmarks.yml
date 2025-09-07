@@ -62,7 +62,7 @@ jobs:
         with:
           branch: ${{ github.ref_name }}
           comment-on-threshold: true
-          name: API
+          name: Runnable
           output-file-path: '${{ steps.get-repo-name.outputs.repo-name }}/data.json'
           repo: '${{ github.repository_owner }}/benchmarks'
           repo-token: ${{ secrets.BENCHMARKS_TOKEN }}

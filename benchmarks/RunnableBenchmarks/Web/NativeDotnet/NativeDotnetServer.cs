@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using SimpleApiController;
+using ManyDependencyInjectionControllers;
 
 namespace RunnableBenchmarks.Web.NativeDotnet;
 
@@ -38,6 +39,21 @@ public class NativeDotnetServer : IWebBenchmarkServer
         builder.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
         var mvc = builder.Services.AddControllers();
         mvc.AddApplicationPart(typeof(DependencyInjectionController).Assembly);
+
+        _app = builder.Build();
+
+        _app.UseRouting();
+        _app.MapControllers();
+
+        await _app.StartAsync();
+    }
+
+    public async Task StartManyDependencyInjectionAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
+        var mvc = builder.Services.AddControllers();
+        mvc.AddApplicationPart(typeof(ManyInjected01Controller).Assembly);
 
         _app = builder.Build();
 

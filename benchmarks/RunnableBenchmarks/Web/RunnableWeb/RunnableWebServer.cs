@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RunnableBenchmarks.Web;
+using ManyDependencyInjectionControllers;
 
 namespace RunnableBenchmarks.Web.RunnableWeb;
 
@@ -71,6 +72,23 @@ public class RunnableWebServer : IWebBenchmarkServer
         await _host.StartAsync();
     }
 
+    public async Task StartManyDependencyInjectionAsync()
+    {
+        var startup = new BenchmarkWebStartup<RunnableManyDependencyBenchmarkModule>()
+            .WithOptions(options =>
+            {
+                options.Mvc.ConfigureMvc = mvc =>
+                {
+                    mvc.AddApplicationPart(typeof(ManyInjected01Controller).Assembly);
+                };
+            });
+
+        var context = new StartupContext([], new RunnableManyDependencyBenchmarkModule());
+        _host = ((IRunnableStartup)startup).CreateHostBuilder(context).Build();
+
+        await _host.StartAsync();
+    }
+
     public async Task StopAsync()
     {
         if (_host is not null)
@@ -107,6 +125,30 @@ public class RunnableWebServer : IWebBenchmarkServer
     }
 
     private class RunnableDependencyBenchmarkModule : IRunnableWebModule
+    {
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
+        {
+            services.AddSingleton<IMyDependencyService, MyDependencyService>();
+        }
+
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
+        {
+        }
+
+        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+        {
+        }
+    }
+
+    private class RunnableManyDependencyBenchmarkModule : IRunnableWebModule
     {
         public void ConfigureServices(StartupContext context, IServiceCollection services)
         {

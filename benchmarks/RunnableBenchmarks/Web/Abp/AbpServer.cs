@@ -7,6 +7,7 @@ using SimpleApiController;
 using Volo.Abp.AspNetCore;
 using Volo.Abp.Modularity;
 using RunnableBenchmarks.Web;
+using ManyDependencyInjectionControllers;
 
 namespace RunnableBenchmarks.Web.Abp;
 
@@ -61,6 +62,21 @@ public class AbpServer : IWebBenchmarkServer
         var builder = WebApplication.CreateBuilder();
         var mvc = builder.Services.AddControllers();
         mvc.AddApplicationPart(typeof(DependencyInjectionController).Assembly);
+        await builder.Services.AddApplicationAsync<AbpDependencyModule>();
+        _app = builder.Build();
+
+        _app.UseRouting();
+        _app.UseConfiguredEndpoints(ep => ep.MapControllers());
+
+        await _app.InitializeApplicationAsync();
+        await _app.StartAsync();
+    }
+
+    public async Task StartManyDependencyInjectionAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        var mvc = builder.Services.AddControllers();
+        mvc.AddApplicationPart(typeof(ManyInjected01Controller).Assembly);
         await builder.Services.AddApplicationAsync<AbpDependencyModule>();
         _app = builder.Build();
 

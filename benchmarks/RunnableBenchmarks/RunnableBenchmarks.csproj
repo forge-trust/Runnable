@@ -4,11 +4,13 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <DefineConstants>CARTER_WEB</DefineConstants>
+    <DefineConstants>CARTER_WEB;RUNNABLE_WEB;ABP_WEB</DefineConstants>
   </PropertyGroup>
+
   <!-- Shared web benchmark dependencies -->
   <ItemGroup>
     <ProjectReference Include="..\DependencyInjectionControllers\DependencyInjectionControllers.csproj" />
+    <ProjectReference Include="..\ManyDependencyInjectionControllers\ManyDependencyInjectionControllers.csproj" />
     <ProjectReference Include="..\SimpleApiController\SimpleApiController.csproj" />
     <PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
   </ItemGroup>
@@ -47,5 +49,5 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
-  
+
 </Project>

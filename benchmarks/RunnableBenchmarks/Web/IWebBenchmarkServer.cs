@@ -6,4 +6,5 @@ internal interface IWebBenchmarkServer
     Task StartControllersAsync();
     Task StopAsync();
     Task StartDependencyInjectionAsync();
+    Task StartManyDependencyInjectionAsync();
 }

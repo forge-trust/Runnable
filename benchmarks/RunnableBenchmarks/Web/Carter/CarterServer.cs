@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using SimpleApiController;
 using RunnableBenchmarks.Web;
+using ManyDependencyInjectionControllers;
 
 namespace RunnableBenchmarks.Web.Carter;
 
@@ -45,6 +46,23 @@ public class CarterServer : IWebBenchmarkServer
         builder.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
         var mvc = builder.Services.AddControllers();
         mvc.AddApplicationPart(typeof(DependencyInjectionController).Assembly);
+
+        builder.Services.AddCarter();
+
+        _app = builder.Build();
+
+        _app.MapControllers();
+        _app.MapCarter();
+
+        await _app.StartAsync();
+    }
+
+    public async Task StartManyDependencyInjectionAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IMyDependencyService, MyDependencyService>();
+        var mvc = builder.Services.AddControllers();
+        mvc.AddApplicationPart(typeof(ManyInjected01Controller).Assembly);
 
         builder.Services.AddCarter();
 

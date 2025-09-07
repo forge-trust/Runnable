@@ -10,7 +10,8 @@ namespace RunnableBenchmarks;
 
 public class Program
 {
-    private const int LaunchCount = 100;
+    private static int LaunchCount =>
+        int.TryParse(Environment.GetEnvironmentVariable("BENCH_LAUNCH_COUNT"), out var n) && n > 0 ? n : 100;
 
     public static void Main(string[] args)
     {

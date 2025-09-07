@@ -2,6 +2,7 @@
   <Folder Name="/Benchmarks/">
     <Project Path="benchmarks\AbpSimpleController\AbpSimpleController.csproj" Type="Classic C#" />
     <Project Path="benchmarks\DependencyInjectionControllers\DependencyInjectionControllers.csproj" Type="Classic C#" />
+    <Project Path="benchmarks\ManyDependencyInjectionControllers\ManyDependencyInjectionControllers.csproj" Type="Classic C#" />
     <Project Path="benchmarks\RunnableBenchmarks\RunnableBenchmarks.csproj" Type="Classic C#" />
     <Project Path="benchmarks\SimpleApiController\SimpleApiController.csproj" Type="Classic C#" />
   </Folder>

@@ -60,6 +60,18 @@ public class WebColdStartBenchmarks
         await _server.StopAsync();
     }
 
+    [Benchmark(Description = "Many_Dependency_Injection")]
+    [BenchmarkCategory("Dependency Injection")]
+    public async Task ManyDependencyInjection()
+    {
+        await _server.StartManyDependencyInjectionAsync();
+        for (int i = 1; i <= 25; i++)
+        {
+            await TestEndpoint($"api/many/injected/{i}");
+        }
+        await _server.StopAsync();
+    }
+
 // #if ABP_WEB
 //     [Benchmark(Description = "Abp_Controller", Baseline = _isBaseLine)]
 //     [BenchmarkCategory("Controllers")]

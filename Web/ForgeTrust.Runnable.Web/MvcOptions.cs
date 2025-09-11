@@ -4,7 +4,7 @@ namespace ForgeTrust.Runnable.Web;
 
 public record MvcOptions
 {
-    public static MvcOptions Default => new();
+    public static readonly MvcOptions Default = new();
 
     public MvcSupport MvcSupportLevel { get; set; } = MvcSupport.Controllers;
 

@@ -12,7 +12,7 @@ internal class AspireAppStartup<TModule> : ConsoleStartup<TModule>
     {
         var componentTypes = GetComponentTypes(context.EntryPointAssembly);
 
-        foreach(var type in componentTypes)
+        foreach (var type in componentTypes)
         {
             // We want to ensure that each component is registered as a singleton
             // so that we don't have multiple instances of the same component.

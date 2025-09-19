@@ -6,8 +6,6 @@ namespace ForgeTrust.Runnable.Core.Defaults;
 /// <summary>
 /// A basic implementation of <see cref="IRunnableHostModule"/> that does nothing.
 /// This is useful for providing implementations of apps that do not require a module.
-///
-/// Primarily used
 /// </summary>
 public class NoHostModule : IRunnableHostModule
 {

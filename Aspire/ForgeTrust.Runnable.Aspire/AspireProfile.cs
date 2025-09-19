@@ -46,8 +46,3 @@ public abstract class AspireProfile : ICommand
         await app.RunAsync();
     }
 }
-
-public interface IAspireComponent
-{
-
-}

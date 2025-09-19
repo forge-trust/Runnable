@@ -16,6 +16,8 @@ internal class AspireAppStartup<TModule> : ConsoleStartup<TModule>
         {
             // We want to ensure that each component is registered as a singleton
             // so that we don't have multiple instances of the same component.
+            // We are currently only registering the concrete type, not any interfaces,
+            // which matches our current expectations for how components are used.
             services.AddSingleton(type);
         }
     }

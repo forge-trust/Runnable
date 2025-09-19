@@ -1,6 +1,6 @@
 using System.Reflection;
+using ForgeTrust.Runnable.Core.Defaults;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Core;
 
@@ -8,6 +8,7 @@ public record StartupContext(
     string[] Args,
     IRunnableHostModule RootModule,
     string? ApplicationName = null,
+    IEnvironmentProvider? EnvironmentProvider = null,
     Action<IServiceCollection>? CustomRegistrations = null)
 {
     internal ModuleDependencyBuilder Dependencies { get; } = new();
@@ -18,15 +19,9 @@ public record StartupContext(
 
     public Assembly EntryPointAssembly => OverrideEntryPointAssembly ?? RootModuleAssembly;
 
-    /// <summary>
-    /// This property is set internally by the Runnable host to provide
-    /// access to environment information, such as whether the application
-    /// is running in a development environment. It can be overridden by
-    /// registering a custom implementation of IEnvironmentProvider.
-    /// </summary>
-    public IEnvironmentProvider? EnvironmentProvider { get; internal set; } = null;
+    public IEnvironmentProvider EnvironmentProvider { get; } = EnvironmentProvider ?? new DefaultEnvironmentProvider();
 
-    public bool IsDevelopment => EnvironmentProvider?.IsDevelopment ?? false;
+    public bool IsDevelopment => EnvironmentProvider.IsDevelopment;
 
     public string ApplicationName { get; } =
         ApplicationName ?? RootModule.GetType().Assembly.GetName().Name ?? "RunnableApp";

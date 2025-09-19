@@ -42,13 +42,11 @@ public class DefaultEnvironmentProviderTests
         string environment,
         bool isDev)
     {
-        var root = new EnvOverrideRootModule()
-        {
-            Environment = environment,
-            IsDev = isDev
-        };
         var startup = new CaptureIsDevStartup();
-        var context = new StartupContext([], root);
+        var context = new StartupContext(
+            [],
+            new NoHostModule(),
+            EnvironmentProvider: new TestEnvironmentProvider(environment, isDev));
 
         using var host = ((IRunnableStartup)startup).CreateHostBuilder(context).Build();
 
@@ -75,31 +73,7 @@ public class DefaultEnvironmentProviderTests
         Assert.False(provider.IsDevelopment);
     }
 
-
-    private class EnvOverrideRootModule : IRunnableHostModule
-    {
-        public string Environment { get; init; }
-        public bool IsDev { get; init; }
-
-        public void ConfigureServices(StartupContext context, IServiceCollection services)
-        {
-            services.AddSingleton<IEnvironmentProvider>(new TestEnvironmentProvider(Environment, IsDev));
-        }
-
-        public void RegisterDependentModules(ModuleDependencyBuilder builder)
-        {
-        }
-
-        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
-        {
-        }
-
-        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
-        {
-        }
-    }
-
-    private class CaptureIsDevStartup : RunnableStartup<EnvOverrideRootModule>
+    private class CaptureIsDevStartup : RunnableStartup<NoHostModule>
     {
         public bool CapturedIsDevelopment { get; private set; }
 

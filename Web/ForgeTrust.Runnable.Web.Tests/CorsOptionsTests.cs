@@ -40,10 +40,7 @@ public class CorsOptionsTests
                 o.Cors.EnableAllOriginsInDevelopment = true;
             });
 
-            var context = new StartupContext([], new TestWebModule())
-            {
-                EnvironmentProvider = new DefaultEnvironmentProvider()
-            };
+            var context = new StartupContext([], new TestWebModule());
 
             var services = new ServiceCollection();
             startup.ConfigureServicesPublic(context, services);
@@ -76,10 +73,7 @@ public class CorsOptionsTests
                 o.Cors.EnableAllOriginsInDevelopment = true;
             });
 
-            var context = new StartupContext([], new TestWebModule())
-            {
-                EnvironmentProvider = new DefaultEnvironmentProvider()
-            };
+            var context = new StartupContext([], new TestWebModule());
 
             var services = new ServiceCollection();
             startup.ConfigureServicesPublic(context, services);

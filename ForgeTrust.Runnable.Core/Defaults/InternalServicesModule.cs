@@ -9,7 +9,7 @@ internal class InternalServicesModule : IRunnableModule
 {
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
-        services.AddSingleton<IEnvironmentProvider, DefaultEnvironmentProvider>();
+        services.AddSingleton(context.EnvironmentProvider);
     }
 
     public void RegisterDependentModules(ModuleDependencyBuilder builder)

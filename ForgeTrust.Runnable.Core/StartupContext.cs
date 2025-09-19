@@ -1,6 +1,6 @@
 using System.Reflection;
+using ForgeTrust.Runnable.Core.Defaults;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Core;
 
@@ -8,6 +8,7 @@ public record StartupContext(
     string[] Args,
     IRunnableHostModule RootModule,
     string? ApplicationName = null,
+    IEnvironmentProvider? EnvironmentProvider = null,
     Action<IServiceCollection>? CustomRegistrations = null)
 {
     internal ModuleDependencyBuilder Dependencies { get; } = new();
@@ -18,12 +19,9 @@ public record StartupContext(
 
     public Assembly EntryPointAssembly => OverrideEntryPointAssembly ?? RootModuleAssembly;
 
-    // TODO: Feels odd to be checking ASPNETCORE_ENVIRONMENT,
-    // is there a better way we should do this across different hosting types?
-    public bool IsDevelopment { get; } = string.Equals(
-        Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-        Environments.Development,
-        StringComparison.OrdinalIgnoreCase);
+    public IEnvironmentProvider EnvironmentProvider { get; } = EnvironmentProvider ?? new DefaultEnvironmentProvider();
+
+    public bool IsDevelopment => EnvironmentProvider.IsDevelopment;
 
     public string ApplicationName { get; } =
         ApplicationName ?? RootModule.GetType().Assembly.GetName().Name ?? "RunnableApp";

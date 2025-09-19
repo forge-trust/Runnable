@@ -54,6 +54,8 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
             config.AddInMemoryCollection(
                 new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName }));
 
+        // Ensure internal services (like Default IEnvironmentProvider) are included first so external modules can override them.
+        context.Dependencies.AddModule<Defaults.InternalServicesModule>();
         context.RootModule.RegisterDependentModules(context.Dependencies);
 
         ConfigureHostBeforeServicesCore(context, builder);
@@ -104,8 +106,13 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
         StartupContext context,
         IServiceCollection services)
     {
+        // 1) Now register services for the specific app type (e.g., Web) which may use context.IsDevelopment.
         ConfigureServicesForAppType(context, services);
+
+        // 2) Let modules register their services next so they can override defaults.
         ConfigureServicesFromModule(context, services);
+
+        // 3) Finally, allow custom registrations from startup to override anything else if needed.
         context.CustomRegistrations?.Invoke(services);
     }
 

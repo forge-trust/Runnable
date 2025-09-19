@@ -9,7 +9,7 @@ public class DefaultEnvironmentProviderTests
 
     [Theory]
     [InlineData("DOTNET_ENVIRONMENT", "Production", false)]
-    [InlineData("DOTNET_ENVIRONMENT","Staging", false)]
+    [InlineData("DOTNET_ENVIRONMENT", "Staging", false)]
     [InlineData("DOTNET_ENVIRONMENT", "Development", true)]
     [InlineData("ASPNETCORE_ENVIRONMENT", "Production", false)]
     [InlineData("ASPNETCORE_ENVIRONMENT", "Staging", false)]

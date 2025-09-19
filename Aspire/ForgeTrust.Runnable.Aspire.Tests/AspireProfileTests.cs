@@ -38,6 +38,38 @@ public class AspireProfileTests
         A.CallTo(() => dependencyComponent.Generate(A<AspireStartupContext>._, A<IDistributedApplicationBuilder>._)).MustHaveHappenedOnceExactly();
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ResolvesDependenciesOnlyOnce()
+    {
+        var callOrder = new List<string>();
+        var dependencyComponent = A.Fake<IAspireComponent<IResource>>();
+        var dependencyBuilder = A.Fake<IResourceBuilder<IResource>>();
+        var component = A.Fake<IAspireComponent<IResource>>();
+        var console = A.Fake<IConsole>();
+
+        A.CallTo(() => dependencyComponent.Generate(A<AspireStartupContext>._, A<IDistributedApplicationBuilder>._))
+            .Invokes((AspireStartupContext _, IDistributedApplicationBuilder _) => callOrder.Add("dependency"))
+            .Returns(dependencyBuilder);
+
+        A.CallTo(() => component.Generate(A<AspireStartupContext>._, A<IDistributedApplicationBuilder>._))
+            .ReturnsLazily((AspireStartupContext _, IDistributedApplicationBuilder _) =>
+            {
+                callOrder.Add("component");
+                throw new InvalidOperationException("Stop execution");
+            });
+
+        var profile = new TestProfile(
+            [new TestProfile([], [dependencyComponent]),
+             new TestProfile([], [dependencyComponent])],
+            [component]);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => profile.ExecuteAsync(console).AsTask());
+
+        Assert.Equal("Stop execution", exception.Message);
+        Assert.Equal(["dependency", "component"], callOrder);
+        A.CallTo(() => dependencyComponent.Generate(A<AspireStartupContext>._, A<IDistributedApplicationBuilder>._)).MustHaveHappenedOnceExactly();
+    }
+
     [Command("test-profile")]
     private sealed class TestProfile : AspireProfile
     {

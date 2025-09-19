@@ -18,12 +18,15 @@ public record StartupContext(
 
     public Assembly EntryPointAssembly => OverrideEntryPointAssembly ?? RootModuleAssembly;
 
-    // TODO: Feels odd to be checking ASPNETCORE_ENVIRONMENT,
-    // is there a better way we should do this across different hosting types?
-    public bool IsDevelopment { get; } = string.Equals(
-        Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-        Environments.Development,
-        StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// This property is set internally by the Runnable host to provide
+    /// access to environment information, such as whether the application
+    /// is running in a development environment. It can be overriden by
+    /// registering a custom implementation of IEnvironmentProvider.
+    /// </summary>
+    public IEnvironmentProvider? EnvironmentProvider { get; internal set; } = null;
+
+    public bool IsDevelopment => EnvironmentProvider?.IsDevelopment ?? false;
 
     public string ApplicationName { get; } =
         ApplicationName ?? RootModule.GetType().Assembly.GetName().Name ?? "RunnableApp";

@@ -1,6 +1,5 @@
-using System;
-using System.Threading.Tasks;
 using ForgeTrust.Runnable.Core;
+using ForgeTrust.Runnable.Core.Defaults;
 using ForgeTrust.Runnable.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
@@ -41,7 +40,11 @@ public class CorsOptionsTests
                 o.Cors.EnableAllOriginsInDevelopment = true;
             });
 
-            var context = new StartupContext([], new TestWebModule());
+            var context = new StartupContext([], new TestWebModule())
+            {
+                EnvironmentProvider = new DefaultEnvironmentProvider()
+            };
+
             var services = new ServiceCollection();
             startup.ConfigureServicesPublic(context, services);
 
@@ -73,7 +76,11 @@ public class CorsOptionsTests
                 o.Cors.EnableAllOriginsInDevelopment = true;
             });
 
-            var context = new StartupContext([], new TestWebModule());
+            var context = new StartupContext([], new TestWebModule())
+            {
+                EnvironmentProvider = new DefaultEnvironmentProvider()
+            };
+
             var services = new ServiceCollection();
             startup.ConfigureServicesPublic(context, services);
 
@@ -91,7 +98,7 @@ public class CorsOptionsTests
     }
 
     [Fact]
-    public async Task NoConfiguredOrigins_AllowsAnyOriginOutsideDevelopment()
+    public async Task NoConfiguredOrigins_DisallowsAnyOriginOutsideDevelopment()
     {
         var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
         try
@@ -112,7 +119,7 @@ public class CorsOptionsTests
             var policyProvider = provider.GetRequiredService<ICorsPolicyProvider>();
             var policy = await policyProvider.GetPolicyAsync(new DefaultHttpContext(), "DefaultCorsPolicy");
 
-            Assert.True(policy!.AllowAnyOrigin);
+            Assert.False(policy!.AllowAnyOrigin);
         }
         finally
         {

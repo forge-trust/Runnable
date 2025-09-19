@@ -1,4 +1,5 @@
-﻿using CliFx;
+﻿using System.Reflection;
+using CliFx;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,8 +10,11 @@ public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
 {
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
+        // Allow subclasses to add their own services
+        ConfigureAdditionalServices(context, services);
+
         // Register the command types from the assembly of TModule
-        var commandTypes = GetCommandTypes();
+        var commandTypes = GetCommandTypes(context.EntryPointAssembly);
         foreach (var commandType in commandTypes)
         {
             // We use the ICommand interface to register the command types
@@ -23,11 +27,17 @@ public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
         services.AddHostedService<CommandService>();
     }
 
+    protected virtual void ConfigureAdditionalServices(StartupContext context, IServiceCollection services)
+    {
+        // Default implementation does nothing, so we don't force an implementation.
+    }
+
+
 
     // This will ensure that we register all command types from the assembly of TModule
-    private IReadOnlyList<Type> GetCommandTypes()
+    private IReadOnlyList<Type> GetCommandTypes(Assembly searchAssembly)
     {
-        return typeof(TModule).Assembly.GetTypes()
+        return searchAssembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && typeof(ICommand).IsAssignableFrom(t))
             .ToList();
     }

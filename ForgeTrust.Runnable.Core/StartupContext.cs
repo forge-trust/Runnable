@@ -12,7 +12,11 @@ public record StartupContext(
 {
     internal ModuleDependencyBuilder Dependencies { get; } = new();
 
-    public Assembly EntryPointAssembly { get; } = RootModule.GetType().Assembly;
+    public Assembly? OverrideEntryPointAssembly { get; set; } = null;
+
+    public Assembly RootModuleAssembly { get; } = RootModule.GetType().Assembly;
+
+    public Assembly EntryPointAssembly => OverrideEntryPointAssembly ?? RootModuleAssembly;
 
     // TODO: Feels odd to be checking ASPNETCORE_ENVIRONMENT,
     // is there a better way we should do this across different hosting types?

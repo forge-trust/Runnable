@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/Aspire/">
+    <Project Path="Aspire\ForgeTrust.Runnable.Aspire.Tests\ForgeTrust.Runnable.Aspire.Tests.csproj" Type="Classic C#" />
     <Project Path="Aspire\ForgeTrust.Runnable.Aspire\ForgeTrust.Runnable.Aspire.csproj" Type="Classic C#" />
   </Folder>
   <Folder Name="/Console/">

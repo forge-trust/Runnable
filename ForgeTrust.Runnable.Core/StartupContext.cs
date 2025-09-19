@@ -21,7 +21,7 @@ public record StartupContext(
     /// <summary>
     /// This property is set internally by the Runnable host to provide
     /// access to environment information, such as whether the application
-    /// is running in a development environment. It can be overriden by
+    /// is running in a development environment. It can be overridden by
     /// registering a custom implementation of IEnvironmentProvider.
     /// </summary>
     public IEnvironmentProvider? EnvironmentProvider { get; internal set; } = null;

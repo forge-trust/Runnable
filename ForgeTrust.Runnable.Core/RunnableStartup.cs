@@ -113,7 +113,7 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
         ConfigureServicesFromModule(context, services);
 
         // 3) Finally, allow custom registrations from startup to override anything else if needed.
-        context.CustomRegistrations?.Invoke(services);
+        context.CustomRegistrations.ForEach(cr => cr(services));
     }
 
     private void ConfigureServicesFromModule(

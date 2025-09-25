@@ -10,6 +10,9 @@
     <Project Path="benchmarks\RunnableBenchmarks\RunnableBenchmarks.csproj" Type="Classic C#" />
     <Project Path="benchmarks\SimpleApiController\SimpleApiController.csproj" Type="Classic C#" />
   </Folder>
+  <Folder Name="/Config/">
+    <Project Path="Config\ForgeTrust.Runnable.Config\ForgeTrust.Runnable.Config.csproj" Type="Classic C#" />
+  </Folder>
   <Folder Name="/Console/">
     <Project Path="Console\\ForgeTrust.Runnable.Console.Tests\\ForgeTrust.Runnable.Console.Tests.csproj" Type="Classic C#" />
     <Project Path="Console\\ForgeTrust.Runnable.Console\\ForgeTrust.Runnable.Console.csproj" Type="Classic C#" />

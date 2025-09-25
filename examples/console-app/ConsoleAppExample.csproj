@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj"/>
+    <ProjectReference Include="..\..\Config\ForgeTrust.Runnable.Config\ForgeTrust.Runnable.Config.csproj" />
   </ItemGroup>
 </Project>

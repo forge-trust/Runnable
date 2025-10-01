@@ -8,7 +8,8 @@ public class RunnableConfigModule : IRunnableModule
 {
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
-        services.AddSingleton<IConfigProvider, DefaultConfigProvider>();
+        services.AddSingleton<IConfigManager, DefaultConfigManager>();
+        services.AddSingleton<IEnvironmentConfigProvider, EnvironmentConfigProvider>();
 
         // Execute the config registration log from the CustomRegistrations
         // because it needs to be done after all modules have been registered
@@ -22,7 +23,7 @@ public class RunnableConfigModule : IRunnableModule
 
             foreach (var assembly in distinctAssemblies)
             {
-                RegisterConfigFromAssembly(assembly, services);
+                RegisterConfigFromAssembly(assembly, sp);
             }
         });
 
@@ -49,7 +50,7 @@ public class RunnableConfigModule : IRunnableModule
 
                 // Call your init with required services
                 instance.Init(
-                    sp.GetRequiredService<IConfigProvider>(),
+                    sp.GetRequiredService<IConfigManager>(),
                     sp.GetRequiredService<IEnvironmentProvider>(),
                     key);
 
@@ -60,7 +61,6 @@ public class RunnableConfigModule : IRunnableModule
 
     public void RegisterDependentModules(ModuleDependencyBuilder builder)
     {
-
     }
 }
 

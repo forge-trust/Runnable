@@ -6,6 +6,9 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
 {
     private readonly IEnvironmentProvider _environmentProvider;
 
+    // We don't use priority here, we will always check environment variables first.
+    public int Priority { get; } = -1;
+
     public string Name { get; } = nameof(EnvironmentConfigProvider);
 
     public EnvironmentConfigProvider(IEnvironmentProvider environmentProvider)

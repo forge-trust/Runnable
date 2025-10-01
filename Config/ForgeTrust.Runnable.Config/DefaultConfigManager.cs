@@ -7,6 +7,9 @@ internal partial class DefaultConfigManager : IConfigManager
     private static readonly Type ConfigManagerType = typeof(IConfigManager);
     private static readonly Type EnvironmentConfigProviderType = typeof(IEnvironmentConfigProvider);
 
+    // Lowest priority, we do not expect other config managers to be used over this one
+    public int Priority { get; } = -1;
+
     public string Name { get; } = nameof(DefaultConfigManager);
 
     private static readonly Type[] ExcludedTypes =
@@ -26,7 +29,9 @@ internal partial class DefaultConfigManager : IConfigManager
     {
         _environmentProvider = environmentProvider;
         // we don't want to include ourselves or the environment provider in the list of other providers
-        _otherProviders = otherProviders?.Where(x => !ExcludedTypes.Any(t => t.IsInstanceOfType(x))).ToList()
+        _otherProviders = otherProviders?.Where(x => !ExcludedTypes.Any(t => t.IsInstanceOfType(x)))
+                              .OrderByDescending(x => x.Priority)
+                              .ToList()
                           ?? [];
         _logger = logger;
     }
@@ -55,7 +60,7 @@ internal partial class DefaultConfigManager : IConfigManager
     }
 
     [LoggerMessage(
-        Level = LogLevel.Warning,
+        Level = LogLevel.Debug,
         Message = "Configuration key '{Key}' not found in environment '{Environment}'.")]
     public partial void LogKeyNotFound(string key, string environment);
 

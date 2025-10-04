@@ -64,7 +64,6 @@ public class DefaultConfigManagerTests
             .MustHaveHappenedOnceExactly();
         A.CallTo(() => environmentProvider.GetValue<string>("Production", "Feature.Flag"))
             .MustHaveHappenedOnceExactly();
-
     }
 
     [Fact]

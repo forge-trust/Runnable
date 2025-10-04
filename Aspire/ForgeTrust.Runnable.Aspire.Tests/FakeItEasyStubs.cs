@@ -140,12 +140,17 @@ public sealed class CallConfiguration<T>
         return this;
     }
 
-    public CallConfiguration<T> Returns(object? value)
+    public CallConfiguration<T> Returns(T value)
     {
         _configuration.ReturnFunction = _ => value;
         return this;
     }
 
+    public CallConfiguration<T> Returns(Func<T> valueFactory)
+    {
+        _configuration.ReturnFunction = _ => valueFactory();
+        return this;
+    }
     public CallConfiguration<T> ReturnsLazily(Delegate factory)
     {
         _configuration.ReturnFunction = args =>

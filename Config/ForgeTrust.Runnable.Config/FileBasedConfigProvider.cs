@@ -45,11 +45,6 @@ public class FileBasedConfigProvider : IConfigProvider
 
     private void Initialize()
     {
-        if (_initialized)
-        {
-            return;
-        }
-
         // Single-shot init; minimal locking (double-checked) for potential multi-threaded access
         lock (_environments)
         {
@@ -128,13 +123,11 @@ public class FileBasedConfigProvider : IConfigProvider
             || fileName.StartsWith("config_", StringComparison.OrdinalIgnoreCase))
         {
             var parts = fileName.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (parts.Length == 1)
+            if (parts.Length > 1)
             {
-                return Environments.Production; // just "appsettings"
+                // second segment is environment (appsettings.{Env})
+                return parts[1];
             }
-
-            // second segment is environment (appsettings.{Env})
-            return parts[1];
         }
 
         return Environments.Production;

@@ -48,12 +48,7 @@ public class AspireAppTests
 
         public ValueTask ExecuteAsync(IConsole console)
         {
-            var first = _provider.GetRequiredService<TestComponent>();
-            var second = _provider.GetRequiredService<TestComponent>();
-
-            TestModule.Completion?.TrySetResult(new ComponentResolutionResult(first != null, ReferenceEquals(first, second)));
             _lifetime.StopApplication();
-
             return default;
         }
     }

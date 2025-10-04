@@ -9,4 +9,10 @@
     <ProjectReference Include="../../Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj"/>
     <ProjectReference Include="..\..\Config\ForgeTrust.Runnable.Config\ForgeTrust.Runnable.Config.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Remove="appsettings.json" />
+    <Content Include="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

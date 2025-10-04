@@ -175,6 +175,12 @@ public class FileBasedConfigProvider : IConfigProvider
     {
         foreach (var kvp in source)
         {
+            if (kvp.Value == null)
+            {
+                // Skip null values in source
+                continue;
+            }
+
             if (target.ContainsKey(kvp.Key))
             {
                 if (target[kvp.Key] is JsonObject targetObj && kvp.Value is JsonObject sourceObj)
@@ -188,7 +194,7 @@ public class FileBasedConfigProvider : IConfigProvider
             }
             else
             {
-                target[kvp.Key] = kvp.Value;
+                target[kvp.Key] = kvp.Value?.DeepClone();
             }
         }
     }

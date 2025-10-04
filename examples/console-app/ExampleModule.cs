@@ -26,8 +26,3 @@ public class ExampleModule : IRunnableHostModule
     {
     }
 }
-
-public class Foo : Config<string>
-{
-
-}

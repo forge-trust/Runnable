@@ -1,8 +1,8 @@
-using CliFx;
-using CliFx.Attributes;
 using CliFx.Exceptions;
 using CliFx.Infrastructure;
+using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Console.Tests;
 
@@ -11,11 +11,10 @@ public class ChainedCommandTests
     private static IServiceProvider CreateProvider()
     {
         var services = new ServiceCollection();
-        services.AddSingleton<ExecutionTracker>();
-        services.AddTransient<FirstCommand>();
-        services.AddTransient<SecondCommand>();
-        services.AddTransient<CompositeCommand>();
-        services.AddTransient<ConditionalCompositeCommand>();
+
+        // This is kinda gross, we can probably make this easier.
+        var context = new StartupContext([], new DummyModule());
+        new SharedTestCommandsModule().ConfigureServices(context, services);
 
         CommandService.PrimaryServiceProvider = services.BuildServiceProvider();
 
@@ -88,87 +87,26 @@ public class ChainedCommandTests
         Assert.Equal("bar", tracker.SecondBar);
     }
 
-    private class ExecutionTracker
+    private class DummyModule : IRunnableHostModule
     {
-        public bool FirstExecuted;
-        public string? FirstFoo;
-        public string? SecondBar;
-        public bool SecondExecuted;
-    }
-
-    [Command("first")]
-    private class FirstCommand : ICommand
-    {
-        private readonly ExecutionTracker _tracker;
-
-        public FirstCommand(ExecutionTracker tracker)
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
         {
-            _tracker = tracker;
+
         }
 
-        [CommandOption("foo", IsRequired = true)]
-        public string? Foo { get; set; }
-
-        public ValueTask ExecuteAsync(IConsole console)
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
         {
-            _tracker.FirstExecuted = true;
-            _tracker.FirstFoo = Foo;
 
-            return default;
-        }
-    }
-
-    [Command("second")]
-    private class SecondCommand : ICommand
-    {
-        private readonly ExecutionTracker _tracker;
-
-        public SecondCommand(ExecutionTracker tracker)
-        {
-            _tracker = tracker;
         }
 
-        [CommandOption("bar")]
-        public string? Bar { get; set; }
-
-        public ValueTask ExecuteAsync(IConsole console)
+        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
         {
-            _tracker.SecondExecuted = true;
-            _tracker.SecondBar = Bar;
 
-            return default;
         }
-    }
 
-    [Command("composite")]
-    private class CompositeCommand : ChainedCommand
-    {
-        [CommandOption("foo", IsRequired = true)]
-        public string? Foo { get; set; }
+        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
 
-        [CommandOption("bar")]
-        public string? Bar { get; set; }
-
-        protected override void Configure(CommandChainBuilder builder) =>
-            builder
-                .Add<FirstCommand>()
-                .Add<SecondCommand>();
-    }
-
-    [Command("conditional")]
-    private class ConditionalCompositeCommand : ChainedCommand
-    {
-        [CommandOption("foo")]
-        public string? Foo { get; set; }
-
-        [CommandOption("bar")]
-        public string? Bar { get; set; }
-
-        public bool RunFirst { get; set; }
-
-        protected override void Configure(CommandChainBuilder builder) =>
-            builder
-                .AddIf<FirstCommand>(() => RunFirst)
-                .Add<SecondCommand>();
+        }
     }
 }

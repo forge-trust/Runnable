@@ -47,7 +47,7 @@ public class AspireAppTests
         public ValueTask ExecuteAsync(IConsole console)
         {
             _lifetime.StopApplication();
-            return default;
+            return ValueTask.CompletedTask;
         }
     }
 

@@ -37,12 +37,10 @@ public class AspireAppTests
     [Command("validate")]
     private sealed class ValidateComponentCommand : ICommand
     {
-        private readonly IServiceProvider _provider;
         private readonly IHostApplicationLifetime _lifetime;
 
         public ValidateComponentCommand(IServiceProvider provider, IHostApplicationLifetime lifetime)
         {
-            _provider = provider;
             _lifetime = lifetime;
         }
 

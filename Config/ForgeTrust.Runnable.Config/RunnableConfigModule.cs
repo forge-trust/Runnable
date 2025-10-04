@@ -10,6 +10,8 @@ public class RunnableConfigModule : IRunnableModule
     {
         services.AddSingleton<IConfigManager, DefaultConfigManager>();
         services.AddSingleton<IEnvironmentConfigProvider, EnvironmentConfigProvider>();
+        services.AddSingleton<IConfigFileLocationProvider, DefaultConfigFileLocationProvider>();
+        services.AddSingleton<IConfigProvider, FileBasedConfigProvider>();
 
         // Execute the config registration log from the CustomRegistrations
         // because it needs to be done after all modules have been registered

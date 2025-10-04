@@ -76,6 +76,7 @@ public class ConditionalCompositeCommand : ChainedCommand
     [CommandOption("bar")]
     public string? Bar { get; set; }
 
+    // This flag is meant to be set programmatically in tests only; not exposed as a CLI option.
     public bool RunFirst { get; set; }
 
     protected override void Configure(CommandChainBuilder builder) =>

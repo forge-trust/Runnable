@@ -27,7 +27,7 @@ public abstract partial class CriticalService : BackgroundService
         }
         catch (Exception ex)
         {
-            if (!stoppingToken.IsCancellationRequested && !(ex is TaskCanceledException))
+            if (!stoppingToken.IsCancellationRequested || !(ex is TaskCanceledException))
             {
                 LogException(ex, _serviceType);
                 Environment.ExitCode = -1;

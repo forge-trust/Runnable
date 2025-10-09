@@ -1,12 +1,11 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
-using CliFx;
 using CliFx.Attributes;
-using CliFx.Infrastructure;
 using ForgeTrust.Runnable.Aspire;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 public class AspireAppTests
 {
@@ -15,6 +14,7 @@ public class AspireAppTests
     {
         var completion = new TaskCompletionSource<ComponentResolutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         TestModule.Completion = completion;
+        Environment.ExitCode = 0;
 
         try
         {
@@ -25,29 +25,65 @@ public class AspireAppTests
 
             Assert.True(result.ComponentResolved);
             Assert.True(result.ResolvedAsSingleton);
+
+            // The aspire application will not actually run
+            Assert.Equal(-150, Environment.ExitCode);
         }
         finally
         {
             TestModule.Completion = null;
+            Environment.ExitCode = 0;
         }
     }
+
+    [Fact]
+    public async Task RunAsync_WithoutModule_UsesCallingAssembly()
+    {
+        Environment.ExitCode = 0;
+
+        await AspireApp.RunAsync(["validate"]);
+
+        // The aspire application will not actually run
+        Assert.Equal(-150, Environment.ExitCode);
+    }
+
+    [Theory]
+    [InlineData("--unknown")]
+    [InlineData("not-a-command")]
+    [InlineData("")]
+    [InlineData("-f")]
+    public async Task RunAsync_InvalidArgs_Throws(string arg)
+    {
+        Environment.ExitCode = 0;
+
+        await AspireApp.RunAsync([arg]);
+
+        Assert.Equal(1, Environment.ExitCode);
+    }
+
 
     private sealed record ComponentResolutionResult(bool ComponentResolved, bool ResolvedAsSingleton);
 
     [Command("validate")]
-    private sealed class ValidateComponentCommand : ICommand
+    public sealed class ValidateComponentCommand : AspireProfile
     {
         private readonly IHostApplicationLifetime _lifetime;
 
-        public ValidateComponentCommand(IServiceProvider provider, IHostApplicationLifetime lifetime)
+        public ValidateComponentCommand(
+            IServiceProvider provider,
+            IHostApplicationLifetime lifetime,
+            ILogger<ValidateComponentCommand> logger)
+            : base(logger)
         {
             _lifetime = lifetime;
         }
 
-        public ValueTask ExecuteAsync(IConsole console)
+        public override IEnumerable<IAspireComponent> GetComponents()
         {
+            Console.WriteLine("Getting components...");
             _lifetime.StopApplication();
-            return default;
+
+            return [];
         }
     }
 

@@ -4,6 +4,7 @@ using CliFx.Attributes;
 using CliFx.Infrastructure;
 using FakeItEasy;
 using ForgeTrust.Runnable.Aspire;
+using Microsoft.Extensions.Logging;
 
 public class AspireProfileTests
 {
@@ -28,7 +29,8 @@ public class AspireProfileTests
             });
 
         var profile = new TestProfile(
-            [new TestProfile([], [dependencyComponent])],
+            A.Fake<ILogger<TestProfile>>(),
+            [new TestProfile(A.Fake<ILogger<TestProfile>>(), [], [dependencyComponent])],
             [component]);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => profile.ExecuteAsync(console).AsTask());
@@ -59,8 +61,11 @@ public class AspireProfileTests
             });
 
         var profile = new TestProfile(
-            [new TestProfile([], [dependencyComponent]),
-             new TestProfile([], [dependencyComponent])],
+            A.Fake<ILogger<TestProfile>>(),
+            [
+                new TestProfile(A.Fake<ILogger<TestProfile>>(), [], [dependencyComponent]),
+                new TestProfile(A.Fake<ILogger<TestProfile>>(), [], [dependencyComponent])
+            ],
             [component]);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => profile.ExecuteAsync(console).AsTask());
@@ -71,19 +76,24 @@ public class AspireProfileTests
     }
 
     [Command("test-profile")]
-    private sealed class TestProfile : AspireProfile
+    public sealed class TestProfile : AspireProfile
     {
-        private readonly IReadOnlyList<AspireProfile> _dependencies;
-        private readonly IReadOnlyList<IAspireComponent> _components;
+        private readonly IReadOnlyList<AspireProfile>? _dependencies;
+        private readonly IReadOnlyList<IAspireComponent>? _components;
 
-        public TestProfile(IReadOnlyList<AspireProfile> dependencies, IReadOnlyList<IAspireComponent> components)
+        public TestProfile(
+            ILogger<TestProfile> logger,
+            IReadOnlyList<AspireProfile>? dependencies = null,
+            IReadOnlyList<IAspireComponent>? components = null) : base(logger)
         {
             _dependencies = dependencies;
             _components = components;
         }
 
-        public override IEnumerable<AspireProfile> GetDependencies() => _dependencies;
+        public override IEnumerable<AspireProfile> GetDependencies() =>
+            _dependencies ?? throw new InvalidOperationException("No dependencies configured.");
 
-        public override IEnumerable<IAspireComponent> GetComponents() => _components;
+        public override IEnumerable<IAspireComponent> GetComponents() =>
+            _components ?? throw new InvalidOperationException("No components configured.");
     }
 }

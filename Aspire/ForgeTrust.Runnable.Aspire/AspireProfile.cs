@@ -2,11 +2,19 @@
 using Aspire.Hosting.ApplicationModel;
 using CliFx;
 using CliFx.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Aspire;
 
 public abstract class AspireProfile : ICommand
 {
+    private readonly ILogger _logger;
+
+    public AspireProfile(ILogger logger)
+    {
+        _logger = logger;
+    }
+
     // TODO: Need to implement this upstream: https://github.com/Tyrrrz/CliFx/issues/39
     // It seems we need to be able to pass args upstream or this will cause
     // problems trying to use deployments in Aspire.
@@ -42,7 +50,15 @@ public abstract class AspireProfile : ICommand
             }
         }
 
-        var app = appBuilder.Build();
-        await app.RunAsync();
+        try
+        {
+            var app = appBuilder.Build();
+            await app.RunAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical(ex, "Error initializing Aspire application");
+            Environment.ExitCode = -150;
+        }
     }
 }

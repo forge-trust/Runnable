@@ -14,10 +14,10 @@ public class ConsoleAppTests
         TrackingStartup.Reset();
         TrackingModule.Reset();
 
-        var previousExitCode = Environment.ExitCode;
+        Environment.ExitCode = 0;
         await ConsoleApp<TrackingStartup, TrackingModule>.RunAsync([]);
 
-        Assert.Equal(previousExitCode, Environment.ExitCode);
+        Assert.Equal(0, Environment.ExitCode);
         Assert.Equal(1, TrackingStartup.InstancesCreated);
         Assert.True(TrackingStartup.HostStarted);
         Assert.Equal(1, TrackingModule.ConfigureServicesCalls);
@@ -28,10 +28,10 @@ public class ConsoleAppTests
     {
         TrackingModule.Reset();
 
-        var previousExitCode = Environment.ExitCode;
+        Environment.ExitCode = 0;
         await ConsoleApp<TrackingModule>.RunAsync([]);
 
-        Assert.Equal(previousExitCode, Environment.ExitCode);
+        Assert.Equal(0, Environment.ExitCode);
         Assert.Equal(1, TrackingModule.ConfigureServicesCalls);
     }
 

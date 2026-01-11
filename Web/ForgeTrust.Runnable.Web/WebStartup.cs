@@ -61,6 +61,12 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         _configureOptions?.Invoke(_options);
 
+        // Auto-enable static files for View-based apps
+        if (_options.Mvc.MvcSupportLevel >= MvcSupport.ControllersWithViews)
+        {
+            _options.StaticFiles.EnableStaticFiles = true;
+        }
+
         return _options;
     }
 
@@ -127,6 +133,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         foreach (var module in _modules)
         {
             module.ConfigureWebApplication(context, app);
+        }
+
+        if (_options.StaticFiles.EnableStaticFiles)
+        {
+            app.UseStaticFiles();
         }
 
         app.UseRouting();

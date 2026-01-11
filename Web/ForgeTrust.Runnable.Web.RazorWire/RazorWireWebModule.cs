@@ -8,6 +8,14 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 
 public class RazorWireWebModule : IRunnableWebModule
 {
+    public void ConfigureWebOptions(StartupContext context, WebOptions options)
+    {
+        if (options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews)
+        {
+            options.Mvc.MvcSupportLevel = MvcSupport.ControllersWithViews;
+        }
+    }
+
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddRazorWire();

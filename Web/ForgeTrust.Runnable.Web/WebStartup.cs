@@ -94,8 +94,23 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                 _ => throw new ArgumentOutOfRangeException()
             };
 
-            // This is required to find the controllers in the main service projects.
+            // Register the entry point assembly.
             mvcBuilder.AddApplicationPart(context.EntryPointAssembly);
+
+            // Register all web module assemblies marked for discovery so MVC can find their controllers and views.
+            // We use Distinct() to avoid redundant registrations from multiple modules in the same assembly.
+            var moduleAssemblies = _modules
+                .Where(m => m.IncludeAsApplicationPart)
+                .Select(m => m.GetType().Assembly)
+                .Distinct();
+
+            foreach (var assembly in moduleAssemblies)
+            {
+                if (assembly != context.EntryPointAssembly)
+                {
+                    mvcBuilder.AddApplicationPart(assembly);
+                }
+            }
 
             mvcOpts.ConfigureMvc?.Invoke(mvcBuilder);
         }

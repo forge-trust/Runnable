@@ -17,4 +17,10 @@ public interface IRunnableWebModule : IRunnableHostModule
     }
 
     void ConfigureWebApplication(StartupContext context, IApplicationBuilder app);
+
+    /// <summary>
+    /// Gets a value indicating whether this module's assembly should be searched for MVC application parts (controllers, views, etc.).
+    /// Defaults to false.
+    /// </summary>
+    bool IncludeAsApplicationPart => false;
 }

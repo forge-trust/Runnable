@@ -16,6 +16,8 @@ public class RazorWireWebModule : IRunnableWebModule
         }
     }
 
+    public bool IncludeAsApplicationPart => true;
+
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddRazorWire();

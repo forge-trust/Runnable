@@ -1,0 +1,38 @@
+@{
+    ViewData["Title"] = "RazorWire Demo";
+}
+
+<h1>RazorWire Demo</h1>
+
+<div class="row">
+    <div class="col-8">
+        <div class="card mb-4">
+            <div class="card-header">SSE Streams</div>
+            <div class="card-body">
+                <rw:stream-source channel="demo" />
+                
+                <form asp-action="PublishMessage" method="post" data-turbo="false" target="_blank" onsubmit="setTimeout(() => this.reset(), 100)">
+                    <div class="input-group mb-3">
+                        <input type="text" name="message" class="form-control" placeholder="Type a message...">
+                        <button class="btn btn-primary" type="submit">Publish SSE</button>
+                    </div>
+                    <small class="text-muted">Note: In a real app, you'd use fetch or a turbo-enabled form.</small>
+                </form>
+
+                <ul id="messages" class="list-group mt-3">
+                    <li class="list-group-item text-muted">Messages will appear here via SSE...</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="card">
+            <div class="card-header">Islands</div>
+            <div class="card-body">
+                <rw:island id="sidebar" src="/Demo/Sidebar" loading="lazy">
+                    <div class="alert alert-info">Loading sidebar...</div>
+                </rw:island>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,5 @@
+@using ForgeTrust.Runnable.Web.RazorWire.Turbo
+@model TurboFrameViewModel
+<turbo-frame id="@Model.Id">
+  @await Html.PartialAsync(Model.PartialView, Model.Model)
+</turbo-frame>

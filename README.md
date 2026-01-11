@@ -31,21 +31,21 @@ This approach aims to:
 
 ## Project Structure
 
-### Core
+### [Core](./ForgeTrust.Runnable.Core/README.md)
 - **ForgeTrust.Runnable.Core** – Core abstractions for defining modules and starting an application via `RunnableStartup` and `StartupContext`.
 
-### Console
+### [Console](./Console/README.md)
 - **ForgeTrust.Runnable.Console** – Helpers for building command line apps with [CliFx](https://github.com/Tyrrrz/CliFx) including a `CriticalService` based command runner and helpers for configuring services.
 
-### Web
+### [Web](./Web/README.md)
 - **ForgeTrust.Runnable.Web** – Bootstraps ASP.NET Core minimal API apps and lets modules register middleware, endpoints, and perform additional host configuration.
 - **ForgeTrust.Runnable.Web.OpenApi** – Optional module that adds OpenAPI generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
 - **ForgeTrust.Runnable.Web.Scalar** – Optional module that serves the Scalar API reference UI and depends on the OpenAPI module.
 
-### Dependency
+### [Dependency](./Dependency/README.md)
 - **ForgeTrust.Runnable.Dependency.Autofac** – Optional integration with the Autofac IoC container so modules can participate in Autofac service registration.
 
-### Aspire
+### [Aspire](./Aspire/README.md)
 - **ForgeTrust.Runnable.Aspire** – Integration with .NET Aspire to provide a modular approach to defining distributed applications and service defaults.
 
 These packages are designed to work together so that features can be shared

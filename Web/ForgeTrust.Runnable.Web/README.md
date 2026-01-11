@@ -51,3 +51,6 @@ Built-in support for CORS configuration, including:
 ### Endpoint Routing
 
 Modules can define their own endpoints, making it easy to slice features vertically ("Vertical Slice Architecture").
+
+---
+[📂 Back to Web List](../README.md) | [🏠 Back to Root](../../README.md)

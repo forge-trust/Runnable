@@ -30,3 +30,6 @@ public class MyModule : IRunnableWebModule
 
 - **Document Transformation**: Automatically updates the API title and tags based on the application name defined in the `StartupContext`.
 - **Automatic Endpoint Mapping**: Calls `endpoints.MapOpenApi()` for you during the endpoint configuration phase.
+
+---
+[📂 Back to Web List](../README.md) | [🏠 Back to Root](../../README.md)

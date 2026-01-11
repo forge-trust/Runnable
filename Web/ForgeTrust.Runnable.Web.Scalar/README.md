@@ -27,3 +27,6 @@ public class MyModule : IRunnableWebModule
 - **Built-in Dependency**: Automatically registers the `RunnableWebOpenApiModule`.
 - **Automatic UI Mapping**: Maps the Scalar API reference endpoint using `MapScalarApiReference()`.
 - **Zero Config**: Works out of the box with the default Runnable startup pipeline.
+
+---
+[📂 Back to Web List](../README.md) | [🏠 Back to Root](../../README.md)

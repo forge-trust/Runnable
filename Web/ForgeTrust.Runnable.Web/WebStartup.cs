@@ -61,11 +61,18 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         _configureOptions?.Invoke(_options);
 
-        // Auto-enable static files for View-based apps
         if (_options.Mvc.MvcSupportLevel >= MvcSupport.ControllersWithViews)
         {
             _options.StaticFiles.EnableStaticFiles = true;
         }
+
+        // TODO: I think this is not needed as ASP.NET Core will handle this for us
+        
+        // Auto-enable static web assets for development
+        // if (context.IsDevelopment)
+        // {
+        //     _options.StaticFiles.EnableStaticWebAssets = true;
+        // }
 
         return _options;
     }
@@ -122,8 +129,16 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)
     {
+        BuildModules(context);
+        BuildWebOptions(context);
+
         return builder.ConfigureWebHostDefaults(webBuilder =>
         {
+            if (_options.StaticFiles.EnableStaticWebAssets)
+            {
+                webBuilder.UseStaticWebAssets();
+            }
+
             webBuilder.Configure(app => { InitializeWebApplication(context, app); });
         });
     }

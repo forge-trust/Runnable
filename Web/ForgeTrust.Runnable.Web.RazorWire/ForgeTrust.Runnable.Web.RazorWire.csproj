@@ -5,11 +5,18 @@
     <Nullable>enable</Nullable>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
     <ImplicitUsings>enable</ImplicitUsings>
+    <StaticWebAssetBasePath>_content/$(AssemblyName)</StaticWebAssetBasePath>
   </PropertyGroup>
 
 
+
+
+
+
+
+
   <ItemGroup>
-    <SupportedPlatform Include="browser" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

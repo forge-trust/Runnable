@@ -50,6 +50,14 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
     private IHostBuilder CreateHostBuilderCore(StartupContext context)
     {
         var builder = Host.CreateDefaultBuilder();
+
+        // Ensure the host environment correctly reflects the application name from the context.
+        // This is critical for features like Static Web Assets that rely on the application name to find manifests.
+        builder.ConfigureAppConfiguration((hostingContext, _) =>
+        {
+            hostingContext.HostingEnvironment.ApplicationName = context.ApplicationName;
+        });
+
         builder.ConfigureHostConfiguration(config =>
             config.AddInMemoryCollection(
                 new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName }));

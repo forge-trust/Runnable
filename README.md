@@ -32,21 +32,21 @@ This approach aims to:
 ## Project Structure
 
 ### [Core](./ForgeTrust.Runnable.Core/README.md)
-- **ForgeTrust.Runnable.Core** – Core abstractions for defining modules and starting an application via `RunnableStartup` and `StartupContext`.
+- [**ForgeTrust.Runnable.Core**](./ForgeTrust.Runnable.Core/README.md) – Core abstractions for defining modules and starting an application via `RunnableStartup` and `StartupContext`.
 
 ### [Console](./Console/README.md)
-- **ForgeTrust.Runnable.Console** – Helpers for building command line apps with [CliFx](https://github.com/Tyrrrz/CliFx) including a `CriticalService` based command runner and helpers for configuring services.
+- [**ForgeTrust.Runnable.Console**](./Console/ForgeTrust.Runnable.Console/README.md) – Helpers for building command line apps with [CliFx](https://github.com/Tyrrrz/CliFx) including a `CriticalService` based command runner and helpers for configuring services.
 
 ### [Web](./Web/README.md)
-- **ForgeTrust.Runnable.Web** – Bootstraps ASP.NET Core minimal API apps and lets modules register middleware, endpoints, and perform additional host configuration.
-- **ForgeTrust.Runnable.Web.OpenApi** – Optional module that adds OpenAPI generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
-- **ForgeTrust.Runnable.Web.Scalar** – Optional module that serves the Scalar API reference UI and depends on the OpenAPI module.
+- [**ForgeTrust.Runnable.Web**](./Web/ForgeTrust.Runnable.Web/README.md) – Bootstraps ASP.NET Core minimal API apps and lets modules register middleware, endpoints, and perform additional host configuration.
+- [**ForgeTrust.Runnable.Web.OpenApi**](./Web/ForgeTrust.Runnable.Web.OpenApi/README.md) – Optional module that adds OpenAPI generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
+- [**ForgeTrust.Runnable.Web.Scalar**](./Web/ForgeTrust.Runnable.Web.Scalar/README.md) – Optional module that serves the Scalar API reference UI and depends on the OpenAPI module.
 
 ### [Dependency](./Dependency/README.md)
-- **ForgeTrust.Runnable.Dependency.Autofac** – Optional integration with the Autofac IoC container so modules can participate in Autofac service registration.
+- [**ForgeTrust.Runnable.Dependency.Autofac**](./Dependency/ForgeTrust.Runnable.Dependency.Autofac/README.md) – Optional integration with the Autofac IoC container so modules can participate in Autofac service registration.
 
 ### [Aspire](./Aspire/README.md)
-- **ForgeTrust.Runnable.Aspire** – Integration with .NET Aspire to provide a modular approach to defining distributed applications and service defaults.
+- [**ForgeTrust.Runnable.Aspire**](./Aspire/ForgeTrust.Runnable.Aspire/README.md) – Integration with .NET Aspire to provide a modular approach to defining distributed applications and service defaults.
 
 These packages are designed to work together so that features can be shared
 across different application types while maintaining a consistent startup

@@ -14,3 +14,6 @@ Run them in release mode to get optimized measurements:
 ```bash
 dotnet run -c Release --project RunnableBenchmarks
 ```
+
+---
+[🏠 Back to Root](../README.md)

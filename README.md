@@ -3,39 +3,50 @@
 > ⚠️ **Under Construction:** This library is actively being developed and is not intended for production use yet.
 > Monorepo for the ForgeTrust.Runnable projects
 
-ForgeTrust.Runnable is a collection of .NET libraries that provide a lightweight, modular
-startup pipeline for console and web applications. The goal of the project is to make it
-easy to compose applications from small, focused modules that can configure
-dependency injection, host configuration and application specific behavior. The
-libraries sit on top of the generic host so that modules can plug into the
-service collection and hosting pipeline in a consistent way across project
-types.
+ForgeTrust.Runnable is a collection of .NET libraries designed to provide a lightweight, modular startup pipeline for both console and web applications.
 
-## Design goals
+## Vision
 
-- Encourage composition through small, focused modules that do one thing well.
-- Share cross-cutting features between console and web apps without duplicating
-  bootstrapping logic.
-- Keep infrastructure dependencies light so applications can stay minimal.
-- Allow drop-in integrations with external libraries such as different DI
-  containers or OpenAPI generators.
+The primary vision of Runnable is to simplify application bootstrapping by encouraging **composition through small, focused modules**. Instead of monolithic startup classes or scattered configuration logic, Runnable allows developers to encapsulate features into reusable modules that handle:
 
-## Project structure
+-   Dependency Injection (DI) registration
+-   Host configuration
+-   Application-specific startup logic
 
-- **ForgeTrust.Runnable.Core** – core abstractions for defining modules and starting
-  an application via `RunnableStartup` and `StartupContext`.
-- **ForgeTrust.Runnable.Console** – helpers for building command line apps with
-  [CliFx](https://github.com/Tyrrrz/CliFx) including a `CriticalService` based
-  command runner and helpers for configuring services.
-- **ForgeTrust.Runnable.Web** – bootstraps ASP.NET Core minimal API apps and
-  lets modules register middleware, endpoints and perform additional host
-  configuration.
-- **ForgeTrust.Runnable.Web.OpenApi** – optional module that adds OpenAPI
-  generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
-- **ForgeTrust.Runnable.Web.Scalar** – optional module that serves the Scalar
-  API reference UI and depends on the OpenAPI module.
-- **ForgeTrust.Runnable.Autofac** – integration with the Autofac IoC container
-  so modules can participate in Autofac service registration.
+This approach aims to:
+-   **Share cross-cutting concerns** between different application types (e.g., sharing logging or database setup between a Web API and a background Console worker).
+-   **Keep applications minimal**, with infrastructure heavily decoupled from business logic.
+-   **Provide consistency** in how applications are initialized and configured, regardless of whether they are web or console apps.
+
+## Key Design Goals
+
+1.  **Modularity**: Everything should be a module that does one thing well. Take what you need and don't get burdened by what you don't.
+2.  **Consistency**: A unified `RunnableStartup` pipeline for different project types.
+3.  **Flexibility**: Open for integration with external libraries (Autofac, OpenApi, etc.) and stick to framework provided abstractions where possible.
+4.  **Performance**: Designed to have minimal overhead on the application startup and execution.
+5.  **Ease of Use**: Simple APIs and clear patterns to make getting started frictionless.
+6.  **Convention over Configuration**: Sensible defaults are provided so only minimal configuration is required.
+7.  **Secure By Default**: Security best practices are applied automatically where appropriate.
+
+
+## Project Structure
+
+### [Core](./ForgeTrust.Runnable.Core/README.md)
+- [**ForgeTrust.Runnable.Core**](./ForgeTrust.Runnable.Core/README.md) – Core abstractions for defining modules and starting an application via `RunnableStartup` and `StartupContext`.
+
+### [Console](./Console/README.md)
+- [**ForgeTrust.Runnable.Console**](./Console/ForgeTrust.Runnable.Console/README.md) – Helpers for building command line apps with [CliFx](https://github.com/Tyrrrz/CliFx) including a `CriticalService` based command runner and helpers for configuring services.
+
+### [Web](./Web/README.md)
+- [**ForgeTrust.Runnable.Web**](./Web/ForgeTrust.Runnable.Web/README.md) – Bootstraps ASP.NET Core minimal API apps and lets modules register middleware, endpoints, and perform additional host configuration.
+- [**ForgeTrust.Runnable.Web.OpenApi**](./Web/ForgeTrust.Runnable.Web.OpenApi/README.md) – Optional module that adds OpenAPI generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
+- [**ForgeTrust.Runnable.Web.Scalar**](./Web/ForgeTrust.Runnable.Web.Scalar/README.md) – Optional module that serves the Scalar API reference UI and depends on the OpenAPI module.
+
+### [Dependency](./Dependency/README.md)
+- [**ForgeTrust.Runnable.Dependency.Autofac**](./Dependency/ForgeTrust.Runnable.Dependency.Autofac/README.md) – Optional integration with the Autofac IoC container so modules can participate in Autofac service registration.
+
+### [Aspire](./Aspire/README.md)
+- [**ForgeTrust.Runnable.Aspire**](./Aspire/ForgeTrust.Runnable.Aspire/README.md) – Integration with .NET Aspire to provide a modular approach to defining distributed applications and service defaults.
 
 These packages are designed to work together so that features can be shared
 across different application types while maintaining a consistent startup

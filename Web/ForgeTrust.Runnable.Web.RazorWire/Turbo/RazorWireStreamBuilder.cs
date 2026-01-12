@@ -1,4 +1,5 @@
 using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Turbo;
 
@@ -54,6 +55,54 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    public RazorWireStreamBuilder AppendComponent<T>(string target, object? arguments = null) where T : ViewComponent
+    {
+        _actions.Add(new ViewComponentStreamAction("append", target, typeof(T), arguments));
+        return this;
+    }
+
+    public RazorWireStreamBuilder PrependComponent<T>(string target, object? arguments = null) where T : ViewComponent
+    {
+        _actions.Add(new ViewComponentStreamAction("prepend", target, typeof(T), arguments));
+        return this;
+    }
+
+    public RazorWireStreamBuilder ReplaceComponent<T>(string target, object? arguments = null) where T : ViewComponent
+    {
+        _actions.Add(new ViewComponentStreamAction("replace", target, typeof(T), arguments));
+        return this;
+    }
+
+    public RazorWireStreamBuilder UpdateComponent<T>(string target, object? arguments = null) where T : ViewComponent
+    {
+        _actions.Add(new ViewComponentStreamAction("update", target, typeof(T), arguments));
+        return this;
+    }
+
+    public RazorWireStreamBuilder AppendComponent(string target, string componentName, object? arguments = null)
+    {
+        _actions.Add(new ViewComponentByNameStreamAction("append", target, componentName, arguments));
+        return this;
+    }
+
+    public RazorWireStreamBuilder PrependComponent(string target, string componentName, object? arguments = null)
+    {
+        _actions.Add(new ViewComponentByNameStreamAction("prepend", target, componentName, arguments));
+        return this;
+    }
+
+    public RazorWireStreamBuilder ReplaceComponent(string target, string componentName, object? arguments = null)
+    {
+        _actions.Add(new ViewComponentByNameStreamAction("replace", target, componentName, arguments));
+        return this;
+    }
+
+    public RazorWireStreamBuilder UpdateComponent(string target, string componentName, object? arguments = null)
+    {
+        _actions.Add(new ViewComponentByNameStreamAction("update", target, componentName, arguments));
+        return this;
+    }
+
     public RazorWireStreamBuilder Remove(string target)
     {
         _actions.Add(new RawHtmlStreamAction("remove", target, null));
@@ -75,10 +124,28 @@ public class RazorWireStreamBuilder
             }
             else
             {
-                throw new InvalidOperationException("Cannot synchronously build a stream containing asynchronous actions (like Partial Views). Use BuildResult() or await RenderAsync().");
+                throw new InvalidOperationException("Cannot synchronously build a stream containing asynchronous actions (like Partial Views or View Components). Use RenderAsync(viewContext) or return BuildResult() from an action.");
             }
         }
-        return sb.ToString();
+        return StripNewlines(sb.ToString());
+    }
+
+    public async Task<string> RenderAsync(Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var action in _actions)
+        {
+            var html = await action.RenderAsync(viewContext);
+            sb.Append(html);
+        }
+        return StripNewlines(sb.ToString());
+    }
+
+    private static string StripNewlines(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return content;
+        // Basic stripping: replace newlines with spaces to avoid breaking SSE protocol
+        return content.Replace("\r", "").Replace("\n", " ");
     }
 
     public RazorWireStreamResult BuildResult()

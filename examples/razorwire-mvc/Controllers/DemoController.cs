@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using ForgeTrust.Runnable.Web.RazorWire.Turbo;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
 using RazorWireWebExample.Services;
+using RazorWireWebExample.ViewComponents;
 
 namespace RazorWireWebExample.Controllers;
 
@@ -29,8 +30,8 @@ public class DemoController : Controller
 
     public IActionResult UserList()
     {
-        var users = _presence.GetActiveUsers(ActiveWindow);
-        return RazorWireBridge.Frame(this, "user-list", "_UserList", users);
+        // Wrap the ViewComponent in a Turbo Frame for the island
+        return RazorWireBridge.FrameComponent(this, "user-list", "UserList");
     }
 
     [HttpPost]
@@ -43,26 +44,25 @@ public class DemoController : Controller
             trimmedUsername = username.Trim();
             _presence.RecordActivity(trimmedUsername);
             
-            // Set cookie to persist username - MUST be done before streaming response
+            // Set cookie to persist username
             Response.Cookies.Append("razorwire-username", trimmedUsername, new CookieOptions
             {
-                HttpOnly = false, // Allow JavaScript to read if needed
+                HttpOnly = false,
                 SameSite = SameSiteMode.Lax,
                 Expires = DateTimeOffset.UtcNow.AddDays(30)
             });
             
-            // Broadcast updated user list to all clients
-            var users = _presence.GetActiveUsers(ActiveWindow);
-            await BroadcastUserListAsync(users);
+            // Broadcast update to everyone
+            await BroadcastUserPresenceAsync(trimmedUsername);
         }
 
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
         {
-            var users = _presence.GetActiveUsers(ActiveWindow);
-            
+            // Optimization: Don't return the user list here, SSE will handle it.
+            // Only return the updated message form and maybe clear the registration form.
             return this.RazorWireStream()
-                .ReplacePartial("user-list", "_UserList", users)
                 .ReplacePartial("message-form", "_MessageForm", trimmedUsername)
+                .Update("register-form", "<div class='input-group mb-2'><input type='text' name='username' id='register-username' class='form-control form-control-sm' placeholder='Your name...' required><button class='btn btn-sm btn-success' type='submit'>Join</button></div>")
                 .BuildResult();
         }
 
@@ -72,16 +72,15 @@ public class DemoController : Controller
     [HttpPost]
     public async Task<IActionResult> PublishMessage([FromForm] string message, [FromForm] string? username)
     {
-        // Use username from form (hidden field) or cookie as fallback
         var effectiveUsername = username ?? Request.Cookies["razorwire-username"];
         
-        // Record user activity if username provided
         if (!string.IsNullOrWhiteSpace(effectiveUsername))
         {
             _presence.RecordActivity(effectiveUsername.Trim());
+            await BroadcastUserPresenceAsync(effectiveUsername.Trim());
         }
 
-        // 1. Publish to the SSE stream for all users
+        // 1. Publish message to SSE
         var displayName = string.IsNullOrWhiteSpace(effectiveUsername) ? "Anonymous" : effectiveUsername.Trim();
         var streamHtml = RazorWireBridge.CreateStream()
             .Append("messages", $"<li class='list-group-item'><strong>{displayName}</strong>: {message} <small class='text-muted'>({DateTime.Now:T})</small></li>")
@@ -89,14 +88,7 @@ public class DemoController : Controller
 
         await _hub.PublishAsync("demo", streamHtml);
         
-        // Also broadcast updated user list
-        if (!string.IsNullOrWhiteSpace(effectiveUsername))
-        {
-            var users = _presence.GetActiveUsers(ActiveWindow);
-            await BroadcastUserListAsync(users);
-        }
-        
-        // 2. If it's a RazorWire request, return a streamlined partial view response
+        // 2. Return stream result to caller
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
         {
             var currentUsername = Request.Cookies["razorwire-username"] ?? "";
@@ -108,13 +100,17 @@ public class DemoController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    private async Task BroadcastUserListAsync(IEnumerable<string> users)
+    private async Task BroadcastUserPresenceAsync(string username)
     {
-        var userListHtml = string.Join("", users.Select(u => $"<li class='list-group-item py-1'>{u}</li>"));
-        var streamHtml = RazorWireBridge.CreateStream()
-            .Update("user-list", $"<h6>Active Users</h6><ul class='list-group list-group-flush'>{userListHtml}</ul>")
-            .Build();
+        var users = _presence.GetActiveUsers(ActiveWindow);
+        var viewContext = this.CreateViewContext();
+        
+        var streamHtml = await RazorWireBridge.CreateStream()
+            .ReplaceComponent<UserListViewComponent>("active-user-list", new { users })
+            .RenderAsync(viewContext);
+            
         await _hub.PublishAsync("demo", streamHtml);
     }
 }
+
 

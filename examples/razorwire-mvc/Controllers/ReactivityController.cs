@@ -115,14 +115,17 @@ public class ReactivityController : Controller
     }
 
     [HttpPost]
-    public IActionResult IncrementCounter()
+    public IActionResult IncrementCounter([FromForm] int clientCount)
     {
         RazorWireWebExample.ViewComponents.CounterViewComponent.Increment();
+        clientCount++;
 
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
         {
             return this.RazorWireStream()
-                .ReplaceComponent("counter-display", "Counter")
+                .Update("instance-score-value", RazorWireWebExample.ViewComponents.CounterViewComponent.Count.ToString())
+                .Update("session-score-value", clientCount.ToString())
+                .Replace("client-count-input", $"<input type='hidden' name='clientCount' id='client-count-input' value='{clientCount}' />")
                 .BuildResult();
         }
 

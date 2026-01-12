@@ -33,20 +33,45 @@ public static class RazorWireEndpointRouteBuilderExtensions
             context.Response.ContentType = "text/event-stream";
             context.Response.Headers.CacheControl = "no-cache";
             context.Response.Headers.Connection = "keep-alive";
+            context.Response.Headers.Pragma = "no-cache";
 
             var reader = hub.Subscribe(channel);
 
             try
             {
-                await foreach (var message in reader.ReadAllAsync(context.RequestAborted))
+                // 1. Send initial comment to establish connection and flush headers
+                await context.Response.WriteAsync(":\n\n", context.RequestAborted);
+                await context.Response.Body.FlushAsync(context.RequestAborted);
+
+                // 2. Loop with heartbeat support
+                while (!context.RequestAborted.IsCancellationRequested)
                 {
-                    await context.Response.WriteAsync($"data: {message}\n\n", context.RequestAborted);
-                    await context.Response.Body.FlushAsync(context.RequestAborted);
+                    var readTask = reader.ReadAsync(context.RequestAborted).AsTask();
+                    var heartbeatTask = Task.Delay(20000, context.RequestAborted); // 20s heartbeat
+
+                    var completedTask = await Task.WhenAny(readTask, heartbeatTask);
+
+                    if (completedTask == readTask)
+                    {
+                        var message = await readTask;
+                        await context.Response.WriteAsync($"data: {message}\n\n", context.RequestAborted);
+                        await context.Response.Body.FlushAsync(context.RequestAborted);
+                    }
+                    else
+                    {
+                        // Send heartbeat comment
+                        await context.Response.WriteAsync(":\n\n", context.RequestAborted);
+                        await context.Response.Body.FlushAsync(context.RequestAborted);
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
-                // Normal exit
+                // Normal exit on client disconnect
+            }
+            finally
+            {
+                hub.Unsubscribe(channel, reader);
             }
 
         }).ExcludeFromDescription();

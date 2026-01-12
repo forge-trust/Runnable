@@ -5,15 +5,19 @@ namespace RazorWireWebExample.Services;
 public class InMemoryUserPresenceService : IUserPresenceService
 {
     private readonly ConcurrentDictionary<string, DateTime> _userActivity = new(StringComparer.OrdinalIgnoreCase);
+    
+    public TimeSpan ActiveWindow { get; set; } = TimeSpan.FromMinutes(5);
 
-    public void RecordActivity(string username)
+    public int RecordActivity(string username)
     {
         _userActivity[username] = DateTime.UtcNow;
+        var cutoff = DateTime.UtcNow - ActiveWindow;
+        return _userActivity.Values.Count(v => v >= cutoff);
     }
 
-    public IEnumerable<UserPresenceInfo> GetActiveUsers(TimeSpan activeWindow)
+    public IEnumerable<UserPresenceInfo> GetActiveUsers()
     {
-        var cutoff = DateTime.UtcNow - activeWindow;
+        var cutoff = DateTime.UtcNow - ActiveWindow;
         return _userActivity
             .Where(kvp => kvp.Value >= cutoff)
             .Select(kvp => new UserPresenceInfo(kvp.Key, kvp.Value))
@@ -21,9 +25,9 @@ public class InMemoryUserPresenceService : IUserPresenceService
             .ToList();
     }
 
-    public IEnumerable<string> Pulse(TimeSpan activeWindow)
+    public (IEnumerable<string> Removed, int ActiveCount) Pulse()
     {
-        var cutoff = DateTime.UtcNow - activeWindow;
+        var cutoff = DateTime.UtcNow - ActiveWindow;
         var removed = new List<string>();
         
         foreach (var kvp in _userActivity)
@@ -37,6 +41,7 @@ public class InMemoryUserPresenceService : IUserPresenceService
             }
         }
         
-        return removed;
+        var activeCount = _userActivity.Values.Count(v => v >= cutoff);
+        return (removed, activeCount);
     }
 }

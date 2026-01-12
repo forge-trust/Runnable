@@ -10,7 +10,6 @@ public class DemoController : Controller
 {
     private readonly IRazorWireStreamHub _hub;
     private readonly IUserPresenceService _presence;
-    private static readonly TimeSpan ActiveWindow = TimeSpan.FromMinutes(5);
 
     public DemoController(IRazorWireStreamHub hub, IUserPresenceService presence)
     {
@@ -117,17 +116,17 @@ public class DemoController : Controller
 
     private async Task BroadcastUserPresenceAsync(string username)
     {
-        // Record activity and check if they were already active
-        _presence.RecordActivity(username);
+        // Record activity and get the current active count
+        var activeCount = _presence.RecordActivity(username);
 
         var viewContext = this.CreateViewContext();
         var streamHtml = await RazorWireBridge.CreateStream()
             .Remove("user-list-empty")
             .AppendPartial("user-list-items", "Components/UserList/_UserItem", new UserPresenceInfo(username, DateTime.UtcNow))
+            .Update("user-count", $"{activeCount} ONLINE")
             .RenderAsync(viewContext);
 
         await _hub.PublishAsync("demo", streamHtml);
     }
 }
-
 

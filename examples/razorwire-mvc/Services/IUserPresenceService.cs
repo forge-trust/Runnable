@@ -4,7 +4,8 @@ public record UserPresenceInfo(string Username, DateTime LastSeen);
 
 public interface IUserPresenceService
 {
-    void RecordActivity(string username);
-    IEnumerable<UserPresenceInfo> GetActiveUsers(TimeSpan activeWindow);
-    IEnumerable<string> Pulse(TimeSpan activeWindow);
+    TimeSpan ActiveWindow { get; set; }
+    int RecordActivity(string username);
+    IEnumerable<UserPresenceInfo> GetActiveUsers();
+    (IEnumerable<string> Removed, int ActiveCount) Pulse();
 }

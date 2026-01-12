@@ -13,7 +13,6 @@ public class UserPresenceBackgroundService : CriticalService
     private readonly IRazorWireStreamHub _hub;
     private readonly ILogger<UserPresenceBackgroundService> _logger;
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(2.5);
-    private readonly TimeSpan _activeWindow = TimeSpan.FromMinutes(5);
 
     public UserPresenceBackgroundService(
         IUserPresenceService presence, 
@@ -33,18 +32,19 @@ public class UserPresenceBackgroundService : CriticalService
         {
             try 
             {
-                var removedUsers = _presence.Pulse(_activeWindow).ToList();
+                var (removed, activeCount) = _presence.Pulse();
                 
-                foreach (var user in removedUsers)
+                foreach (var user in removed)
                 {
                     var streamHtml = RazorWireBridge.CreateStream()
                         .Remove($"user-{user}")
+                        .Update("user-count", $"{activeCount} ONLINE")
                         .Build();
                         
                     await _hub.PublishAsync("demo", streamHtml);
                 }
 
-                if (removedUsers.Any() && !_presence.GetActiveUsers(_activeWindow).Any())
+                if (removed.Any() && activeCount == 0)
                 {
                     var emptyHtml = "<div id=\"user-list-empty\" class=\"py-4 text-center border-2 border-dashed border-slate-100 rounded-xl\"><p class=\"text-[11px] font-medium text-slate-400 italic\">No companions nearby...</p></div>";
                     var emptyStream = RazorWireBridge.CreateStream()

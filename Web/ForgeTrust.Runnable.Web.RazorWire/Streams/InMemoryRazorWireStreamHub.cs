@@ -5,7 +5,8 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Streams;
 
 public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
 {
-    private readonly ConcurrentDictionary<string, ConcurrentHashSet<Channel<string>>> _channels = new();
+    private readonly ConcurrentDictionary<string, ConcurrentHashSet<ChannelWriter<string>>> _channels = new();
+    private readonly ConcurrentDictionary<ChannelReader<string>, ChannelWriter<string>> _readerToWriter = new();
 
     public async ValueTask PublishAsync(string channel, string message)
     {
@@ -13,11 +14,8 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
         {
             foreach (var subscriber in subscribers)
             {
-                try {
-                    await subscriber.Writer.WriteAsync(message);
-                } catch {
-                    // Ignore closed channels
-                }
+                // WriteAsync on DropOldest channel is effectively non-blocking/synchronous
+                await subscriber.WriteAsync(message);
             }
         }
     }
@@ -29,11 +27,24 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
             FullMode = BoundedChannelFullMode.DropOldest
         });
 
+        _readerToWriter.TryAdd(subscriber.Reader, subscriber.Writer);
+
         _channels.AddOrUpdate(channel, 
-            _ => new ConcurrentHashSet<Channel<string>> { subscriber },
-            (_, set) => { set.Add(subscriber); return set; });
+            _ => new ConcurrentHashSet<ChannelWriter<string>> { subscriber.Writer },
+            (_, set) => { set.Add(subscriber.Writer); return set; });
 
         return subscriber.Reader;
+    }
+
+    public void Unsubscribe(string channel, ChannelReader<string> reader)
+    {
+        if (_readerToWriter.TryRemove(reader, out var writer))
+        {
+            if (_channels.TryGetValue(channel, out var subscribers))
+            {
+                subscribers.Remove(writer);
+            }
+        }
     }
 
     private class ConcurrentHashSet<T> : System.Collections.Generic.IEnumerable<T>

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Turbo;
 
-public static class RazorWireTurbo
+public static class RazorWireBridge
 {
     public static PartialViewResult Frame(Controller controller, string id, string partialView, object? model = null)
     {
@@ -15,9 +15,9 @@ public static class RazorWireTurbo
         });
     }
 
-    public static TurboStreamResult Stream(string content) => new(content);
+    public static RazorWireStreamResult Stream(string content) => new(content);
     
-    public static TurboStreamBuilder CreateStream() => new();
+    public static RazorWireStreamBuilder CreateStream() => new();
 }
 
 public class TurboFrameViewModel

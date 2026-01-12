@@ -3,13 +3,13 @@ using Xunit;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Tests;
 
-public class TurboStreamBuilderTests
+public class RazorWireStreamBuilderTests
 {
     [Fact]
     public void Append_RendersCorrectMarkup()
     {
         // Arrange
-        var builder = new TurboStreamBuilder();
+        var builder = new RazorWireStreamBuilder();
 
         // Act
         var result = builder.Append("target-id", "<div>content</div>").Build();

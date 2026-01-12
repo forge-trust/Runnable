@@ -20,18 +20,27 @@ public class DemoController : Controller
 
     public IActionResult Sidebar()
     {
-        return RazorWireTurbo.Frame(this, "sidebar", "_Sidebar");
+        return RazorWireBridge.Frame(this, "sidebar", "_Sidebar");
     }
 
     [HttpPost]
     public async Task<IActionResult> PublishMessage([FromForm] string message)
     {
-        var streamHtml = RazorWireTurbo.CreateStream()
+        // 1. Publish to the SSE stream for all users
+        var streamHtml = RazorWireBridge.CreateStream()
             .Append("messages", $"<li class='list-group-item'>{message} (at {DateTime.Now:T})</li>")
             .Build();
 
         await _hub.PublishAsync("demo", streamHtml);
         
-        return Ok();
+        // 2. If it's a RazorWire request, return a streamlined partial view response
+        if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
+        {
+            return this.RazorWireStream()
+                .ReplacePartial("message-form", "_MessageForm")
+                .BuildResult();
+        }
+
+        return RedirectToAction(nameof(Index));
     }
 }

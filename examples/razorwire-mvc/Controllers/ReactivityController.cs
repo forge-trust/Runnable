@@ -6,12 +6,12 @@ using RazorWireWebExample.ViewComponents;
 
 namespace RazorWireWebExample.Controllers;
 
-public class DemoController : Controller
+public class ReactivityController : Controller
 {
     private readonly IRazorWireStreamHub _hub;
     private readonly IUserPresenceService _presence;
 
-    public DemoController(IRazorWireStreamHub hub, IUserPresenceService presence)
+    public ReactivityController(IRazorWireStreamHub hub, IUserPresenceService presence)
     {
         _hub = hub;
         _presence = presence;
@@ -100,7 +100,7 @@ public class DemoController : Controller
             .Append("messages", messageItemHtml)
             .Build();
 
-        await _hub.PublishAsync("demo", streamHtml);
+        await _hub.PublishAsync("reactivity", streamHtml);
 
         // 2. Return stream result to caller
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
@@ -126,7 +126,6 @@ public class DemoController : Controller
             .Update("user-count", $"{activeCount} ONLINE")
             .RenderAsync(viewContext);
 
-        await _hub.PublishAsync("demo", streamHtml);
+        await _hub.PublishAsync("reactivity", streamHtml);
     }
 }
-

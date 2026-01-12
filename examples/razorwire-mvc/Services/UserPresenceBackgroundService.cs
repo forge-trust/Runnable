@@ -41,7 +41,7 @@ public class UserPresenceBackgroundService : CriticalService
                         .Update("user-count", $"{activeCount} ONLINE")
                         .Build();
                         
-                    await _hub.PublishAsync("demo", streamHtml);
+                    await _hub.PublishAsync("reactivity", streamHtml);
                 }
 
                 if (removed.Any() && activeCount == 0)
@@ -50,7 +50,7 @@ public class UserPresenceBackgroundService : CriticalService
                     var emptyStream = RazorWireBridge.CreateStream()
                         .Append("active-user-list", emptyHtml)
                         .Build();
-                    await _hub.PublishAsync("demo", emptyStream);
+                    await _hub.PublishAsync("reactivity", emptyStream);
                 }
             }
             catch (Exception ex)

@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = "RazorWire Demo";
+    ViewData["Title"] = "Reactivity";
 }
 
 <div class="mb-10 text-center sm:text-left">
@@ -18,7 +18,7 @@
                 </div>
             </div>
             <div class="p-6">
-                <rw:stream-source channel="demo" />
+                <rw:stream-source channel="reactivity" />
                 
                 <div class="mb-6">
                     <partial name="_MessageForm" model='@(Context.Request.Cookies["razorwire-username"] ?? "")' />
@@ -46,7 +46,7 @@
                 <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">Active Island</h3>
             </div>
             <div class="p-6">
-                <rw:island id="sidebar" src="/Demo/Sidebar" loading="lazy">
+                <rw:island id="sidebar" src="/Reactivity/Sidebar" loading="lazy">
                     <div class="flex items-center gap-3 text-slate-400">
                         <div class="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
                         <span class="text-sm">Fetching component...</span>

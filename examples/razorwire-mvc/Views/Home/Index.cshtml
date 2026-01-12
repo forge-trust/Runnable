@@ -1,8 +1,58 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Home";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="relative py-16 overflow-hidden">
+    <div class="absolute inset-0 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(99,102,241,0.08)_0%,transparent_100%)]"></div>
+    
+    <div class="relative text-center space-y-8">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-bold uppercase tracking-wider mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <span class="flex h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+            v0.1.0 Experimental
+        </div>
+        
+        <h1 class="text-5xl sm:text-7xl font-bold tracking-tight text-slate-900 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
+            The Bridge to <br/>
+            <span class="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Instant UI</span>
+        </h1>
+        
+        <p class="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
+            Build high-performance, real-time reactive interfaces in .NET without writing a single line of client-side logic. Powered by Razor and Turbo Streams.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-4 justify-center pt-8 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-300">
+            <a asp-controller="Reactivity" asp-action="Index" class="btn-premium px-8 py-4 text-base">
+                Explore Reactivity
+            </a>
+            <a href="https://github.com/forge-trust/Runnable" class="px-8 py-4 bg-white border border-slate-200 text-slate-700 text-base font-semibold rounded-lg hover:bg-slate-50 transition-all shadow-sm">
+                View on GitHub
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16 px-4">
+    <div class="card-premium p-8 space-y-4">
+        <div class="h-10 w-10 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">Turbo Charged</h3>
+        <p class="text-sm text-slate-600 leading-relaxed">Leverage Hotwire Turbo for seamless page transitions and high-performance stream updates.</p>
+    </div>
+    
+    <div class="card-premium p-8 space-y-4">
+        <div class="h-10 w-10 bg-violet-50 rounded-lg flex items-center justify-center text-violet-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">Zero-Config Islands</h3>
+        <p class="text-sm text-slate-600 leading-relaxed">Isolate complex UI components into self-contained "islands" that load independently and stay in sync.</p>
+    </div>
+
+    <div class="card-premium p-8 space-y-4">
+        <div class="h-10 w-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900">Pure Razor</h3>
+        <p class="text-sm text-slate-600 leading-relaxed">No new paradigms. Use the C# and Razor skills you already have to build modern web applications.</p>
+    </div>
 </div>

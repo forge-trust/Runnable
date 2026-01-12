@@ -27,9 +27,56 @@
             animation-duration: 0s;
         }
 
+        /* Synchronized Inchworm Crawl 
+           Matches the linear() movement: 
+           Moves: 0-15%, 25-40%, 50-65%, 75-90%
+           Pauses: 15-25%, 40-50%, 65-75%, 90-100%
+        */
+        @@keyframes inchworm-crawl {
+            /* Move 1 */
+            0% { transform: scale(1, 1); }
+            7.5% { transform: scale(1.25, 0.75); }
+            15% { transform: scale(1, 1); }
+            
+            /* Pause 1 (15-25%) */
+            25% { transform: scale(1, 1); }
+            
+            /* Move 2 */
+            32.5% { transform: scale(1.25, 0.75); }
+            40% { transform: scale(1, 1); }
+            
+            /* Pause 2 (40-50%) */
+            50% { transform: scale(1, 1); }
+            
+            /* Move 3 */
+            57.5% { transform: scale(1.25, 0.75); }
+            65% { transform: scale(1, 1); }
+            
+            /* Pause 3 (65-75%) */
+            75% { transform: scale(1, 1); }
+            
+            /* Move 4 */
+            82.5% { transform: scale(1.25, 0.75); }
+            90% { transform: scale(1, 1); }
+            
+            /* Arrived (90-100%) */
+            100% { transform: scale(1, 1); }
+        }
+
         ::view-transition-group(permanent-island) {
             animation-duration: 2s;
-            animation-timing-function: ease-in-out;
+            animation-timing-function: linear(
+                0, 
+                0.25 15%, 0.25 25%, 
+                0.50 40%, 0.50 50%, 
+                0.75 65%, 0.75 75%, 
+                1 90%, 1 100%
+            );
+        }
+
+        ::view-transition-image-pair(permanent-island) {
+            /* Single synchronized run */
+            animation: inchworm-crawl 2s linear;
         }
     </style>
     <rw:scripts />

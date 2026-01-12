@@ -11,6 +11,8 @@ public class IslandTagHelper : TagHelper
 
     public string? Loading { get; set; }
 
+    public bool Permanent { get; set; }
+
     public string? Export { get; set; }
 
     [HtmlAttributeName("client-module")]
@@ -37,6 +39,11 @@ public class IslandTagHelper : TagHelper
         if (!string.IsNullOrEmpty(Loading))
         {
             output.Attributes.SetAttribute("loading", Loading);
+        }
+
+        if (Permanent)
+        {
+            output.Attributes.SetAttribute("data-turbo-permanent", "");
         }
 
         if (!string.IsNullOrEmpty(Export))

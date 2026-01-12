@@ -2,6 +2,9 @@
  * RazorWire Islands Hydrator
  */
 (function () {
+    if (window.RazorWireIslandsInitialized) return;
+    window.RazorWireIslandsInitialized = true;
+
     const initializedElements = new WeakSet();
 
     async function hydrateIslands() {

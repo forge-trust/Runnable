@@ -3,6 +3,8 @@
         <h4 class="text-sm font-bold text-indigo-900 mb-1 leading-none">Independent Island</h4>
         <p class="text-xs text-indigo-700/80 leading-relaxed">This component was fetched via a Turbo Frame, isolated from the main page lifecycle.</p>
     </div>
+
+    @await Component.InvokeAsync("Counter")
     
     <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest px-1">
         <span class="text-slate-400">Sync Status</span>

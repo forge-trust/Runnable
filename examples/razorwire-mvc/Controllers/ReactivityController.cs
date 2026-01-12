@@ -114,6 +114,21 @@ public class ReactivityController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost]
+    public IActionResult IncrementCounter()
+    {
+        RazorWireWebExample.ViewComponents.CounterViewComponent.Increment();
+
+        if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
+        {
+            return this.RazorWireStream()
+                .ReplaceComponent("counter-display", "Counter")
+                .BuildResult();
+        }
+
+        return Redirect(Request.Headers["Referer"].ToString() ?? "/");
+    }
+
     private async Task BroadcastUserPresenceAsync(string username)
     {
         // Record activity and get the current active count

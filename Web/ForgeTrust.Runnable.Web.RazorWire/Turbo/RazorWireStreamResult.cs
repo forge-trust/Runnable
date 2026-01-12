@@ -26,6 +26,17 @@ public class RazorWireStreamResult : IActionResult
 
     public async Task ExecuteResultAsync(ActionContext context)
     {
+        var services = context.HttpContext.RequestServices;
+        
+        // CRITICAL: Generate antiforgery tokens BEFORE we start streaming
+        // This ensures any required cookies are set before headers are sent
+        var antiforgery = services.GetService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
+        if (antiforgery != null)
+        {
+            // This will generate and set the antiforgery cookie if needed
+            _ = antiforgery.GetAndStoreTokens(context.HttpContext);
+        }
+        
         var response = context.HttpContext.Response;
         response.ContentType = "text/vnd.turbo-stream.html";
 

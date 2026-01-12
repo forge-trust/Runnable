@@ -11,7 +11,7 @@
             <div class="card-body">
                 <rw:stream-source channel="demo" />
                 
-                <partial name="_MessageForm" />
+                <partial name="_MessageForm" model='@(Context.Request.Cookies["razorwire-username"] ?? "")' />
 
                 <ul id="messages" class="list-group mt-3">
                     <li class="list-group-item text-muted">Messages will appear here via SSE...</li>
@@ -20,6 +20,8 @@
         </div>
     </div>
     <div class="col-4">
+        <partial name="_UserRegistration" />
+        
         <div class="card">
             <div class="card-header">Islands</div>
             <div class="card-body">

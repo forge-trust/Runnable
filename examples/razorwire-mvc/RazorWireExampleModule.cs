@@ -10,6 +10,7 @@ public class RazorWireExampleModule : IRunnableWebModule
 {
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
+        services.AddSingleton<Services.IUserPresenceService, Services.InMemoryUserPresenceService>();
     }
 
     public void RegisterDependentModules(ModuleDependencyBuilder builder)

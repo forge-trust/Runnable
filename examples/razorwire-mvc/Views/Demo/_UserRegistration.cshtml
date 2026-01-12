@@ -1,0 +1,14 @@
+<div class="card mb-3">
+    <div class="card-header">Register Username</div>
+    <div class="card-body">
+        <form id="register-form" asp-action="RegisterUser" method="post" rw-active="true">
+            <div class="input-group mb-2">
+                <input type="text" name="username" id="register-username" class="form-control form-control-sm" placeholder="Your name..." required>
+                <button class="btn btn-sm btn-success" type="submit">Join</button>
+            </div>
+        </form>
+        <rw:island id="user-list" src="/Demo/UserList" loading="lazy">
+            <p class="text-muted small">Loading users...</p>
+        </rw:island>
+    </div>
+</div>

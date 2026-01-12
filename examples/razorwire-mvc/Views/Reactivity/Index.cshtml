@@ -8,6 +8,26 @@
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <div class="lg:col-span-4 space-y-6">
+        <div class="card-premium p-6">
+            <partial name="_UserRegistration" />
+        </div>
+        
+        <div class="card-premium">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">Active Island</h3>
+            </div>
+            <div class="p-6">
+                <rw:island id="sidebar" src="/Reactivity/Sidebar" loading="lazy">
+                    <div class="flex items-center gap-3 text-slate-400">
+                        <div class="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
+                        <span class="text-sm">Fetching component...</span>
+                    </div>
+                </rw:island>
+            </div>
+        </div>
+    </div>
+
     <div class="lg:col-span-8 space-y-8">
         <div class="card-premium">
             <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -32,26 +52,6 @@
                         </div>
                     </li>
                 </ul>
-            </div>
-        </div>
-    </div>
-    
-    <div class="lg:col-span-4 space-y-6">
-        <div class="card-premium p-6">
-            <partial name="_UserRegistration" />
-        </div>
-        
-        <div class="card-premium">
-            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">Active Island</h3>
-            </div>
-            <div class="p-6">
-                <rw:island id="sidebar" src="/Reactivity/Sidebar" loading="lazy">
-                    <div class="flex items-center gap-3 text-slate-400">
-                        <div class="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
-                        <span class="text-sm">Fetching component...</span>
-                    </div>
-                </rw:island>
             </div>
         </div>
     </div>

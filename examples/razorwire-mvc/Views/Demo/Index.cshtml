@@ -14,7 +14,7 @@
                 <partial name="_MessageForm" model='@(Context.Request.Cookies["razorwire-username"] ?? "")' />
 
                 <ul id="messages" class="list-group mt-3">
-                    <li class="list-group-item text-muted">Messages will appear here via SSE...</li>
+                    <li id="messages-empty" class="list-group-item text-muted">Messages will appear here via SSE...</li>
                 </ul>
             </div>
         </div>

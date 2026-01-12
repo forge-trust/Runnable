@@ -33,7 +33,7 @@ public class UserPresenceBackgroundService : CriticalService
         {
             try 
             {
-                var removedUsers = _presence.Pulse(_activeWindow);
+                var removedUsers = _presence.Pulse(_activeWindow).ToList();
                 
                 foreach (var user in removedUsers)
                 {
@@ -42,6 +42,14 @@ public class UserPresenceBackgroundService : CriticalService
                         .Build();
                         
                     await _hub.PublishAsync("demo", streamHtml);
+                }
+
+                if (removedUsers.Any() && !_presence.GetActiveUsers(_activeWindow).Any())
+                {
+                    var emptyStream = RazorWireBridge.CreateStream()
+                        .Append("active-user-list", "<p id=\"user-list-empty\" class=\"text-muted small\">No active users yet.</p>")
+                        .Build();
+                    await _hub.PublishAsync("demo", emptyStream);
                 }
             }
             catch (Exception ex)

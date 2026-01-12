@@ -81,6 +81,7 @@ public class DemoController : Controller
         // 1. Publish message to SSE
         var displayName = string.IsNullOrWhiteSpace(effectiveUsername) ? "Anonymous" : effectiveUsername.Trim();
         var streamHtml = RazorWireBridge.CreateStream()
+            .Remove("messages-empty")
             .Append("messages", $"<li class='list-group-item'><strong>{displayName}</strong>: {message} <small class='text-muted'>({DateTime.Now:T})</small></li>")
             .Build();
 
@@ -105,6 +106,7 @@ public class DemoController : Controller
 
         var viewContext = this.CreateViewContext();
         var streamHtml = await RazorWireBridge.CreateStream()
+            .Remove("user-list-empty")
             .AppendPartial("user-list-items", "Components/UserList/_UserItem", new UserPresenceInfo(username, DateTime.UtcNow))
             .RenderAsync(viewContext);
 

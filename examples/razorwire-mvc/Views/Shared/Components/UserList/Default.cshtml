@@ -1,4 +1,4 @@
-@model IEnumerable<string>
+@model IEnumerable<RazorWireWebExample.Services.UserPresenceInfo>
 
 <div id="active-user-list">
     <h6>Active Users</h6>
@@ -7,7 +7,7 @@
         {
             @foreach (var user in Model)
             {
-                <li id="user-@user" class="list-group-item py-1">@user</li>
+                await Html.RenderPartialAsync("Components/UserList/_UserItem", user);
             }
         }
     </ul>

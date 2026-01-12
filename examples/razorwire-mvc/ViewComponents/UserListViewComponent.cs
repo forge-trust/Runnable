@@ -6,14 +6,14 @@ namespace RazorWireWebExample.ViewComponents;
 public class UserListViewComponent : ViewComponent
 {
     private readonly IUserPresenceService _presence;
-    private static readonly TimeSpan ActiveWindow = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan ActiveWindow = TimeSpan.FromMinutes(5);
 
     public UserListViewComponent(IUserPresenceService presence)
     {
         _presence = presence;
     }
 
-    public IViewComponentResult Invoke(IEnumerable<string>? users = null)
+    public IViewComponentResult Invoke(IEnumerable<UserPresenceInfo>? users = null)
     {
         // If users aren't passed in, fetch them from the service
         var activeUsers = users ?? _presence.GetActiveUsers(ActiveWindow);

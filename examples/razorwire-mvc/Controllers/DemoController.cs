@@ -10,7 +10,7 @@ public class DemoController : Controller
 {
     private readonly IRazorWireStreamHub _hub;
     private readonly IUserPresenceService _presence;
-    private static readonly TimeSpan ActiveWindow = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan ActiveWindow = TimeSpan.FromMinutes(5);
 
     public DemoController(IRazorWireStreamHub hub, IUserPresenceService presence)
     {
@@ -38,12 +38,11 @@ public class DemoController : Controller
     public async Task<IActionResult> RegisterUser([FromForm] string username)
     {
         string trimmedUsername = "";
-        
+
         if (!string.IsNullOrWhiteSpace(username))
         {
             trimmedUsername = username.Trim();
-            _presence.RecordActivity(trimmedUsername);
-            
+
             // Set cookie to persist username
             Response.Cookies.Append("razorwire-username", trimmedUsername, new CookieOptions
             {
@@ -51,7 +50,7 @@ public class DemoController : Controller
                 SameSite = SameSiteMode.Lax,
                 Expires = DateTimeOffset.UtcNow.AddDays(30)
             });
-            
+
             // Broadcast update to everyone
             await BroadcastUserPresenceAsync(trimmedUsername);
         }
@@ -73,10 +72,9 @@ public class DemoController : Controller
     public async Task<IActionResult> PublishMessage([FromForm] string message, [FromForm] string? username)
     {
         var effectiveUsername = username ?? Request.Cookies["razorwire-username"];
-        
+
         if (!string.IsNullOrWhiteSpace(effectiveUsername))
         {
-            _presence.RecordActivity(effectiveUsername.Trim());
             await BroadcastUserPresenceAsync(effectiveUsername.Trim());
         }
 
@@ -87,7 +85,7 @@ public class DemoController : Controller
             .Build();
 
         await _hub.PublishAsync("demo", streamHtml);
-        
+
         // 2. Return stream result to caller
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
         {
@@ -102,13 +100,14 @@ public class DemoController : Controller
 
     private async Task BroadcastUserPresenceAsync(string username)
     {
-        var users = _presence.GetActiveUsers(ActiveWindow);
+        // Record activity and check if they were already active
+        _presence.RecordActivity(username);
+
         var viewContext = this.CreateViewContext();
-        
         var streamHtml = await RazorWireBridge.CreateStream()
-            .ReplaceComponent<UserListViewComponent>("active-user-list", new { users })
+            .AppendPartial("user-list-items", "Components/UserList/_UserItem", new UserPresenceInfo(username, DateTime.UtcNow))
             .RenderAsync(viewContext);
-            
+
         await _hub.PublishAsync("demo", streamHtml);
     }
 }

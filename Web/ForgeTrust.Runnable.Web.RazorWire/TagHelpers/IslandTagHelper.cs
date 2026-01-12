@@ -13,6 +13,8 @@ public class IslandTagHelper : TagHelper
 
     public bool Permanent { get; set; }
 
+    public string? TransitionName { get; set; }
+
     public string? Export { get; set; }
 
     [HtmlAttributeName("client-module")]
@@ -44,6 +46,11 @@ public class IslandTagHelper : TagHelper
         if (Permanent)
         {
             output.Attributes.SetAttribute("data-turbo-permanent", "");
+        }
+
+        if (!string.IsNullOrEmpty(TransitionName))
+        {
+            output.Attributes.SetAttribute("style", $"view-transition-name: {TransitionName};");
         }
 
         if (!string.IsNullOrEmpty(Export))

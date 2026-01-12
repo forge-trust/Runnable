@@ -16,5 +16,11 @@
         }
     });
 
+    if (!document.startViewTransition) {
+        console.warn('⚠️ View Transition API not supported in this browser. Morphing animations will be skipped.');
+    } else {
+        console.log('✨ View Transition API Supported');
+    }
+
     console.log('✅ RazorWire Diagnostics Initialized');
 })();

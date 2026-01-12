@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - RazorWire</title>
+    <meta name="turbo-view-transition" content="same-origin" />
     <script src="https://unpkg.com/@@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,6 +16,16 @@
         }
         body {
             font-family: var(--font-outfit);
+        }
+        
+        ::view-transition-old(root),
+        ::view-transition-new(root) {
+            animation-duration: 2s;
+        }
+
+        ::view-transition-old(permanent-island),
+        ::view-transition-new(permanent-island) {
+            animation-duration: 2s;
         }
     </style>
     <rw:scripts />

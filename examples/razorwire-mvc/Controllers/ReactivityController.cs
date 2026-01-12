@@ -24,7 +24,7 @@ public class ReactivityController : Controller
 
     public IActionResult Sidebar()
     {
-        return RazorWireBridge.Frame(this, "sidebar", "_Sidebar");
+        return RazorWireBridge.Frame(this, "permanent-island", "_Sidebar");
     }
 
     public IActionResult UserList()

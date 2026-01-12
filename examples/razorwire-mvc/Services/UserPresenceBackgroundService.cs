@@ -46,8 +46,9 @@ public class UserPresenceBackgroundService : CriticalService
 
                 if (removedUsers.Any() && !_presence.GetActiveUsers(_activeWindow).Any())
                 {
+                    var emptyHtml = "<div id=\"user-list-empty\" class=\"py-4 text-center border-2 border-dashed border-slate-100 rounded-xl\"><p class=\"text-[11px] font-medium text-slate-400 italic\">No companions nearby...</p></div>";
                     var emptyStream = RazorWireBridge.CreateStream()
-                        .Append("active-user-list", "<p id=\"user-list-empty\" class=\"text-muted small\">No active users yet.</p>")
+                        .Append("active-user-list", emptyHtml)
                         .Build();
                     await _hub.PublishAsync("demo", emptyStream);
                 }

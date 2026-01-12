@@ -57,11 +57,17 @@ public class DemoController : Controller
 
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
         {
-            // Optimization: Don't return the user list here, SSE will handle it.
-            // Only return the updated message form and maybe clear the registration form.
+            var registerFormHtml = @"
+<div class='flex gap-2'>
+    <input type='text' name='username' id='register-username' class='input-premium' placeholder='Your name...' required autocomplete='off'>
+    <button class='px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 active:scale-95 transition-all shadow-sm' type='submit'>
+        Join
+    </button>
+</div>";
+
             return this.RazorWireStream()
                 .ReplacePartial("message-form", "_MessageForm", trimmedUsername)
-                .Update("register-form", "<div class='input-group mb-2'><input type='text' name='username' id='register-username' class='form-control form-control-sm' placeholder='Your name...' required><button class='btn btn-sm btn-success' type='submit'>Join</button></div>")
+                .Update("register-form", registerFormHtml)
                 .BuildResult();
         }
 
@@ -80,9 +86,19 @@ public class DemoController : Controller
 
         // 1. Publish message to SSE
         var displayName = string.IsNullOrWhiteSpace(effectiveUsername) ? "Anonymous" : effectiveUsername.Trim();
+        var time = DateTime.Now.ToString("T");
+        var messageItemHtml = $@"
+<li class='p-4 rounded-2xl bg-white border border-slate-100 flex flex-col gap-1 transition-all hover:shadow-sm group animate-in slide-in-from-bottom-2 duration-300'>
+    <div class='flex items-center justify-between'>
+        <span class='text-xs font-bold text-indigo-600 uppercase tracking-tight'>{displayName}</span>
+        <span class='text-[10px] font-medium text-slate-400 tabular-nums'>{time}</span>
+    </div>
+    <p class='text-sm text-slate-700 leading-relaxed'>{message}</p>
+</li>";
+
         var streamHtml = RazorWireBridge.CreateStream()
             .Remove("messages-empty")
-            .Append("messages", $"<li class='list-group-item'><strong>{displayName}</strong>: {message} <small class='text-muted'>({DateTime.Now:T})</small></li>")
+            .Append("messages", messageItemHtml)
             .Build();
 
         await _hub.PublishAsync("demo", streamHtml);

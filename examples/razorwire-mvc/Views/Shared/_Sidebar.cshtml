@@ -1,7 +1,11 @@
-<div class="card border-0">
-    <div class="card-body p-0">
-        <h5 class="card-title">Sidebar Content</h5>
-        <p class="card-text">This content was loaded independently via a Turbo Frame.</p>
-        <p class="text-muted small">Loaded at: @DateTime.Now.ToString("T")</p>
+<div class="space-y-4">
+    <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+        <h4 class="text-sm font-bold text-indigo-900 mb-1 leading-none">Independent Island</h4>
+        <p class="text-xs text-indigo-700/80 leading-relaxed">This component was fetched via a Turbo Frame, isolated from the main page lifecycle.</p>
+    </div>
+    
+    <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest px-1">
+        <span class="text-slate-400">Sync Status</span>
+        <span class="text-indigo-600">@DateTime.Now.ToString("T")</span>
     </div>
 </div>

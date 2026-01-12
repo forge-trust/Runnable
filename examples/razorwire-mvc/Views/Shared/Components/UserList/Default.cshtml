@@ -1,8 +1,14 @@
 @model IEnumerable<RazorWireWebExample.Services.UserPresenceInfo>
 
-<div id="active-user-list">
-    <h6>Active Users</h6>
-    <ul id="user-list-items" class="list-group list-group-flush">
+<div id="active-user-list" class="space-y-4">
+    <div class="flex items-center justify-between">
+        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Members</h4>
+        <span class="px-2 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
+            @Model.Count() ONLINE
+        </span>
+    </div>
+
+    <ul id="user-list-items" class="space-y-2">
         @if (Model != null)
         {
             @foreach (var user in Model)
@@ -11,8 +17,11 @@
             }
         }
     </ul>
+
     @if (Model == null || !Model.Any())
     {
-        <p id="user-list-empty" class="text-muted small">No active users yet.</p>
+        <div id="user-list-empty" class="py-4 text-center border-2 border-dashed border-slate-100 rounded-xl">
+            <p class="text-[11px] font-medium text-slate-400 italic">No companions nearby...</p>
+        </div>
     }
 </div>

@@ -1,14 +1,24 @@
-<div class="card mb-3">
-    <div class="card-header">Register Username</div>
-    <div class="card-body">
-        <form id="register-form" asp-action="RegisterUser" method="post" rw-active="true">
-            <div class="input-group mb-2">
-                <input type="text" name="username" id="register-username" class="form-control form-control-sm" placeholder="Your name..." required>
-                <button class="btn btn-sm btn-success" type="submit">Join</button>
-            </div>
-        </form>
+<div class="space-y-4">
+    <div class="space-y-1">
+        <h3 class="text-sm font-bold text-slate-800 uppercase tracking-tight">Identity</h3>
+        <p class="text-xs text-slate-500">Pick a name to appear in the live feed.</p>
+    </div>
+    
+    <form id="register-form" asp-action="RegisterUser" method="post" rw-active="true">
+        <div class="flex gap-2">
+            <input type="text" name="username" id="register-username" class="input-premium" placeholder="Your name..." required autocomplete="off">
+            <button class="px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 active:scale-95 transition-all shadow-sm" type="submit">
+                Join
+            </button>
+        </div>
+    </form>
+
+    <div class="pt-4 border-t border-slate-100">
         <rw:island id="user-list" src="/Demo/UserList" loading="lazy">
-            <p class="text-muted small">Loading users...</p>
+            <div class="flex items-center gap-3 text-slate-400">
+                <div class="animate-pulse h-2 w-2 bg-slate-200 rounded-full"></div>
+                <span class="text-xs">Connecting to presence...</span>
+            </div>
         </rw:island>
     </div>
 </div>

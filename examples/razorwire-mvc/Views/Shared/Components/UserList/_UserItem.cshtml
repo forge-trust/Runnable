@@ -1,5 +1,16 @@
 @model RazorWireWebExample.Services.UserPresenceInfo
-<li id="user-@Model.Username" class="list-group-item py-1 d-flex justify-content-between align-items-center">
-    <span>@Model.Username</span>
-    <small class="text-muted">@Model.LastSeen.ToLocalTime().ToString("T")</small>
+
+<li id="user-@Model.Username" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm transition-all duration-200">
+    <div class="flex items-center gap-3">
+        <div class="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white text-xs font-bold uppercase tracking-tighter ring-2 ring-white shadow-sm group-hover:scale-110 transition-transform">
+            @Model.Username.Substring(0, Math.Min(2, Model.Username.Length))
+        </div>
+        <span class="text-sm font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors">@Model.Username</span>
+    </div>
+    <div class="flex flex-col items-end gap-1">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tabular-nums">@Model.LastSeen.ToLocalTime().ToString("T")</span>
+        <div class="h-1 w-8 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-full bg-indigo-500 w-3/4 animate-pulse"></div>
+        </div>
+    </div>
 </li>

@@ -14,10 +14,16 @@
     </form>
 
     <div class="pt-4 border-t border-slate-100">
-        <rw:island id="user-list" src="/Reactivity/UserList" loading="lazy">
-            <div class="flex items-center gap-3 text-slate-400">
-                <div class="animate-pulse h-2 w-2 bg-slate-200 rounded-full"></div>
-                <span class="text-xs">Connecting to presence...</span>
+        <rw:island id="user-list" src="/Reactivity/UserList" loading="lazy" swr>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Members</h4>
+                    <div class="h-4 w-12 bg-slate-100 rounded-full animate-pulse"></div>
+                </div>
+                <div class="flex items-center gap-3 text-slate-400 min-h-[80px] items-start pt-2">
+                    <div class="animate-pulse h-2 w-2 bg-slate-200 rounded-full mt-1.5"></div>
+                    <span class="text-xs italic">Connecting to presence...</span>
+                </div>
             </div>
         </rw:island>
     </div>

@@ -16,3 +16,17 @@
 .btn-premium {
     @apply px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 active:scale-95 transition-all shadow-sm shadow-indigo-200 disabled:opacity-50 disabled:pointer-events-none;
 }
+
+/* Island Hydration Softening */
+turbo-frame {
+    transition: opacity 0.3s ease-in-out;
+}
+
+turbo-frame[loading="lazy"] {
+    opacity: 0.8;
+}
+
+#active-user-list h4 {
+    line-height: 1.5rem;
+    /* Stabilize header height */
+}

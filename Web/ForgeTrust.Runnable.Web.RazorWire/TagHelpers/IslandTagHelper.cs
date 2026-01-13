@@ -12,6 +12,8 @@ public class IslandTagHelper : TagHelper
     public string? Loading { get; set; }
 
     public bool Permanent { get; set; }
+    
+    public bool Swr { get; set; }
 
     public string? TransitionName { get; set; }
 
@@ -43,9 +45,14 @@ public class IslandTagHelper : TagHelper
             output.Attributes.SetAttribute("loading", Loading);
         }
 
-        if (Permanent)
+        if (Permanent || Swr)
         {
             output.Attributes.SetAttribute("data-turbo-permanent", "");
+        }
+
+        if (Swr)
+        {
+            output.Attributes.SetAttribute("data-rw-swr", "true");
         }
 
         if (!string.IsNullOrEmpty(TransitionName))

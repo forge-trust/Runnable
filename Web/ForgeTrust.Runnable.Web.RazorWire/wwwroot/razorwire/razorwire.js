@@ -30,8 +30,22 @@
                     this.scan();
                 }
             });
-            document.addEventListener('turbo:load', () => { });
+            document.addEventListener('turbo:load', () => {
+                this.syncIslands();
+            });
             document.addEventListener('turbo:frame-load', () => this.scan());
+        }
+
+        syncIslands() {
+            // Find all permanent islands marked for Stale-While-Revalidate
+            const islands = document.querySelectorAll('turbo-frame[data-turbo-permanent][src][data-rw-swr]');
+            islands.forEach(frame => {
+                // Turbo's .reload() on an existing frame performs a background fetch 
+                // and swaps content only when ready, without showing the skeleton.
+                if (typeof frame.reload === 'function') {
+                    frame.reload();
+                }
+            });
         }
 
         observeBody() {

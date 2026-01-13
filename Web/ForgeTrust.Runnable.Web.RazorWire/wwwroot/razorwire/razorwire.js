@@ -19,10 +19,18 @@
 
             // Re-apply state and re-observe on Turbo navigations
             document.addEventListener('turbo:render', () => {
+                const isPreview = document.documentElement.hasAttribute('data-turbo-preview');
                 this.observeBody();
                 this.restoreStates();
+
+                // Only scan for and connect to streams on final renders.
+                // Previews show stale state, so we just restore the connection badge (above)
+                // and wait for the real body to avoid double-connection logs/overhead.
+                if (!isPreview) {
+                    this.scan();
+                }
             });
-            document.addEventListener('turbo:load', () => this.scan());
+            document.addEventListener('turbo:load', () => { });
             document.addEventListener('turbo:frame-load', () => this.scan());
         }
 

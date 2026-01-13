@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-50">
+<html lang="en" class="h-full bg-slate-50" style="scrollbar-gutter: stable;">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -17,66 +17,41 @@
         body {
             font-family: var(--font-outfit);
         }
-        
+
         turbo-frame {
             display: block;
         }
 
         ::view-transition-old(root),
         ::view-transition-new(root) {
-            animation-duration: 0s;
+            /* Soften the swap to mask minor layout differences */
+            animation-duration: 0.2s;
         }
 
-        /* Synchronized Inchworm Crawl 
-           Matches the linear() movement: 
-           Moves: 0-15%, 25-40%, 50-65%, 75-90%
-           Pauses: 15-25%, 40-50%, 65-75%, 90-100%
-        */
+        /* Synchronized Inchworm Crawl - Soft Landing */
         @@keyframes inchworm-crawl {
-            /* Move 1 */
             0% { transform: scale(1, 1); }
-            7.5% { transform: scale(1.25, 0.75); }
-            15% { transform: scale(1, 1); }
-            
-            /* Pause 1 (15-25%) */
-            25% { transform: scale(1, 1); }
-            
-            /* Move 2 */
-            32.5% { transform: scale(1.25, 0.75); }
-            40% { transform: scale(1, 1); }
-            
-            /* Pause 2 (40-50%) */
+            25% { transform: scale(1.1, 0.9); }
             50% { transform: scale(1, 1); }
-            
-            /* Move 3 */
-            57.5% { transform: scale(1.25, 0.75); }
-            65% { transform: scale(1, 1); }
-            
-            /* Pause 3 (65-75%) */
-            75% { transform: scale(1, 1); }
-            
-            /* Move 4 */
-            82.5% { transform: scale(1.25, 0.75); }
-            90% { transform: scale(1, 1); }
-            
-            /* Arrived (90-100%) */
             100% { transform: scale(1, 1); }
         }
 
         ::view-transition-group(permanent-island) {
-            animation-duration: 2s;
-            animation-timing-function: linear(
-                0, 
-                0.25 15%, 0.25 25%, 
-                0.50 40%, 0.50 50%, 
-                0.75 65%, 0.75 75%, 
-                1 90%, 1 100%
-            );
+            animation-duration: 1.5s;
+            /* cubic-bezier(0.5, 0, 0.2, 1) provides a very smooth deceleration/landing */
+            animation-timing-function: cubic-bezier(0.5, 0, 0.2, 1);
+        }
+
+        ::view-transition-old(permanent-island),
+        ::view-transition-new(permanent-island) {
+            /* Ensure the snapshots fill the container perfectly to avoid sub-pixel popping */
+            height: 100%;
+            width: 100%;
         }
 
         ::view-transition-image-pair(permanent-island) {
-            /* Single synchronized run */
-            animation: inchworm-crawl 2s linear;
+            /* Single synchronized scale run */
+            animation: inchworm-crawl 1.5s cubic-bezier(0.5, 0, 0.2, 1);
         }
     </style>
     <rw:scripts />

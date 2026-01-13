@@ -8,6 +8,8 @@ public class StreamSourceTagHelper : TagHelper
 {
     public string Channel { get; set; } = null!;
 
+    public bool Permanent { get; set; }
+
     private readonly RazorWireOptions _options;
 
     public StreamSourceTagHelper(RazorWireOptions options)
@@ -22,5 +24,10 @@ public class StreamSourceTagHelper : TagHelper
 
         var src = $"{_options.Streams.BasePath}/{Channel}";
         output.Attributes.SetAttribute("src", src);
+
+        if (Permanent)
+        {
+            output.Attributes.SetAttribute("data-turbo-permanent", "");
+        }
     }
 }

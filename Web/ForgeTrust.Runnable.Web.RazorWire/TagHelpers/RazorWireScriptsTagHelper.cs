@@ -15,6 +15,7 @@ public class RazorWireScriptsTagHelper : TagHelper
         // This includes Turbo.js and the custom RazorWire island loader.
         output.Content.SetHtmlContent(@"
 <script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/turbo.min.js""></script>
+<script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js""></script>
 <script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.islands.js""></script>
 ");
     }

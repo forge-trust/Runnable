@@ -28,12 +28,25 @@
             <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <h2 class="text-sm font-semibold text-slate-900 uppercase tracking-wider">Live Activity Feed</h2>
                 <div id="connection-badge" class="flex items-center gap-2">
-                    <span class="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span class="text-xs font-medium text-amber-600 uppercase">Connecting...</span>
+                    <!-- Connecting State (Default) -->
+                    <div class="status-connecting flex items-center gap-2">
+                        <span class="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        <span class="text-xs font-medium text-amber-600 uppercase">Connecting...</span>
+                    </div>
+                    <!-- Connected State -->
+                    <div class="status-connected hidden items-center gap-2">
+                        <span class="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="text-xs font-medium text-emerald-600 uppercase">Connected</span>
+                    </div>
+                    <!-- Disconnected State -->
+                    <div class="status-disconnected hidden items-center gap-2">
+                        <span class="flex h-2 w-2 rounded-full bg-rose-500"></span>
+                        <span class="text-xs font-medium text-rose-600 uppercase">Disconnected</span>
+                    </div>
                 </div>
             </div>
             <div class="p-6">
-                <rw:stream-source channel="reactivity" />
+                <rw:stream-source id="rw-stream-reactivity" channel="reactivity" permanent="true" />
                 
                 <div class="mb-6">
                     <partial name="_MessageForm" model='@(Context.Request.Cookies["razorwire-username"] ?? "")' />
@@ -53,6 +66,20 @@
 </div>
 
 <style>
+    /* Connection Badge State Toggles */
+    body[data-rw-stream-reactivity="connected"] .status-connecting,
+    body[data-rw-stream-reactivity="disconnected"] .status-connecting {
+        display: none;
+    }
+
+    body[data-rw-stream-reactivity="connected"] .status-connected {
+        display: flex;
+    }
+
+    body[data-rw-stream-reactivity="disconnected"] .status-disconnected {
+        display: flex;
+    }
+
     .custom-scrollbar::-webkit-scrollbar {
         width: 4px;
     }

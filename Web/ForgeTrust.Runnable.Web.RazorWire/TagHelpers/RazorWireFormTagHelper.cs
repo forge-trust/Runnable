@@ -11,6 +11,7 @@ public class RazorWireFormTagHelper : TagHelper
     [HtmlAttributeName("rw-target")]
     public string? TargetFrame { get; set; }
 
+
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         if (!Enabled)

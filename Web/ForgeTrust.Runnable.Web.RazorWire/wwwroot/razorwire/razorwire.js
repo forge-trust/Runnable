@@ -8,18 +8,37 @@
 
     class StreamMonitor {
         constructor() {
-            this.monitors = new WeakMap(); // Element -> IntervalId
+            this.monitors = new WeakMap(); // Element -> Id
+            this.channelStates = new Map(); // Channel -> State (persists across navs)
             this.observer = new MutationObserver(this.handleMutations.bind(this));
         }
 
         start() {
+            this.observeBody();
+            this.scan();
+
+            // Re-apply state and re-observe on Turbo navigations
+            document.addEventListener('turbo:render', () => {
+                this.observeBody();
+                this.restoreStates();
+            });
+            document.addEventListener('turbo:load', () => this.scan());
+            document.addEventListener('turbo:frame-load', () => this.scan());
+        }
+
+        observeBody() {
+            this.observer.disconnect(); // Prevent double observation
             this.observer.observe(document.body, {
                 childList: true,
                 subtree: true
             });
-            this.scan();
-            document.addEventListener('turbo:load', () => this.scan());
-            document.addEventListener('turbo:frame-load', () => this.scan());
+        }
+
+        restoreStates() {
+            // Re-apply all persisted channel states to the new body
+            for (const [channel, state] of this.channelStates) {
+                this.updateBodyAttribute(channel, state);
+            }
         }
 
         handleMutations(mutations) {
@@ -56,16 +75,13 @@
             const channel = this.getChannelName(element.getAttribute('src'));
             if (!channel) return;
 
-            // 1. Initialize entry immediately to prevent race conditions or recursion
-            // We store the interval ID later
+            // 1. Initialize entry immediately
             const entry = { interval: null, currentState: null };
             this.monitors.set(element, entry);
 
-            // 2. Define the check function (polled and immediate)
+            // 2. Define the check function
             const checkState = () => {
-                // Robust polling of readyState
-                // 0=CONNECTING, 1=OPEN, 2=CLOSED
-                let readyState = 0; // Default to connecting if unknown
+                let readyState = 0; // Default to connecting
 
                 if (element.streamSource) {
                     readyState = element.streamSource.readyState;
@@ -77,7 +93,7 @@
                 if (readyState === 1) newState = 'connected';
                 else if (readyState === 2) newState = 'disconnected';
 
-                // Check if detached (safety guard for intervals)
+                // Check if detached
                 if (!document.body.contains(element)) {
                     this.unmonitor(element);
                     return;
@@ -86,10 +102,10 @@
                 this.updateState(element, channel, newState);
             };
 
-            // 3. Run check immediately (sync)
+            // 3. Run check immediately
             checkState();
 
-            // 4. Start Interval and update entry
+            // 4. Start Interval
             entry.interval = setInterval(checkState, 500);
         }
 
@@ -101,11 +117,12 @@
 
                 const channel = this.getChannelName(element.getAttribute('src'));
                 if (channel) {
-                    // If we were connected, fire a final disconnected event/state update
-                    if (data.currentState === 'connected' || data.currentState === 'connecting') {
-                        this.updateBodyAttribute(channel, null); // Clear attribute first
+                    // Set disconnected state
+                    this.updateStateGeneric(channel, 'disconnected');
 
-                        // Dispatch disconnected event to notify listeners
+                    // If we were active, fire detached/disconnected event
+                    if (data.currentState === 'connected' || data.currentState === 'connecting') {
+                        // Global event for cleanup/logging
                         const event = new CustomEvent('razorwire:stream:disconnected', {
                             bubbles: true,
                             cancelable: false,
@@ -115,9 +132,7 @@
                                 state: 'disconnected'
                             }
                         });
-                        element.dispatchEvent(event);
-                    } else {
-                        this.updateBodyAttribute(channel, null);
+                        document.dispatchEvent(event);
                     }
                 }
             }
@@ -126,11 +141,9 @@
         getChannelName(src) {
             if (!src) return null;
             try {
-                // Extract last segment of URL as channel name
-                // e.g. /_rw/streams/reactivity -> reactivity
                 const url = new URL(src, window.location.origin);
                 const segments = url.pathname.split('/');
-                return segments.pop() || segments.pop(); // Handle trailing slash
+                return segments.pop() || segments.pop();
             } catch {
                 return null;
             }
@@ -138,17 +151,16 @@
 
         updateState(element, channel, state) {
             const data = this.monitors.get(element);
-            if (!data) return;
+            if (!data) return; // Should not happen if monitored
 
             if (data.currentState !== state) {
                 data.currentState = state;
 
-                // 1. Update Body Attribute
-                this.updateBodyAttribute(channel, state);
+                // Update global state and body attribute
+                this.updateStateGeneric(channel, state);
 
-                // 2. Dispatch Event
+                // Dispatch Event
                 // We dispatch only to the element and let it bubble to document.
-                // This prevents duplicate events (one direct, one bubbled).
                 const eventName = `razorwire:stream:${state}`;
                 const event = new CustomEvent(eventName, {
                     bubbles: true,
@@ -161,6 +173,13 @@
                 });
                 element.dispatchEvent(event); // Bubbles to document
             }
+        }
+
+        // Generic state updater that doesn't require a DOM element reference
+        // Used for unmonitor and restoring state
+        updateStateGeneric(channel, state) {
+            this.channelStates.set(channel, state);
+            this.updateBodyAttribute(channel, state);
         }
 
         updateBodyAttribute(channel, state) {

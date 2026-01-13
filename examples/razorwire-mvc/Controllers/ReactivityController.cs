@@ -56,17 +56,9 @@ public class ReactivityController : Controller
 
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
         {
-            var registerFormHtml = @"
-<div class='flex gap-2'>
-    <input type='text' name='username' id='register-username' class='input-premium' placeholder='Your name...' required autocomplete='off'>
-    <button class='px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 active:scale-95 transition-all shadow-sm' type='submit'>
-        Join
-    </button>
-</div>";
-
             return this.RazorWireStream()
                 .ReplacePartial("message-form", "_MessageForm", trimmedUsername)
-                .Update("register-form", registerFormHtml)
+                .UpdatePartial("register-form", "_RegisterForm")
                 .BuildResult();
         }
 

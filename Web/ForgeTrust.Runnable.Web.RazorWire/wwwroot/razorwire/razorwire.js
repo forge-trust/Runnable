@@ -22,6 +22,7 @@
                 const isPreview = document.documentElement.hasAttribute('data-turbo-preview');
                 this.observeBody();
                 this.restoreStates();
+                this.syncDependentElements(); // Sync buttons/elements on render
 
                 // Only scan for and connect to streams on final renders.
                 // Previews show stale state, so we just restore the connection badge (above)
@@ -32,8 +33,12 @@
             });
             document.addEventListener('turbo:load', () => {
                 this.syncIslands();
+                this.syncDependentElements(); // Sync buttons/elements on load
             });
-            document.addEventListener('turbo:frame-load', () => this.scan());
+            document.addEventListener('turbo:frame-load', () => {
+                this.scan();
+                this.syncDependentElements(); // Sync buttons/elements on frame load
+            });
         }
 
         syncIslands() {
@@ -202,6 +207,25 @@
         updateStateGeneric(channel, state) {
             this.channelStates.set(channel, state);
             this.updateBodyAttribute(channel, state);
+            this.syncDependentElements(channel);
+        }
+
+        syncDependentElements(targetChannel = null) {
+            const selector = targetChannel
+                ? `[data-rw-requires-stream="${targetChannel}"]`
+                : '[data-rw-requires-stream]';
+
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(el => {
+                const channel = el.getAttribute('data-rw-requires-stream');
+                const state = this.channelStates.get(channel);
+
+                if (state === 'connected') {
+                    el.removeAttribute('disabled');
+                } else {
+                    el.setAttribute('disabled', 'disabled');
+                }
+            });
         }
 
         updateBodyAttribute(channel, state) {

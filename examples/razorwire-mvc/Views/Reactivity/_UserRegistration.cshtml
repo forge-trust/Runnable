@@ -5,16 +5,11 @@
     </div>
     
     <form id="register-form" asp-action="RegisterUser" method="post" rw-active="true">
-        <div class="flex gap-2">
-            <input type="text" name="username" id="register-username" class="input-premium" placeholder="Your name..." required autocomplete="off">
-            <button class="px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 active:scale-95 transition-all shadow-sm" type="submit">
-                Join
-            </button>
-        </div>
+        <partial name="_RegisterForm" />
     </form>
 
     <div class="pt-4 border-t border-slate-100">
-        <rw:island id="user-list" src="/Reactivity/UserList" loading="lazy" swr>
+        <rw:island id="user-list" src="/Reactivity/UserList" loading="lazy" swr requires-stream="reactivity">
             <div class="space-y-4">
                 <div class="flex items-center justify-between">
                     <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Members</h4>

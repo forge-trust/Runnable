@@ -192,7 +192,7 @@ public class RunnableStartupTests
 
     private class RootModuleThrows : IRunnableHostModule
     {
-        public Exception ExceptionToThrow { get; set; }
+        public Exception ExceptionToThrow { get; set; } = new InvalidOperationException("Default test exception");
 
         public void ConfigureServices(StartupContext context, IServiceCollection services)
         {

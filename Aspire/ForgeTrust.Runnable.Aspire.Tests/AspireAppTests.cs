@@ -9,6 +9,14 @@ using Microsoft.Extensions.Logging;
 
 public class AspireAppTests
 {
+    static AspireAppTests()
+    {
+        // Set dummy paths to satisfy Aspire orchestration requirements during tests
+        // These are required when instantiating IDistributedApplicationBuilder
+        Environment.SetEnvironmentVariable("ASPIRE_DCP_PATH", "dummy");
+        Environment.SetEnvironmentVariable("ASPIRE_DASHBOARD_PATH", "dummy");
+    }
+
     [Fact]
     public async Task RunAsync_RegistersAspireComponentsAsSingletons()
     {

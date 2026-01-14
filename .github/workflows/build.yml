@@ -31,9 +31,6 @@ jobs:
       - name: Install Aspire Workload
         run: dotnet workload install aspire
 
-      - name: Install GitHubActions Test Logger
-        run: dotnet tool install --global GitHubActions.TestLogger
-
       - name: Run tests
         run: |
           dotnet test --configuration Release --no-build --verbosity normal \

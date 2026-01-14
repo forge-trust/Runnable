@@ -2,6 +2,7 @@ using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+[Collection("NoParallel")]
 public class RunnableStartupTests
 {
     [Fact]

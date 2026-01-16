@@ -6,10 +6,10 @@
     if (window.RazorWireInitialized) return;
     window.RazorWireInitialized = true;
 
-    class StreamMonitor {
+    class ConnectionManager {
         constructor() {
-            this.monitors = new WeakMap(); // Element -> Id
-            this.channelStates = new Map(); // Channel -> State (persists across navs)
+            this.sources = new Map(); // src -> { es: EventSource, elements: Set<Element>, closeTimer: int, state: string }
+            this.channelStates = new Map(); // Channel -> State (for global access and dependent elements)
             this.observer = new MutationObserver(this.handleMutations.bind(this));
         }
 
@@ -17,36 +17,58 @@
             this.observeBody();
             this.scan();
 
-            // Re-apply state and re-observe on Turbo navigations
             document.addEventListener('turbo:render', () => {
                 const isPreview = document.documentElement.hasAttribute('data-turbo-preview');
                 this.observeBody();
-                this.restoreStates();
-                this.syncDependentElements(); // Sync buttons/elements on render
 
-                // Only scan for and connect to streams on final renders.
-                // Previews show stale state, so we just restore the connection badge (above)
-                // and wait for the real body to avoid double-connection logs/overhead.
+                // restoreStates MUST run to apply 'connected' class to the new body
+                this.restoreStates();
+
+                // Scan FIRST to register new elements and keep the connection alive
                 if (!isPreview) {
                     this.scan();
                 }
+
+                // Prune any elements that were removed (Turbo replaces body, so MO might miss them)
+                this.prune();
+
+                this.syncDependentElements();
             });
             document.addEventListener('turbo:load', () => {
+                this.syncDependentElements();
                 this.syncIslands();
-                this.syncDependentElements(); // Sync buttons/elements on load
             });
             document.addEventListener('turbo:frame-load', () => {
                 this.scan();
-                this.syncDependentElements(); // Sync buttons/elements on frame load
+                this.syncDependentElements();
             });
         }
 
-        syncIslands() {
-            // Find all permanent islands marked for Stale-While-Revalidate
-            const islands = document.querySelectorAll('turbo-frame[data-turbo-permanent][src][data-rw-swr]');
+        restoreStates() {
+            for (const [channel, state] of this.channelStates) {
+                this.updateBodyAttribute(channel, state);
+            }
+        }
+
+        prune() {
+            // console.log('[ConnectionManager] Pruning disconnected elements...');
+            for (const [src, source] of this.sources) {
+                for (const element of source.elements) {
+                    if (!element.isConnected) {
+                        // console.log('[ConnectionManager] Pruning element:', src);
+                        this.unregister(element);
+                    }
+                }
+            }
+        }
+
+        syncIslands(targetChannel = null) {
+            const selector = targetChannel
+                ? `turbo-frame[data-turbo-permanent][src][data-rw-swr][data-rw-requires-stream="${targetChannel}"]`
+                : 'turbo-frame[data-turbo-permanent][src][data-rw-swr]';
+
+            const islands = document.querySelectorAll(selector);
             islands.forEach(frame => {
-                // Turbo's .reload() on an existing frame performs a background fetch 
-                // and swaps content only when ready, without showing the skeleton.
                 if (typeof frame.reload === 'function') {
                     frame.reload();
                 }
@@ -54,115 +76,186 @@
         }
 
         observeBody() {
-            this.observer.disconnect(); // Prevent double observation
+            this.observer.disconnect();
             this.observer.observe(document.body, {
                 childList: true,
                 subtree: true
             });
         }
 
-        restoreStates() {
-            // Re-apply all persisted channel states to the new body
-            for (const [channel, state] of this.channelStates) {
-                this.updateBodyAttribute(channel, state);
-            }
-        }
-
         handleMutations(mutations) {
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node instanceof Element) {
-                        if (node.tagName === 'TURBO-STREAM-SOURCE') {
-                            this.monitor(node);
+                        if (node.tagName === 'RW-STREAM-SOURCE') {
+                            this.register(node);
                         } else {
-                            // Deep scan added subtrees
-                            node.querySelectorAll('turbo-stream-source').forEach(el => this.monitor(el));
+                            node.querySelectorAll('rw-stream-source').forEach(el => this.register(el));
                         }
                     }
                 }
                 for (const node of mutation.removedNodes) {
                     if (node instanceof Element) {
-                        if (node.tagName === 'TURBO-STREAM-SOURCE') {
-                            this.unmonitor(node);
+                        if (node.tagName === 'RW-STREAM-SOURCE') {
+                            this.unregister(node);
                         } else {
-                            node.querySelectorAll('turbo-stream-source').forEach(el => this.unmonitor(el));
+                            node.querySelectorAll('rw-stream-source').forEach(el => this.unregister(el));
                         }
                     }
                 }
             }
+            this.syncDependentElements();
         }
 
         scan() {
-            document.querySelectorAll('turbo-stream-source').forEach(el => this.monitor(el));
+            document.querySelectorAll('rw-stream-source').forEach(el => this.register(el));
         }
 
-        monitor(element) {
-            if (this.monitors.has(element)) return;
+        register(element) {
+            const src = element.getAttribute('src');
+            if (!src) return;
 
-            const channel = this.getChannelName(element.getAttribute('src'));
-            if (!channel) return;
+            let source = this.sources.get(src);
+            if (!source) {
+                console.log('[ConnectionManager] Creating NEW connection for:', src);
+                // Create new persistent connection
+                const es = new EventSource(src);
+                Turbo.connectStreamSource(es);
 
-            // 1. Initialize entry immediately
-            const entry = { interval: null, currentState: null };
-            this.monitors.set(element, entry);
+                source = {
+                    es,
+                    elements: new Set(),
+                    closeTimer: null,
+                    state: 'connecting',
+                    channel: this.getChannelName(src)
+                };
 
-            // 2. Define the check function
-            const checkState = () => {
-                let readyState = 0; // Default to connecting
+                // Hook up state listeners to the EventSource directly
+                es.onopen = () => this.updateSourceState(src, 'connected');
+                es.onerror = () => {
+                    if (es.readyState === 2) this.updateSourceState(src, 'disconnected');
+                    else this.updateSourceState(src, 'connecting');
+                };
 
-                if (element.streamSource) {
-                    readyState = element.streamSource.readyState;
-                } else if (element.stream && element.stream.eventSource) {
-                    readyState = element.stream.eventSource.readyState;
-                }
+                this.sources.set(src, source);
 
-                let newState = 'connecting';
-                if (readyState === 1) newState = 'connected';
-                else if (readyState === 2) newState = 'disconnected';
-
-                // Check if detached
-                if (!document.body.contains(element)) {
-                    this.unmonitor(element);
-                    return;
-                }
-
-                this.updateState(element, channel, newState);
-            };
-
-            // 3. Run check immediately
-            checkState();
-
-            // 4. Start Interval
-            entry.interval = setInterval(checkState, 500);
-        }
-
-        unmonitor(element) {
-            const data = this.monitors.get(element);
-            if (data) {
-                clearInterval(data.interval);
-                this.monitors.delete(element);
-
-                const channel = this.getChannelName(element.getAttribute('src'));
-                if (channel) {
-                    // Set disconnected state
-                    this.updateStateGeneric(channel, 'disconnected');
-
-                    // If we were active, fire detached/disconnected event
-                    if (data.currentState === 'connected' || data.currentState === 'connecting') {
-                        // Global event for cleanup/logging
-                        const event = new CustomEvent('razorwire:stream:disconnected', {
-                            bubbles: true,
-                            cancelable: false,
-                            detail: {
-                                channel: channel,
-                                source: element,
-                                state: 'disconnected'
-                            }
-                        });
-                        document.dispatchEvent(event);
-                    }
-                }
+                // Initial state
+                this.updateSourceState(src, 'connecting');
             }
+
+            // Cancel any pending close
+            if (source.closeTimer) {
+                console.log('[ConnectionManager] Cancelling close timer for:', src);
+                clearTimeout(source.closeTimer);
+                source.closeTimer = null;
+            }
+
+            // Only increment count if we haven't already registered this specific element
+            // (MutationObserver might fire multiple times or scan might duplicate)
+            if (!source.elements.has(element)) {
+                source.elements.add(element);
+                element.setAttribute('data-rw-registered', 'true');
+            }
+
+            // Sync this element with current state
+            this.dispatchToElement(element, source.channel, source.state);
+        }
+
+        unregister(element) {
+            const src = element.getAttribute('src');
+            if (!src) return;
+
+            const source = this.sources.get(src);
+            if (!source) return;
+
+            if (source.elements.has(element)) {
+                source.elements.delete(element);
+                element.removeAttribute('data-rw-registered');
+            }
+
+            if (source.elements.size === 0) {
+                console.log('[ConnectionManager] No more elements for:', src, 'Starting grace period (5000ms)...');
+
+                // Capture the last known element info for reporting
+                const lastId = element.id || '';
+
+                // Grace period: Wait 5000ms before actually closing.
+                // If a new page loads with the same stream, register() will cancel this timer.
+                source.closeTimer = setTimeout(() => {
+                    // Check size again in case re-registered
+                    if (source.elements.size > 0) {
+                        console.log('[ConnectionManager] Grace period saved connection:', src);
+                        return;
+                    }
+
+                    console.log('[ConnectionManager] Closing connection:', src);
+                    source.es.close();
+                    Turbo.disconnectStreamSource(source.es);
+                    this.sources.delete(src);
+
+                    this.updateSourceState(src, 'disconnected');
+
+                    // Fire disconnected event globally since source is gone
+                    const event = new CustomEvent('razorwire:stream:disconnected', {
+                        bubbles: true,
+                        cancelable: false,
+                        detail: {
+                            channel: source.channel,
+                            // Provide a mockup of the source so logging doesn't crash
+                            source: { id: lastId },
+                            state: 'disconnected'
+                        }
+                    });
+                    document.dispatchEvent(event);
+
+                    // Cleanup global state
+                    this.channelStates.delete(source.channel);
+                    this.updateBodyAttribute(source.channel, null);
+
+                }, 5000);
+            }
+        }
+
+        updateSourceState(src, state) {
+            const source = this.sources.get(src);
+            if (!source && state !== 'disconnected') return;
+
+            // Should be impossible if source is gone, but safety check
+            const channel = source ? source.channel : this.getChannelName(src);
+            if (source) source.state = state;
+
+            // Update global trackers
+            this.channelStates.set(channel, state);
+            this.updateBodyAttribute(channel, state);
+            this.syncDependentElements(channel);
+
+            // Sync Islands on connect
+            if (state === 'connected') {
+                this.syncIslands(channel);
+            }
+
+            // Dispatch to all active elements for this src
+            if (source) {
+                source.elements.forEach(el => {
+                    this.dispatchToElement(el, channel, state);
+                });
+            }
+        }
+
+        dispatchToElement(element, channel, state) {
+            if (!element || !state) return;
+
+            const eventName = `razorwire:stream:${state}`;
+            const event = new CustomEvent(eventName, {
+                bubbles: true,
+                cancelable: false,
+                detail: {
+                    channel: channel,
+                    source: element,
+                    state: state
+                }
+            });
+            element.dispatchEvent(event);
         }
 
         getChannelName(src) {
@@ -176,40 +269,6 @@
             }
         }
 
-        updateState(element, channel, state) {
-            const data = this.monitors.get(element);
-            if (!data) return; // Should not happen if monitored
-
-            if (data.currentState !== state) {
-                data.currentState = state;
-
-                // Update global state and body attribute
-                this.updateStateGeneric(channel, state);
-
-                // Dispatch Event
-                // We dispatch only to the element and let it bubble to document.
-                const eventName = `razorwire:stream:${state}`;
-                const event = new CustomEvent(eventName, {
-                    bubbles: true,
-                    cancelable: false,
-                    detail: {
-                        channel: channel,
-                        source: element,
-                        state: state
-                    }
-                });
-                element.dispatchEvent(event); // Bubbles to document
-            }
-        }
-
-        // Generic state updater that doesn't require a DOM element reference
-        // Used for unmonitor and restoring state
-        updateStateGeneric(channel, state) {
-            this.channelStates.set(channel, state);
-            this.updateBodyAttribute(channel, state);
-            this.syncDependentElements(channel);
-        }
-
         syncDependentElements(targetChannel = null) {
             const selector = targetChannel
                 ? `[data-rw-requires-stream="${targetChannel}"]`
@@ -220,7 +279,7 @@
                 const channel = el.getAttribute('data-rw-requires-stream');
                 const state = this.channelStates.get(channel);
 
-                if (state === 'connected') {
+                if (state === 'connected' || (state === 'connecting' && el.tagName === 'TURBO-FRAME')) {
                     el.removeAttribute('disabled');
                 } else {
                     el.setAttribute('disabled', 'disabled');
@@ -230,7 +289,7 @@
 
         updateBodyAttribute(channel, state) {
             const attr = `data-rw-stream-${channel}`;
-            if (state) {
+            if (state && state !== 'disconnected') {
                 document.body.setAttribute(attr, state);
             } else {
                 document.body.removeAttribute(attr);
@@ -239,13 +298,13 @@
     }
 
     // Initialize
-    const monitor = new StreamMonitor();
+    const connectionManager = new ConnectionManager();
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => monitor.start());
+        document.addEventListener('DOMContentLoaded', () => connectionManager.start());
     } else {
-        monitor.start();
+        connectionManager.start();
     }
 
-    window.RazorWire = { monitor };
+    window.RazorWire = { connectionManager };
     console.log('✅ RazorWire Runtime Initialized');
 })();

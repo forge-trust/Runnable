@@ -19,7 +19,7 @@ public class StreamSourceTagHelper : TagHelper
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
-        output.TagName = "turbo-stream-source";
+        output.TagName = "rw-stream-source";
         output.TagMode = TagMode.StartTagAndEndTag;
 
         var src = $"{_options.Streams.BasePath}/{Channel}";

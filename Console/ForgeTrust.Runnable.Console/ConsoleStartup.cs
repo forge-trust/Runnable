@@ -24,6 +24,7 @@ public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
             services.AddTransient(commandType);
         }
 
+        services.AddSingleton<IOptionSuggester, LevenshteinOptionSuggester>();
         services.AddHostedService<CommandService>();
     }
 
@@ -31,7 +32,6 @@ public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
     {
         // Default implementation does nothing, so we don't force an implementation.
     }
-
 
 
     // This will ensure that we register all command types from the assembly of TModule

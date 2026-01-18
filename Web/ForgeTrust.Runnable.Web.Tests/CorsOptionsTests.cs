@@ -97,7 +97,7 @@ public class CorsOptionsTests
             var policy = await policyProvider.GetPolicyAsync(new DefaultHttpContext(), "DefaultCorsPolicy");
 
             Assert.False(policy!.AllowAnyOrigin);
-            Assert.Contains("https://example.com", policy!.Origins);
+            Assert.Contains("https://example.com", policy.Origins);
         }
         finally
         {

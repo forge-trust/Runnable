@@ -249,8 +249,6 @@ public class WebStartupTests
             options.Mvc.MvcSupportLevel = MvcLevel;
         }
 
-        public static void Increment() => System.Threading.Interlocked.Increment(ref _count);
-
         public void ConfigureServices(StartupContext context, IServiceCollection services)
         {
         }

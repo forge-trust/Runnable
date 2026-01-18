@@ -68,11 +68,26 @@
                 : 'turbo-frame[data-turbo-permanent][src][data-rw-swr]';
 
             const islands = document.querySelectorAll(selector);
-            islands.forEach(frame => {
-                if (typeof frame.reload === 'function') {
-                    frame.reload();
-                }
-            });
+
+
+
+            setTimeout(() => {
+                islands.forEach(frame => {
+                    // Optimized SWR:
+                    // If a frame is LAZY and hasn't loaded yet (no 'complete' attribute),
+                    // we skip the reload. The native lazy load will happen when visible, providing fresh data.
+                    const isLazy = frame.getAttribute('loading') === 'lazy';
+                    const hasLoadedOnce = frame.hasAttribute('complete');
+
+                    if (isLazy && !hasLoadedOnce) {
+                        return;
+                    }
+
+                    if (typeof frame.reload === 'function') {
+                        frame.reload();
+                    }
+                });
+            }, 100);
         }
 
         observeBody() {

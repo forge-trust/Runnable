@@ -126,6 +126,11 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Builds a concatenated string of Turbo Stream elements for the queued raw HTML actions.
+    /// </summary>
+    /// <returns>A string containing the concatenated &lt;turbo-stream&gt; elements for all raw HTML actions.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the builder contains actions that require asynchronous rendering (such as partial views or view components); use RenderAsync(viewContext) or BuildResult() instead.</exception>
     public string Build()
     {
         var sb = new System.Text.StringBuilder();
@@ -167,6 +172,10 @@ public class RazorWireStreamBuilder
     }
 
 
+    /// <summary>
+    /// Creates a RazorWireStreamResult that contains the builder's queued stream actions.
+    /// </summary>
+    /// <returns>A RazorWireStreamResult whose actions list is a snapshot copy of the builder's queued actions.</returns>
     public RazorWireStreamResult BuildResult()
     {
         return new RazorWireStreamResult(_actions.ToList());
@@ -185,6 +194,10 @@ public class RazorWireStreamBuilder
             Html = html;
         }
 
+        /// <summary>
+        /// Renders the turbo-stream element for this raw HTML action.
+        /// </summary>
+        /// <returns>The turbo-stream element for the action and target: for action &quot;remove&quot; a remove stream without a template; otherwise a stream whose &lt;template&gt; contains the action's HTML.</returns>
         public Task<string> RenderAsync(Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext)
         {
             var encodedTarget = HtmlEncoder.Default.Encode(Target);

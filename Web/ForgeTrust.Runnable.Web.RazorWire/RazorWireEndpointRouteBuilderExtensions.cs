@@ -8,6 +8,11 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 
 public static class RazorWireEndpointRouteBuilderExtensions
 {
+    /// <summary>
+    /// Adds a GET endpoint at "{BasePath}/{channel}" that streams Server-Sent Events (SSE) for the specified channel.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder to configure.</param>
+    /// <returns>The original <see cref="IEndpointRouteBuilder"/> instance.</returns>
     public static IEndpointRouteBuilder MapRazorWire(this IEndpointRouteBuilder endpoints)
     {
         var options = endpoints.ServiceProvider.GetRequiredService<RazorWireOptions>();

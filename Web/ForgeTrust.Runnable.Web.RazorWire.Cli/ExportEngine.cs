@@ -13,6 +13,15 @@ public class ExportEngine
     private readonly HashSet<string> _visited = new();
     private readonly Queue<string> _queue = new();
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="ExportEngine"/>.
+    /// </summary>
+    /// <param name="projectPath">Path to the project root.</param>
+    /// <param name="outputPath">Directory where exported HTML files will be written.</param>
+    /// <param name="mode">Operation mode for the export process (mode-specific behavior determined elsewhere).</param>
+    /// <param name="seedRoutesPath">Optional path to a file containing seed routes; may be null.</param>
+    /// <param name="baseUrl">Base URL used for crawling.</param>
+    /// <param name="console">Console abstraction for logging and status output.</param>
     public ExportEngine(
         string projectPath,
         string outputPath,
@@ -89,6 +98,12 @@ public class ExportEngine
         }
     }
 
+    /// <summary>
+    /// Convert a URL route into a validated absolute file path inside the configured output directory.
+    /// </summary>
+    /// <param name="route">The request route to convert (for example, "/about" or "/").</param>
+    /// <returns>The absolute path under the output directory where the route's HTML file should be written.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the resolved path would lie outside the configured output directory (path traversal detected).</exception>
     private string MapRouteToFilePath(string route)
     {
         var normalized = route == "/" ? "/index" : route;
@@ -109,6 +124,10 @@ public class ExportEngine
         return fullPath;
     }
 
+    /// <summary>
+    /// Finds internal anchor hrefs in the provided HTML and enqueues each unvisited route for processing.
+    /// </summary>
+    /// <param name="html">HTML source to scan for link targets.</param>
     private void ExtractLinks(string html)
     {
         var matches = Regex.Matches(html, "href=\"([^\"]+)\"");

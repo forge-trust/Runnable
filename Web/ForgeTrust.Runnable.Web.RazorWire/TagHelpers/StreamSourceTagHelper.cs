@@ -17,6 +17,13 @@ public class StreamSourceTagHelper : TagHelper
         _options = options;
     }
 
+    /// <summary>
+    /// Renders an rw-stream-source element and sets its attributes from the tag helper's properties.
+    /// </summary>
+    /// <remarks>
+    /// Sets the tag name to "rw-stream-source" and its mode to StartTagAndEndTag. Validates that <see cref="Channel"/> is not null, empty, or whitespace; sets the "src" attribute to the configured stream base path combined with <see cref="Channel"/>. If <see cref="Permanent"/> is true, adds the "data-turbo-permanent" attribute with an empty value.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown when <see cref="Channel"/> is null, empty, or contains only whitespace.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = "rw-stream-source";

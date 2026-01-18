@@ -14,16 +14,33 @@ public class RazorWireStreamResult : IActionResult
 {
     private readonly IEnumerable<IRazorWireStreamAction> _actions;
 
+    /// <summary>
+    /// Initializes a new RazorWireStreamResult that will stream the specified sequence of Razor wire actions as a Turbo Stream response.
+    /// </summary>
+    /// <param name="actions">Sequence of IRazorWireStreamAction instances whose rendered outputs will be written to the response in order.</param>
     public RazorWireStreamResult(IEnumerable<IRazorWireStreamAction> actions)
     {
         _actions = actions;
     }
 
+    /// <summary>
+    /// Creates a RazorWireStreamResult that will stream the provided raw HTML as a single Turbo Stream action.
+    /// </summary>
+    /// <param name="rawContent">The raw HTML to stream; if null, an empty string is used.</param>
     public RazorWireStreamResult(string? rawContent)
     {
         _actions = [new RawHtmlStreamAction(rawContent ?? string.Empty)];
     }
 
+    /// <summary>
+    /// Streams the rendered HTML from each configured IRazorWireStreamAction to the HTTP response as a Turbo Stream.
+    /// </summary>
+    /// <param name="context">The current ActionContext used to build the view context and write the response.</param>
+    /// <returns>A task that completes when all actions have been rendered and written to the response.</returns>
+    /// <remarks>
+    /// Sets the response Content-Type to "text/vnd.turbo-stream.html" and, if an antiforgery service is available,
+    /// generates and stores antiforgery tokens before writing any response data.
+    /// </remarks>
     public async Task ExecuteResultAsync(ActionContext context)
     {
         var services = context.HttpContext.RequestServices;
@@ -49,6 +66,18 @@ public class RazorWireStreamResult : IActionResult
         }
     }
 
+    /// <summary>
+    /// Create a ViewContext for rendering Razor stream actions based on the given ActionContext.
+    /// </summary>
+    /// <param name="actionContext">The action context whose HttpContext and ModelState are used to initialize the view context.</param>
+    /// <returns>
+    /// A ViewContext configured with:
+    /// - a NullView for the IView,
+    /// - a ViewDataDictionary created from an EmptyModelMetadataProvider and the provided ModelState,
+    /// - TempData obtained from the request's ITempDataDictionaryFactory,
+    /// - TextWriter.Null as the writer,
+    /// - default HtmlHelperOptions.
+    /// </returns>
     private ViewContext CreateViewContext(ActionContext actionContext)
     {
         var services = actionContext.HttpContext.RequestServices;

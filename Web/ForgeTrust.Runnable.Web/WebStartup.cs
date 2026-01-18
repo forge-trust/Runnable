@@ -126,7 +126,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                         {
                             builder.AllowAnyOrigin();
                         }
-                        else if (_options.Cors.AllowedOrigins.Length > 0)
+                        else
                         {
                             builder.SetIsOriginAllowedToAllowWildcardSubdomains()
                                 .WithOrigins(_options.Cors.AllowedOrigins)

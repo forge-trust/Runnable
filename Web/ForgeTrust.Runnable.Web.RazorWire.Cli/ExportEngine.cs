@@ -37,10 +37,9 @@ public class ExportEngine
         if (_seedRoutesPath != null && File.Exists(_seedRoutesPath))
         {
             var seeds = await File.ReadAllLinesAsync(_seedRoutesPath);
-            foreach (var seed in seeds)
+            foreach (var seed in seeds.Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)))
             {
-                var trimmed = seed.Trim();
-                if (!string.IsNullOrEmpty(trimmed)) _queue.Enqueue(trimmed);
+                _queue.Enqueue(seed);
             }
         }
         else
@@ -126,17 +125,15 @@ public class ExportEngine
     private void ExtractFrames(string html)
     {
         var matches = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"");
-        foreach (Match match in matches)
+        foreach (var src in matches.Select(m => m.Groups[1].Value)
+                     .Where(src =>
+                         src.StartsWith("/")
+                         && !src.StartsWith("//")
+                         && !src.Contains(":")
+                         && !src.Contains("#")
+                         && !_visited.Contains(src)))
         {
-            var src = match.Groups[1].Value;
-            if (src.StartsWith("/")
-                && !src.StartsWith("//")
-                && !src.Contains(":")
-                && !src.Contains("#")
-                && !_visited.Contains(src))
-            {
-                _queue.Enqueue(src);
-            }
+            _queue.Enqueue(src);
         }
     }
 }

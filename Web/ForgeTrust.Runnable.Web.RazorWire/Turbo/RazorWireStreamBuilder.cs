@@ -10,102 +10,119 @@ public class RazorWireStreamBuilder
     public RazorWireStreamBuilder Append(string target, string templateHtml)
     {
         _actions.Add(new RawHtmlStreamAction("append", target, templateHtml));
+
         return this;
     }
 
     public RazorWireStreamBuilder AppendPartial(string target, string viewName, object? model = null)
     {
         _actions.Add(new PartialViewStreamAction("append", target, viewName, model));
+
         return this;
     }
 
     public RazorWireStreamBuilder Prepend(string target, string templateHtml)
     {
         _actions.Add(new RawHtmlStreamAction("prepend", target, templateHtml));
+
         return this;
     }
 
     public RazorWireStreamBuilder PrependPartial(string target, string viewName, object? model = null)
     {
         _actions.Add(new PartialViewStreamAction("prepend", target, viewName, model));
+
         return this;
     }
 
     public RazorWireStreamBuilder Replace(string target, string templateHtml)
     {
         _actions.Add(new RawHtmlStreamAction("replace", target, templateHtml));
+
         return this;
     }
 
     public RazorWireStreamBuilder ReplacePartial(string target, string viewName, object? model = null)
     {
         _actions.Add(new PartialViewStreamAction("replace", target, viewName, model));
+
         return this;
     }
 
     public RazorWireStreamBuilder Update(string target, string templateHtml)
     {
         _actions.Add(new RawHtmlStreamAction("update", target, templateHtml));
+
         return this;
     }
 
     public RazorWireStreamBuilder UpdatePartial(string target, string viewName, object? model = null)
     {
         _actions.Add(new PartialViewStreamAction("update", target, viewName, model));
+
         return this;
     }
 
     public RazorWireStreamBuilder AppendComponent<T>(string target, object? arguments = null) where T : ViewComponent
     {
         _actions.Add(new ViewComponentStreamAction("append", target, typeof(T), arguments));
+
         return this;
     }
 
     public RazorWireStreamBuilder PrependComponent<T>(string target, object? arguments = null) where T : ViewComponent
     {
         _actions.Add(new ViewComponentStreamAction("prepend", target, typeof(T), arguments));
+
         return this;
     }
 
     public RazorWireStreamBuilder ReplaceComponent<T>(string target, object? arguments = null) where T : ViewComponent
     {
         _actions.Add(new ViewComponentStreamAction("replace", target, typeof(T), arguments));
+
         return this;
     }
 
     public RazorWireStreamBuilder UpdateComponent<T>(string target, object? arguments = null) where T : ViewComponent
     {
         _actions.Add(new ViewComponentStreamAction("update", target, typeof(T), arguments));
+
         return this;
     }
 
     public RazorWireStreamBuilder AppendComponent(string target, string componentName, object? arguments = null)
     {
         _actions.Add(new ViewComponentByNameStreamAction("append", target, componentName, arguments));
+
         return this;
     }
 
     public RazorWireStreamBuilder PrependComponent(string target, string componentName, object? arguments = null)
     {
         _actions.Add(new ViewComponentByNameStreamAction("prepend", target, componentName, arguments));
+
         return this;
     }
 
     public RazorWireStreamBuilder ReplaceComponent(string target, string componentName, object? arguments = null)
     {
         _actions.Add(new ViewComponentByNameStreamAction("replace", target, componentName, arguments));
+
         return this;
     }
 
     public RazorWireStreamBuilder UpdateComponent(string target, string componentName, object? arguments = null)
     {
         _actions.Add(new ViewComponentByNameStreamAction("update", target, componentName, arguments));
+
         return this;
     }
 
     public RazorWireStreamBuilder Remove(string target)
     {
         _actions.Add(new RawHtmlStreamAction("remove", target, null));
+
         return this;
     }
 
@@ -120,14 +137,17 @@ public class RazorWireStreamBuilder
                 if (raw.Action == "remove")
                     sb.Append($"<turbo-stream action=\"remove\" target=\"{encodedTarget}\"></turbo-stream>");
                 else
-                    sb.Append($"<turbo-stream action=\"{raw.Action}\" target=\"{encodedTarget}\"><template>{raw.Html}</template></turbo-stream>");
+                    sb.Append(
+                        $"<turbo-stream action=\"{raw.Action}\" target=\"{encodedTarget}\"><template>{raw.Html}</template></turbo-stream>");
             }
             else
             {
-                throw new InvalidOperationException("Cannot synchronously build a stream containing asynchronous actions (like Partial Views or View Components). Use RenderAsync(viewContext) or return BuildResult() from an action.");
+                throw new InvalidOperationException(
+                    "Cannot synchronously build a stream containing asynchronous actions (like Partial Views or View Components). Use RenderAsync(viewContext) or return BuildResult() from an action.");
             }
         }
-        return StripNewlines(sb.ToString());
+
+        return sb.ToString();
     }
 
     public async Task<string> RenderAsync(Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext)
@@ -138,15 +158,10 @@ public class RazorWireStreamBuilder
             var html = await action.RenderAsync(viewContext);
             sb.Append(html);
         }
-        return StripNewlines(sb.ToString());
+
+        return sb.ToString();
     }
 
-    private static string StripNewlines(string content)
-    {
-        if (string.IsNullOrEmpty(content)) return content;
-        // Basic stripping: replace newlines with spaces to avoid breaking SSE protocol
-        return content.Replace("\r", "").Replace("\n", " ");
-    }
 
     public RazorWireStreamResult BuildResult()
     {
@@ -173,8 +188,9 @@ public class RazorWireStreamBuilder
             {
                 return Task.FromResult($"<turbo-stream action=\"remove\" target=\"{encodedTarget}\"></turbo-stream>");
             }
-            
-            return Task.FromResult($"<turbo-stream action=\"{Action}\" target=\"{encodedTarget}\"><template>{Html}</template></turbo-stream>");
+
+            return Task.FromResult(
+                $"<turbo-stream action=\"{Action}\" target=\"{encodedTarget}\"><template>{Html}</template></turbo-stream>");
         }
     }
 }

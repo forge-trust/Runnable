@@ -37,7 +37,8 @@ public class ExportEngine
         if (_seedRoutesPath != null && File.Exists(_seedRoutesPath))
         {
             var seeds = await File.ReadAllLinesAsync(_seedRoutesPath);
-            foreach (var seed in seeds.Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)))
+            var validSeeds = seeds.Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s));
+            foreach (var seed in validSeeds)
             {
                 _queue.Enqueue(seed);
             }
@@ -125,13 +126,15 @@ public class ExportEngine
     private void ExtractFrames(string html)
     {
         var matches = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"");
-        foreach (var src in matches.Select(m => m.Groups[1].Value)
-                     .Where(src =>
-                         src.StartsWith("/")
-                         && !src.StartsWith("//")
-                         && !src.Contains(":")
-                         && !src.Contains("#")
-                         && !_visited.Contains(src)))
+        var frames = matches.Select(m => m.Groups[1].Value)
+            .Where(src =>
+                src.StartsWith("/")
+                && !src.StartsWith("//")
+                && !src.Contains(":")
+                && !src.Contains("#")
+                && !_visited.Contains(src));
+
+        foreach (var src in frames)
         {
             _queue.Enqueue(src);
         }

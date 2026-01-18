@@ -48,7 +48,7 @@ public class ReactivityController : Controller
                 trimmedUsername,
                 new CookieOptions
                 {
-                    HttpOnly = false,
+                    HttpOnly = true,
                     SameSite = SameSiteMode.Lax,
                     Expires = DateTimeOffset.UtcNow.AddDays(30)
                 });

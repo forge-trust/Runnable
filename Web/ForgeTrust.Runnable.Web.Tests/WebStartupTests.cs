@@ -82,6 +82,66 @@ public class WebStartupTests
     }
 
     [Fact]
+    public void ConfigureServices_Cors_EnableAllOriginsInDevelopment_Works()
+    {
+        var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", Environments.Development);
+
+            var root = new TestWebModule();
+            var startup = new TestWebStartup(root);
+            startup.WithOptions(o => o.Cors.EnableAllOriginsInDevelopment = true);
+
+            var context = new StartupContext([], root);
+            var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+            using var host = builder.Build();
+
+            Assert.NotNull(host.Services.GetService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsService>());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previous);
+        }
+    }
+
+    [Fact]
+    public async Task ConfigureServices_Cors_SpecificOrigins_Works()
+    {
+        var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", Environments.Production);
+
+            var root = new TestWebModule();
+            var startup = new TestWebStartup(root);
+            startup.WithOptions(o =>
+            {
+                o.Cors.EnableCors = true;
+                o.Cors.AllowedOrigins = new[] { "https://example.com" };
+            });
+
+            var context = new StartupContext([], root);
+
+            var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+            using var host = builder.Build();
+
+            var corsService = host.Services
+                .GetRequiredService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider>();
+            var policy = await corsService.GetPolicyAsync(
+                new Microsoft.AspNetCore.Http.DefaultHttpContext(),
+                "DefaultCorsPolicy");
+
+            Assert.NotNull(policy);
+            Assert.Contains("https://example.com", policy.Origins);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previous);
+        }
+    }
+
+    [Fact]
     public void ConfigureBuilderForAppType_ExercisesWebHostConfiguration()
     {
         var root = new TestWebModule();
@@ -180,6 +240,7 @@ public class WebStartupTests
 
     private class TestWebModule : IRunnableWebModule
     {
+        private static int _count;
         public MvcSupport MvcLevel { get; set; } = MvcSupport.None;
         public bool IncludeAsApplicationPart => true;
 
@@ -187,6 +248,8 @@ public class WebStartupTests
         {
             options.Mvc.MvcSupportLevel = MvcLevel;
         }
+
+        public static void Increment() => System.Threading.Interlocked.Increment(ref _count);
 
         public void ConfigureServices(StartupContext context, IServiceCollection services)
         {

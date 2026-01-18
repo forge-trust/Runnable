@@ -277,8 +277,8 @@
             if (!src) return null;
             try {
                 const url = new URL(src, window.location.origin);
-                const segments = url.pathname.split('/');
-                return segments.pop() || segments.pop();
+                const segments = url.pathname.split('/').filter(Boolean);
+                return segments.pop();
             } catch {
                 return null;
             }

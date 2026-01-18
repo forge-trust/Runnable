@@ -15,7 +15,13 @@ public class ExportEngine
     private readonly HashSet<string> _visited = new();
     private readonly Queue<string> _queue = new();
 
-    public ExportEngine(string projectPath, string outputPath, string mode, string? seedRoutesPath, string baseUrl, IConsole console)
+    public ExportEngine(
+        string projectPath,
+        string outputPath,
+        string mode,
+        string? seedRoutesPath,
+        string baseUrl,
+        IConsole console)
     {
         _projectPath = projectPath;
         _outputPath = outputPath;
@@ -47,6 +53,7 @@ public class ExportEngine
         while (_queue.Count > 0)
         {
             var route = _queue.Dequeue();
+
             if (_visited.Contains(route)) continue;
             _visited.Add(route);
 
@@ -64,11 +71,12 @@ public class ExportEngine
             if (!response.IsSuccessStatusCode)
             {
                 _console.Error.WriteLine($"  !! Failed to fetch {route}: {response.StatusCode}");
+
                 return;
             }
 
             var html = await response.Content.ReadAsStringAsync();
-            
+
             // Save file
             var filePath = MapRouteToFilePath(route);
             var dirPath = Path.GetDirectoryName(filePath);
@@ -92,8 +100,9 @@ public class ExportEngine
         {
             normalized = normalized.TrimEnd('/') + "/index";
         }
-        
+
         var relativePath = normalized.TrimStart('/').Replace('/', Path.DirectorySeparatorChar) + ".html";
+
         return Path.Combine(_outputPath, relativePath);
     }
 
@@ -103,9 +112,13 @@ public class ExportEngine
         foreach (Match match in matches)
         {
             var href = match.Groups[1].Value;
-            if (href.StartsWith("/") && !href.StartsWith("//") && !href.Contains(":") && !href.Contains("#"))
+            if (href.StartsWith("/")
+                && !href.StartsWith("//")
+                && !href.Contains(":")
+                && !href.Contains("#")
+                && !_visited.Contains(href))
             {
-                if (!_visited.Contains(href)) _queue.Enqueue(href);
+                _queue.Enqueue(href);
             }
         }
     }
@@ -116,9 +129,13 @@ public class ExportEngine
         foreach (Match match in matches)
         {
             var src = match.Groups[1].Value;
-            if (src.StartsWith("/") && !src.StartsWith("//") && !src.Contains(":") && !src.Contains("#"))
+            if (src.StartsWith("/")
+                && !src.StartsWith("//")
+                && !src.Contains(":")
+                && !src.Contains("#")
+                && !_visited.Contains(src))
             {
-                if (!_visited.Contains(src)) _queue.Enqueue(src);
+                _queue.Enqueue(src);
             }
         }
     }

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Threading;
 
 namespace RazorWireWebExample.ViewComponents;
 
@@ -8,7 +9,7 @@ public class CounterViewComponent : ViewComponent
 
     public static int Count => _count;
 
-    public static void Increment() => System.Threading.Interlocked.Increment(ref _count);
+    public static void Increment() => Interlocked.Increment(ref _count);
 
     public IViewComponentResult Invoke()
     {

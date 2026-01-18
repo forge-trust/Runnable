@@ -90,9 +90,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             {
                 MvcSupport.Controllers => services.AddControllers(),
                 MvcSupport.ControllersWithViews => services.AddControllersWithViews(),
-                MvcSupport.Full => services.AddMvc(),
-                _ => services
-                    .AddControllers() // Fallback to safe default instead of throwing to improve resiliency and coverage
+                _ => services.AddMvc(),
             };
 
             // Register the entry point assembly.

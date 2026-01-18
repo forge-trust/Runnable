@@ -1,27 +1,41 @@
 using ForgeTrust.Runnable.Core;
-using ForgeTrust.Runnable.Core.Defaults;
-using ForgeTrust.Runnable.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+namespace ForgeTrust.Runnable.Web.Tests;
+
 public class CorsOptionsTests
 {
     private class TestWebModule : IRunnableWebModule
     {
-        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder) { }
-        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder) { }
-        public void ConfigureServices(StartupContext context, IServiceCollection services) { }
-        public void RegisterDependentModules(ModuleDependencyBuilder builder) { }
-        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app) { }
+        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
+        {
+        }
+
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
+        {
+        }
+
+        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+        {
+        }
     }
 
     private class TestStartup : WebStartup<TestWebModule>
     {
-        public void ConfigureServicesPublic(StartupContext context, IServiceCollection services)
-            => base.ConfigureServicesForAppType(context, services);
+        public void ConfigureServicesPublic(StartupContext context, IServiceCollection services) =>
+            base.ConfigureServicesForAppType(context, services);
     }
 
     [Fact]
@@ -100,10 +114,7 @@ public class CorsOptionsTests
             Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", Environments.Production);
 
             var startup = new TestStartup();
-            startup.WithOptions(o =>
-            {
-                o.Cors.EnableCors = true;
-            });
+            startup.WithOptions(o => { o.Cors.EnableCors = true; });
 
             var context = new StartupContext([], new TestWebModule());
             var services = new ServiceCollection();

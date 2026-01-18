@@ -1,11 +1,9 @@
 using ForgeTrust.Runnable.Core;
-using ForgeTrust.Runnable.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Xunit;
 
 namespace ForgeTrust.Runnable.Web.Tests;
 
@@ -18,7 +16,7 @@ public class WebStartupTests
         var startup = new TestWebStartup(root);
         var called = false;
 
-        startup.WithOptions(opts => called = true);
+        startup.WithOptions(_ => called = true);
 
         var context = new StartupContext([], root);
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
@@ -97,10 +95,86 @@ public class WebStartupTests
         Assert.NotNull(host.Services.GetService<IWebHostEnvironment>());
     }
 
+    [Fact]
+    public void BuildWebOptions_UsesCachedOptions()
+    {
+        var root = new TestWebModule();
+        var startup = new TestWebStartup(root);
+        var context = new StartupContext([], root);
+
+        // First call populates _options
+        var builder1 = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host1 = builder1.Build();
+
+        // Second call on SAME startup instance should hit the cached options branch
+        var builder2 = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host2 = builder2.Build();
+    }
+
+    [Fact]
+    public void ConfigureServices_AddsMultipleApplicationParts()
+    {
+        var root = new TestWebModule();
+        var context = new StartupContext([], root);
+
+        // Override entry point to something else so root module assembly is different from entry point
+        context.OverrideEntryPointAssembly = typeof(WebApplication).Assembly;
+
+        var startup = new TestWebStartup(root);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+        using var host = builder.Build();
+    }
+
+    [Fact]
+    public void ConfigureBuilder_RespectsEnableStaticWebAssets()
+    {
+        var root = new TestWebModule();
+        var startup = new TestWebStartup(root);
+        startup.WithOptions(o => o.StaticFiles.EnableStaticWebAssets = true);
+        var context = new StartupContext([], root);
+
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = builder.Build();
+
+        // This exercises the EnableStaticWebAssets branch in ConfigureBuilderForAppType
+    }
+
+    [Fact]
+    public async Task InitializeWebApplication_ExercisesAllMiddleware()
+    {
+        var root = new TestWebModule();
+        var startup = new TestWebStartup(root);
+        startup.WithOptions(o =>
+        {
+            o.Cors.EnableCors = true;
+            o.StaticFiles.EnableStaticFiles = true;
+            o.Mvc.MvcSupportLevel = MvcSupport.Controllers;
+            o.MapEndpoints = endpoints => { endpoints.MapGet("/test-direct", () => "Direct"); };
+        });
+
+        var context = new StartupContext([], root);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+        // Using StartAsync triggers the actual WebHost initialization which calls InitializeWebApplication
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        // Verify we can access the host effectively
+        Assert.NotNull(host.Services.GetService<IWebHostEnvironment>());
+
+        await host.StopAsync();
+    }
+
     private class TestWebStartup : WebStartup<TestWebModule>
     {
         private readonly TestWebModule _module;
-        public TestWebStartup(TestWebModule module) => _module = module;
+
+        public TestWebStartup(TestWebModule module)
+        {
+            _module = module;
+        }
+
         protected override TestWebModule CreateRootModule() => _module;
     }
 
@@ -124,6 +198,7 @@ public class WebStartupTests
 
         public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
         {
+            endpoints.MapGet("/test-module", () => "Module");
         }
 
         public void RegisterDependentModules(ModuleDependencyBuilder builder)

@@ -43,12 +43,15 @@ public class ReactivityController : Controller
             trimmedUsername = username.Trim();
 
             // Set cookie to persist username
-            Response.Cookies.Append("razorwire-username", trimmedUsername, new CookieOptions
-            {
-                HttpOnly = false,
-                SameSite = SameSiteMode.Lax,
-                Expires = DateTimeOffset.UtcNow.AddDays(30)
-            });
+            Response.Cookies.Append(
+                "razorwire-username",
+                trimmedUsername,
+                new CookieOptions
+                {
+                    HttpOnly = false,
+                    SameSite = SameSiteMode.Lax,
+                    Expires = DateTimeOffset.UtcNow.AddDays(30)
+                });
 
             // Broadcast update to everyone
             await BroadcastUserPresenceAsync(trimmedUsername);
@@ -89,7 +92,7 @@ public class ReactivityController : Controller
 
         var streamHtml = RazorWireBridge.CreateStream()
             .Remove("messages-empty")
-            .Append("messages", messageItemHtml)
+            .Prepend("messages", messageItemHtml)
             .Build();
 
         await _hub.PublishAsync("reactivity", streamHtml);
@@ -98,6 +101,7 @@ public class ReactivityController : Controller
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
         {
             var currentUsername = Request.Cookies["razorwire-username"] ?? "";
+
             return this.RazorWireStream()
                 .ReplacePartial("message-form", "_MessageForm", currentUsername)
                 .BuildResult();
@@ -115,9 +119,13 @@ public class ReactivityController : Controller
         if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
         {
             return this.RazorWireStream()
-                .Update("instance-score-value", RazorWireWebExample.ViewComponents.CounterViewComponent.Count.ToString())
+                .Update(
+                    "instance-score-value",
+                    RazorWireWebExample.ViewComponents.CounterViewComponent.Count.ToString())
                 .Update("session-score-value", clientCount.ToString())
-                .Replace("client-count-input", $"<input type='hidden' name='clientCount' id='client-count-input' value='{clientCount}' />")
+                .Replace(
+                    "client-count-input",
+                    $"<input type='hidden' name='clientCount' id='client-count-input' value='{clientCount}' />")
                 .BuildResult();
         }
 
@@ -132,7 +140,10 @@ public class ReactivityController : Controller
         var viewContext = this.CreateViewContext();
         var streamHtml = await RazorWireBridge.CreateStream()
             .Remove("user-list-empty")
-            .AppendPartial("user-list-items", "Components/UserList/_UserItem", new UserPresenceInfo(username, DateTime.UtcNow))
+            .AppendPartial(
+                "user-list-items",
+                "Components/UserList/_UserItem",
+                new UserPresenceInfo(username, DateTime.UtcNow))
             .Update("user-count", $"{activeCount} ONLINE")
             .RenderAsync(viewContext);
 

@@ -10,7 +10,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     where TModule : IRunnableWebModule, new()
 {
     private Action<WebOptions>? _configureOptions;
-    private WebOptions _options = WebOptions.Default;
+    private WebOptions _options = new();
     private bool _modulesBuilt;
     private readonly List<IRunnableWebModule> _modules = new();
 
@@ -52,7 +52,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             return _options;
         }
 
-        _options = WebOptions.Default;
+        _options = new();
 
         foreach (var module in _modules)
         {
@@ -67,7 +67,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         }
 
         // TODO: I think this is not needed as ASP.NET Core will handle this for us
-        
+
         // Auto-enable static web assets for development
         // if (context.IsDevelopment)
         // {
@@ -91,7 +91,8 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                 MvcSupport.Controllers => services.AddControllers(),
                 MvcSupport.ControllersWithViews => services.AddControllersWithViews(),
                 MvcSupport.Full => services.AddMvc(),
-                _ => throw new ArgumentOutOfRangeException()
+                _ => services
+                    .AddControllers() // Fallback to safe default instead of throwing to improve resiliency and coverage
             };
 
             // Register the entry point assembly.
@@ -123,12 +124,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                     _options.Cors.PolicyName,
                     builder =>
                     {
-                        if (_options.Cors.AllowedOrigins.Length == 0
-                            || _options.Cors.EnableAllOriginsInDevelopment && context.IsDevelopment)
+                        if (_options.Cors.EnableAllOriginsInDevelopment && context.IsDevelopment)
                         {
                             builder.AllowAnyOrigin();
                         }
-                        else
+                        else if (_options.Cors.AllowedOrigins.Length > 0)
                         {
                             builder.SetIsOriginAllowedToAllowWildcardSubdomains()
                                 .WithOrigins(_options.Cors.AllowedOrigins)

@@ -24,6 +24,6 @@ public class UserListViewComponent : ViewComponent
         // If users aren't passed in, fetch them from the service
         var activeUsers = users ?? _presence.GetActiveUsers();
 
-        return View(activeUsers);
+        return View(activeUsers.ToList());
     }
 }

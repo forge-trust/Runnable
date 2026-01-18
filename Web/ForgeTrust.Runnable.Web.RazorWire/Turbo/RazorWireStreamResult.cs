@@ -19,15 +19,15 @@ public class RazorWireStreamResult : IActionResult
         _actions = actions;
     }
 
-    public RazorWireStreamResult(string rawContent)
+    public RazorWireStreamResult(string? rawContent)
     {
-        _actions = new[] { new RawHtmlStreamAction(rawContent) };
+        _actions = [new RawHtmlStreamAction(rawContent ?? string.Empty)];
     }
 
     public async Task ExecuteResultAsync(ActionContext context)
     {
         var services = context.HttpContext.RequestServices;
-        
+
         // CRITICAL: Generate antiforgery tokens BEFORE we start streaming
         // This ensures any required cookies are set before headers are sent
         var antiforgery = services.GetService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
@@ -36,7 +36,7 @@ public class RazorWireStreamResult : IActionResult
             // This will generate and set the antiforgery cookie if needed
             _ = antiforgery.GetAndStoreTokens(context.HttpContext);
         }
-        
+
         var response = context.HttpContext.Response;
         response.ContentType = "text/vnd.turbo-stream.html";
 
@@ -53,13 +53,15 @@ public class RazorWireStreamResult : IActionResult
     {
         var services = actionContext.HttpContext.RequestServices;
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), actionContext.ModelState);
-        
+
         var tempDataProvider = services.GetRequiredService<ITempDataDictionaryFactory>();
-        
+
         // If the context is from a controller, try to inherit its ViewData
-        if (actionContext is ControllerContext controllerContext && controllerContext.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor)
+        if (actionContext is ControllerContext controllerContext
+            && controllerContext.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor
+                actionDescriptor)
         {
-            // Note: This is a bit simplified, in a real bridge we'd pass the actual controller's ViewData
+            // TODO: Implement this
         }
 
         return new ViewContext(

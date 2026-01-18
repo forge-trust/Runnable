@@ -1,24 +1,21 @@
-@model IEnumerable<RazorWireWebExample.Services.UserPresenceInfo>
+@model IReadOnlyList<RazorWireWebExample.Services.UserPresenceInfo>
 
 <div id="active-user-list" class="space-y-4">
     <div class="flex items-center justify-between">
         <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Members</h4>
         <span id="user-count" class="px-2 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-            @Model.Count() ONLINE
+            @Model.Count ONLINE
         </span>
     </div>
 
     <ul id="user-list-items" class="space-y-2">
-        @if (Model != null)
+        @foreach (var user in Model)
         {
-            @foreach (var user in Model)
-            {
-                await Html.RenderPartialAsync("Components/UserList/_UserItem", user);
-            }
+            await Html.RenderPartialAsync("Components/UserList/_UserItem", user);
         }
     </ul>
 
-    @if (Model == null || !Model.Any())
+    @if (Model.Count == 0)
     {
         <div id="user-list-empty" class="py-4 text-center border-2 border-dashed border-slate-100 rounded-xl">
             <p class="text-[11px] font-medium text-slate-400 italic">No companions nearby...</p>

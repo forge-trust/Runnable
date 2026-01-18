@@ -5,9 +5,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
 public class ExportEngine
 {
-    private readonly string _projectPath;
     private readonly string _outputPath;
-    private readonly string _mode;
     private readonly string? _seedRoutesPath;
     private readonly string _baseUrl;
     private readonly IConsole _console;
@@ -23,9 +21,7 @@ public class ExportEngine
         string baseUrl,
         IConsole console)
     {
-        _projectPath = projectPath;
         _outputPath = outputPath;
-        _mode = mode;
         _seedRoutesPath = seedRoutesPath;
         _baseUrl = baseUrl.TrimEnd('/');
         _console = console;
@@ -102,8 +98,15 @@ public class ExportEngine
         }
 
         var relativePath = normalized.TrimStart('/').Replace('/', Path.DirectorySeparatorChar) + ".html";
+        var fullPath = Path.GetFullPath(Path.Combine(_outputPath, relativePath));
+        var fullOutputPath = Path.GetFullPath(_outputPath);
 
-        return Path.Combine(_outputPath, relativePath);
+        if (!fullPath.StartsWith(fullOutputPath, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Invalid route path traversal detected: {route}");
+        }
+
+        return fullPath;
     }
 
     private void ExtractLinks(string html)

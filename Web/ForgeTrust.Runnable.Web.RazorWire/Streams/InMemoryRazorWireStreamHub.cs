@@ -8,30 +8,55 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     private readonly ConcurrentDictionary<string, ConcurrentHashSet<ChannelWriter<string>>> _channels = new();
     private readonly ConcurrentDictionary<ChannelReader<string>, ChannelWriter<string>> _readerToWriter = new();
 
-    public async ValueTask PublishAsync(string channel, string message)
+    public ValueTask PublishAsync(string channel, string message)
     {
-        if (_channels.TryGetValue(channel, out var subscribers))
+        try
         {
-            foreach (var subscriber in subscribers)
+            if (_channels.TryGetValue(channel, out var subscribers))
             {
-                // WriteAsync on DropOldest channel is effectively non-blocking/synchronous
-                await subscriber.WriteAsync(message);
+                var closedSubscribers = new List<ChannelWriter<string>>();
+                foreach (var subscriber in subscribers)
+                {
+                    if (!subscriber.TryWrite(message))
+                    {
+                        // If we can't write, the channel might be closed or full (though we use DropOldest)
+                        // In either case, checking for completion is good practice, but for Bounded/DropOldest TryWrite should succeed unless closed.
+                        // If it returns false and we are DropOldest, it implies closure.
+                        closedSubscribers.Add(subscriber);
+                    }
+                }
+
+                // Cleanup closed subscribers
+                foreach (var closed in closedSubscribers)
+                {
+                    subscribers.Remove(closed);
+                }
             }
+
+            return ValueTask.CompletedTask;
+        }
+        catch (Exception exception)
+        {
+            return ValueTask.FromException(exception);
         }
     }
 
     public ChannelReader<string> Subscribe(string channel)
     {
-        var subscriber = Channel.CreateBounded<string>(new BoundedChannelOptions(100)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest
-        });
+        var subscriber = Channel.CreateBounded<string>(
+            new BoundedChannelOptions(100) { FullMode = BoundedChannelFullMode.DropOldest });
 
         _readerToWriter.TryAdd(subscriber.Reader, subscriber.Writer);
 
-        _channels.AddOrUpdate(channel, 
+        _channels.AddOrUpdate(
+            channel,
             _ => new ConcurrentHashSet<ChannelWriter<string>> { subscriber.Writer },
-            (_, set) => { set.Add(subscriber.Writer); return set; });
+            (_, set) =>
+            {
+                set.Add(subscriber.Writer);
+
+                return set;
+            });
 
         return subscriber.Reader;
     }
@@ -40,6 +65,7 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     {
         if (_readerToWriter.TryRemove(reader, out var writer))
         {
+            writer.TryComplete();
             if (_channels.TryGetValue(channel, out var subscribers))
             {
                 subscribers.Remove(writer);

@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ForgeTrust.Runnable.Web.RazorWire\ForgeTrust.Runnable.Web.RazorWire.csproj" />
+    <ProjectReference Include="../ForgeTrust.Runnable.Web.RazorWire/ForgeTrust.Runnable.Web.RazorWire.csproj" />
   </ItemGroup>
 
 </Project>

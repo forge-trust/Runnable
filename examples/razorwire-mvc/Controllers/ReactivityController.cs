@@ -34,6 +34,7 @@ public class ReactivityController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> RegisterUser([FromForm] string username)
     {
         string trimmedUsername = "";
@@ -57,7 +58,7 @@ public class ReactivityController : Controller
             await BroadcastUserPresenceAsync(trimmedUsername);
         }
 
-        if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
+        if (Request.IsTurboRequest())
         {
             return this.RazorWireStream()
                 .ReplacePartial("message-form", "_MessageForm", trimmedUsername)
@@ -69,6 +70,7 @@ public class ReactivityController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> PublishMessage([FromForm] string message, [FromForm] string? username)
     {
         var effectiveUsername = username ?? Request.Cookies["razorwire-username"];
@@ -98,7 +100,7 @@ public class ReactivityController : Controller
         await _hub.PublishAsync("reactivity", streamHtml);
 
         // 2. Return stream result to caller
-        if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
+        if (Request.IsTurboRequest())
         {
             var currentUsername = Request.Cookies["razorwire-username"] ?? "";
 
@@ -111,17 +113,18 @@ public class ReactivityController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public IActionResult IncrementCounter([FromForm] int clientCount)
     {
-        RazorWireWebExample.ViewComponents.CounterViewComponent.Increment();
+        CounterViewComponent.Increment();
         clientCount++;
 
-        if (Request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html"))
+        if (Request.IsTurboRequest())
         {
             return this.RazorWireStream()
                 .Update(
                     "instance-score-value",
-                    RazorWireWebExample.ViewComponents.CounterViewComponent.Count.ToString())
+                    CounterViewComponent.Count.ToString())
                 .Update("session-score-value", clientCount.ToString())
                 .Replace(
                     "client-count-input",
@@ -129,7 +132,10 @@ public class ReactivityController : Controller
                 .BuildResult();
         }
 
-        return Redirect(Request.Headers["Referer"].ToString() ?? "/");
+        // Safe redirect
+        var referer = Request.Headers["Referer"].ToString();
+
+        return Url.IsLocalUrl(referer) ? Redirect(referer) : RedirectToAction(nameof(Index));
     }
 
     private async Task BroadcastUserPresenceAsync(string username)
@@ -143,7 +149,7 @@ public class ReactivityController : Controller
             .AppendPartial(
                 "user-list-items",
                 "Components/UserList/_UserItem",
-                new UserPresenceInfo(username, DateTime.UtcNow))
+                new UserPresenceInfo(username, UserPresenceInfo.ToSafeId(username), DateTime.UtcNow))
             .Update("user-count", $"{activeCount} ONLINE")
             .RenderAsync(viewContext);
 

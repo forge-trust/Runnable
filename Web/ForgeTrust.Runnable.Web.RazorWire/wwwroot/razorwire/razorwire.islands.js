@@ -15,7 +15,12 @@
 
             const modulePath = island.getAttribute('data-rw-module');
             const strategy = island.getAttribute('data-rw-strategy') || 'load';
-            const props = JSON.parse(island.getAttribute('data-rw-props') || '{}');
+            let props = {};
+            try {
+                props = JSON.parse(island.getAttribute('data-rw-props') || '{}');
+            } catch (e) {
+                console.error('Failed to parse island props:', e);
+            }
 
             if (strategy === 'load') {
                 await mountIsland(island, modulePath, props);

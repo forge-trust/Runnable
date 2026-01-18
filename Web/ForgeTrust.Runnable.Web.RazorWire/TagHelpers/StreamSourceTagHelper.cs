@@ -6,7 +6,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement("rw:stream-source")]
 public class StreamSourceTagHelper : TagHelper
 {
-    public string Channel { get; set; } = null!;
+    public string Channel { get; set; } = string.Empty;
 
     public bool Permanent { get; set; }
 
@@ -21,6 +21,12 @@ public class StreamSourceTagHelper : TagHelper
     {
         output.TagName = "rw-stream-source";
         output.TagMode = TagMode.StartTagAndEndTag;
+
+        if (string.IsNullOrWhiteSpace(Channel))
+        {
+            throw new InvalidOperationException(
+                $"The 'channel' attribute is required for the 'rw:stream-source' tag helper.");
+        }
 
         var src = $"{_options.Streams.BasePath}/{Channel}";
         output.Attributes.SetAttribute("src", src);

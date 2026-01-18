@@ -1,9 +1,6 @@
 using ForgeTrust.Runnable.Core;
-using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
 using ForgeTrust.Runnable.Web.RazorWire.Turbo;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace RazorWireWebExample.Services;
 
@@ -15,7 +12,7 @@ public class UserPresenceBackgroundService : CriticalService
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(2.5);
 
     public UserPresenceBackgroundService(
-        IUserPresenceService presence, 
+        IUserPresenceService presence,
         IRazorWireStreamHub hub,
         ILogger<UserPresenceBackgroundService> logger,
         IHostApplicationLifetime applicationLifetime)
@@ -30,32 +27,44 @@ public class UserPresenceBackgroundService : CriticalService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            try 
+            try
             {
                 var (removed, activeCount) = _presence.Pulse();
-                
+
+                var stream = RazorWireBridge.CreateStream();
+                var anyRemoved = false;
                 foreach (var user in removed)
                 {
-                    var streamHtml = RazorWireBridge.CreateStream()
-                        .Remove($"user-{user}")
-                        .Update("user-count", $"{activeCount} ONLINE")
-                        .Build();
-                        
-                    await _hub.PublishAsync("reactivity", streamHtml);
+                    stream.Remove($"user-{user.SafeUsername}");
+                    anyRemoved = true;
                 }
 
-                if (removed.Any() && activeCount == 0)
+                if (anyRemoved)
                 {
-                    var emptyHtml = "<div id=\"user-list-empty\" class=\"py-4 text-center border-2 border-dashed border-slate-100 rounded-xl\"><p class=\"text-[11px] font-medium text-slate-400 italic\">No companions nearby...</p></div>";
-                    var emptyStream = RazorWireBridge.CreateStream()
-                        .Append("active-user-list", emptyHtml)
-                        .Build();
-                    await _hub.PublishAsync("reactivity", emptyStream);
+                    stream.Update("user-count", $"{activeCount} ONLINE");
+
+                    if (activeCount == 0)
+                    {
+                        var emptyHtml =
+                            "<div id=\"user-list-empty\" class=\"py-4 text-center border-2 border-dashed border-slate-100 rounded-xl\"><p class=\"text-[11px] font-medium text-slate-400 italic\">No companions nearby...</p></div>";
+                        stream.Append("active-user-list", emptyHtml);
+                    }
+
+                    await _hub.PublishAsync("reactivity", stream.Build());
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                break; // Graceful shutdown
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while pulsing user presence.");
+            }
+
+            if (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
 
             await Task.Delay(_checkInterval, stoppingToken);

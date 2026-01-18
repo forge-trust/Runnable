@@ -143,7 +143,11 @@ public class RazorWireStreamBuilder
             else
             {
                 throw new InvalidOperationException(
-                    "Cannot synchronously build a stream containing asynchronous actions (like Partial Views or View Components). Use RenderAsync(viewContext) or return BuildResult() from an action.");
+                    """
+                    Cannot synchronously build a stream containing asynchronous actions
+                    (like Partial Views or View Components).
+                    Use RenderAsync(viewContext) or return BuildResult() from an action.
+                    """);
             }
         }
 
@@ -165,7 +169,7 @@ public class RazorWireStreamBuilder
 
     public RazorWireStreamResult BuildResult()
     {
-        return new RazorWireStreamResult(_actions);
+        return new RazorWireStreamResult(_actions.ToList());
     }
 
     private class RawHtmlStreamAction : IRazorWireStreamAction
@@ -186,11 +190,14 @@ public class RazorWireStreamBuilder
             var encodedTarget = HtmlEncoder.Default.Encode(Target);
             if (Action == "remove")
             {
-                return Task.FromResult($"<turbo-stream action=\"remove\" target=\"{encodedTarget}\"></turbo-stream>");
+                return Task.FromResult(
+                    $"<turbo-stream action=\"remove\" target=\"{encodedTarget}\">"
+                    + $"</turbo-stream>");
             }
 
             return Task.FromResult(
-                $"<turbo-stream action=\"{Action}\" target=\"{encodedTarget}\"><template>{Html}</template></turbo-stream>");
+                $"<turbo-stream action=\"{Action}\" target=\"{encodedTarget}\">"
+                + $"<template>{Html}</template></turbo-stream>");
         }
     }
 }

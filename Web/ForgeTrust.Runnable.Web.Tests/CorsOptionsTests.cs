@@ -106,7 +106,7 @@ public class CorsOptionsTests
     }
 
     [Fact]
-    public async Task NoConfiguredOrigins_DisallowsAnyOriginOutsideDevelopment()
+    public async Task NoConfiguredOrigins_AllowsAnyOrigin()
     {
         var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
         try
@@ -124,7 +124,7 @@ public class CorsOptionsTests
             var policyProvider = provider.GetRequiredService<ICorsPolicyProvider>();
             var policy = await policyProvider.GetPolicyAsync(new DefaultHttpContext(), "DefaultCorsPolicy");
 
-            Assert.False(policy!.AllowAnyOrigin);
+            Assert.True(policy!.AllowAnyOrigin);
         }
         finally
         {

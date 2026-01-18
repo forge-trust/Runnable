@@ -12,21 +12,18 @@ public class IslandTagHelper : TagHelper
     public string? Loading { get; set; }
 
     public bool Permanent { get; set; }
-    
+
     public bool Swr { get; set; }
 
     public string? TransitionName { get; set; }
 
     public string? Export { get; set; }
 
-    [HtmlAttributeName("client-module")]
-    public string? ClientModule { get; set; }
+    [HtmlAttributeName("client-module")] public string? ClientModule { get; set; }
 
-    [HtmlAttributeName("client-strategy")]
-    public string? ClientStrategy { get; set; }
+    [HtmlAttributeName("client-strategy")] public string? ClientStrategy { get; set; }
 
-    [HtmlAttributeName("client-props")]
-    public string? ClientProps { get; set; }
+    [HtmlAttributeName("client-props")] public string? ClientProps { get; set; }
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
@@ -57,7 +54,13 @@ public class IslandTagHelper : TagHelper
 
         if (!string.IsNullOrEmpty(TransitionName))
         {
-            output.Attributes.SetAttribute("style", $"view-transition-name: {TransitionName};");
+            var style = output.Attributes["style"]?.Value.ToString() ?? "";
+            if (!style.TrimEnd().EndsWith(";"))
+            {
+                style += ";";
+            }
+
+            output.Attributes.SetAttribute("style", $"{style} view-transition-name: {TransitionName};");
         }
 
         if (!string.IsNullOrEmpty(Export))
@@ -68,7 +71,7 @@ public class IslandTagHelper : TagHelper
         if (!string.IsNullOrEmpty(ClientModule))
         {
             output.Attributes.SetAttribute("data-rw-module", ClientModule);
-            
+
             if (!string.IsNullOrEmpty(ClientStrategy))
             {
                 output.Attributes.SetAttribute("data-rw-strategy", ClientStrategy);

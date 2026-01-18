@@ -6,6 +6,8 @@ public static class TurboRequestExtensions
 {
     public static bool IsTurboRequest(this HttpRequest request)
     {
-        return request.Headers["Accept"].ToString().Contains("text/vnd.turbo-stream.html");
+        return request.Headers["Accept"]
+            .ToString()
+            .Contains("text/vnd.turbo-stream.html", StringComparison.OrdinalIgnoreCase);
     }
 }

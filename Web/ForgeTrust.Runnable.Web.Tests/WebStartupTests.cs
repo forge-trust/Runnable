@@ -240,7 +240,6 @@ public class WebStartupTests
 
     private class TestWebModule : IRunnableWebModule
     {
-        private static int _count;
         public MvcSupport MvcLevel { get; set; } = MvcSupport.None;
         public bool IncludeAsApplicationPart => true;
 

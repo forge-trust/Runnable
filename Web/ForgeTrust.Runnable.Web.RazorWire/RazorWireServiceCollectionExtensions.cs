@@ -6,11 +6,17 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 
 public static class RazorWireServiceCollectionExtensions
 {
-    public static IServiceCollection AddRazorWire(this IServiceCollection services, Action<RazorWireOptions>? configure = null)
+    public static IServiceCollection AddRazorWire(
+        this IServiceCollection services,
+        Action<RazorWireOptions>? configure = null)
     {
-        var options = new RazorWireOptions();
-        configure?.Invoke(options);
-        services.AddSingleton(options);
+        if (configure != null)
+        {
+            services.Configure(configure);
+        }
+
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<RazorWireOptions>>().Value);
 
         services.TryAddSingleton<IRazorWireStreamHub, InMemoryRazorWireStreamHub>();
         services.TryAddSingleton<IRazorWireChannelAuthorizer, DefaultRazorWireChannelAuthorizer>();

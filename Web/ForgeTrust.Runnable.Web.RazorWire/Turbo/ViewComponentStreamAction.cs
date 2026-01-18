@@ -13,7 +13,11 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     private readonly Type _componentType;
     private readonly object? _arguments;
 
-    public ViewComponentStreamAction(string action, string target, Type componentType, object? arguments = null)
+    public ViewComponentStreamAction(
+        string action,
+        string target,
+        Type componentType,
+        object? arguments = null)
     {
         _action = action;
         _target = target;
@@ -24,7 +28,7 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     public async Task<string> RenderAsync(ViewContext viewContext)
     {
         using var writer = new StringWriter();
-        
+
         // Ensure the ViewComponentHelper sees the writer we want it to write to
         var componentViewContext = new ViewContext(
             viewContext,
@@ -37,15 +41,18 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
 
         var services = viewContext.HttpContext.RequestServices;
         var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
-        
+
         ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);
 
         var result = await viewComponentHelper.InvokeAsync(_componentType, _arguments);
         result.WriteTo(writer, HtmlEncoder.Default);
-        
+
         var content = writer.ToString();
         var encodedTarget = HtmlEncoder.Default.Encode(_target);
-        return $"<turbo-stream action=\"{_action}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+        var encodedAction = HtmlEncoder.Default.Encode(_action);
+
+        return
+            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
     }
 }
 
@@ -56,7 +63,11 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
     private readonly string _componentName;
     private readonly object? _arguments;
 
-    public ViewComponentByNameStreamAction(string action, string target, string componentName, object? arguments = null)
+    public ViewComponentByNameStreamAction(
+        string action,
+        string target,
+        string componentName,
+        object? arguments = null)
     {
         _action = action;
         _target = target;
@@ -79,14 +90,17 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
 
         var services = viewContext.HttpContext.RequestServices;
         var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
-        
+
         ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);
 
         var result = await viewComponentHelper.InvokeAsync(_componentName, _arguments);
         result.WriteTo(writer, HtmlEncoder.Default);
-        
+
         var content = writer.ToString();
         var encodedTarget = HtmlEncoder.Default.Encode(_target);
-        return $"<turbo-stream action=\"{_action}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+        var encodedAction = HtmlEncoder.Default.Encode(_action);
+
+        return
+            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
     }
 }

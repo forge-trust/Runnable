@@ -12,12 +12,15 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 public class ExampleJsInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 {
     private readonly Lazy<Task<IJSObjectReference>> moduleTask = new(() => jsRuntime.InvokeAsync<IJSObjectReference>(
-            "import", "./_content/ForgeTrust.Runnable.Web.RazorWire/exampleJsInterop.js").AsTask());
+            "import",
+            "./_content/ForgeTrust.Runnable.Web.RazorWire/exampleJsInterop.js")
+        .AsTask());
 
-    public async ValueTask<string> Prompt(string message)
+    public async ValueTask<string?> Prompt(string message)
     {
         var module = await moduleTask.Value;
-        return await module.InvokeAsync<string>("showPrompt", message);
+
+        return await module.InvokeAsync<string?>("showPrompt", message);
     }
 
     public async ValueTask DisposeAsync()

@@ -10,7 +10,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     where TModule : IRunnableWebModule, new()
 {
     private Action<WebOptions>? _configureOptions;
-    private WebOptions _options = new();
+    private WebOptions _options = WebOptions.Default;
     private bool _modulesBuilt;
     private readonly List<IRunnableWebModule> _modules = new();
 
@@ -45,11 +45,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         _modulesBuilt = true;
     }
 
-    private WebOptions BuildWebOptions(StartupContext context)
+    private void BuildWebOptions(StartupContext context)
     {
         if (_options != WebOptions.Default)
         {
-            return _options;
+            return;
         }
 
         _options = new();
@@ -73,8 +73,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         // {
         //     _options.StaticFiles.EnableStaticWebAssets = true;
         // }
-
-        return _options;
     }
 
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
@@ -117,20 +115,30 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         if (_options.Cors.EnableCors
             || (context.IsDevelopment && _options.Cors.EnableAllOriginsInDevelopment))
         {
+            // The user has configured CORS options, so we need to add CORS services
             services.AddCors(o =>
                 o.AddPolicy(
                     _options.Cors.PolicyName,
                     builder =>
                     {
+                        // If we have all origins enabled in development, allow all origins
                         if (_options.Cors.EnableAllOriginsInDevelopment && context.IsDevelopment)
                         {
                             builder.AllowAnyOrigin();
                         }
-                        else
+                        // If we have specific origins defined, use them
+                        else if (_options.Cors.AllowedOrigins.Length > 0)
                         {
-                            builder.SetIsOriginAllowedToAllowWildcardSubdomains()
-                                .WithOrigins(_options.Cors.AllowedOrigins)
-                                .AllowCredentials();
+                            if (_options.Cors.AllowedOrigins.Contains("*"))
+                            {
+                                builder.AllowAnyOrigin();
+                            }
+                            else
+                            {
+                                builder.SetIsOriginAllowedToAllowWildcardSubdomains()
+                                    .WithOrigins(_options.Cors.AllowedOrigins)
+                                    .AllowCredentials();
+                            }
                         }
 
                         //TODO: Make this configurable

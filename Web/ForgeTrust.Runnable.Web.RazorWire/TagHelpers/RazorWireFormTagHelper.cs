@@ -5,11 +5,9 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement("form", Attributes = "rw-active")]
 public class RazorWireFormTagHelper : TagHelper
 {
-    [HtmlAttributeName("rw-active")]
-    public bool Enabled { get; set; } = true;
+    [HtmlAttributeName("rw-active")] public bool Enabled { get; set; } = true;
 
-    [HtmlAttributeName("rw-target")]
-    public string? TargetFrame { get; set; }
+    [HtmlAttributeName("rw-target")] public string? TargetFrame { get; set; }
 
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
@@ -17,6 +15,7 @@ public class RazorWireFormTagHelper : TagHelper
         if (!Enabled)
         {
             output.Attributes.SetAttribute("data-turbo", "false");
+
             return;
         }
 
@@ -25,6 +24,12 @@ public class RazorWireFormTagHelper : TagHelper
         if (!string.IsNullOrEmpty(TargetFrame))
         {
             output.Attributes.SetAttribute("data-turbo-frame", TargetFrame);
+        }
+
+        var attributesToRemove = output.Attributes.Where(a => a.Name.StartsWith("rw-")).ToList();
+        foreach (var attr in attributesToRemove)
+        {
+            output.Attributes.Remove(attr);
         }
     }
 }

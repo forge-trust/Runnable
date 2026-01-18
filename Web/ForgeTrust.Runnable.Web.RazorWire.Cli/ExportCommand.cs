@@ -1,5 +1,6 @@
 using CliFx;
 using CliFx.Attributes;
+using CliFx.Exceptions;
 using CliFx.Infrastructure;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -24,11 +25,22 @@ public class ExportCommand : ICommand
 
     public async ValueTask ExecuteAsync(IConsole console)
     {
+        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new CommandException("BaseUrl must be a valid HTTP or HTTPS URL.");
+        }
+
+        if (Mode != "s3" && Mode != "hybrid")
+        {
+            throw new CommandException("Mode must be either 's3' or 'hybrid'.");
+        }
+
         console.Output.WriteLine($"Exporting {ProjectPath} to {OutputPath} (Mode: {Mode})...");
-        
+
         var engine = new ExportEngine(ProjectPath, OutputPath, Mode, SeedRoutesPath, BaseUrl, console);
         await engine.RunAsync();
-        
+
         console.Output.WriteLine("Export complete!");
     }
 }

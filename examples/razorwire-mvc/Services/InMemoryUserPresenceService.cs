@@ -4,39 +4,39 @@ namespace RazorWireWebExample.Services;
 
 public class InMemoryUserPresenceService : IUserPresenceService
 {
-    private readonly ConcurrentDictionary<string, DateTime> _userActivity = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _userActivity = new(StringComparer.OrdinalIgnoreCase);
 
     public TimeSpan ActiveWindow { get; set; } = TimeSpan.FromMinutes(5);
 
     public int RecordActivity(string username)
     {
-        _userActivity[username] = DateTime.UtcNow;
-        var cutoff = DateTime.UtcNow - ActiveWindow;
+        _userActivity[username] = DateTimeOffset.UtcNow;
+        var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
 
         return _userActivity.Values.Count(v => v >= cutoff);
     }
 
     public IEnumerable<UserPresenceInfo> GetActiveUsers()
     {
-        var cutoff = DateTime.UtcNow - ActiveWindow;
+        var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
 
         return _userActivity
             .Where(kvp => kvp.Value >= cutoff)
-            .Select(kvp => new UserPresenceInfo(kvp.Key, kvp.Value))
+            .Select(kvp => new UserPresenceInfo(kvp.Key, UserPresenceInfo.ToSafeId(kvp.Key), kvp.Value))
             .OrderBy(u => u.Username)
             .ToList();
     }
 
-    public (IEnumerable<string> Removed, int ActiveCount) Pulse()
+    public (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse()
     {
-        var cutoff = DateTime.UtcNow - ActiveWindow;
-        var removed = new List<string>();
+        var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
+        var removed = new List<UserPresenceInfo>();
 
         foreach (var kvp in _userActivity)
         {
             if (kvp.Value < cutoff && _userActivity.TryRemove(kvp.Key, out _))
             {
-                removed.Add(kvp.Key);
+                removed.Add(new UserPresenceInfo(kvp.Key, UserPresenceInfo.ToSafeId(kvp.Key), kvp.Value));
             }
         }
 

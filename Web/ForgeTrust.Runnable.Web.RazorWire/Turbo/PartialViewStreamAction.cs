@@ -14,7 +14,11 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     private readonly string _viewName;
     private readonly object? _model;
 
-    public PartialViewStreamAction(string action, string target, string viewName, object? model = null)
+    public PartialViewStreamAction(
+        string action,
+        string target,
+        string viewName,
+        object? model = null)
     {
         _action = action;
         _target = target;
@@ -29,13 +33,13 @@ public class PartialViewStreamAction : IRazorWireStreamAction
         var tempDataProvider = services.GetRequiredService<ITempDataDictionaryFactory>();
 
         // We need a fresh ViewData for the partial
-        var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), viewContext.ModelState)
-        {
-            Model = _model
-        };
+        var viewData =
+            new ViewDataDictionary(
+                new EmptyModelMetadataProvider(),
+                viewContext.ModelState) { Model = _model };
 
-        using var writer = new StringWriter();
-        
+        await using var writer = new StringWriter();
+
         var viewResult = viewEngine.FindView(viewContext, _viewName, isMainPage: false);
         if (!viewResult.Success)
         {
@@ -60,6 +64,9 @@ public class PartialViewStreamAction : IRazorWireStreamAction
         var content = writer.ToString();
 
         var encodedTarget = HtmlEncoder.Default.Encode(_target);
-        return $"<turbo-stream action=\"{_action}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+        var encodedAction = HtmlEncoder.Default.Encode(_action);
+
+        return
+            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
     }
 }

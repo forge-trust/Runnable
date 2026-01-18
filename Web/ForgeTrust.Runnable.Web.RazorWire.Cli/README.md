@@ -12,7 +12,9 @@ dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- [command] [opt
 
 ## Commands
 
+
 ### `export`
+
 Exports a RazorWire application to a static directory.
 
 **Options:**
@@ -25,6 +27,7 @@ Exports a RazorWire application to a static directory.
 - **`-u|--url <url>`**: The base URL of the running application used for crawling (default: `http://localhost:5000`).
 
 **Example:**
+
 ```bash
 dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- export -p MyWebApp.csproj -o ./dist --mode hybrid
 ```

@@ -29,7 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ForgeTrust.Runnable.Aspire\ForgeTrust.Runnable.Aspire.csproj" />
+    <ProjectReference Include="../ForgeTrust.Runnable.Aspire/ForgeTrust.Runnable.Aspire.csproj" />
   </ItemGroup>
 
 </Project>

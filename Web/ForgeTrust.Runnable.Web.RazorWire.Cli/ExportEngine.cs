@@ -16,9 +16,7 @@ public class ExportEngine
     /// <summary>
     /// Initializes a new instance of <see cref="ExportEngine"/>.
     /// </summary>
-    /// <param name="projectPath">Path to the project root.</param>
     /// <param name="outputPath">Directory where exported HTML files will be written.</param>
-    /// <param name="mode">Operation mode for the export process (mode-specific behavior determined elsewhere).</param>
     /// <param name="seedRoutesPath">Optional path to a file containing seed routes; may be null.</param>
     /// <param name="baseUrl">Base URL used for crawling.</param>
     /// <param name="console">Console abstraction for logging and status output.</param>

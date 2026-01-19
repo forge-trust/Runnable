@@ -133,14 +133,8 @@ public static class EnumerableExtensions
                                 finally
                                 {
                                     // Release concurrency limit slot when task completes
-                                    try
-                                    {
-                                        // ReSharper disable once AccessToDisposedClosure
-                                        semaphore.Release();
-                                    }
-                                    catch (ObjectDisposedException)
-                                    {
-                                    }
+                                    // ReSharper disable once AccessToDisposedClosure
+                                    semaphore.Release();
                                 }
                             },
                             cancellationToken);

@@ -5,8 +5,12 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs;
 
+/// <summary>
+/// Web module configuration for the RazorDocs documentation system.
+/// </summary>
 public class RazorDocsWebModule : IRunnableWebModule
 {
+    /// <inheritdoc />
     public bool IncludeAsApplicationPart => true;
 
     public void ConfigureServices(StartupContext context, IServiceCollection services)

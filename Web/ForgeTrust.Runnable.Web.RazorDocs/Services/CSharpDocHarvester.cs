@@ -8,6 +8,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
+/// <summary>
+/// Harvester implementation that scans C# source files for XML documentation comments.
+/// </summary>
 public partial class CSharpDocHarvester : IDocHarvester
 {
     [GeneratedRegex("[^a-zA-Z0-9_-]")]

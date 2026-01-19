@@ -62,18 +62,21 @@ public partial class CSharpDocHarvester : IDocHarvester
                         if (methodDoc != null)
                         {
                             var paramList = string.Join(
-                                ",",
+                                ", ",
                                 method.ParameterList.Parameters.Select(p =>
                                     $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
-                            var signature = SanitizeIdentifier($"({paramList})");
-                            var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{signature}";
-                            var anchor = SanitizeIdentifier(
-                                $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{signature}");
+
+                            // Readable signature for the UI Title: e.g. "MyMethod(int, string)"
+                            var readableSignature = $"({paramList})";
+                            var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{readableSignature}";
+
+                            // Sanitized signature for the Anchor/ID: e.g. "MyMethod-int-string-"
+                            var anchor = SanitizeIdentifier(methodId);
 
                             nodes.Add(
                                 new DocNode(
-                                    methodId,
-                                    Path.GetRelativePath(rootPath, file) + "#" + anchor,
+                                    methodId, // Title is now readable
+                                    Path.GetRelativePath(rootPath, file) + "#" + anchor, // Path anchor is safe
                                     methodDoc
                                 ));
                         }

@@ -95,6 +95,51 @@ public class CSharpDocHarvesterTests : IDisposable
         Assert.Empty(results);
     }
 
+    [Fact]
+    public async Task HarvestAsync_ShouldGenerateReadableSignaturesAndSafeAnchors()
+    {
+        // Arrange
+        var code = @"
+            namespace Test;
+            public class SignatureTest {
+                /// <summary>Method Docs</summary>
+                public void MyMethod(int id, string name, ref bool flag) {}
+            }
+        ";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Signatures.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        var methodNode = results.FirstOrDefault(n => n.Title.StartsWith("SignatureTest.MyMethod"));
+        Assert.NotNull(methodNode);
+
+        // Check readable Title: "SignatureTest.MyMethod(int, string, ref bool)"
+        Assert.Equal("SignatureTest.MyMethod(int, string, ref bool)", methodNode.Title);
+
+        // Check sanitized Anchor: "SignatureTest-MyMethod-int-string-ref-bool-"
+        // Note: The sanitizer generally replaces non-alphanumeric with hyphens and trims.
+        // IdentifierRegex is [^a-zA-Z0-9_-]
+        // "SignatureTest.MyMethod(int, string, ref bool)" -> "SignatureTest-MyMethod-int--string--ref-bool-"
+        // Wait, sanitizer implementation: IdentifierRegex().Replace(input, "-").Trim('-')
+        // Let's verify the exact expected string based on logic:
+        // Input: "SignatureTest.MyMethod(int, string, ref bool)"
+        // . -> -
+        // ( -> -
+        // , -> -
+        // space -> -
+        // ) -> -
+        // So: "SignatureTest-MyMethod-int--string--ref-bool-"
+        // Then Trim('-') -> "SignatureTest-MyMethod-int--string--ref-bool"
+        // Let's assert Contains to be safe on exact hyphen count if multiple replacements merge or not (Regex replace does all)
+        // Actually Regex Replace replaces EACH char. So multiple spaces = multiple hyphens unless regex handles ranges.
+        // The Regex is [^a-zA-Z0-9_-]. It matches one char at a time.
+        // So ", " becomes "--". 
+
+        Assert.EndsWith("#SignatureTest-MyMethod-int--string--ref-bool", methodNode.Path);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))

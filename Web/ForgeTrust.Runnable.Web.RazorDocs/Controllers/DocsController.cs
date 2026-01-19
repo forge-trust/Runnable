@@ -21,8 +21,7 @@ public class DocsController : Controller
 
     public async Task<IActionResult> Details(string path)
     {
-        var docs = await _aggregator.GetDocsAsync();
-        var doc = docs.FirstOrDefault(d => d.Path == path);
+        var doc = await _aggregator.GetDocByPathAsync(path);
         if (doc == null)
         {
             return NotFound();

@@ -63,4 +63,11 @@ public class DocAggregator
                    })
                ?? Enumerable.Empty<DocNode>();
     }
+
+    public async Task<DocNode?> GetDocByPathAsync(string path)
+    {
+        var docs = await GetDocsAsync();
+
+        return docs.FirstOrDefault(d => d.Path == path);
+    }
 }

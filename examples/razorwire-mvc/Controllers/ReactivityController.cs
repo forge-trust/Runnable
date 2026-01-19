@@ -135,7 +135,7 @@ public class ReactivityController : Controller
         if (Request.IsTurboRequest())
         {
             return this.RazorWireStream()
-                .ReplacePartial("message-form", "_MessageForm", displayName == "Anonymous" ? "" : displayName)
+                .ReplacePartial("message-form", "_MessageForm", isAnonymous ? "" : displayName)
                 .BuildResult();
         }
 

@@ -29,16 +29,17 @@ internal static class ViewComponentStreamHelper
     {
         await using var writer = new StringWriter();
 
+        var services = viewContext.HttpContext.RequestServices;
+        var tempDataProvider = services.GetRequiredService<ITempDataDictionaryFactory>();
+
         var componentViewContext = new ViewContext(
             viewContext,
             viewContext.View,
             viewContext.ViewData,
-            viewContext.TempData,
+            tempDataProvider.GetTempData(viewContext.HttpContext),
             writer,
             new HtmlHelperOptions()
         );
-
-        var services = viewContext.HttpContext.RequestServices;
         var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
 
         ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);

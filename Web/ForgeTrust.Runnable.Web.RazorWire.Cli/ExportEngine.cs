@@ -128,7 +128,12 @@ public class ExportEngine : IDisposable
             normalized = normalized.TrimEnd('/') + "/index";
         }
 
-        var relativePath = normalized.TrimStart('/').Replace('/', Path.DirectorySeparatorChar) + ".html";
+        var relativePath = normalized.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        if (!Path.HasExtension(relativePath))
+        {
+            relativePath += ".html";
+        }
+
         var fullPath = Path.GetFullPath(Path.Combine(_outputPath, relativePath));
         var fullOutputPath = Path.GetFullPath(_outputPath);
 

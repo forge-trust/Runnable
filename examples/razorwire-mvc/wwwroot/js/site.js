@@ -9,12 +9,9 @@
     document.addEventListener('turbo:visit', (e) => console.log('🚗 Turbo Drive: Visiting', e.detail.url));
 
     // Log RazorWire Stream events
-    document.addEventListener('razorwire:stream:connecting', (e) => console.log(`⏳ Stream [${e.detail.channel}${e.detail.source.id ? `:#${e.detail.source.id}` : ''}] Connecting...`));
-    document.addEventListener('razorwire:stream:connected', (e) => console.log(`🟢 Stream [${e.detail.channel}${e.detail.source.id ? `:#${e.detail.source.id}` : ''}] Connected`));
-    document.addEventListener('razorwire:stream:disconnected', (e) => console.log(`🔴 Stream [${e.detail.channel}${e.detail.source.id ? `:#${e.detail.source.id}` : ''}] Disconnected`));
-
-    // Monitor SSE Connection Status
-    // Logic moved to CSS in Reactivity/Index.cshtml using body[data-rw-stream-reactivity]
+    document.addEventListener('razorwire:stream:connecting', (e) => console.log(`⏳ Stream [${e.detail?.channel}${e.detail?.source?.id ? `:#${e.detail.source.id}` : ''}] Connecting...`));
+    document.addEventListener('razorwire:stream:connected', (e) => console.log(`🟢 Stream [${e.detail?.channel}${e.detail?.source?.id ? `:#${e.detail.source.id}` : ''}] Connected`));
+    document.addEventListener('razorwire:stream:disconnected', (e) => console.log(`🔴 Stream [${e.detail?.channel}${e.detail?.source?.id ? `:#${e.detail.source.id}` : ''}] Disconnected`));
 
     // Handle autofocus manually to avoid browser warnings during Turbo swaps
     document.addEventListener('turbo:load', () => {

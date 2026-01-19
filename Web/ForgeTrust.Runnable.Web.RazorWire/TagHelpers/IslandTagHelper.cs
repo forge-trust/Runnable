@@ -12,22 +12,28 @@ public class IslandTagHelper : TagHelper
     public string? Loading { get; set; }
 
     public bool Permanent { get; set; }
-    
+
     public bool Swr { get; set; }
 
     public string? TransitionName { get; set; }
 
     public string? Export { get; set; }
 
-    [HtmlAttributeName("client-module")]
-    public string? ClientModule { get; set; }
+    [HtmlAttributeName("client-module")] public string? ClientModule { get; set; }
 
-    [HtmlAttributeName("client-strategy")]
-    public string? ClientStrategy { get; set; }
+    [HtmlAttributeName("client-strategy")] public string? ClientStrategy { get; set; }
 
-    [HtmlAttributeName("client-props")]
-    public string? ClientProps { get; set; }
+    [HtmlAttributeName("client-props")] public string? ClientProps { get; set; }
 
+    /// <summary>
+    /// Renders the rw:island element as a &lt;turbo-frame&gt; and applies attributes based on the tag helper's properties.
+    /// </summary>
+    /// <param name="context">The current tag helper context.</param>
+    /// <summary>
+    /// Transforms the element into a turbo-frame and applies island-specific attributes from the tag helper's properties.
+    /// </summary>
+    /// <param name="context">The current tag helper execution context.</param>
+    /// <param name="output">The output to modify; sets TagName to "turbo-frame", TagMode to StartTagAndEndTag, and updates attributes (id, src, loading, data-turbo-permanent, data-rw-swr, view-transition-name in style, data-rw-export, and client-related data attributes) based on the helper's properties.</param>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = "turbo-frame";
@@ -57,7 +63,13 @@ public class IslandTagHelper : TagHelper
 
         if (!string.IsNullOrEmpty(TransitionName))
         {
-            output.Attributes.SetAttribute("style", $"view-transition-name: {TransitionName};");
+            var style = output.Attributes["style"]?.Value.ToString() ?? "";
+            if (!style.TrimEnd().EndsWith(";"))
+            {
+                style += ";";
+            }
+
+            output.Attributes.SetAttribute("style", $"{style} view-transition-name: {TransitionName};");
         }
 
         if (!string.IsNullOrEmpty(Export))
@@ -68,7 +80,7 @@ public class IslandTagHelper : TagHelper
         if (!string.IsNullOrEmpty(ClientModule))
         {
             output.Attributes.SetAttribute("data-rw-module", ClientModule);
-            
+
             if (!string.IsNullOrEmpty(ClientStrategy))
             {
                 output.Attributes.SetAttribute("data-rw-strategy", ClientStrategy);

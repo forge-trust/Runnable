@@ -8,19 +8,12 @@
     <StaticWebAssetBasePath>_content/$(AssemblyName)</StaticWebAssetBasePath>
   </PropertyGroup>
 
-
-
-
-
-
-
-
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ForgeTrust.Runnable.Web\ForgeTrust.Runnable.Web.csproj" />
+    <ProjectReference Include="../ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj" />
   </ItemGroup>
 
 </Project>

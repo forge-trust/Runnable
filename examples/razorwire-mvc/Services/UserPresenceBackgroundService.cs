@@ -1,9 +1,6 @@
 using ForgeTrust.Runnable.Core;
-using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
-using ForgeTrust.Runnable.Web.RazorWire.Turbo;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 namespace RazorWireWebExample.Services;
 
@@ -14,8 +11,20 @@ public class UserPresenceBackgroundService : CriticalService
     private readonly ILogger<UserPresenceBackgroundService> _logger;
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(2.5);
 
+    /// <summary>
+    /// Initializes a UserPresenceBackgroundService with the services required to poll user presence and publish presence streams.
+    /// </summary>
+    /// <param name="presence">Service that provides user presence pulse data.</param>
+    /// <param name="hub">Hub used to publish RazorWire streams to connected clients.</param>
+    /// <param name="logger">Logger for service diagnostics.</param>
+    /// <summary>
+    /// Initializes a UserPresenceBackgroundService that polls user presence and publishes updates to a RazorWire stream hub.
+    /// </summary>
+    /// <param name="presence">Service that provides presence pulse data (removed users and active count).</param>
+    /// <param name="hub">RazorWire stream hub used to publish built streams to connected clients.</param>
+    /// <param name="applicationLifetime">Host application lifetime used to tie the background service to the application's lifecycle.</param>
     public UserPresenceBackgroundService(
-        IUserPresenceService presence, 
+        IUserPresenceService presence,
         IRazorWireStreamHub hub,
         ILogger<UserPresenceBackgroundService> logger,
         IHostApplicationLifetime applicationLifetime)
@@ -26,39 +35,54 @@ public class UserPresenceBackgroundService : CriticalService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Continuously pulses the user presence service, removes departed users from the reactive stream, and publishes updates until cancellation is requested.
+    /// </summary>
+    /// <param name="stoppingToken">Token that signals the background loop to stop; when signaled the method exits promptly.</param>
+    /// <summary>
+    /// Periodically polls user presence, removes departed users from the reactive stream, and publishes updates to connected clients via the RazorWire stream hub.
+    /// </summary>
+    /// <returns>A task that completes when the background loop stops.</returns>
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        using var timer = new PeriodicTimer(_checkInterval);
+
+        while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            try 
+            try
             {
                 var (removed, activeCount) = _presence.Pulse();
-                
+
+                var stream = RazorWireBridge.CreateStream();
+                var anyRemoved = false;
                 foreach (var user in removed)
                 {
-                    var streamHtml = RazorWireBridge.CreateStream()
-                        .Remove($"user-{user}")
-                        .Update("user-count", $"{activeCount} ONLINE")
-                        .Build();
-                        
-                    await _hub.PublishAsync("reactivity", streamHtml);
+                    stream.Remove($"user-{user.SafeUsername}");
+                    anyRemoved = true;
                 }
 
-                if (removed.Any() && activeCount == 0)
+                if (anyRemoved)
                 {
-                    var emptyHtml = "<div id=\"user-list-empty\" class=\"py-4 text-center border-2 border-dashed border-slate-100 rounded-xl\"><p class=\"text-[11px] font-medium text-slate-400 italic\">No companions nearby...</p></div>";
-                    var emptyStream = RazorWireBridge.CreateStream()
-                        .Append("active-user-list", emptyHtml)
-                        .Build();
-                    await _hub.PublishAsync("reactivity", emptyStream);
+                    stream.Update("user-count", $"{activeCount} ONLINE");
+
+                    if (activeCount == 0)
+                    {
+                        var emptyHtml =
+                            "<div id=\"user-list-empty\" class=\"py-4 text-center border-2 border-dashed border-slate-100 rounded-xl\"><p class=\"text-[11px] font-medium text-slate-400 italic\">No companions nearby...</p></div>";
+                        stream.Append("active-user-list", emptyHtml);
+                    }
+
+                    await _hub.PublishAsync("reactivity", stream.Build());
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                break; // Graceful shutdown
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while pulsing user presence.");
             }
-
-            await Task.Delay(_checkInterval, stoppingToken);
         }
     }
 }

@@ -32,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ForgeTrust.Runnable.Web\ForgeTrust.Runnable.Web.csproj" />
+    <ProjectReference Include="../ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj" />
   </ItemGroup>
 
 </Project>

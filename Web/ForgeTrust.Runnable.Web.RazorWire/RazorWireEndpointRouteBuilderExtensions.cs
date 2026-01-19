@@ -8,73 +8,95 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 
 public static class RazorWireEndpointRouteBuilderExtensions
 {
+    /// <summary>
+    /// Adds a GET endpoint at "{BasePath}/{channel}" that streams Server-Sent Events (SSE) for the specified channel.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder to configure.</param>
+    /// <summary>
+    /// Adds a GET endpoint that streams Server-Sent Events (SSE) for a named channel at "{BasePath}/{channel}".
+    /// </summary>
+    /// <remarks>
+    /// The endpoint authorizes the request using <c>IRazorWireChannelAuthorizer</c>, subscribes to <c>IRazorWireStreamHub</c>,
+    /// writes messages as SSE `data:` lines, sends periodic SSE heartbeat comments to keep the connection alive, and unsubscribes when the client disconnects.
+    /// </remarks>
+    /// <param name="endpoints">The endpoint route builder to add the SSE endpoint to.</param>
+    /// <returns>The original <see cref="IEndpointRouteBuilder"/> instance.</returns>
     public static IEndpointRouteBuilder MapRazorWire(this IEndpointRouteBuilder endpoints)
     {
         var options = endpoints.ServiceProvider.GetRequiredService<RazorWireOptions>();
 
-        endpoints.MapGet($"{options.Streams.BasePath}/{{channel}}", async context =>
-        {
-            var channel = context.Request.RouteValues["channel"] as string;
-            if (string.IsNullOrEmpty(channel))
-            {
-                context.Response.StatusCode = 400;
-                return;
-            }
-
-            var authorizer = context.RequestServices.GetRequiredService<IRazorWireChannelAuthorizer>();
-            if (!await authorizer.CanSubscribeAsync(context, channel))
-            {
-                context.Response.StatusCode = 403;
-                return;
-            }
-
-            var hub = context.RequestServices.GetRequiredService<IRazorWireStreamHub>();
-            
-            context.Response.ContentType = "text/event-stream";
-            context.Response.Headers.CacheControl = "no-cache";
-            context.Response.Headers.Connection = "keep-alive";
-            context.Response.Headers.Pragma = "no-cache";
-
-            var reader = hub.Subscribe(channel);
-
-            try
-            {
-                // 1. Send initial comment to establish connection and flush headers
-                await context.Response.WriteAsync(":\n\n", context.RequestAborted);
-                await context.Response.Body.FlushAsync(context.RequestAborted);
-
-                // 2. Loop with heartbeat support
-                while (!context.RequestAborted.IsCancellationRequested)
+        endpoints.MapGet(
+                $"{options.Streams.BasePath}/{{channel}}",
+                async context =>
                 {
-                    var readTask = reader.ReadAsync(context.RequestAborted).AsTask();
-                    var heartbeatTask = Task.Delay(20000, context.RequestAborted); // 20s heartbeat
-
-                    var completedTask = await Task.WhenAny(readTask, heartbeatTask);
-
-                    if (completedTask == readTask)
+                    var channel = context.Request.RouteValues["channel"] as string;
+                    if (string.IsNullOrEmpty(channel))
                     {
-                        var message = await readTask;
-                        await context.Response.WriteAsync($"data: {message}\n\n", context.RequestAborted);
-                        await context.Response.Body.FlushAsync(context.RequestAborted);
+                        context.Response.StatusCode = 400;
+
+                        return;
                     }
-                    else
+
+                    var authorizer = context.RequestServices.GetRequiredService<IRazorWireChannelAuthorizer>();
+                    if (!await authorizer.CanSubscribeAsync(context, channel))
                     {
-                        // Send heartbeat comment
+                        context.Response.StatusCode = 403;
+
+                        return;
+                    }
+
+                    var hub = context.RequestServices.GetRequiredService<IRazorWireStreamHub>();
+
+                    context.Response.ContentType = "text/event-stream";
+                    context.Response.Headers.CacheControl = "no-cache";
+                    context.Response.Headers.Connection = "keep-alive";
+                    context.Response.Headers.Pragma = "no-cache";
+
+                    var reader = hub.Subscribe(channel);
+
+                    try
+                    {
+                        // 1. Send initial comment to establish connection and flush headers
                         await context.Response.WriteAsync(":\n\n", context.RequestAborted);
                         await context.Response.Body.FlushAsync(context.RequestAborted);
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Normal exit on client disconnect
-            }
-            finally
-            {
-                hub.Unsubscribe(channel, reader);
-            }
 
-        }).ExcludeFromDescription();
+                        // 2. Loop with heartbeat support
+                        while (!context.RequestAborted.IsCancellationRequested)
+                        {
+                            using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+                            cts.CancelAfter(20000); // 20s heartbeat
+
+                            try
+                            {
+                                var message = await reader.ReadAsync(cts.Token);
+                                using var stringReader = new StringReader(message);
+                                while (stringReader.ReadLine() is { } line)
+                                {
+                                    await context.Response.WriteAsync($"data: {line}\n", context.RequestAborted);
+                                }
+
+                                await context.Response.WriteAsync("\n", context.RequestAborted);
+                                await context.Response.Body.FlushAsync(context.RequestAborted);
+                            }
+                            catch (OperationCanceledException) when (cts.IsCancellationRequested
+                                                                     && !context.RequestAborted.IsCancellationRequested)
+                            {
+                                // Send heartbeat comment
+                                await context.Response.WriteAsync(":\n\n", context.RequestAborted);
+                                await context.Response.Body.FlushAsync(context.RequestAborted);
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Normal exit on client disconnect
+                    }
+                    finally
+                    {
+                        hub.Unsubscribe(channel, reader);
+                    }
+                })
+            .ExcludeFromDescription();
 
         return endpoints;
     }

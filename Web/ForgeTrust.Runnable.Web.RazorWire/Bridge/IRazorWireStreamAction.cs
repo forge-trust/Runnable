@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc.Rendering;
 
-namespace ForgeTrust.Runnable.Web.RazorWire.Turbo;
+namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 /// <summary>
 /// Represents an action to be performed in a RazorWire stream (e.g., append, replace).

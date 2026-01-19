@@ -7,6 +7,15 @@
 
     const initializedElements = new WeakSet();
 
+    /**
+     * Finds unhydrated island elements (marked with `data-rw-module`) and mounts each according to its `data-rw-strategy`.
+     *
+     * Iterates DOM elements that have `data-rw-module` and are not yet hydrated, reads optional JSON props from
+     * `data-rw-props` (falls back to `{}` and logs an error on parse failure), and mounts each island according to
+     * its `data-rw-strategy`: `load` mounts immediately, `visible` mounts when the element becomes visible, `idle`
+     * schedules mounting during browser idle time (with a 200ms fallback), and `only` clears the element before mounting.
+     * Hydration state is marked on the element and tracked to avoid duplicate initialization.
+     */
     async function hydrateIslands() {
         const islands = document.querySelectorAll('[data-rw-module]:not([data-rw-hydrated])');
 
@@ -15,7 +24,12 @@
 
             const modulePath = island.getAttribute('data-rw-module');
             const strategy = island.getAttribute('data-rw-strategy') || 'load';
-            const props = JSON.parse(island.getAttribute('data-rw-props') || '{}');
+            let props = {};
+            try {
+                props = JSON.parse(island.getAttribute('data-rw-props') || '{}');
+            } catch (e) {
+                console.error('Failed to parse island props:', e);
+            }
 
             if (strategy === 'load') {
                 await mountIsland(island, modulePath, props);

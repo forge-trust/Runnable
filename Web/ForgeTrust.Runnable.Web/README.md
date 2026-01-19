@@ -42,11 +42,10 @@ Support for MVC approaches can be configured via `WebOptions`:
 *   **Full**: Full MVC support.
 
 ### CORS
-
-Built-in support for CORS configuration, including:
-*   Easy setup of allowed origins.
-*   "Enable all origins" mode for development.
-*   Automatic registration of CORS middleware.
+Built-in support for CORS configuration:
+*   **Enforced Origin Safety**: When `EnableCors` is true, you MUST specify at least one origin in `AllowedOrigins`. If left empty, the application will throw a startup exception to prevent unintended security openness.
+*   **Development Convenience**: `EnableAllOriginsInDevelopment` (enabled by default) automatically allows any origin when the environment is `Development`, simplifying local testing without compromising production security.
+*   **Default Policy**: Configures a policy named "DefaultCorsPolicy" (configurable) and automatically registers the CORS middleware.
 
 ### Endpoint Routing
 

@@ -5,9 +5,28 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
 
-public abstract class RunnableStartup<TRootModule> : IRunnableStartup
+public abstract class RunnableStartup
+{
+    protected static readonly Lazy<ILoggerFactory> StartupLoggerFactory =
+        new(() => LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug)));
+
+    /// <summary>
+    /// Gets a logger instance named after the concrete startup type.
+    /// </summary>
+    /// <returns>An <see cref="ILogger"/> configured for the concrete startup type.</returns>
+    protected ILogger GetStartupLogger()
+    {
+        return StartupLoggerFactory.Value.CreateLogger(GetType().Name);
+    }
+}
+
+public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableStartup
     where TRootModule : IRunnableHostModule, new()
 {
+    /// <summary>
+    /// Execute the startup sequence using the provided <see cref="StartupContext"/>.
+    /// </summary>
+    /// <param name="context">Startup configuration including application arguments, root module, and dependency/module registrations.</param>
     async Task IRunnableStartup.RunAsync(StartupContext context)
     {
         await RunAsync(context);
@@ -16,6 +35,14 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
     IHostBuilder IRunnableStartup.CreateHostBuilder(StartupContext context) => CreateHostBuilderCore(context);
     public Task RunAsync(string[] args) => RunAsync(new StartupContext(args, CreateRootModule()));
 
+    /// <summary>
+    /// Runs the application host for the provided startup context and manages its lifecycle until shutdown.
+    /// </summary>
+    /// <param name="context">The startup context containing application name, root module, dependencies, and configuration used to build the host.</param>
+    /// <returns>A task that completes after the host stops or after shutdown/error handling finishes.</returns>
+    /// <remarks>
+    /// On cancellation, a warning is logged. On unhandled exceptions, a critical log is emitted and <see cref="Environment.ExitCode"/> is set to -100.
+    /// </remarks>
     public async Task RunAsync(StartupContext context)
     {
         try
@@ -30,23 +57,27 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
         }
         catch (OperationCanceledException ex)
         {
-            CreateBootstrapLogger().LogWarning(ex, "Service(s) did not exit in a timely fashion..");
+            GetStartupLogger().LogWarning(ex, "Service(s) did not exit in a timely fashion.");
         }
         catch (Exception e)
         {
-            CreateBootstrapLogger().LogCritical(e, "Fatal Processing Error");
+            GetStartupLogger().LogCritical(e, "Fatal Processing Error");
             Environment.ExitCode = -100;
         }
     }
 
-    private ILogger CreateBootstrapLogger()
-    {
-        return LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug))
-            .CreateLogger(GetType().Name);
-    }
+    /// <summary>
+/// Creates the application host for the provided startup context.
+/// </summary>
+/// <param name="context">The startup context containing configuration, modules, and dependencies used to construct the host.</param>
+/// <returns>The constructed <see cref="IHost"/>.</returns>
+private IHost CreateHost(StartupContext context) => ((IRunnableStartup)this).CreateHostBuilder(context).Build();
 
-    private IHost CreateHost(StartupContext context) => ((IRunnableStartup)this).CreateHostBuilder(context).Build();
-
+    /// <summary>
+    /// Creates and configures an IHostBuilder based on the provided startup context.
+    /// </summary>
+    /// <param name="context">The startup context containing application name, root module, and dependency modules used to configure the host.</param>
+    /// <returns>A configured <see cref="IHostBuilder"/> that reflects the context (including application name, registered modules, and service registrations).</returns>
     private IHostBuilder CreateHostBuilderCore(StartupContext context)
     {
         var builder = Host.CreateDefaultBuilder();

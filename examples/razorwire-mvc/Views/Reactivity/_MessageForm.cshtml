@@ -1,7 +1,6 @@
 @model string
 
 <form id="message-form" asp-action="PublishMessage" method="post" rw-active="true" class="relative">
-    <input type="hidden" name="username" value="@Model">
     <div class="flex flex-col sm:flex-row gap-3">
         <div class="relative flex-grow">
             <input type="text" name="message" class="input-premium pr-20" placeholder="Push a live update..." data-autofocus required autocomplete="off">
@@ -11,7 +10,9 @@
         </div>
         <button class="btn-premium flex items-center justify-center gap-2 whitespace-nowrap" type="submit" requires-stream="reactivity">
             <span>Publish</span>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
         </button>
     </div>
 </form>

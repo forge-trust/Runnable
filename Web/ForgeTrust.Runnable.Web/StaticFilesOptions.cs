@@ -2,7 +2,7 @@ namespace ForgeTrust.Runnable.Web;
 
 public record StaticFilesOptions
 {
-    public static readonly StaticFilesOptions Default = new();
+    public static StaticFilesOptions Default { get; } = new();
 
     /// <summary>
     /// Gets or sets a value indicating whether static files are enabled.

@@ -1,27 +1,41 @@
 using ForgeTrust.Runnable.Core;
-using ForgeTrust.Runnable.Core.Defaults;
-using ForgeTrust.Runnable.Web;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+namespace ForgeTrust.Runnable.Web.Tests;
+
 public class CorsOptionsTests
 {
     private class TestWebModule : IRunnableWebModule
     {
-        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder) { }
-        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder) { }
-        public void ConfigureServices(StartupContext context, IServiceCollection services) { }
-        public void RegisterDependentModules(ModuleDependencyBuilder builder) { }
-        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app) { }
+        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
+        {
+        }
+
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
+        {
+        }
+
+        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+        {
+        }
     }
 
     private class TestStartup : WebStartup<TestWebModule>
     {
-        public void ConfigureServicesPublic(StartupContext context, IServiceCollection services)
-            => base.ConfigureServicesForAppType(context, services);
+        public void ConfigureServicesPublic(StartupContext context, IServiceCollection services) =>
+            base.ConfigureServicesForAppType(context, services);
     }
 
     [Fact]
@@ -83,7 +97,7 @@ public class CorsOptionsTests
             var policy = await policyProvider.GetPolicyAsync(new DefaultHttpContext(), "DefaultCorsPolicy");
 
             Assert.False(policy!.AllowAnyOrigin);
-            Assert.Contains("https://example.com", policy!.Origins);
+            Assert.Contains("https://example.com", policy.Origins);
         }
         finally
         {
@@ -92,7 +106,7 @@ public class CorsOptionsTests
     }
 
     [Fact]
-    public async Task NoConfiguredOrigins_DisallowsAnyOriginOutsideDevelopment()
+    public void EmptyOrigins_WithEnableCors_ThrowsException()
     {
         var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
         try
@@ -100,20 +114,12 @@ public class CorsOptionsTests
             Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", Environments.Production);
 
             var startup = new TestStartup();
-            startup.WithOptions(o =>
-            {
-                o.Cors.EnableCors = true;
-            });
+            startup.WithOptions(o => { o.Cors.EnableCors = true; });
 
             var context = new StartupContext([], new TestWebModule());
             var services = new ServiceCollection();
-            startup.ConfigureServicesPublic(context, services);
 
-            var provider = services.BuildServiceProvider();
-            var policyProvider = provider.GetRequiredService<ICorsPolicyProvider>();
-            var policy = await policyProvider.GetPolicyAsync(new DefaultHttpContext(), "DefaultCorsPolicy");
-
-            Assert.False(policy!.AllowAnyOrigin);
+            Assert.Throws<InvalidOperationException>(() => startup.ConfigureServicesPublic(context, services));
         }
         finally
         {

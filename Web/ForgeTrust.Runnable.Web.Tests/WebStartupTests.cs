@@ -309,7 +309,7 @@ public class WebStartupTests
         startup.WithOptions(o =>
         {
             o.Mvc.MvcSupportLevel = MvcSupport.Controllers;
-            o.Mvc.ConfigureMvc = builder => { mvcConfigured = true; };
+            o.Mvc.ConfigureMvc = _ => { mvcConfigured = true; };
         });
 
         var context = new StartupContext([], root);
@@ -444,6 +444,85 @@ public class WebStartupTests
         {
         }
     }
+
+    [Fact]
+    public void ConfigureServices_Cors_EmptyOrigins_Throws()
+    {
+        var root = new TestWebModule();
+        var startup = new TestWebStartup(root);
+        startup.WithOptions(o =>
+        {
+            o.Cors.EnableCors = true;
+            o.Cors.AllowedOrigins = []; // Empty
+        });
+
+        var context = new StartupContext([], root);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+        Assert.Throws<InvalidOperationException>(() => builder.Build());
+    }
+
+    [Fact]
+    public async Task InitializeWebApplication_CustomEndpoints_Invoked()
+    {
+        var root = new TestWebModule();
+        var startup = new TestWebStartup(root);
+        var directMappingInvoked = false;
+
+        startup.WithOptions(o =>
+        {
+            o.MapEndpoints = endpoints =>
+            {
+                directMappingInvoked = true;
+                endpoints.MapGet("/custom", () => "Custom");
+            };
+        });
+
+        var context = new StartupContext([], root);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        Assert.True(directMappingInvoked);
+        await host.StopAsync();
+    }
+
+    [Fact]
+    public void ConfigureServices_MvcSupportNone_NoMvcServices()
+    {
+        var root = new TestWebModule { MvcLevel = MvcSupport.None };
+        var startup = new TestWebStartup(root);
+        var context = new StartupContext([], root);
+
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = builder.Build();
+
+        Assert.Null(
+            host.Services.GetService<Microsoft.AspNetCore.Mvc.Infrastructure.IActionDescriptorCollectionProvider>());
+    }
+
+    [Fact]
+    public void ConfigureServices_MultipleModules_DistinctAssemblies()
+    {
+        var root = new TestWebModule();
+        // Set a different entry point assembly to hit the assembly filtering branch
+        var entryAssembly = typeof(WebStartup<>).Assembly;
+        var context = new StartupContext([], root) { OverrideEntryPointAssembly = entryAssembly };
+
+        // Add multiple modules from the same assembly (which is different from entryAssembly)
+        context.Dependencies.AddModule<TestWebModule>();
+        context.Dependencies.AddModule<AnotherTestWebModuleInSameAssembly>();
+
+        var startup = new TestWebStartup(root);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+        using var host = builder.Build();
+        // Simply verifying no collision or redundancy issues during distinct assembly iteration
+        // and that line 127 in WebStartup.cs is hit (AddApplicationPart for non-entry assembly)
+        Assert.NotNull(host);
+    }
+
+    private class AnotherTestWebModuleInSameAssembly : TestWebModule;
 
     private class NonWebModule : IRunnableModule
     {

@@ -538,5 +538,92 @@ public class EnumerableExtensionsTests
         });
     }
 
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_OverflowCapacity_ClampsToIntMax()
+    {
+        // Act
+        // Use a very large DOP and multiplier that would overflow int if not clamped
+        var source = Enumerable.Range(1, 5);
+        var results = new List<int>();
+        await foreach (var item in source.ParallelSelectAsyncEnumerable(
+                           async (x, ct) => x,
+                           maxDegreeOfParallelism: int.MaxValue / 2,
+                           bufferMultiplier: 4))
+        {
+            results.Add(item);
+        }
+
+        // Assert
+        Assert.Equal(5, results.Count);
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_ProducerException_CleanupLogic()
+    {
+        // Arrange
+        // A source that throws during iteration
+        var source = GetThrowingSource();
+
+        static IEnumerable<int> GetThrowingSource()
+        {
+            yield return 1;
+            throw new Exception("Producer failed");
+        }
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<Exception>(async () =>
+        {
+            await foreach (var _ in source.ParallelSelectAsyncEnumerable(async (x, ct) => x, 2))
+            {
+            }
+        });
+
+        Assert.Equal("Producer failed", ex.Message);
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_CancellationToken_DisposedSemaphore_Ignored()
+    {
+        // This test aims to hit the catch block for ObjectDisposedException in ParallelSelectAsync
+        // by cancelling while tasks are still completing.
+
+        // Arrange
+        var input = Enumerable.Range(1, 10);
+        using var cts = new CancellationTokenSource();
+        
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await input.ParallelSelectAsync(
+                async (x, ct) =>
+                {
+                    if (x == 5)
+                    {
+                        await cts.CancelAsync();
+                    }
+                    await Task.Delay(100, ct);
+                    return x;
+                },
+                maxDegreeOfParallelism: 5,
+                cancellationToken: cts.Token);
+        });
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_IAsyncEnumerable_SequentialResults()
+    {
+        // Act
+        // This targets the overload returning IAsyncEnumerable (Method 2)
+        var source = Enumerable.Range(1, 5);
+        var results = new List<int>();
+        await foreach (var item in source.ParallelSelectAsync(async x => x, 2))
+        {
+            results.Add(item);
+        }
+
+        // Assert
+        Assert.Equal(source, results);
+    }
+
     #endregion
 }

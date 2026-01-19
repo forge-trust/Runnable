@@ -60,7 +60,7 @@
             </a>
         </div>
         <nav class="flex-grow overflow-y-auto px-4 pb-4 space-y-1" aria-label="Documentation navigation">
-            @RenderSection("Sidebar", required: false)
+            @await Component.InvokeAsync("Sidebar")
         </nav>
         <div class="p-4 border-t border-slate-800 text-xs text-slate-500 text-center">
             Powered by RazorWire
@@ -69,9 +69,11 @@
 
     <!-- Main Content -->
     <main id="main-content" role="main" class="flex-grow overflow-y-auto bg-slate-900">
-        <div class="max-w-4xl mx-auto px-8 py-12">
-            @RenderBody()
-        </div>
+        <turbo-frame id="doc-content" data-turbo-action="advance">
+            <div class="max-w-4xl mx-auto px-8 py-12">
+                @RenderBody()
+            </div>
+        </turbo-frame>
     </main>
 </div>
 

@@ -1,0 +1,23 @@
+@model IEnumerable<IGrouping<string, ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode>>
+
+@foreach (var group in Model)
+{
+    <div class="py-2">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-widest px-2 mb-2">@group.Key</h3>
+        <ul class="space-y-1">
+            @foreach (var doc in group)
+            {
+                <li>
+                    <a asp-controller="Docs"
+                       asp-action="Details"
+                       asp-route-path="@doc.Path"
+                       data-turbo-frame="doc-content"
+                       data-turbo-action="advance"
+                       class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
+                        @doc.Title
+                    </a>
+                </li>
+            }
+        </ul>
+    </div>
+}

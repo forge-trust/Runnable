@@ -52,6 +52,7 @@ public static class EnumerableExtensions
                             }
                             catch (ObjectDisposedException)
                             {
+                                // Intentionally ignored: the operation was cancelled and the semaphore was disposed
                             }
                         }
                     },

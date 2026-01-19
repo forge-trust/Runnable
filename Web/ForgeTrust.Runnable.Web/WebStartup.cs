@@ -124,6 +124,15 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         if (_options.Cors.EnableCors
             || (context.IsDevelopment && _options.Cors.EnableAllOriginsInDevelopment))
         {
+            // Enforce that origins are specified if CORS is enabled, except when allowing all in development
+            if (_options.Cors.EnableCors
+                && _options.Cors.AllowedOrigins.Length == 0
+                && !(_options.Cors.EnableAllOriginsInDevelopment && context.IsDevelopment))
+            {
+                throw new InvalidOperationException(
+                    "CORS is enabled but AllowedOrigins is empty. To prevent security surprises, you must specify allowed origins or rely on 'EnableAllOriginsInDevelopment' only during development.");
+            }
+
             // The user has configured CORS options, so we need to add CORS services
             services.AddCors(o =>
                 o.AddPolicy(
@@ -173,11 +182,12 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         }
     }
 
+    private static readonly Lazy<ILoggerFactory> _startupLoggerFactory =
+        new(() => LoggerFactory.Create(builder => builder.AddConsole()));
+
     private ILogger GetStartupLogger()
     {
-        using var factory = LoggerFactory.Create(builder => builder.AddConsole());
-
-        return factory.CreateLogger(GetType().Name);
+        return _startupLoggerFactory.Value.CreateLogger(GetType().Name);
     }
 
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)

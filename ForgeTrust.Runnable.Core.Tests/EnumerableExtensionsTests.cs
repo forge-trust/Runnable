@@ -66,6 +66,7 @@ public class EnumerableExtensionsTests
                                },
                                2))
             {
+                // Intentionally empty: drives execution to verify exception propagation
             }
         });
     }
@@ -102,6 +103,7 @@ public class EnumerableExtensionsTests
                            },
                            maxDegreeOfParallelism: 2))
         {
+            // Intentionally empty: drives execution to verify degree of parallelism
         }
 
         // Assert

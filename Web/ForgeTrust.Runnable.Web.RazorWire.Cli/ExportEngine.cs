@@ -119,7 +119,8 @@ public class ExportEngine
         var normalizedOutput = fullOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         // Ensure the resolved file path is strictly within the output directory
-        if (!normalizedFull.StartsWith(
+        if (!normalizedFull.Equals(normalizedOutput, StringComparison.OrdinalIgnoreCase)
+            && !normalizedFull.StartsWith(
                 normalizedOutput + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase))
         {

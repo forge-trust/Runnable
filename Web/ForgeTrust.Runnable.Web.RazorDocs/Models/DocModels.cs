@@ -21,7 +21,7 @@ public record DocNode(
 public interface IDocHarvester
 {
     /// <summary>
-    /// asynchronously scans the specified root path and returns a collection of documentation nodes.
+    /// Asynchronously scans the specified root path and returns a collection of documentation nodes.
     /// </summary>
     /// <param name="rootPath">The root directory to scan for documentation.</param>
     /// <returns>A collection of <see cref="DocNode"/> representing the harvested documentation.</returns>

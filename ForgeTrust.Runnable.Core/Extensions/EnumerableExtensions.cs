@@ -91,7 +91,6 @@ public static class EnumerableExtensions
     /// <param name="bufferMultiplier">Multiplier for the channel buffer size (default 4). Allows producer to run ahead of consumer.</param>
     /// <param name="cancellationToken">The CancellationToken to monitor for cancellation requests.</param>
     /// <returns>An async enumerable that yields results in order.</returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("ReSharper", "AccessToDisposedClosure")]
     public static async IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, CancellationToken, Task<TResult>> body,
@@ -138,7 +137,9 @@ public static class EnumerableExtensions
                 {
                     foreach (var item in source)
                     {
+                        // ReSharper disable AccessToDisposedClosure
                         if (cts.Token.IsCancellationRequested) break;
+                        // ReSharper restore AccessToDisposedClosure
 
                         // ReSharper disable AccessToDisposedClosure
                         await semaphore.WaitAsync(cts.Token);
@@ -151,7 +152,9 @@ public static class EnumerableExtensions
                             {
                                 try
                                 {
+                                    // ReSharper disable AccessToDisposedClosure
                                     return await body(item, cts.Token);
+                                    // ReSharper restore AccessToDisposedClosure
                                 }
                                 finally
                                 {
@@ -173,7 +176,9 @@ public static class EnumerableExtensions
                         // Write the task (future result) to the channel
                         // If the consumer is slow, this will block once the channel is full,
                         // providing backpressure but ensuring we have maxDegreeOfParallelism active tasks.
+                        // ReSharper disable AccessToDisposedClosure
                         await channel.Writer.WriteAsync(task, cts.Token);
+                        // ReSharper restore AccessToDisposedClosure
                     }
 
                     channel.Writer.Complete();
@@ -207,9 +212,11 @@ public static class EnumerableExtensions
             {
                 // Expected on cancellation
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Other task failures are either handled via channel or ignored here during cleanup
+#if DEBUG
+                System.Diagnostics.Debug.WriteLine($"Error during ParallelSelectAsyncEnumerable cleanup: {ex}");
+#endif
             }
         }
     }

@@ -143,8 +143,9 @@ public class EnumerableExtensionsTests
 
         // Assert
         // With 10 parallelism and breaking at item 5, we expect some tasks to have started but not all 100.
-        // If the producer task didn't stop, it might have scheduled more than 15-20 (bufferMultiplier 4x * DOP 10 = 40 possible)
-        // But it definitely SHOULD NOT reach 100.
-        Assert.True(startedCount < 100, $"Expected producer to stop, but {startedCount} tasks were started.");
+        // With bufferMultiplier 4x and DOP 10, the buffer is 40. We allow some headroom and assert <= 50.
+        Assert.True(
+            startedCount <= 50,
+            $"Expected producer to stop, but {startedCount} tasks were started (expected <= 50).");
     }
 }

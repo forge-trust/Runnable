@@ -48,6 +48,13 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
                         _readerToWriter.TryRemove(reader, out _);
                     }
                 }
+
+                // Prune empty channels to prevent unbounded memory growth.
+                // We accept the minor race with Subscribe as Subscribe uses GetOrAdd.
+                if (subscribersDict.IsEmpty)
+                {
+                    _channels.TryRemove(channel, out _);
+                }
             }
 
             return ValueTask.CompletedTask;

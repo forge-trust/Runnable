@@ -9,9 +9,9 @@ public class CounterViewComponent : ViewComponent
     public static int Count => Volatile.Read(ref _count);
 
     /// <summary>
-/// Atomically increments the component's shared counter by one in a thread-safe manner.
-/// </summary>
-public static void Increment() => Interlocked.Increment(ref _count);
+    /// Atomically increments the component's shared counter by one in a thread-safe manner.
+    /// </summary>
+    public static void Increment() => Interlocked.Increment(ref _count);
 
     /// <summary>
     /// Renders the view for this component using the current counter value as the model.

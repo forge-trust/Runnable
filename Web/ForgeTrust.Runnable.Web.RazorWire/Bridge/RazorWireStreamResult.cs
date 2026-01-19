@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
+using ForgeTrust.Runnable.Core.Extensions;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
@@ -61,9 +62,10 @@ public class RazorWireStreamResult : IActionResult
 
         var viewContext = CreateViewContext(context);
 
-        foreach (var action in _actions)
+        await foreach (var html in _actions.ParallelSelectAsyncEnumerable(
+                           async action => await action.RenderAsync(viewContext),
+                           maxDegreeOfParallelism: 64))
         {
-            var html = await action.RenderAsync(viewContext);
             await response.WriteAsync(html, Encoding.UTF8);
         }
     }

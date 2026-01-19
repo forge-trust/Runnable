@@ -37,7 +37,9 @@ public class UserPresenceBackgroundService : CriticalService
     /// <returns>A task that completes when the background loop stops.</returns>
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        using var timer = new PeriodicTimer(_checkInterval);
+
+        while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             try
             {
@@ -73,13 +75,6 @@ public class UserPresenceBackgroundService : CriticalService
             {
                 _logger.LogError(ex, "Error occurred while pulsing user presence.");
             }
-
-            if (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-
-            await Task.Delay(_checkInterval, stoppingToken);
         }
     }
 }

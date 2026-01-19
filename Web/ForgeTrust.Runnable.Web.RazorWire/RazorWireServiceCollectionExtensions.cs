@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
@@ -18,13 +19,10 @@ public static class RazorWireServiceCollectionExtensions
     {
         services.AddOptions<RazorWireOptions>();
 
-        if (configure != null)
-        {
-            services.Configure(configure);
-        }
+        services.Configure(configure ?? (_ => { }));
 
         services.AddSingleton(sp =>
-            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<RazorWireOptions>>().Value);
+            sp.GetRequiredService<IOptions<RazorWireOptions>>().Value);
 
         services.TryAddSingleton<IRazorWireStreamHub, InMemoryRazorWireStreamHub>();
         services.TryAddSingleton<IRazorWireChannelAuthorizer, DefaultRazorWireChannelAuthorizer>();

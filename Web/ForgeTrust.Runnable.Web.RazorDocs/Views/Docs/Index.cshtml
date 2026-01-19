@@ -10,7 +10,7 @@
 
     string ToAnchorId(string path)
     {
-        return Regex.Replace(path, "[^a-zA-Z0-9_-]", "-");
+        return ForgeTrust.Runnable.Core.StringUtils.ToSafeIdentifier(path);
     }
 
 }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -13,9 +14,6 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// </summary>
 public partial class CSharpDocHarvester : IDocHarvester
 {
-    [GeneratedRegex("[^a-zA-Z0-9_-]")]
-    private static partial Regex IdentifierRegex();
-
     private readonly ILogger<CSharpDocHarvester> _logger;
 
     public CSharpDocHarvester(ILogger<CSharpDocHarvester> logger)
@@ -74,7 +72,7 @@ public partial class CSharpDocHarvester : IDocHarvester
                             var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{readableSignature}";
 
                             // Sanitized signature for the Anchor/ID: e.g. "MyMethod-int-string-"
-                            var anchor = SanitizeIdentifier(methodId);
+                            var anchor = StringUtils.ToSafeIdentifier(methodId);
 
                             nodes.Add(
                                 new DocNode(
@@ -148,17 +146,5 @@ public partial class CSharpDocHarvester : IDocHarvester
 
             return null;
         }
-    }
-
-    private string SanitizeIdentifier(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-        {
-            return string.Empty;
-        }
-
-        // Match the logic in Index.cshtml ToAnchorId
-        // Replace non-alphanumeric chars with hyphens
-        return IdentifierRegex().Replace(input, "-").Trim('-');
     }
 }

@@ -12,6 +12,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddMemoryCache();
+        services.AddSingleton<Ganss.Xss.IHtmlSanitizer, Ganss.Xss.HtmlSanitizer>();
         services.AddSingleton<IDocHarvester, MarkdownHarvester>();
         services.AddSingleton<IDocHarvester, CSharpDocHarvester>();
         services.AddSingleton<DocAggregator>();
@@ -22,11 +23,11 @@ public class RazorDocsWebModule : IRunnableWebModule
         builder.AddModule<RazorWireWebModule>();
     }
 
-    public void ConfigureHostBeforeServices(StartupContext context, Microsoft.Extensions.Hosting.IHostBuilder builder)
+    public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
     {
     }
 
-    public void ConfigureHostAfterServices(StartupContext context, Microsoft.Extensions.Hosting.IHostBuilder builder)
+    public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
     {
     }
 

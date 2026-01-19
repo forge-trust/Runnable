@@ -1,4 +1,6 @@
+using AngleSharp;
 using FakeItEasy;
+using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -22,10 +24,13 @@ public class DocsControllerTests : IDisposable
         // Mock Aggregator dependencies
         _harvesterFake = A.Fake<IDocHarvester>();
         var loggerFake = A.Fake<ILogger<DocAggregator>>();
-        var configFake = A.Fake<IConfiguration>();
+        var configFake = A.Fake<Microsoft.Extensions.Configuration.IConfiguration>();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
+        var sanitizerFake = A.Fake<Ganss.Xss.IHtmlSanitizer>();
         A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
+        A.CallTo(() => sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
+            .ReturnsLazily((string input, string baseUrl, AngleSharp.IMarkupFormatter formatter) => input);
 
         // Use real Aggregator with fake dependencies (or we could fake Aggregator but it's a concrete class)
         // Since Controller takes concrete DocAggregator, we instantiate it.
@@ -34,6 +39,7 @@ public class DocsControllerTests : IDisposable
             configFake,
             envFake,
             _cache,
+            sanitizerFake,
             loggerFake
         );
 

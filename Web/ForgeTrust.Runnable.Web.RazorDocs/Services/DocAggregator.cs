@@ -9,6 +9,7 @@ public class DocAggregator
     private readonly IEnumerable<IDocHarvester> _harvesters;
     private readonly string _repositoryRoot;
     private readonly IMemoryCache _cache;
+    private readonly Ganss.Xss.IHtmlSanitizer _sanitizer;
     private readonly ILogger<DocAggregator> _logger;
     private const string CacheKey = "HarvestedDocs";
 
@@ -17,10 +18,12 @@ public class DocAggregator
         IConfiguration configuration,
         IWebHostEnvironment environment,
         IMemoryCache cache,
+        Ganss.Xss.IHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
     {
         _harvesters = harvesters;
         _cache = cache;
+        _sanitizer = sanitizer;
         _logger = logger;
         _repositoryRoot = configuration["RepositoryRoot"]
                           ?? PathUtils.FindRepositoryRoot(environment.ContentRootPath);
@@ -71,7 +74,9 @@ public class DocAggregator
                     allNodes.AddRange(result);
                 }
 
-                return allNodes.ToDictionary(n => n.Path, n => n);
+                return allNodes
+                    .Select(n => new DocNode(n.Title, n.Path, _sanitizer.Sanitize(n.Content)))
+                    .ToDictionary(n => n.Path, n => n);
             }) ?? new Dictionary<string, DocNode>();
     }
 }

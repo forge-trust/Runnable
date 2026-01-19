@@ -15,12 +15,6 @@ public class ExportEngine
     private readonly Queue<string> _queue = new();
 
     /// <summary>
-    /// Initializes a new instance of <see cref="ExportEngine"/>.
-    /// </summary>
-    /// <param name="outputPath">Directory where exported HTML files will be written.</param>
-    /// <param name="seedRoutesPath">Optional path to a file containing seed routes; may be null.</param>
-    /// <param name="baseUrl">Base URL used for crawling.</param>
-    /// <summary>
     /// Initializes a new ExportEngine that will crawl a base URL and write exported HTML files to the specified output directory.
     /// </summary>
     /// <param name="outputPath">Directory where exported HTML files will be written.</param>
@@ -106,11 +100,6 @@ public class ExportEngine
     }
 
     /// <summary>
-    /// Convert a URL route into a validated absolute file path inside the configured output directory.
-    /// </summary>
-    /// <param name="route">The request route to convert (for example, "/about" or "/").</param>
-    /// <returns>The absolute path under the output directory where the route's HTML file should be written.</returns>
-    /// <summary>
     /// Maps a web route to an absolute file path under the configured output directory, normalizing routes to index files as needed.
     /// </summary>
     /// <param name="route">The route to map (for example "/" or "/about/team").</param>
@@ -149,9 +138,6 @@ public class ExportEngine
         return fullPath;
     }
 
-    /// <summary>
-    /// Finds internal anchor hrefs in the provided HTML and enqueues each unvisited route for processing.
-    /// </summary>
     /// <summary>
     /// Scans the provided HTML for root-relative href targets and enqueues each discovered route that is not a protocol, fragment, begins with "//", or already visited.
     /// </summary>

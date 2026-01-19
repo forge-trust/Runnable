@@ -29,9 +29,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     }
 
     /// <summary>
-    /// Discovers IRunnableWebModule instances from the provided startup context and caches them for later use.
-    /// </summary>
-    /// <summary>
     /// Collects all IRunnableWebModule instances from the startup context's dependencies and root module and caches them for later use.
     /// </summary>
     /// <param name="context">The startup context used to enumerate dependencies and the root module.</param>
@@ -60,9 +57,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         _modulesBuilt = true;
     }
 
-    /// <summary>
-    /// Initialize and configure the application's WebOptions instance if it has not yet been initialized.
-    /// </summary>
     /// <summary>
     /// Initializes and caches WebOptions by applying configuration from discovered modules and any external configurator.
     /// </summary>
@@ -94,10 +88,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         _optionsBuilt = true;
     }
 
-    /// <summary>
-    /// Configures DI services required for the web application based on discovered modules and the current WebOptions.
-    /// </summary>
-    /// <param name="context">Startup context containing environment info and the entry point assembly.</param>
     /// <summary>
     /// Configures web-related services (MVC and CORS) on the provided service collection according to discovered web modules and the resolved WebOptions.
     /// </summary>

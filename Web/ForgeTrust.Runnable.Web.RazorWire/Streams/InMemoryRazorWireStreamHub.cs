@@ -10,11 +10,6 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     private readonly ConcurrentDictionary<ChannelWriter<string>, ChannelReader<string>> _writerToReader = new();
 
     /// <summary>
-    /// Publish a string message to all subscribers of the specified channel.
-    /// </summary>
-    /// <param name="channel">The name of the channel to publish to.</param>
-    /// <param name="message">The message to deliver to subscribers.</param>
-    /// <summary>
     /// Publish a message to all subscribers of the specified channel and remove any subscribers that are closed or unable to accept the message.
     /// </summary>
     /// <param name="channel">The name of the channel to publish to.</param>
@@ -26,25 +21,15 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
         {
             if (_channels.TryGetValue(channel, out var subscribersDict))
             {
-                var closedSubscribers = new List<ChannelWriter<string>>();
                 var subscribers = subscribersDict.Keys.ToList();
-
-                foreach (var subscriber in subscribers)
-                {
-                    // Try to publish the message. If it fails, the channel is closed or full (though we use DropOldest).
-                    if (!subscriber.TryWrite(message))
-                    {
-                        // Explicitly attempt to complete to trigger any underlying cleanup logic
-                        subscriber.TryComplete();
-
-                        // Unconditionally add to cleanup list
-                        closedSubscribers.Add(subscriber);
-                    }
-                }
+                var closedSubscribers = subscribers.Where(subscriber => !subscriber.TryWrite(message)).ToList();
 
                 // Cleanup closed subscribers
                 foreach (var closed in closedSubscribers)
                 {
+                    // Explicitly attempt to complete to trigger any underlying cleanup logic
+                    closed.TryComplete();
+
                     subscribersDict.TryRemove(closed, out _);
 
                     // Also remove the bidirectional mappings to prevent leaks
@@ -71,10 +56,6 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     }
 
     /// <summary>
-    /// Creates and registers a new subscriber for the specified channel and returns a reader to receive messages published to that channel.
-    /// </summary>
-    /// <param name="channel">The name of the channel to subscribe to.</param>
-    /// <summary>
     /// Subscribes to a named channel and returns a reader that receives messages published to that channel.
     /// The subscription uses an in-memory bounded buffer with capacity 100 that drops the oldest messages when full.
     /// </summary>
@@ -94,10 +75,6 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
         return subscriber.Reader;
     }
 
-    /// <summary>
-    /// Unsubscribes the specified reader from the named channel and completes its associated writer to signal closure.
-    /// </summary>
-    /// <param name="channel">The name of the channel to remove the subscription from.</param>
     /// <summary>
     /// Unregisters a subscriber from the specified channel and completes its associated writer.
     /// </summary>

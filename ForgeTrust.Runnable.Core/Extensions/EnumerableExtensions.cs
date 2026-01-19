@@ -6,15 +6,6 @@ namespace ForgeTrust.Runnable.Core.Extensions;
 public static class EnumerableExtensions
 {
     /// <summary>
-    /// Projects each element of a sequence into a new form asynchronously, with a limit on the number of concurrent operations.
-    /// </summary>
-    /// <typeparam name="TSource">The type of the elements of source.</typeparam>
-    /// <typeparam name="TResult">The type of the value returned by the selector.</typeparam>
-    /// <param name="source">A sequence of values to invoke a transform function on.</param>
-    /// <param name="body">A transform function to apply to each element.</param>
-    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent tasks.</param>
-    /// <param name="cancellationToken">The CancellationToken to monitor for cancellation requests.</param>
-    /// <summary>
     /// Projects each element of the source sequence into a new form using an asynchronous transform with a limit on concurrent operations, producing results in the original input order.
     /// </summary>
     /// <param name="source">The input sequence of elements to transform.</param>
@@ -96,17 +87,6 @@ public static class EnumerableExtensions
             cancellationToken: cancellationToken);
     }
 
-    /// <summary>
-    /// Projects each element of a sequence into a new form asynchronously, with a limit on the number of concurrent operations,
-    /// yielding results in the original order as they become available.
-    /// </summary>
-    /// <typeparam name="TSource">The type of the elements of source.</typeparam>
-    /// <typeparam name="TResult">The type of the value returned by the selector.</typeparam>
-    /// <param name="source">A sequence of values to invoke a transform function on.</param>
-    /// <param name="body">A transform function to apply to each element.</param>
-    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent tasks.</param>
-    /// <param name="bufferMultiplier">Multiplier for the channel buffer size (default 4). Allows producer to run ahead of consumer.</param>
-    /// <param name="cancellationToken">The CancellationToken to monitor for cancellation requests.</param>
     /// <summary>
     /// Asynchronously projects each element of <paramref name="source"/> with a bounded degree of concurrency and yields results in the original order as they become available.
     /// </summary>

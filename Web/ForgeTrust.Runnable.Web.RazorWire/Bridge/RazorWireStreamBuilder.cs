@@ -148,10 +148,6 @@ public class RazorWireStreamBuilder
     }
 
     /// <summary>
-    /// Builds a concatenated string of Turbo Stream elements for the queued raw HTML actions.
-    /// </summary>
-    /// <returns>A string containing the concatenated &lt;turbo-stream&gt; elements for all raw HTML actions.</returns>
-    /// <summary>
     /// Builds a single string containing the queued turbo-stream elements for all raw HTML actions.
     /// </summary>
     /// <returns>The concatenated turbo-stream markup for the builder's raw HTML actions.</returns>
@@ -203,9 +199,6 @@ public class RazorWireStreamBuilder
 
 
     /// <summary>
-    /// Creates a RazorWireStreamResult that contains the builder's queued stream actions.
-    /// </summary>
-    /// <summary>
     /// Creates a RazorWireStreamResult containing a snapshot of the builder's queued actions and the optional controller.
     /// </summary>
     /// <returns>A RazorWireStreamResult initialized with a copy of the queued actions and the builder's controller.</returns>
@@ -233,9 +226,6 @@ public class RazorWireStreamBuilder
             Html = html;
         }
 
-        /// <summary>
-        /// Renders the turbo-stream element for this raw HTML action.
-        /// </summary>
         /// <summary>
         /// Produces the turbo-stream element representing this action and its target.
         /// </summary>

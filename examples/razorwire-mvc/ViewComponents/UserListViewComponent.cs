@@ -17,10 +17,6 @@ public class UserListViewComponent : ViewComponent
     }
 
     /// <summary>
-    /// Produces a view displaying active user presence and records the current user's activity when a "razorwire-username" cookie is present.
-    /// </summary>
-    /// <param name="users">Optional sequence of users to display; if null, active users are obtained from the presence service.</param>
-    /// <summary>
     /// Renders a view showing the current active users.
     /// </summary>
     /// <param name="users">Optional collection of user presence entries to display; if null, active users are obtained from the presence service.</param>

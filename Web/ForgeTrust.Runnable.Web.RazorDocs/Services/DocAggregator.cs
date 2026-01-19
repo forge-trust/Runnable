@@ -28,7 +28,19 @@ public class DocAggregator
 
     public async Task<IEnumerable<DocNode>> GetDocsAsync()
     {
-        var cachedDict = await _cache.GetOrCreateAsync(
+        var cachedDict = await GetCachedDocsAsync();
+        return cachedDict.Values.OrderBy(n => n.Path).ToList();
+    }
+
+    public async Task<DocNode?> GetDocByPathAsync(string path)
+    {
+        var cachedDict = await GetCachedDocsAsync();
+        return cachedDict.TryGetValue(path, out var doc) ? doc : null;
+    }
+
+    private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync()
+    {
+        return await _cache.GetOrCreateAsync(
             CacheKey,
             async entry =>
             {
@@ -60,24 +72,6 @@ public class DocAggregator
                 }
 
                 return allNodes.ToDictionary(n => n.Path, n => n);
-            });
-
-        return cachedDict?.Values.OrderBy(n => n.Path).ToList() ?? Enumerable.Empty<DocNode>();
-    }
-
-    public async Task<DocNode?> GetDocByPathAsync(string path)
-    {
-        var cachedDict = await _cache.GetOrCreateAsync(
-            CacheKey,
-            async entry =>
-            {
-                // If not in cache, trigger the full harvest via GetDocsAsync
-                // The cache logic is centralized in GetDocsAsync's dictionary population
-                await GetDocsAsync();
-
-                return _cache.Get<Dictionary<string, DocNode>>(CacheKey);
-            });
-
-        return cachedDict != null && cachedDict.TryGetValue(path, out var doc) ? doc : null;
+            }) ?? new Dictionary<string, DocNode>();
     }
 }

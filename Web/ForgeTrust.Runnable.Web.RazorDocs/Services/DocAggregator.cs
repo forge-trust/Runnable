@@ -1,5 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using Ganss.Xss;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -9,7 +10,7 @@ public class DocAggregator
     private readonly IEnumerable<IDocHarvester> _harvesters;
     private readonly string _repositoryRoot;
     private readonly IMemoryCache _cache;
-    private readonly Ganss.Xss.IHtmlSanitizer _sanitizer;
+    private readonly IHtmlSanitizer _sanitizer;
     private readonly ILogger<DocAggregator> _logger;
     private const string CacheKey = "HarvestedDocs";
 
@@ -18,7 +19,7 @@ public class DocAggregator
         IConfiguration configuration,
         IWebHostEnvironment environment,
         IMemoryCache cache,
-        Ganss.Xss.IHtmlSanitizer sanitizer,
+        IHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
     {
         _harvesters = harvesters;
@@ -76,6 +77,15 @@ public class DocAggregator
 
                 return allNodes
                     .Select(n => new DocNode(n.Title, n.Path, _sanitizer.Sanitize(n.Content)))
+                    .GroupBy(n => n.Path)
+                    .Select(g =>
+                    {
+                        if (g.Count() > 1)
+                        {
+                            _logger.LogWarning("Duplicate doc path detected: {Path}. Keeping first occurrence.", g.Key);
+                        }
+                        return g.First();
+                    })
                     .ToDictionary(n => n.Path, n => n);
             }) ?? new Dictionary<string, DocNode>();
     }

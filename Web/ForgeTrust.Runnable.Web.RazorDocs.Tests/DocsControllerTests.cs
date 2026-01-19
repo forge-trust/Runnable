@@ -6,7 +6,6 @@ using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Hosting;
 
@@ -27,10 +26,10 @@ public class DocsControllerTests : IDisposable
         var configFake = A.Fake<Microsoft.Extensions.Configuration.IConfiguration>();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
-        var sanitizerFake = A.Fake<Ganss.Xss.IHtmlSanitizer>();
+        var sanitizerFake = A.Fake<IHtmlSanitizer>();
         A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string baseUrl, AngleSharp.IMarkupFormatter formatter) => input);
+        A.CallTo(() => sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
+            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
 
         // Use real Aggregator with fake dependencies (or we could fake Aggregator but it's a concrete class)
         // Since Controller takes concrete DocAggregator, we instantiate it.

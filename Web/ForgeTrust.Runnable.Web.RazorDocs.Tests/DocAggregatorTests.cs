@@ -5,7 +5,6 @@ using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -32,8 +31,8 @@ public class DocAggregatorTests
         A.CallTo(() => _envFake.ContentRootPath).Returns(Path.GetTempPath());
 
         // Default: just return input for sanitization in most tests
-        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string _, AngleSharp.IMarkupFormatter _) => input);
+        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
+            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
 
         _aggregator = new DocAggregator(
             new[] { _harvesterFake },
@@ -87,7 +86,7 @@ public class DocAggregatorTests
         var harvestedDocs = new List<DocNode> { new DocNode("Title", "path", unsafeHtml) };
 
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._)).Returns(harvestedDocs);
-        A.CallTo(() => _sanitizerFake.Sanitize(unsafeHtml, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
+        A.CallTo(() => _sanitizerFake.Sanitize(unsafeHtml, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
             .Returns(safeHtml);
 
         // Act
@@ -96,5 +95,25 @@ public class DocAggregatorTests
         // Assert
         Assert.Single(result);
         Assert.Equal(safeHtml, result.First().Content);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldHandleDuplicatePaths_ByKeepingFirst()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new DocNode("First", "duplicate-path", "content1"),
+            new DocNode("Second", "duplicate-path", "content2")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._)).Returns(harvestedDocs);
+
+        // Act
+        var result = (await _aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal("First", result.First().Title);
+        // Warning log check is optional but good if we want to be thorough
     }
 }

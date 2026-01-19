@@ -1,3 +1,4 @@
+using System.Net;
 using System.Xml.Linq;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Microsoft.CodeAnalysis;
@@ -8,54 +9,87 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
 public class CSharpDocHarvester : IDocHarvester
 {
+    private readonly ILogger<CSharpDocHarvester> _logger;
+
+    public CSharpDocHarvester(ILogger<CSharpDocHarvester> logger)
+    {
+        _logger = logger;
+    }
+
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
     {
         var nodes = new List<DocNode>();
         var csFiles = Directory.EnumerateFiles(rootPath, "*.cs", SearchOption.AllDirectories);
+        var excludedDirs = new[] { "node_modules", "bin", "obj", "Tests" };
 
         foreach (var file in csFiles)
         {
-            if (file.Contains("node_modules") || file.Contains("bin") || file.Contains("obj") || file.Contains("Tests"))
+            var segments = file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (segments.Any(s => excludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
             {
                 continue;
             }
 
-            var code = await File.ReadAllTextAsync(file);
-            var tree = CSharpSyntaxTree.ParseText(code);
-            var root = await tree.GetRootAsync();
-
-            var classes = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
-            foreach (var @class in classes)
+            try
             {
-                var doc = ExtractDoc(@class);
-                if (doc != null)
-                {
-                    nodes.Add(
-                        new DocNode(
-                            @class.Identifier.Text,
-                            Path.GetRelativePath(rootPath, file) + "#" + @class.Identifier.Text,
-                            doc
-                        ));
-                }
+                var code = await File.ReadAllTextAsync(file);
+                var tree = CSharpSyntaxTree.ParseText(code);
+                var root = await tree.GetRootAsync();
 
-                var methods = @class.DescendantNodes().OfType<MethodDeclarationSyntax>();
-                foreach (var method in methods)
+                // Capture Classes, Structs, Interfaces, Records
+                var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>();
+                foreach (var typeDecl in typeDeclarations)
                 {
-                    var methodDoc = ExtractDoc(method);
-                    if (methodDoc != null)
+                    var doc = ExtractDoc(typeDecl);
+                    if (doc != null)
                     {
                         nodes.Add(
                             new DocNode(
-                                $"{@class.Identifier.Text}.{method.Identifier.Text}",
-                                Path.GetRelativePath(rootPath, file)
-                                + "#"
-                                + @class.Identifier.Text
-                                + "."
-                                + method.Identifier.Text,
-                                methodDoc
+                                typeDecl.Identifier.Text,
+                                Path.GetRelativePath(rootPath, file) + "#" + typeDecl.Identifier.Text,
+                                doc
+                            ));
+                    }
+
+                    var methods = typeDecl.DescendantNodes().OfType<MethodDeclarationSyntax>();
+                    foreach (var method in methods)
+                    {
+                        var methodDoc = ExtractDoc(method);
+                        if (methodDoc != null)
+                        {
+                            nodes.Add(
+                                new DocNode(
+                                    $"{typeDecl.Identifier.Text}.{method.Identifier.Text}",
+                                    Path.GetRelativePath(rootPath, file)
+                                    + "#"
+                                    + typeDecl.Identifier.Text
+                                    + "."
+                                    + method.Identifier.Text,
+                                    methodDoc
+                                ));
+                        }
+                    }
+                }
+
+                // Capture Enums
+                var enums = root.DescendantNodes().OfType<EnumDeclarationSyntax>();
+                foreach (var @enum in enums)
+                {
+                    var doc = ExtractDoc(@enum);
+                    if (doc != null)
+                    {
+                        nodes.Add(
+                            new DocNode(
+                                @enum.Identifier.Text,
+                                Path.GetRelativePath(rootPath, file) + "#" + @enum.Identifier.Text,
+                                doc
                             ));
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to parse C# file: {File}", file);
             }
         }
 
@@ -71,12 +105,9 @@ public class CSharpDocHarvester : IDocHarvester
 
         if (xml == null) return null;
 
-        // Simple transformation of XML doc to HTML
-        // In a real app, we'd use a more robust XML -> HTML converter
         try
         {
             var cleanXml = xml.ToString().Replace("///", "").Trim();
-            // Wrap in a root element to make it valid XML if it isn't already
             var wrappedXml = $"<doc>{cleanXml}</doc>";
             var xdoc = XDocument.Parse(wrappedXml);
 
@@ -84,14 +115,22 @@ public class CSharpDocHarvester : IDocHarvester
             var remarks = xdoc.Root?.Element("remarks")?.Value.Trim();
 
             var html = "";
-            if (!string.IsNullOrEmpty(summary)) html += $"<div class='doc-summary text-slate-600 mb-4'>{summary}</div>";
+            if (!string.IsNullOrEmpty(summary))
+            {
+                html += $"<div class='doc-summary text-slate-600 mb-4'>{WebUtility.HtmlEncode(summary)}</div>";
+            }
+
             if (!string.IsNullOrEmpty(remarks))
-                html += $"<div class='doc-remarks text-slate-500 italic'>{remarks}</div>";
+            {
+                html += $"<div class='doc-remarks text-slate-500 italic'>{WebUtility.HtmlEncode(remarks)}</div>";
+            }
 
             return string.IsNullOrEmpty(html) ? null : html;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to parse XML documentation for node {Node}", node.ToString().Split('\n')[0]);
+
             return null;
         }
     }

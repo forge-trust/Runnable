@@ -46,10 +46,6 @@ public class ReactivityController : Controller
     }
 
     /// <summary>
-    /// Handle a user registration submitted via form: persist the trimmed username in an HttpOnly cookie and broadcast the user's presence to connected clients.
-    /// </summary>
-    /// <param name="username">The submitted username from the form; leading and trailing whitespace will be trimmed. If null, empty, or whitespace only, no cookie is set and no presence broadcast is performed.</param>
-    /// <summary>
     /// Registers the provided username, persists it in a cookie, and broadcasts the user's presence to other clients.
     /// </summary>
     /// <param name="username">The username submitted from the registration form. If empty or whitespace, no username is persisted or broadcast.</param>
@@ -91,23 +87,15 @@ public class ReactivityController : Controller
     }
 
     /// <summary>
-    /// Publishes a chat message to connected clients and updates the sender's presence.
-    /// </summary>
-    /// <param name="message">The message text to publish to the message stream.</param>
-    /// <param name="username">Optional username to attribute the message; if null, the controller will read the "razorwire-username" cookie.</param>
-    /// <returns>
-    /// A result that replaces the message form partial when the request is a Turbo request, or a redirect to the Index action otherwise.
-    /// <summary>
     /// Publishes a chat message to connected clients and returns an updated response for the sender.
     /// </summary>
     /// <param name="message">The message text submitted from the form.</param>
-    /// <param name="username">An optional username submitted with the form; when omitted the stored cookie value is used.</param>
     /// <returns>A Turbo/RazorWire stream that replaces the message form when the request is a Turbo request; otherwise a redirect to the Index action.</returns>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> PublishMessage([FromForm] string message, [FromForm] string? username)
+    public async Task<IActionResult> PublishMessage([FromForm] string message)
     {
-        var effectiveUsername = username ?? Request.Cookies["razorwire-username"];
+        var effectiveUsername = Request.Cookies["razorwire-username"];
 
         if (!string.IsNullOrWhiteSpace(effectiveUsername))
         {
@@ -146,14 +134,6 @@ public class ReactivityController : Controller
         return RedirectToAction(nameof(Index));
     }
 
-    /// <summary>
-    /// Increment the server-side counter and the provided session client count, producing a Turbo Stream response to update the UI when requested or a redirect otherwise.
-    /// </summary>
-    /// <param name="clientCount">The current per-session client count submitted from the form; this value is incremented for the response.</param>
-    /// <returns>
-    /// A result that:
-    /// - if the request is a Turbo request, updates the instance score, session score, and the hidden client-count input via a Turbo Stream;
-    /// - otherwise redirects to the request's Referer when it is a local URL, or to the Index action.
     /// <summary>
     /// Increments the server-side counter and the supplied client counter, then responds with a RazorWire/Turbo stream to update the UI or with a safe redirect.
     /// </summary>

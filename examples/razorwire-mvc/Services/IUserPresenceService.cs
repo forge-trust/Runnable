@@ -3,11 +3,6 @@ namespace RazorWireWebExample.Services;
 public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOffset LastSeen)
 {
     /// <summary>
-    /// Produces a safe identifier by replacing any character not in the set [a-zA-Z0-9-_] with a hyphen ('-')
-    /// and appending a deterministic hash to ensure uniqueness.
-    /// </summary>
-    /// <param name="username">The username to convert into a safe identifier.</param>
-    /// <summary>
     /// Produces a safe identifier from a username by replacing characters not in [a-zA-Z0-9-_] with '-' and appending a short deterministic hash suffix.
     /// </summary>
     /// <param name="username">The original username to normalize.</param>
@@ -20,7 +15,7 @@ public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOff
         using var sha256 = System.Security.Cryptography.SHA256.Create();
         var bytes = System.Text.Encoding.UTF8.GetBytes(username);
         var hashBytes = sha256.ComputeHash(bytes);
-        var hash = Convert.ToHexString(hashBytes).Substring(0, 4).ToLowerInvariant();
+        var hash = Convert.ToHexString(hashBytes)[..4].ToLowerInvariant();
 
         return $"{sanitized}-{hash}";
     }
@@ -29,35 +24,24 @@ public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOff
 public interface IUserPresenceService
 {
     /// <summary>
-    /// Records activity for the specified user.
+    /// Record activity for the specified user and update their presence.
     /// </summary>
-    /// <param name="username">The user's original username as provided by the caller.</param>
-    /// <summary>
-/// Record activity for the specified user and update their presence.
-/// </summary>
-/// <param name="username">The username whose activity should be recorded.</param>
-/// <returns>The current number of active users after recording the activity.</returns>
+    /// <param name="username">The username whose activity should be recorded.</param>
+    /// <returns>The current number of active users after recording the activity.</returns>
     int RecordActivity(string username);
 
     /// <summary>
     /// Gets the currently active users' presence information.
     /// </summary>
     /// <summary>
-/// Retrieves presence information for users currently considered active.
-/// </summary>
-/// <returns>A collection of UserPresenceInfo objects for users considered active at the time of the call.</returns>
+    /// Retrieves presence information for users currently considered active.
+    /// </summary>
+    /// <returns>A collection of UserPresenceInfo objects for users considered active at the time of the call.</returns>
     IEnumerable<UserPresenceInfo> GetActiveUsers();
 
     /// <summary>
-    /// Advances presence tracking and returns users removed as a result of the pulse and the current active user count.
+    /// Advances presence tracking and expires users considered inactive during this pulse.
     /// </summary>
-    /// <returns>
-    /// A tuple where:
-    /// - <c>Removed</c> is a read-only list of UserPresenceInfo for users that were removed during this pulse.
-    /// - <c>ActiveCount</c> is the current number of active users after the pulse.
-    /// <summary>
-/// Advances presence tracking and expires users considered inactive during this pulse.
-/// </summary>
-/// <returns>A tuple where <c>Removed</c> is a read-only list of UserPresenceInfo objects removed during this pulse, and <c>ActiveCount</c> is the current number of active users after the pulse.</returns>
+    /// <returns>A tuple where <c>Removed</c> is a read-only list of UserPresenceInfo objects removed during this pulse, and <c>ActiveCount</c> is the current number of active users after the pulse.</returns>
     (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse();
 }

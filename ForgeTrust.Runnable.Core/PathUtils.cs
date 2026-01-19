@@ -9,6 +9,12 @@ public static class PathUtils
     {
         var current = new DirectoryInfo(startPath);
 
+        // If startPath doesn't exist, walk up until we find one that does
+        while (current != null && !current.Exists)
+        {
+            current = current.Parent;
+        }
+
         while (current != null)
         {
             if (Directory.Exists(Path.Combine(current.FullName, ".git"))

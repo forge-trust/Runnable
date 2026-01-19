@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Microsoft.CodeAnalysis;
@@ -7,8 +8,11 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
-public class CSharpDocHarvester : IDocHarvester
+public partial class CSharpDocHarvester : IDocHarvester
 {
+    [GeneratedRegex("[^a-zA-Z0-9_-]")]
+    private static partial Regex IdentifierRegex();
+
     private readonly ILogger<CSharpDocHarvester> _logger;
 
     public CSharpDocHarvester(ILogger<CSharpDocHarvester> logger)
@@ -60,9 +64,10 @@ public class CSharpDocHarvester : IDocHarvester
                             var paramList = string.Join(
                                 ",",
                                 method.ParameterList.Parameters.Select(p => p.Type?.ToString() ?? "object"));
-                            var signature = $"({paramList})";
+                            var signature = SanitizeIdentifier($"({paramList})");
                             var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{signature}";
-                            var anchor = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{signature}";
+                            var anchor = SanitizeIdentifier(
+                                $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{signature}");
 
                             nodes.Add(
                                 new DocNode(
@@ -136,5 +141,17 @@ public class CSharpDocHarvester : IDocHarvester
 
             return null;
         }
+    }
+
+    private string SanitizeIdentifier(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+
+        // Match the logic in Index.cshtml ToAnchorId
+        // Replace non-alphanumeric chars with hyphens
+        return IdentifierRegex().Replace(input, "-").Trim('-');
     }
 }

@@ -4,7 +4,7 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>@ViewData["Title"] - RazorDocs</title>
-    <script src="https://unpkg.com/@@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/@@tailwindcss/browser@4.1.18" integrity="sha384-y0axVOJIfo0bJOmTOnyRyUjrqjUotl7L/k6mzSwu2SSrB3r7P+b0cSFkiod+js0X" crossorigin="anonymous"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -14,6 +14,8 @@
         }
         body {
             font-family: var(--font-outfit);
+            scrollbar-width: thin;
+            scrollbar-color: #334155 #0f172a;
         }
         
         /* Custom scrollbar for dark theme */
@@ -30,6 +32,12 @@
         }
         ::-webkit-scrollbar-thumb:hover {
             background: #475569;
+        }
+
+        /* Standard scrollbar properties for Firefox and others */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #334155 #0f172a;
         }
 
         .prose pre {

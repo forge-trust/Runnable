@@ -46,11 +46,14 @@ public class ExportEngine
         if (_seedRoutesPath != null && File.Exists(_seedRoutesPath))
         {
             var seeds = await File.ReadAllLinesAsync(_seedRoutesPath);
-            var validSeeds = seeds.Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s));
+            var validSeeds = seeds
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => s.StartsWith("/") ? s : "/" + s);
+
             foreach (var seed in validSeeds)
             {
-                var normalizedSeed = seed.StartsWith("/") ? seed : "/" + seed;
-                _queue.Enqueue(normalizedSeed);
+                _queue.Enqueue(seed);
             }
         }
         else

@@ -117,7 +117,7 @@ public class EnumerableExtensionsTests
     {
         // Arrange
         var input = Enumerable.Range(0, 100);
-        int startedCount = 0;
+        var startedCount = 0;
 
         // Act
         await foreach (var item in input.ParallelSelectAsyncEnumerable(
@@ -130,7 +130,10 @@ public class EnumerableExtensionsTests
                            },
                            maxDegreeOfParallelism: 10))
         {
-            if (item == 5) break;
+            if (item == 5)
+            {
+                break;
+            }
         }
 
         // Wait a bit to ensure cleanup would have happened

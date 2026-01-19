@@ -48,7 +48,9 @@ public static class EnumerableExtensions
                         {
                             try
                             {
+                                // ReSharper disable AccessToDisposedClosure
                                 semaphore.Release();
+                                // ReSharper restore AccessToDisposedClosure
                             }
                             catch (ObjectDisposedException)
                             {
@@ -89,6 +91,7 @@ public static class EnumerableExtensions
     /// <param name="bufferMultiplier">Multiplier for the channel buffer size (default 4). Allows producer to run ahead of consumer.</param>
     /// <param name="cancellationToken">The CancellationToken to monitor for cancellation requests.</param>
     /// <returns>An async enumerable that yields results in order.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("ReSharper", "AccessToDisposedClosure")]
     public static async IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, CancellationToken, Task<TResult>> body,
@@ -96,10 +99,25 @@ public static class EnumerableExtensions
         int bufferMultiplier = 4,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (source == null) throw new ArgumentNullException(nameof(source));
-        if (body == null) throw new ArgumentNullException(nameof(body));
-        if (maxDegreeOfParallelism <= 0) throw new ArgumentOutOfRangeException(nameof(maxDegreeOfParallelism));
-        if (bufferMultiplier < 1) throw new ArgumentOutOfRangeException(nameof(bufferMultiplier));
+        if (source == null)
+        {
+            throw new ArgumentNullException(nameof(source));
+        }
+
+        if (body == null)
+        {
+            throw new ArgumentNullException(nameof(body));
+        }
+
+        if (maxDegreeOfParallelism <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxDegreeOfParallelism));
+        }
+
+        if (bufferMultiplier < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bufferMultiplier));
+        }
 
         var channel = Channel.CreateBounded<Task<TResult>>(
             new BoundedChannelOptions(maxDegreeOfParallelism * bufferMultiplier)
@@ -122,8 +140,9 @@ public static class EnumerableExtensions
                     {
                         if (cts.Token.IsCancellationRequested) break;
 
-                        // ReSharper disable once AccessToDisposedClosure
+                        // ReSharper disable AccessToDisposedClosure
                         await semaphore.WaitAsync(cts.Token);
+                        // ReSharper restore AccessToDisposedClosure
 
                         // Start the task. 
                         // We wrap matching the semaphore release to the task completion.
@@ -139,8 +158,9 @@ public static class EnumerableExtensions
                                     // Release concurrency limit slot when task completes
                                     try
                                     {
-                                        // ReSharper disable once AccessToDisposedClosure
+                                        // ReSharper disable AccessToDisposedClosure
                                         semaphore.Release();
+                                        // ReSharper restore AccessToDisposedClosure
                                     }
                                     catch (ObjectDisposedException)
                                     {

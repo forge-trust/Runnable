@@ -28,46 +28,56 @@ public class DocAggregator
 
     public async Task<IEnumerable<DocNode>> GetDocsAsync()
     {
-        return await _cache.GetOrCreateAsync(
-                   CacheKey,
-                   async entry =>
-                   {
-                       entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+        var cachedDict = await _cache.GetOrCreateAsync(
+            CacheKey,
+            async entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-                       var allNodes = new List<DocNode>();
-                       var tasks = _harvesters.Select(async harvester =>
-                       {
-                           try
-                           {
-                               return await harvester.HarvestAsync(_repositoryRoot);
-                           }
-                           catch (Exception ex)
-                           {
-                               _logger.LogError(
-                                   ex,
-                                   "Harvester {HarvesterType} failed at {RepositoryRoot}",
-                                   harvester.GetType().Name,
-                                   _repositoryRoot);
+                var allNodes = new List<DocNode>();
+                var tasks = _harvesters.Select(async harvester =>
+                {
+                    try
+                    {
+                        return await harvester.HarvestAsync(_repositoryRoot);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(
+                            ex,
+                            "Harvester {HarvesterType} failed at {RepositoryRoot}",
+                            harvester.GetType().Name,
+                            _repositoryRoot);
 
-                               return Enumerable.Empty<DocNode>();
-                           }
-                       });
+                        return Enumerable.Empty<DocNode>();
+                    }
+                });
 
-                       var results = await Task.WhenAll(tasks);
-                       foreach (var result in results)
-                       {
-                           allNodes.AddRange(result);
-                       }
+                var results = await Task.WhenAll(tasks);
+                foreach (var result in results)
+                {
+                    allNodes.AddRange(result);
+                }
 
-                       return allNodes.OrderBy(n => n.Path).ToList();
-                   })
-               ?? Enumerable.Empty<DocNode>();
+                return allNodes.ToDictionary(n => n.Path, n => n);
+            });
+
+        return cachedDict?.Values.OrderBy(n => n.Path).ToList() ?? Enumerable.Empty<DocNode>();
     }
 
     public async Task<DocNode?> GetDocByPathAsync(string path)
     {
-        var docs = await GetDocsAsync();
+        var cachedDict = await _cache.GetOrCreateAsync(
+            CacheKey,
+            async entry =>
+            {
+                // If not in cache, trigger the full harvest via GetDocsAsync
+                // The cache logic is centralized in GetDocsAsync's dictionary population
+                await GetDocsAsync();
 
-        return docs.FirstOrDefault(d => d.Path == path);
+                return _cache.Get<Dictionary<string, DocNode>>(CacheKey);
+            });
+
+        return cachedDict != null && cachedDict.TryGetValue(path, out var doc) ? doc : null;
     }
 }

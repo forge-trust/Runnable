@@ -41,7 +41,7 @@ public class DocAggregatorTests
     public async Task GetDocsAsync_ShouldReturnCachedResults_WhenCacheExists()
     {
         // Arrange
-        var cachedDocs = new List<DocNode> { new DocNode("Cached", "path", "content") };
+        var cachedDocs = new Dictionary<string, DocNode> { { "path", new DocNode("Cached", "path", "content") } };
         _cache.Set("HarvestedDocs", cachedDocs);
 
         // Act

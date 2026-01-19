@@ -148,4 +148,395 @@ public class EnumerableExtensionsTests
             startedCount <= 50,
             $"Expected producer to stop, but {startedCount} tasks were started (expected <= 50).");
     }
+
+    #region ParallelSelectAsync Tests
+
+    [Fact]
+    public async Task ParallelSelectAsync_ValidInput_ReturnsResults()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 5);
+
+        // Act
+        var results = await input.ParallelSelectAsync(
+            async (x, ct) =>
+            {
+                await Task.Delay(10, ct);
+                return x * 2;
+            },
+            maxDegreeOfParallelism: 2);
+
+        // Assert
+        Assert.Equal(new[] { 2, 4, 6, 8, 10 }, results);
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_NullSource_ThrowsArgumentNullException()
+    {
+        // Arrange
+        IEnumerable<int>? source = null;
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await source!.ParallelSelectAsync(async (x, ct) => x, 2));
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_NullBody_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var source = Enumerable.Range(1, 5);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await source.ParallelSelectAsync((Func<int, CancellationToken, Task<int>>)null!, 2));
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_InvalidParallelism_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var source = Enumerable.Range(1, 5);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await source.ParallelSelectAsync(async (x, ct) => x, 0));
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_CancellationToken_CancelsOperation()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 100);
+        using var cts = new CancellationTokenSource();
+        var processedCount = 0;
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await input.ParallelSelectAsync(
+                async (x, ct) =>
+                {
+                    Interlocked.Increment(ref processedCount);
+                    if (processedCount >= 5)
+                    {
+                        await cts.CancelAsync();
+                    }
+                    await Task.Delay(50, ct);
+                    return x;
+                },
+                maxDegreeOfParallelism: 2,
+                cancellationToken: cts.Token);
+        });
+
+        // Verify that not all items were processed
+        Assert.True(processedCount < 100);
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_BodyThrowsException_PropagatesException()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 10);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await input.ParallelSelectAsync(
+                async (x, ct) =>
+                {
+                    if (x == 5)
+                    {
+                        throw new InvalidOperationException("Test exception");
+                    }
+                    await Task.Delay(10, ct);
+                    return x;
+                },
+                maxDegreeOfParallelism: 3);
+        });
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_PreservesOrder()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 20);
+
+        // Act - Use variable delays to ensure out-of-order completion
+        var results = await input.ParallelSelectAsync(
+            async (x, ct) =>
+            {
+                await Task.Delay(x % 2 == 0 ? 50 : 10, ct);
+                return x;
+            },
+            maxDegreeOfParallelism: 5);
+
+        // Assert
+        Assert.Equal(input, results);
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_RespectsMaxDegreeOfParallelism()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 20);
+        var activeTasks = 0;
+        var maxObservedTasks = 0;
+        var lockObj = new object();
+
+        // Act
+        await input.ParallelSelectAsync(
+            async (x, ct) =>
+            {
+                lock (lockObj)
+                {
+                    activeTasks++;
+                    maxObservedTasks = Math.Max(maxObservedTasks, activeTasks);
+                }
+
+                await Task.Delay(100, ct);
+
+                lock (lockObj)
+                {
+                    activeTasks--;
+                }
+
+                return x;
+            },
+            maxDegreeOfParallelism: 3);
+
+        // Assert
+        Assert.True(maxObservedTasks <= 3, $"Expected max 3 concurrent tasks, but observed {maxObservedTasks}");
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_EmptySource_ReturnsEmpty()
+    {
+        // Arrange
+        var input = Enumerable.Empty<int>();
+
+        // Act
+        var results = await input.ParallelSelectAsync(async (x, ct) => x * 2, 2);
+
+        // Assert
+        Assert.Empty(results);
+    }
+
+    #endregion
+
+    #region ParallelSelectAsyncEnumerable Validation Tests
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_NullSource_ThrowsArgumentNullException()
+    {
+        // Arrange
+        IEnumerable<int>? source = null;
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+        {
+            await foreach (var _ in source!.ParallelSelectAsyncEnumerable(async (x, ct) => x, 2))
+            {
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_NullBody_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var source = Enumerable.Range(1, 5);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+        {
+            await foreach (var _ in source.ParallelSelectAsyncEnumerable((Func<int, CancellationToken, Task<int>>)null!, 2))
+            {
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_InvalidParallelism_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var source = Enumerable.Range(1, 5);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            await foreach (var _ in source.ParallelSelectAsyncEnumerable(async x => x, 0))
+            {
+            }
+        });
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_InvalidBufferMultiplier_ThrowsArgumentOutOfRangeException()
+    {
+        // Arrange
+        var source = Enumerable.Range(1, 5);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            await foreach (var _ in source.ParallelSelectAsyncEnumerable(async x => x, 2, bufferMultiplier: 0))
+            {
+            }
+        });
+    }
+
+    #endregion
+
+    #region Cancellation and Cleanup Tests
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_CancellationDuringProducer_StopsGracefully()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 100);
+        using var cts = new CancellationTokenSource();
+        var processedCount = 0;
+
+        // Act
+        try
+        {
+            await foreach (var item in input.ParallelSelectAsyncEnumerable(
+                               async (x, ct) =>
+                               {
+                                   Interlocked.Increment(ref processedCount);
+                                   await Task.Delay(50, ct);
+                                   return x;
+                               },
+                               maxDegreeOfParallelism: 5,
+                               cancellationToken: cts.Token))
+            {
+                if (item >= 10)
+                {
+                    await cts.CancelAsync();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert - Not all items should have been processed
+        Assert.True(processedCount < 100, $"Expected cancellation to stop processing, but {processedCount} items were processed");
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_CancellationDuringConsumer_CleansUpProperly()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 50);
+        using var cts = new CancellationTokenSource();
+        var results = new List<int>();
+
+        // Act
+        try
+        {
+            await foreach (var item in input.ParallelSelectAsyncEnumerable(
+                               async x =>
+                               {
+                                   await Task.Delay(20);
+                                   return x;
+                               },
+                               maxDegreeOfParallelism: 3,
+                               cancellationToken: cts.Token))
+            {
+                results.Add(item);
+                if (results.Count >= 5)
+                {
+                    await cts.CancelAsync();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert - Should have stopped early
+        Assert.True(results.Count < 50);
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_CustomBufferMultiplier_Works()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 20);
+
+        // Act
+        var results = new List<int>();
+        await foreach (var item in input.ParallelSelectAsyncEnumerable(
+                           async x =>
+                           {
+                               await Task.Delay(10);
+                               return x * 2;
+                           },
+                           maxDegreeOfParallelism: 2,
+                           bufferMultiplier: 8))
+        {
+            results.Add(item);
+        }
+
+        // Assert
+        Assert.Equal(20, results.Count);
+        Assert.Equal(Enumerable.Range(1, 20).Select(x => x * 2), results);
+    }
+
+    #endregion
+
+    #region Error Scenario Tests
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_ProducerException_PropagatesCorrectly()
+    {
+        // Arrange - Create a source that throws during enumeration
+        var input = ThrowingEnumerable();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var _ in input.ParallelSelectAsyncEnumerable(async x => x, 2))
+            {
+            }
+        });
+
+        static IEnumerable<int> ThrowingEnumerable()
+        {
+            yield return 1;
+            yield return 2;
+            throw new InvalidOperationException("Source enumeration failed");
+        }
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_MultipleExceptionsInTasks_PropagatesFirst()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 10);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var _ in input.ParallelSelectAsyncEnumerable(
+                               async x =>
+                               {
+                                   await Task.Delay(10);
+                                   if (x >= 3 && x <= 6)
+                                   {
+                                       throw new InvalidOperationException($"Error at {x}");
+                                   }
+                                   return x;
+                               },
+                               maxDegreeOfParallelism: 4))
+            {
+            }
+        });
+    }
+
+    #endregion
 }

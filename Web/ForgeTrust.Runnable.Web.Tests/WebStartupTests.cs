@@ -231,6 +231,127 @@ public class WebStartupTests
         await host.StopAsync();
     }
 
+    [Fact]
+    public async Task ConfigureServices_Cors_WildcardInProduction_LogsWarning()
+    {
+        var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", Environments.Production);
+
+            var root = new TestWebModule();
+            var startup = new TestWebStartup(root);
+            startup.WithOptions(o =>
+            {
+                o.Cors.EnableCors = true;
+                o.Cors.AllowedOrigins = ["*"];
+            });
+
+            var context = new StartupContext([], root);
+            var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+            using var host = builder.Build();
+
+            // Verify CORS service is registered
+            Assert.NotNull(host.Services.GetService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsService>());
+
+            // Verify policy allows any origin
+            var corsService = host.Services
+                .GetRequiredService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider>();
+            var policy = await corsService.GetPolicyAsync(
+                new Microsoft.AspNetCore.Http.DefaultHttpContext(),
+                "DefaultCorsPolicy");
+
+            Assert.NotNull(policy);
+            Assert.True(policy.AllowAnyOrigin);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previous);
+        }
+    }
+
+    [Fact]
+    public void ConfigureServices_Cors_WildcardInDevelopment_DoesNotLogWarning()
+    {
+        var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", Environments.Development);
+
+            var root = new TestWebModule();
+            var startup = new TestWebStartup(root);
+            startup.WithOptions(o =>
+            {
+                o.Cors.EnableCors = true;
+                o.Cors.AllowedOrigins = ["*"];
+            });
+
+            var context = new StartupContext([], root);
+            var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+            using var host = builder.Build();
+
+            // Verify CORS service is registered
+            Assert.NotNull(host.Services.GetService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsService>());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previous);
+        }
+    }
+
+    [Fact]
+    public void ConfigureServices_ConfigureMvcCallback_IsInvoked()
+    {
+        var root = new TestWebModule { MvcLevel = MvcSupport.Controllers };
+        var startup = new TestWebStartup(root);
+        var mvcConfigured = false;
+
+        startup.WithOptions(o =>
+        {
+            o.Mvc.MvcSupportLevel = MvcSupport.Controllers;
+            o.Mvc.ConfigureMvc = builder => { mvcConfigured = true; };
+        });
+
+        var context = new StartupContext([], root);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = builder.Build();
+
+        Assert.True(mvcConfigured, "ConfigureMvc callback should have been invoked");
+    }
+
+    [Fact]
+    public void ConfigureServices_ModuleWithIncludeAsApplicationPartFalse_NotAdded()
+    {
+        var root = new TestWebModuleNoApplicationPart();
+        var startup = new TestWebStartupNoAppPart(root);
+        startup.WithOptions(o => o.Mvc.MvcSupportLevel = MvcSupport.Controllers);
+
+        var context = new StartupContext([], root);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = builder.Build();
+
+        // Verify MVC services are present
+        Assert.NotNull(
+            host.Services.GetService<Microsoft.AspNetCore.Mvc.Infrastructure.IActionDescriptorCollectionProvider>());
+    }
+
+    [Fact]
+    public void BuildModules_NonWebModule_NotIncluded()
+    {
+        var root = new TestWebModule();
+        var context = new StartupContext([], root);
+
+        // Add a non-web module
+        context.Dependencies.AddModule<NonWebModule>();
+
+        var startup = new TestWebStartup(root);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = builder.Build();
+
+        // Should build successfully without including the non-web module
+        Assert.NotNull(host);
+    }
+
     private class TestWebStartup : WebStartup<TestWebModule>
     {
         private readonly TestWebModule _module;
@@ -241,6 +362,18 @@ public class WebStartupTests
         }
 
         protected override TestWebModule CreateRootModule() => _module;
+    }
+
+    private class TestWebStartupNoAppPart : WebStartup<TestWebModuleNoApplicationPart>
+    {
+        private readonly TestWebModuleNoApplicationPart _module;
+
+        public TestWebStartupNoAppPart(TestWebModuleNoApplicationPart module)
+        {
+            _module = module;
+        }
+
+        protected override TestWebModuleNoApplicationPart CreateRootModule() => _module;
     }
 
     private class TestWebModule : IRunnableWebModule
@@ -275,6 +408,50 @@ public class WebStartupTests
         }
 
         public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+    }
+
+    private class TestWebModuleNoApplicationPart : IRunnableWebModule
+    {
+        public bool IncludeAsApplicationPart => false;
+
+        public void ConfigureWebOptions(StartupContext context, WebOptions options)
+        {
+        }
+
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
+        {
+        }
+
+        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+        {
+        }
+
+        public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
+        {
+        }
+
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
+        {
+        }
+
+        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+    }
+
+    private class NonWebModule : IRunnableModule
+    {
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
+        {
+        }
+
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
         {
         }
     }

@@ -177,7 +177,10 @@ public class ReactivityController : Controller
             .AppendPartial(
                 "user-list-items",
                 "Components/UserList/_UserItem",
-                new UserPresenceInfo(username, UserPresenceInfo.ToSafeId(username), DateTimeOffset.UtcNow))
+                new UserPresenceInfo(
+                    username,
+                    StringUtils.ToSafeId(username, appendHash: true),
+                    DateTimeOffset.UtcNow))
             .Update("user-count", $"{activeCount} ONLINE")
             .RenderAsync(viewContext);
 

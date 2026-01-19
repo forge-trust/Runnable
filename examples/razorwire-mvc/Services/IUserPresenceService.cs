@@ -1,17 +1,6 @@
 namespace RazorWireWebExample.Services;
 
-public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOffset LastSeen)
-{
-    /// <summary>
-    /// Produces a safe identifier from a username by replacing characters not in [a-zA-Z0-9-_] with '-' and appending a short deterministic hash suffix.
-    /// </summary>
-    /// <param name="username">The original username to normalize.</param>
-    /// <returns>The sanitized identifier combining the normalized username and a 4-hex-character hash suffix.</returns>
-    public static string ToSafeId(string username)
-    {
-        return ForgeTrust.Runnable.Web.RazorWire.StringUtils.ToSafeId(username, appendHash: true);
-    }
-}
+public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOffset LastSeen);
 
 public interface IUserPresenceService
 {

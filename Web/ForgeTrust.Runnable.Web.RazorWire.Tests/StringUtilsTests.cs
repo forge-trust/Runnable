@@ -1,6 +1,3 @@
-using ForgeTrust.Runnable.Web.RazorWire;
-using Xunit;
-
 namespace ForgeTrust.Runnable.Web.RazorWire.Tests;
 
 public class StringUtilsTests
@@ -31,7 +28,7 @@ public class StringUtilsTests
 
         // Should be deterministic
         Assert.Equal(result1, result2);
-        
+
         // Should have hash suffix
         Assert.Contains("-", result1);
         Assert.Matches(@"^test-example-com-[0-9a-f]{4}$", result1);

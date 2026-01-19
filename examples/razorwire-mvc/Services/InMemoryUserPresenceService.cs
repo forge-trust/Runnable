@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using ForgeTrust.Runnable.Web.RazorWire;
 
 namespace RazorWireWebExample.Services;
 
@@ -38,7 +39,10 @@ public class InMemoryUserPresenceService : IUserPresenceService
 
         return _userActivity
             .Where(kvp => kvp.Value >= cutoff)
-            .Select(kvp => new UserPresenceInfo(kvp.Key, UserPresenceInfo.ToSafeId(kvp.Key), kvp.Value))
+            .Select(kvp => new UserPresenceInfo(
+                kvp.Key,
+                StringUtils.ToSafeId(kvp.Key, appendHash: true),
+                kvp.Value))
             .OrderBy(u => u.Username)
             .ToList();
     }
@@ -63,7 +67,11 @@ public class InMemoryUserPresenceService : IUserPresenceService
         {
             if (kvp.Value < cutoff && _userActivity.TryRemove(kvp.Key, out _))
             {
-                removed.Add(new UserPresenceInfo(kvp.Key, UserPresenceInfo.ToSafeId(kvp.Key), kvp.Value));
+                removed.Add(
+                    new UserPresenceInfo(
+                        kvp.Key,
+                        StringUtils.ToSafeId(kvp.Key, appendHash: true),
+                        kvp.Value));
             }
         }
 

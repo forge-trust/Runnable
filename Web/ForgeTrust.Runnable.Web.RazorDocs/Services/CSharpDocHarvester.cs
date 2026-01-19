@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -12,7 +11,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// <summary>
 /// Harvester implementation that scans C# source files for XML documentation comments.
 /// </summary>
-public partial class CSharpDocHarvester : IDocHarvester
+public class CSharpDocHarvester : IDocHarvester
 {
     private readonly ILogger<CSharpDocHarvester> _logger;
 

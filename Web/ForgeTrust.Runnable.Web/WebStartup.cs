@@ -125,8 +125,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             || (context.IsDevelopment && _options.Cors.EnableAllOriginsInDevelopment))
         {
             // Enforce that origins are specified if CORS is enabled, except when allowing all in development
-            if (_options.Cors.EnableCors
-                && _options.Cors.AllowedOrigins.Length == 0
+            if (_options.Cors is { EnableCors: true, AllowedOrigins.Length: 0 }
                 && !(_options.Cors.EnableAllOriginsInDevelopment && context.IsDevelopment))
             {
                 throw new InvalidOperationException(

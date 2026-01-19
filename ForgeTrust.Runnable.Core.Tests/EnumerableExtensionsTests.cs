@@ -60,7 +60,10 @@ public class EnumerableExtensionsTests
             await foreach (var _ in input.ParallelSelectAsyncEnumerable(
                                async x =>
                                {
-                                   if (x == 3) throw new InvalidOperationException("Test Error");
+                                   if (x == 3)
+                                   {
+                                       throw new InvalidOperationException("Test Error");
+                                   }
 
                                    return await Task.FromResult(x);
                                },
@@ -79,9 +82,9 @@ public class EnumerableExtensionsTests
 
         // Arrange
         var input = Enumerable.Range(0, 10);
-        int activeTasks = 0;
-        int maxObservedTasks = 0;
-        object lockObj = new object();
+        var activeTasks = 0;
+        var maxObservedTasks = 0;
+        var lockObj = new object();
 
         // Act
         await foreach (var _ in input.ParallelSelectAsyncEnumerable(

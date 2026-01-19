@@ -125,12 +125,12 @@ public partial class CSharpDocHarvester : IDocHarvester
             var html = "";
             if (!string.IsNullOrEmpty(summary))
             {
-                html += $"<div class='doc-summary text-slate-600 mb-4'>{WebUtility.HtmlEncode(summary)}</div>";
+                html += $"<div class='doc-summary text-slate-300 mb-4'>{WebUtility.HtmlEncode(summary)}</div>";
             }
 
             if (!string.IsNullOrEmpty(remarks))
             {
-                html += $"<div class='doc-remarks text-slate-500 italic'>{WebUtility.HtmlEncode(remarks)}</div>";
+                html += $"<div class='doc-remarks text-slate-400 italic'>{WebUtility.HtmlEncode(remarks)}</div>";
             }
 
             return string.IsNullOrEmpty(html) ? null : html;

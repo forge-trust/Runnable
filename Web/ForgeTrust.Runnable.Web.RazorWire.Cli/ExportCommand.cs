@@ -23,6 +23,11 @@ public class ExportCommand : ICommand
     [CommandOption("url", 'u', Description = "Base URL of the running application (default: http://localhost:5000).")]
     public string BaseUrl { get; init; } = "http://localhost:5000";
 
+    /// <summary>
+    /// Validates options, runs the export engine to produce a static site, and writes progress messages to the console.
+    /// </summary>
+    /// <returns>A ValueTask that completes when the export operation finishes.</returns>
+    /// <exception cref="CommandException">Thrown when <c>BaseUrl</c> is not an absolute HTTP/HTTPS URL or when <c>Mode</c> is not "s3" or "hybrid".</exception>
     public async ValueTask ExecuteAsync(IConsole console)
     {
         if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri)

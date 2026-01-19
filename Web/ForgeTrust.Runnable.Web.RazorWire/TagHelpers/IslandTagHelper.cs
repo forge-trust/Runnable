@@ -25,6 +25,11 @@ public class IslandTagHelper : TagHelper
 
     [HtmlAttributeName("client-props")] public string? ClientProps { get; set; }
 
+    /// <summary>
+    /// Renders the rw:island element as a &lt;turbo-frame&gt; and applies attributes based on the tag helper's properties.
+    /// </summary>
+    /// <param name="context">The current tag helper context.</param>
+    /// <param name="output">The output to modify; the method sets TagName to "turbo-frame", TagMode to StartTagAndEndTag, and updates attributes.</param>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = "turbo-frame";

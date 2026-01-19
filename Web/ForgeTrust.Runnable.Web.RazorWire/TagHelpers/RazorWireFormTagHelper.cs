@@ -10,6 +10,11 @@ public class RazorWireFormTagHelper : TagHelper
     [HtmlAttributeName("rw-target")] public string? TargetFrame { get; set; }
 
 
+    /// <summary>
+    /// Modifies the form element's attributes to enable or disable Turbo navigation and removes custom "rw-" attributes.
+    /// </summary>
+    /// <param name="context">The tag helper execution context.</param>
+    /// <param name="output">The tag helper output whose attributes will be modified.</param>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         var attributesToRemove = output.Attributes.Where(a => a.Name.StartsWith("rw-")).ToList();

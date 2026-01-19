@@ -23,6 +23,10 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         return this;
     }
 
+    /// <summary>
+    /// Discovers IRunnableWebModule instances from the provided startup context and caches them for later use.
+    /// </summary>
+    /// <param name="context">The startup context used to enumerate dependencies and the root module.</param>
     private void BuildModules(StartupContext context)
     {
         if (_modulesBuilt)
@@ -47,6 +51,10 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         _modulesBuilt = true;
     }
 
+    /// <summary>
+    /// Initialize and configure the application's WebOptions instance if it has not yet been initialized.
+    /// </summary>
+    /// <param name="context">The startup context used when configuring web options (environment, dependencies, and module context).</param>
     private void BuildWebOptions(StartupContext context)
     {
         if (_optionsBuilt)
@@ -71,6 +79,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         _optionsBuilt = true;
     }
 
+    /// <summary>
+    /// Configures DI services required for the web application based on discovered modules and the current WebOptions.
+    /// </summary>
+    /// <param name="context">Startup context containing environment info and the entry point assembly.</param>
+    /// <param name="services">The service collection to which MVC and CORS services will be added.</param>
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
         BuildModules(context);

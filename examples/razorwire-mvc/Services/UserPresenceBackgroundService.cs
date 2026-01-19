@@ -11,6 +11,13 @@ public class UserPresenceBackgroundService : CriticalService
     private readonly ILogger<UserPresenceBackgroundService> _logger;
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(2.5);
 
+    /// <summary>
+    /// Initializes a UserPresenceBackgroundService with the services required to poll user presence and publish presence streams.
+    /// </summary>
+    /// <param name="presence">Service that provides user presence pulse data.</param>
+    /// <param name="hub">Hub used to publish RazorWire streams to connected clients.</param>
+    /// <param name="logger">Logger for service diagnostics.</param>
+    /// <param name="applicationLifetime">Host application lifetime used to tie the background service to the application's lifecycle.</param>
     public UserPresenceBackgroundService(
         IUserPresenceService presence,
         IRazorWireStreamHub hub,
@@ -23,6 +30,11 @@ public class UserPresenceBackgroundService : CriticalService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Continuously pulses the user presence service, removes departed users from the reactive stream, and publishes updates until cancellation is requested.
+    /// </summary>
+    /// <param name="stoppingToken">Token that signals the background loop to stop; when signaled the method exits promptly.</param>
+    /// <returns>A task that completes when the background loop stops.</returns>
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)

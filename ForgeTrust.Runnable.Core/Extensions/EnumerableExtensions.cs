@@ -125,8 +125,15 @@ public static class EnumerableExtensions
             throw new ArgumentOutOfRangeException(nameof(bufferMultiplier));
         }
 
+        // Calculate capacity using long to prevent integer overflow
+        long capacity = (long)maxDegreeOfParallelism * bufferMultiplier;
+        if (capacity > int.MaxValue)
+        {
+            capacity = int.MaxValue;
+        }
+
         var channel = Channel.CreateBounded<Task<TResult>>(
-            new BoundedChannelOptions(maxDegreeOfParallelism * bufferMultiplier)
+            new BoundedChannelOptions((int)capacity)
             {
                 SingleWriter = true,
                 SingleReader = true

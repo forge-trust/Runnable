@@ -6,6 +6,55 @@ using System.Text.Encodings.Web;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
+/// <summary>
+/// Internal helper for rendering view components into Turbo Stream fragments.
+/// </summary>
+internal static class ViewComponentStreamHelper
+{
+    /// <summary>
+    /// Renders a view component into a Turbo Stream XML fragment.
+    /// </summary>
+    /// <param name="viewContext">The current view context.</param>
+    /// <param name="action">The Turbo Stream action (e.g., "replace", "append").</param>
+    /// <param name="target">The DOM element identifier to update.</param>
+    /// <param name="componentIdentifier">The component type or name to invoke.</param>
+    /// <param name="arguments">Optional arguments to pass to the component.</param>
+    /// <returns>A Turbo Stream XML string with HTML-encoded action and target attributes.</returns>
+    public static async Task<string> RenderComponentStreamAsync(
+        ViewContext viewContext,
+        string action,
+        string target,
+        dynamic componentIdentifier,
+        object? arguments)
+    {
+        await using var writer = new StringWriter();
+
+        var componentViewContext = new ViewContext(
+            viewContext,
+            viewContext.View,
+            viewContext.ViewData,
+            viewContext.TempData,
+            writer,
+            new HtmlHelperOptions()
+        );
+
+        var services = viewContext.HttpContext.RequestServices;
+        var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
+
+        ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);
+
+        var result = await viewComponentHelper.InvokeAsync(componentIdentifier, arguments);
+        result.WriteTo(writer, HtmlEncoder.Default);
+
+        var content = writer.ToString();
+        var encodedTarget = HtmlEncoder.Default.Encode(target);
+        var encodedAction = HtmlEncoder.Default.Encode(action);
+
+        return
+            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+    }
+}
+
 public class ViewComponentStreamAction : IRazorWireStreamAction
 {
     private readonly string _action;
@@ -39,32 +88,12 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     /// <returns>A string containing a &lt;turbo-stream&gt; element with the <c>action</c> and <c>target</c> attributes HTML-encoded and a &lt;template&gt; containing the component's rendered HTML.</returns>
     public async Task<string> RenderAsync(ViewContext viewContext)
     {
-        await using var writer = new StringWriter();
-
-        // Ensure the ViewComponentHelper sees the writer we want it to write to
-        var componentViewContext = new ViewContext(
+        return await ViewComponentStreamHelper.RenderComponentStreamAsync(
             viewContext,
-            viewContext.View,
-            viewContext.ViewData,
-            viewContext.TempData,
-            writer,
-            new HtmlHelperOptions()
-        );
-
-        var services = viewContext.HttpContext.RequestServices;
-        var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
-
-        ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);
-
-        var result = await viewComponentHelper.InvokeAsync(_componentType, _arguments);
-        result.WriteTo(writer, HtmlEncoder.Default);
-
-        var content = writer.ToString();
-        var encodedTarget = HtmlEncoder.Default.Encode(_target);
-        var encodedAction = HtmlEncoder.Default.Encode(_action);
-
-        return
-            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+            _action,
+            _target,
+            _componentType,
+            _arguments);
     }
 }
 
@@ -101,30 +130,11 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
     /// <returns>A string containing a &lt;turbo-stream&gt; element whose action and target attributes are HTML-encoded and whose &lt;template&gt; contains the rendered component HTML.</returns>
     public async Task<string> RenderAsync(ViewContext viewContext)
     {
-        await using var writer = new StringWriter();
-
-        var componentViewContext = new ViewContext(
+        return await ViewComponentStreamHelper.RenderComponentStreamAsync(
             viewContext,
-            viewContext.View,
-            viewContext.ViewData,
-            viewContext.TempData,
-            writer,
-            new HtmlHelperOptions()
-        );
-
-        var services = viewContext.HttpContext.RequestServices;
-        var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
-
-        ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);
-
-        var result = await viewComponentHelper.InvokeAsync(_componentName, _arguments);
-        result.WriteTo(writer, HtmlEncoder.Default);
-
-        var content = writer.ToString();
-        var encodedTarget = HtmlEncoder.Default.Encode(_target);
-        var encodedAction = HtmlEncoder.Default.Encode(_action);
-
-        return
-            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+            _action,
+            _target,
+            _componentName,
+            _arguments);
     }
 }

@@ -9,6 +9,8 @@ public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOff
     /// <returns>The sanitized identifier combining the normalized username and a 4-hex-character hash suffix.</returns>
     public static string ToSafeId(string username)
     {
+        ArgumentNullException.ThrowIfNull(username);
+
         var sanitized = System.Text.RegularExpressions.Regex.Replace(username, @"[^a-zA-Z0-9-_]", "-");
 
         // Append a short deterministic hash of the original username to ensure uniqueness

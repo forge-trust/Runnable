@@ -28,6 +28,7 @@
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire.Tests/ForgeTrust.Runnable.Web.RazorWire.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire/ForgeTrust.Runnable.Web.RazorWire.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.RazorDocs.Tests/ForgeTrust.Runnable.Web.RazorDocs.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj" />
     <Project Path="Web\\ForgeTrust.Runnable.Web.OpenApi\\ForgeTrust.Runnable.Web.OpenApi.csproj" />
     <Project Path="Web\\ForgeTrust.Runnable.Web.Scalar\\ForgeTrust.Runnable.Web.Scalar.csproj" />

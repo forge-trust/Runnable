@@ -127,6 +127,7 @@ public static class EnumerableExtensions
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var semaphore = new SemaphoreSlim(maxDegreeOfParallelism);
+        var activeTasks = new ConcurrentBag<Task>();
 
         // Producer: Schedules tasks and writes them to the channel
         // We use Task.Run to offload the scheduling loop so it doesn't block the consumer
@@ -138,10 +139,11 @@ public static class EnumerableExtensions
                     foreach (var item in source)
                     {
                         // ReSharper disable AccessToDisposedClosure
-                        if (cts.Token.IsCancellationRequested) break;
-                        // ReSharper restore AccessToDisposedClosure
+                        if (cts.Token.IsCancellationRequested)
+                        {
+                            break;
+                        }
 
-                        // ReSharper disable AccessToDisposedClosure
                         await semaphore.WaitAsync(cts.Token);
                         // ReSharper restore AccessToDisposedClosure
 
@@ -171,7 +173,11 @@ public static class EnumerableExtensions
                                     }
                                 }
                             },
+                            // ReSharper disable AccessToDisposedClosure
                             cts.Token);
+                        // ReSharper restore AccessToDisposedClosure
+
+                        activeTasks.Add(task);
 
                         // Write the task (future result) to the channel
                         // If the consumer is slow, this will block once the channel is full,
@@ -215,8 +221,20 @@ public static class EnumerableExtensions
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
 #if DEBUG
-                System.Diagnostics.Debug.WriteLine($"Error during ParallelSelectAsyncEnumerable cleanup: {ex}");
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error during ParallelSelectAsyncEnumerable cleanup (producer): {ex}");
 #endif
+            }
+
+            // JOIN ALL ACTIVE TASKS before disposing the semaphore and CTS
+            // This is critical because they capture the semaphore and CTS in their closures.
+            try
+            {
+                await Task.WhenAll(activeTasks);
+            }
+            catch (Exception)
+            {
+                // Exceptions in individual tasks are already handled/re-thrown via the channel/yield return
             }
         }
     }

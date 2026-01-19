@@ -1,7 +1,6 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.Extensions.Logging;
-using Xunit;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -34,7 +33,7 @@ public class CSharpDocHarvesterTests : IDisposable
             "/// <summary>Docs</summary>\npublic class Included {}");
 
         // Act
-        var results = await _harvester.HarvestAsync(_testRoot);
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
         Assert.Single(results);
@@ -88,11 +87,12 @@ public class CSharpDocHarvesterTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(_testRoot, "Broken.cs"), code);
 
         // Act
-        await _harvester.HarvestAsync(_testRoot);
+        var results = await _harvester.HarvestAsync(_testRoot);
 
         // Assert
-        // Should not throw, and likely returns sanitized or empty content depending on parser resilience
-        // Just ensuring no crash here.
+        // The harvester catches the exception and returns null from ExtractDoc,
+        // so the node should just be skipped and not added to results.
+        Assert.Empty(results);
     }
 
     public void Dispose()

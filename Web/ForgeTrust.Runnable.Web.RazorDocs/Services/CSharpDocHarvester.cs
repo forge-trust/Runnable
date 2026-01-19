@@ -63,7 +63,8 @@ public partial class CSharpDocHarvester : IDocHarvester
                         {
                             var paramList = string.Join(
                                 ",",
-                                method.ParameterList.Parameters.Select(p => p.Type?.ToString() ?? "object"));
+                                method.ParameterList.Parameters.Select(p =>
+                                    $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
                             var signature = SanitizeIdentifier($"({paramList})");
                             var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{signature}";
                             var anchor = SanitizeIdentifier(

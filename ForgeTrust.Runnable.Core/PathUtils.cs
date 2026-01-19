@@ -11,7 +11,8 @@ public static class PathUtils
 
         while (current != null)
         {
-            if (current.GetDirectories(".git").Any())
+            if (Directory.Exists(Path.Combine(current.FullName, ".git"))
+                || File.Exists(Path.Combine(current.FullName, ".git")))
             {
                 return current.FullName;
             }

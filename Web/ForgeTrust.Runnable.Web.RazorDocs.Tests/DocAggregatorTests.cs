@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
-public class DocAggregatorTests
+public class DocAggregatorTests : IDisposable
 {
     private readonly IDocHarvester _harvesterFake;
     private readonly Microsoft.Extensions.Configuration.IConfiguration _configFake;
@@ -115,5 +115,10 @@ public class DocAggregatorTests
         Assert.Single(result);
         Assert.Equal("First", result.First().Title);
         // Warning log check is optional but good if we want to be thorough
+    }
+
+    public void Dispose()
+    {
+        _cache.Dispose();
     }
 }

@@ -37,6 +37,7 @@ public class RazorDocsWebModuleTests
             s => s.ServiceType == typeof(IDocHarvester) && s.ImplementationType == typeof(CSharpDocHarvester));
         Assert.Contains(services, s => s.ServiceType == typeof(DocAggregator));
         Assert.Contains(services, s => s.ServiceType == typeof(Microsoft.Extensions.Caching.Memory.IMemoryCache));
+        Assert.Contains(services, s => s.ServiceType == typeof(Ganss.Xss.IHtmlSanitizer));
     }
 
     [Fact]

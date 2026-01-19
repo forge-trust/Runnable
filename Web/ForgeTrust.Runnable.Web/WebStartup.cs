@@ -175,8 +175,9 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
     private ILogger GetStartupLogger()
     {
-        return LoggerFactory.Create(builder => builder.AddConsole())
-            .CreateLogger(GetType().Name);
+        using var factory = LoggerFactory.Create(builder => builder.AddConsole());
+
+        return factory.CreateLogger(GetType().Name);
     }
 
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)

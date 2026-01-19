@@ -114,11 +114,14 @@ public class ExportEngine
         var fullPath = Path.GetFullPath(Path.Combine(_outputPath, relativePath));
         var fullOutputPath = Path.GetFullPath(_outputPath);
 
-        // Normalize fullOutputPath to include a trailing directory separator to prevent prefix-based bypasses
-        var normalizedOutput = fullOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                               + Path.DirectorySeparatorChar;
+        // Normalize both paths to ensure consistent comparison
+        var normalizedFull = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var normalizedOutput = fullOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-        if (!fullPath.StartsWith(normalizedOutput, StringComparison.OrdinalIgnoreCase))
+        // Ensure the resolved file path is strictly within the output directory
+        if (!normalizedFull.StartsWith(
+                normalizedOutput + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException($"Invalid route path traversal detected: {route}");
         }

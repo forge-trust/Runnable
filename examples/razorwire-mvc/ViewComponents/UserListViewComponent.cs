@@ -17,7 +17,7 @@ public class UserListViewComponent : ViewComponent
     /// </summary>
     /// <param name="users">Optional sequence of users to display; if null, active users are obtained from the presence service.</param>
     /// <returns>A view result whose model is a List&lt;UserPresenceInfo&gt; containing the active users.</returns>
-    public IViewComponentResult Invoke(IEnumerable<UserPresenceInfo>? users = null)
+    public IViewComponentResult Invoke(IReadOnlyList<UserPresenceInfo>? users = null)
     {
         // Side-effect: If the user is fetching the list, they are active.
         // This ensures that reloading the page (SWR) refreshes their presence or re-adds them.

@@ -8,9 +8,6 @@ public class UserListViewComponent : ViewComponent
     private readonly IUserPresenceService _presence;
 
     /// <summary>
-    /// Initializes a new instance of the UserListViewComponent and stores the provided presence service.
-    /// </summary>
-    /// <summary>
     /// Initializes a new instance of <see cref="UserListViewComponent"/> with the specified user presence service.
     /// </summary>
     /// <param name="presence">Service used to record user activity and retrieve active users.</param>
@@ -19,13 +16,6 @@ public class UserListViewComponent : ViewComponent
         _presence = presence;
     }
 
-    /// <summary>
-    /// Renders a view showing the current active users.
-    /// </summary>
-    /// <param name="users">Optional collection of user presence entries to display; if null, active users are obtained from the presence service.</param>
-    /// <returns>A view result whose model is a List&lt;UserPresenceInfo&gt; containing the active users.</returns>
-    /// <remarks>
-    /// If the request contains a non-empty "razorwire-username" cookie, the component records that user's activity before rendering the view.
     /// <summary>
     /// Renders a view displaying the current active users.
     /// </summary>

@@ -46,7 +46,11 @@ public class ExportEngine
         if (_seedRoutesPath != null && File.Exists(_seedRoutesPath))
         {
             var seeds = await File.ReadAllLinesAsync(_seedRoutesPath);
-            var validSeeds = seeds.Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s));
+            var validSeeds = seeds
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => s.StartsWith("/") ? s : "/" + s);
+
             foreach (var seed in validSeeds)
             {
                 _queue.Enqueue(seed);
@@ -80,7 +84,7 @@ public class ExportEngine
 
         try
         {
-            var response = await _client.GetAsync($"{_baseUrl}{route}");
+            using var response = await _client.GetAsync($"{_baseUrl}{route}");
             if (!response.IsSuccessStatusCode)
             {
                 _console.Error.WriteLine($"  !! Failed to fetch {route}: {response.StatusCode}");

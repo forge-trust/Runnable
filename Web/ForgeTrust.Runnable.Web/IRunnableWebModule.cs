@@ -22,11 +22,14 @@ public interface IRunnableWebModule : IRunnableHostModule
     }
 
     /// <summary>
-/// Configure the ASP.NET Core request pipeline for this module.
-/// </summary>
-/// <param name="context">Startup information and services available to the module during application initialization.</param>
-/// <param name="app">The application's request pipeline builder used to register middleware, routing, and other pipeline components.</param>
-void ConfigureWebApplication(StartupContext context, IApplicationBuilder app);
+    /// Configure the ASP.NET Core request pipeline for this module.
+    /// </summary>
+    /// <param name="context">Startup information and services available to the module during application initialization.</param>
+    /// <param name="app">The application's request pipeline builder used to register middleware, routing, and other pipeline components.</param>
+    void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+    {
+        // Default implementation does nothing, so we don't force an implementation.
+    }
 
     /// <summary>
     /// Gets a value indicating whether this module's assembly should be searched for MVC application parts (controllers, views, etc.).

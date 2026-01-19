@@ -261,11 +261,12 @@ public class RazorWireStreamBuilder
             if (action is RawHtmlStreamAction raw)
             {
                 var encodedTarget = HtmlEncoder.Default.Encode(raw.Target);
+                var encodedAction = HtmlEncoder.Default.Encode(raw.Action);
                 if (raw.Action == "remove")
                     sb.Append($"<turbo-stream action=\"remove\" target=\"{encodedTarget}\"></turbo-stream>");
                 else
                     sb.Append(
-                        $"<turbo-stream action=\"{raw.Action}\" target=\"{encodedTarget}\"><template>{raw.Html}</template></turbo-stream>");
+                        $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{raw.Html}</template></turbo-stream>");
             }
             else
             {
@@ -335,6 +336,7 @@ public class RazorWireStreamBuilder
         public Task<string> RenderAsync(Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext)
         {
             var encodedTarget = HtmlEncoder.Default.Encode(Target);
+            var encodedAction = HtmlEncoder.Default.Encode(Action);
             if (Action == "remove")
             {
                 return Task.FromResult(
@@ -343,7 +345,7 @@ public class RazorWireStreamBuilder
             }
 
             return Task.FromResult(
-                $"<turbo-stream action=\"{Action}\" target=\"{encodedTarget}\">"
+                $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\">"
                 + $"<template>{Html}</template></turbo-stream>");
         }
     }

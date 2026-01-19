@@ -84,13 +84,13 @@
      * @param {Object} props - The props object to pass to the module's mount function.
      */
     function setupIntersectionObserver(island, modulePath, props) {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(async (entry) => {
+        const observer = new IntersectionObserver(async (entries) => {
+            for (const entry of entries) {
                 if (entry.isIntersecting) {
                     observer.unobserve(island);
                     await mountIsland(island, modulePath, props);
                 }
-            });
+            }
         });
         observer.observe(island);
     }

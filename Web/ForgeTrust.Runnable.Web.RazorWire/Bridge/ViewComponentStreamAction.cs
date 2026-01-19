@@ -89,8 +89,9 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     /// Renders the configured view component into a Turbo Stream fragment.
     /// </summary>
     /// <param name="viewContext">The current MVC view context used to execute and render the view component.</param>
+    /// <param name="cancellationToken">A token to observe while deciding whether to proceed.</param>
     /// <returns>A string containing a &lt;turbo-stream&gt; element whose <c>action</c> and <c>target</c> attributes are HTML-encoded and whose &lt;template&gt; contains the component's rendered HTML.</returns>
-    public async Task<string> RenderAsync(ViewContext viewContext)
+    public async Task<string> RenderAsync(ViewContext viewContext, CancellationToken cancellationToken = default)
     {
         return await ViewComponentStreamHelper.RenderComponentStreamAsync(
             viewContext,
@@ -135,8 +136,9 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
     /// Render the configured view component (by name) into a Turbo Stream fragment.
     /// </summary>
     /// <param name="viewContext">The current Razor view context used to execute and render the view component.</param>
+    /// <param name="cancellationToken">A token to observe while waiting for the task to complete.</param>
     /// <returns>A string containing a &lt;turbo-stream&gt; element whose action and target attributes are HTML-encoded and whose &lt;template&gt; contains the rendered component HTML.</returns>
-    public async Task<string> RenderAsync(ViewContext viewContext)
+    public async Task<string> RenderAsync(ViewContext viewContext, CancellationToken cancellationToken = default)
     {
         return await ViewComponentStreamHelper.RenderComponentStreamAsync(
             viewContext,

@@ -66,8 +66,18 @@ public class IslandTagHelper : TagHelper
                 style += ";";
             }
 
-            var safeTransitionName = HtmlEncoder.Default.Encode(TransitionName);
-            output.Attributes.SetAttribute("style", $"{style} view-transition-name: {safeTransitionName};");
+            // Strict whitelist for transition names to prevent CSS injection
+            // Allows alphanumeric, dashes, and underscores
+            var safeTransitionName = System.Text.RegularExpressions.Regex.IsMatch(TransitionName, @"^[A-Za-z0-9_-]+$")
+                ? TransitionName
+                : null;
+
+            if (safeTransitionName != null)
+            {
+                // Encoding is still a good practice even if regex passes, but regex ensures it's a valid identifier
+                var encoded = HtmlEncoder.Default.Encode(safeTransitionName);
+                output.Attributes.SetAttribute("style", $"{style} view-transition-name: {encoded};");
+            }
         }
 
         if (!string.IsNullOrEmpty(Export))

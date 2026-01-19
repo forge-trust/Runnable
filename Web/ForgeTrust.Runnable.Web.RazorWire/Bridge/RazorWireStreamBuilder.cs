@@ -286,13 +286,16 @@ public class RazorWireStreamBuilder
     /// Renders all queued stream actions using the provided ViewContext and concatenates their rendered HTML into a single string.
     /// </summary>
     /// <param name="viewContext">The view rendering context to use for each action.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation.</param>
     /// <returns>The concatenated HTML string produced by rendering each queued action.</returns>
-    public async Task<string> RenderAsync(Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext)
+    public async Task<string> RenderAsync(
+        Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext,
+        CancellationToken cancellationToken = default)
     {
         var sb = new System.Text.StringBuilder();
         foreach (var action in _actions)
         {
-            var html = await action.RenderAsync(viewContext);
+            var html = await action.RenderAsync(viewContext, cancellationToken);
             sb.Append(html);
         }
 
@@ -332,8 +335,11 @@ public class RazorWireStreamBuilder
         /// Renders the action as a turbo-stream HTML string.
         /// </summary>
         /// <param name="viewContext">The rendering context used when rendering the action.</param>
+        /// <param name="cancellationToken">Cancellation token (ignored for raw HTML).</param>
         /// <returns>The turbo-stream element for the action and target; for action "remove" the element has no &lt;template&gt;, otherwise its &lt;template&gt; contains the action's HTML.</returns>
-        public Task<string> RenderAsync(Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext)
+        public Task<string> RenderAsync(
+            Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext,
+            CancellationToken cancellationToken = default)
         {
             var encodedTarget = HtmlEncoder.Default.Encode(Target);
             var encodedAction = HtmlEncoder.Default.Encode(Action);

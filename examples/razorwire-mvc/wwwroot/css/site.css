@@ -2,15 +2,15 @@
 [disabled],
 [aria-disabled="true"],
 [data-rw-requires-stream][disabled] {
-    pointer-events: none;
-    opacity: 0.6;
-    cursor: not-allowed;
+    pointer-events: none !important;
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
 }
 
 [disabled] *,
 [aria-disabled="true"] *,
 [data-rw-requires-stream][disabled] * {
-    pointer-events: none;
+    pointer-events: none !important;
 }
 
 .glass {

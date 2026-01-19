@@ -26,7 +26,7 @@ public class DocAggregatorTests
         _loggerFake = A.Fake<ILogger<DocAggregator>>();
         _cache = new MemoryCache(new MemoryCacheOptions());
 
-        A.CallTo(() => _envFake.ContentRootPath).Returns("/tmp");
+        A.CallTo(() => _envFake.ContentRootPath).Returns(Path.GetTempPath());
 
         _aggregator = new DocAggregator(
             new[] { _harvesterFake },

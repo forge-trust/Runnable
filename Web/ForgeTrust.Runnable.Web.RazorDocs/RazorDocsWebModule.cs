@@ -7,6 +7,8 @@ namespace ForgeTrust.Runnable.Web.RazorDocs;
 
 public class RazorDocsWebModule : IRunnableWebModule
 {
+    public bool IncludeAsApplicationPart => true;
+
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddMemoryCache();

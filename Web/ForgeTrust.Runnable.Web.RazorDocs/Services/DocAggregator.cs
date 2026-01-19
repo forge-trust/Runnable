@@ -27,41 +27,39 @@ public class DocAggregator
 
     public async Task<IEnumerable<DocNode>> GetDocsAsync()
     {
-        if (_cache.TryGetValue(CacheKey, out IEnumerable<DocNode>? cachedDocs) && cachedDocs != null)
-        {
-            return cachedDocs;
-        }
+        return await _cache.GetOrCreateAsync(
+                   CacheKey,
+                   async entry =>
+                   {
+                       entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-        var allNodes = new List<DocNode>();
-        var tasks = _harvesters.Select(async harvester =>
-        {
-            try
-            {
-                return await harvester.HarvestAsync(_repositoryRoot);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Harvester {HarvesterType} failed at {RepositoryRoot}",
-                    harvester.GetType().Name,
-                    _repositoryRoot);
+                       var allNodes = new List<DocNode>();
+                       var tasks = _harvesters.Select(async harvester =>
+                       {
+                           try
+                           {
+                               return await harvester.HarvestAsync(_repositoryRoot);
+                           }
+                           catch (Exception ex)
+                           {
+                               _logger.LogError(
+                                   ex,
+                                   "Harvester {HarvesterType} failed at {RepositoryRoot}",
+                                   harvester.GetType().Name,
+                                   _repositoryRoot);
 
-                return Enumerable.Empty<DocNode>();
-            }
-        });
+                               return Enumerable.Empty<DocNode>();
+                           }
+                       });
 
-        var results = await Task.WhenAll(tasks);
-        foreach (var result in results)
-        {
-            allNodes.AddRange(result);
-        }
+                       var results = await Task.WhenAll(tasks);
+                       foreach (var result in results)
+                       {
+                           allNodes.AddRange(result);
+                       }
 
-        var docs = allNodes.OrderBy(n => n.Path).ToList();
-
-        // Cache for 5 minutes
-        _cache.Set(CacheKey, docs, TimeSpan.FromMinutes(5));
-
-        return docs;
+                       return allNodes.OrderBy(n => n.Path).ToList();
+                   })
+               ?? Enumerable.Empty<DocNode>();
     }
 }

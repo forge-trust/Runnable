@@ -4,10 +4,41 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>@ViewData["Title"] - RazorDocs</title>
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>
+    <script src="https://unpkg.com/@@tailwindcss/browser@4"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style type="text/tailwindcss">
+        @@theme {
+            --font-outfit: "Outfit", ui-sans-serif, system-ui;
+        }
+        body {
+            font-family: var(--font-outfit);
+        }
+        
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .prose pre {
+            background-color: #1e293b !important;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            border: 1px solid #334155;
+        }
+    </style>
     <rw:scripts/>
 </head>
 <body class="h-full flex flex-col text-slate-200 overflow-hidden">

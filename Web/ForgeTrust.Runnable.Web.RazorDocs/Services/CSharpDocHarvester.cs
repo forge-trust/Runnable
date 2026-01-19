@@ -51,20 +51,23 @@ public class CSharpDocHarvester : IDocHarvester
                             ));
                     }
 
-                    var methods = typeDecl.DescendantNodes().OfType<MethodDeclarationSyntax>();
+                    var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>();
                     foreach (var method in methods)
                     {
                         var methodDoc = ExtractDoc(method);
                         if (methodDoc != null)
                         {
+                            var paramList = string.Join(
+                                ",",
+                                method.ParameterList.Parameters.Select(p => p.Type?.ToString() ?? "object"));
+                            var signature = $"({paramList})";
+                            var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{signature}";
+                            var anchor = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{signature}";
+
                             nodes.Add(
                                 new DocNode(
-                                    $"{typeDecl.Identifier.Text}.{method.Identifier.Text}",
-                                    Path.GetRelativePath(rootPath, file)
-                                    + "#"
-                                    + typeDecl.Identifier.Text
-                                    + "."
-                                    + method.Identifier.Text,
+                                    methodId,
+                                    Path.GetRelativePath(rootPath, file) + "#" + anchor,
                                     methodDoc
                                 ));
                         }

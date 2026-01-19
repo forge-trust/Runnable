@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
-public class MarkdownHarvesterTests
+public class MarkdownHarvesterTests : IDisposable
 {
     private readonly ILogger<MarkdownHarvester> _loggerFake;
     private readonly MarkdownHarvester _harvester;
@@ -71,5 +71,20 @@ public class MarkdownHarvesterTests
         Assert.Empty(results);
         // Verify logger was called
         A.CallTo(_loggerFake).Where(call => call.Method.Name == "Log").MustHaveHappened();
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_testRoot))
+        {
+            try
+            {
+                Directory.Delete(_testRoot, true);
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+        }
     }
 }

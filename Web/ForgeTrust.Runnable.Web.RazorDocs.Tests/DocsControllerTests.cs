@@ -10,22 +10,22 @@ using Microsoft.AspNetCore.Hosting;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
-public class DocsControllerTests
+public class DocsControllerTests : IDisposable
 {
     private readonly DocAggregator _aggregator;
     private readonly DocsController _controller;
     private readonly IDocHarvester _harvesterFake;
+    private readonly IMemoryCache _cache;
 
     public DocsControllerTests()
     {
         // Mock Aggregator dependencies
         _harvesterFake = A.Fake<IDocHarvester>();
-        var configFake = A.Fake<IConfiguration>();
-        var envFake = A.Fake<IWebHostEnvironment>();
         var loggerFake = A.Fake<ILogger<DocAggregator>>();
-        var cache = new MemoryCache(new MemoryCacheOptions());
-
-        A.CallTo(() => envFake.ContentRootPath).Returns("/tmp");
+        var configFake = A.Fake<IConfiguration>();
+        _cache = new MemoryCache(new MemoryCacheOptions());
+        var envFake = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
 
         // Use real Aggregator with fake dependencies (or we could fake Aggregator but it's a concrete class)
         // Since Controller takes concrete DocAggregator, we instantiate it.
@@ -33,7 +33,7 @@ public class DocsControllerTests
             new[] { _harvesterFake },
             configFake,
             envFake,
-            cache,
+            _cache,
             loggerFake
         );
 
@@ -84,5 +84,10 @@ public class DocsControllerTests
 
         // Assert
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    public void Dispose()
+    {
+        _cache.Dispose();
     }
 }

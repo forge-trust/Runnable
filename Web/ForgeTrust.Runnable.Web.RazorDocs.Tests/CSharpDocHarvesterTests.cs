@@ -5,7 +5,7 @@ using Xunit;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
-public class CSharpDocHarvesterTests
+public class CSharpDocHarvesterTests : IDisposable
 {
     private readonly ILogger<CSharpDocHarvester> _loggerFake;
     private readonly CSharpDocHarvester _harvester;
@@ -93,5 +93,20 @@ public class CSharpDocHarvesterTests
         // Assert
         // Should not throw, and likely returns sanitized or empty content depending on parser resilience
         // Just ensuring no crash here.
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_testRoot))
+        {
+            try
+            {
+                Directory.Delete(_testRoot, true);
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+        }
     }
 }

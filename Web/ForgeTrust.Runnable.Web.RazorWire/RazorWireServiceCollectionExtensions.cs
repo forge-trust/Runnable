@@ -10,6 +10,8 @@ public static class RazorWireServiceCollectionExtensions
         this IServiceCollection services,
         Action<RazorWireOptions>? configure = null)
     {
+        services.AddOptions<RazorWireOptions>();
+
         if (configure != null)
         {
             services.Configure(configure);

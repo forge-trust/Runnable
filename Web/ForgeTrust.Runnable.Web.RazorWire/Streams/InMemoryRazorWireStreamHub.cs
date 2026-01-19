@@ -5,16 +5,18 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Streams;
 
 public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
 {
-    private readonly ConcurrentDictionary<string, ConcurrentHashSet<ChannelWriter<string>>> _channels = new();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<ChannelWriter<string>, byte>> _channels = new();
     private readonly ConcurrentDictionary<ChannelReader<string>, ChannelWriter<string>> _readerToWriter = new();
 
     public ValueTask PublishAsync(string channel, string message)
     {
         try
         {
-            if (_channels.TryGetValue(channel, out var subscribers))
+            if (_channels.TryGetValue(channel, out var subscribersDict))
             {
                 var closedSubscribers = new List<ChannelWriter<string>>();
+                var subscribers = subscribersDict.Keys.ToList();
+
                 foreach (var subscriber in subscribers)
                 {
                     if (!subscriber.TryWrite(message))
@@ -29,7 +31,14 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
                 // Cleanup closed subscribers
                 foreach (var closed in closedSubscribers)
                 {
-                    subscribers.Remove(closed);
+                    subscribersDict.TryRemove(closed, out _);
+
+                    // Also remove the reverse mapping from _readerToWriter to prevent leaks
+                    var readerMapping = _readerToWriter.FirstOrDefault(kvp => kvp.Value == closed);
+                    if (readerMapping.Key != null)
+                    {
+                        _readerToWriter.TryRemove(readerMapping.Key, out _);
+                    }
                 }
             }
 
@@ -48,15 +57,8 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
 
         _readerToWriter.TryAdd(subscriber.Reader, subscriber.Writer);
 
-        _channels.AddOrUpdate(
-            channel,
-            _ => new ConcurrentHashSet<ChannelWriter<string>> { subscriber.Writer },
-            (_, set) =>
-            {
-                set.Add(subscriber.Writer);
-
-                return set;
-            });
+        var subscribers = _channels.GetOrAdd(channel, _ => new ConcurrentDictionary<ChannelWriter<string>, byte>());
+        subscribers.TryAdd(subscriber.Writer, 0);
 
         return subscriber.Reader;
     }
@@ -68,19 +70,8 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
             writer.TryComplete();
             if (_channels.TryGetValue(channel, out var subscribers))
             {
-                subscribers.Remove(writer);
+                subscribers.TryRemove(writer, out _);
             }
         }
-    }
-
-    private class ConcurrentHashSet<T> : System.Collections.Generic.IEnumerable<T>
-        where T : notnull
-    {
-        private readonly ConcurrentDictionary<T, byte> _dictionary = new();
-
-        public void Add(T item) => _dictionary.TryAdd(item, 0);
-        public void Remove(T item) => _dictionary.TryRemove(item, out _);
-        public System.Collections.Generic.IEnumerator<T> GetEnumerator() => _dictionary.Keys.GetEnumerator();
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace ForgeTrust.Runnable.Web.RazorWire.Turbo;
+namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 public static class TurboRequestExtensions
 {

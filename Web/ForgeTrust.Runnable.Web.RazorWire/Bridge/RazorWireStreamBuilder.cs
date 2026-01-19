@@ -1,11 +1,17 @@
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Mvc;
 
-namespace ForgeTrust.Runnable.Web.RazorWire.Turbo;
+namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 public class RazorWireStreamBuilder
 {
+    private readonly Controller? _controller;
     private readonly List<IRazorWireStreamAction> _actions = new();
+
+    public RazorWireStreamBuilder(Controller? controller = null)
+    {
+        _controller = controller;
+    }
 
     public RazorWireStreamBuilder Append(string target, string templateHtml)
     {
@@ -169,7 +175,7 @@ public class RazorWireStreamBuilder
 
     public RazorWireStreamResult BuildResult()
     {
-        return new RazorWireStreamResult(_actions.ToList());
+        return new RazorWireStreamResult(_actions.ToList(), _controller);
     }
 
     private class RawHtmlStreamAction : IRazorWireStreamAction

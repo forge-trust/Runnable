@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using ForgeTrust.Runnable.Web.RazorWire.Turbo;
+using ForgeTrust.Runnable.Web.RazorWire.Bridge;
+using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
 using RazorWireWebExample.Services;
 using RazorWireWebExample.ViewComponents;
@@ -149,7 +150,7 @@ public class ReactivityController : Controller
             .AppendPartial(
                 "user-list-items",
                 "Components/UserList/_UserItem",
-                new UserPresenceInfo(username, UserPresenceInfo.ToSafeId(username), DateTime.UtcNow))
+                new UserPresenceInfo(username, UserPresenceInfo.ToSafeId(username), DateTimeOffset.UtcNow))
             .Update("user-count", $"{activeCount} ONLINE")
             .RenderAsync(viewContext);
 

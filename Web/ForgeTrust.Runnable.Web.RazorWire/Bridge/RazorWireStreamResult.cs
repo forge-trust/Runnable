@@ -1,6 +1,5 @@
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -8,15 +7,17 @@ using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ForgeTrust.Runnable.Web.RazorWire.Turbo;
+namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 public class RazorWireStreamResult : IActionResult
 {
     private readonly IEnumerable<IRazorWireStreamAction> _actions;
+    private readonly Controller? _controller;
 
-    public RazorWireStreamResult(IEnumerable<IRazorWireStreamAction> actions)
+    public RazorWireStreamResult(IEnumerable<IRazorWireStreamAction> actions, Controller? controller = null)
     {
         _actions = actions;
+        _controller = controller;
     }
 
     public RazorWireStreamResult(string? rawContent)
@@ -52,23 +53,28 @@ public class RazorWireStreamResult : IActionResult
     private ViewContext CreateViewContext(ActionContext actionContext)
     {
         var services = actionContext.HttpContext.RequestServices;
-        var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), actionContext.ModelState);
+
+        ViewDataDictionary viewData;
+        ITempDataDictionary? tempData = null;
 
         var tempDataProvider = services.GetRequiredService<ITempDataDictionaryFactory>();
 
-        // If the context is from a controller, try to inherit its ViewData
-        if (actionContext is ControllerContext controllerContext
-            && controllerContext.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor
-                actionDescriptor)
+        // If we have a controller instance, inherit its ViewData and TempData
+        if (_controller != null)
         {
-            // TODO: Implement this
+            viewData = new ViewDataDictionary(_controller.ViewData);
+            tempData = _controller.TempData;
+        }
+        else
+        {
+            viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), actionContext.ModelState);
         }
 
         return new ViewContext(
             actionContext,
             new NullView(),
             viewData,
-            tempDataProvider.GetTempData(actionContext.HttpContext),
+            tempData ?? tempDataProvider.GetTempData(actionContext.HttpContext),
             TextWriter.Null,
             new HtmlHelperOptions()
         );
@@ -77,7 +83,12 @@ public class RazorWireStreamResult : IActionResult
     private class RawHtmlStreamAction : IRazorWireStreamAction
     {
         private readonly string _html;
-        public RawHtmlStreamAction(string html) => _html = html;
+
+        public RawHtmlStreamAction(string html)
+        {
+            _html = html;
+        }
+
         public Task<string> RenderAsync(ViewContext viewContext) => Task.FromResult(_html);
     }
 

@@ -14,9 +14,7 @@ public class ExportEngine
     private readonly Queue<string> _queue = new();
 
     public ExportEngine(
-        string projectPath,
         string outputPath,
-        string mode,
         string? seedRoutesPath,
         string baseUrl,
         IConsole console)
@@ -101,7 +99,11 @@ public class ExportEngine
         var fullPath = Path.GetFullPath(Path.Combine(_outputPath, relativePath));
         var fullOutputPath = Path.GetFullPath(_outputPath);
 
-        if (!fullPath.StartsWith(fullOutputPath, StringComparison.OrdinalIgnoreCase))
+        // Normalize fullOutputPath to include a trailing directory separator to prevent prefix-based bypasses
+        var normalizedOutput = fullOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                               + Path.DirectorySeparatorChar;
+
+        if (!fullPath.StartsWith(normalizedOutput, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException($"Invalid route path traversal detected: {route}");
         }

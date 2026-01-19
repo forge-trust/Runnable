@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web;
 
@@ -12,6 +13,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     private Action<WebOptions>? _configureOptions;
     private WebOptions _options = WebOptions.Default;
     private bool _modulesBuilt;
+    private bool _optionsBuilt;
     private readonly List<IRunnableWebModule> _modules = new();
 
     public WebStartup<TModule> WithOptions(Action<WebOptions>? configureOptions = null)
@@ -47,7 +49,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
     private void BuildWebOptions(StartupContext context)
     {
-        if (_options != WebOptions.Default)
+        if (_optionsBuilt)
         {
             return;
         }
@@ -66,13 +68,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             _options.StaticFiles.EnableStaticFiles = true;
         }
 
-        // TODO: I think this is not needed as ASP.NET Core will handle this for us
-
-        // Auto-enable static web assets for development
-        // if (context.IsDevelopment)
-        // {
-        //     _options.StaticFiles.EnableStaticWebAssets = true;
-        // }
+        _optionsBuilt = true;
     }
 
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
@@ -131,6 +127,14 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                         {
                             if (_options.Cors.AllowedOrigins.Contains("*"))
                             {
+                                if (!context.IsDevelopment)
+                                {
+                                    // Log a warning if wildcard is used in production
+                                    GetStartupLogger()
+                                        .LogWarning(
+                                            "CORS is enabled with a wildcard origin ('*'). It is recommended to set specific AllowedOrigins for production environments.");
+                                }
+
                                 builder.AllowAnyOrigin();
                             }
                             else
@@ -140,12 +144,26 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                                     .AllowCredentials();
                             }
                         }
+                        else if (!context.IsDevelopment)
+                        {
+                            // If CORS is enabled but no origins are specified in production, deny all and log warning
+                            GetStartupLogger()
+                                .LogError(
+                                    "CORS is enabled but AllowedOrigins is empty. Explicitly denying all origins for security in non-development environments.");
+                            builder.SetIsOriginAllowed(_ => false);
+                        }
 
                         //TODO: Make this configurable
                         builder.AllowAnyHeader()
                             .AllowAnyMethod();
                     }));
         }
+    }
+
+    private ILogger GetStartupLogger()
+    {
+        return LoggerFactory.Create(builder => builder.AddConsole())
+            .CreateLogger(GetType().Name);
     }
 
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)

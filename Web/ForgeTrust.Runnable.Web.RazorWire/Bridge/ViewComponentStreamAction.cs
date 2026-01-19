@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Encodings.Web;
 
-namespace ForgeTrust.Runnable.Web.RazorWire.Turbo;
+namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 public class ViewComponentStreamAction : IRazorWireStreamAction
 {

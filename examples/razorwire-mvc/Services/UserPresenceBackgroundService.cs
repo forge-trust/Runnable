@@ -1,6 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
-using ForgeTrust.Runnable.Web.RazorWire.Turbo;
+using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 namespace RazorWireWebExample.Services;
 

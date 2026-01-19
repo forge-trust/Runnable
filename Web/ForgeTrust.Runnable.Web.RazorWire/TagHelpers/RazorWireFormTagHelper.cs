@@ -12,6 +12,12 @@ public class RazorWireFormTagHelper : TagHelper
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
+        var attributesToRemove = output.Attributes.Where(a => a.Name.StartsWith("rw-")).ToList();
+        foreach (var attr in attributesToRemove)
+        {
+            output.Attributes.Remove(attr);
+        }
+
         if (!Enabled)
         {
             output.Attributes.SetAttribute("data-turbo", "false");
@@ -24,12 +30,6 @@ public class RazorWireFormTagHelper : TagHelper
         if (!string.IsNullOrEmpty(TargetFrame))
         {
             output.Attributes.SetAttribute("data-turbo-frame", TargetFrame);
-        }
-
-        var attributesToRemove = output.Attributes.Where(a => a.Name.StartsWith("rw-")).ToList();
-        foreach (var attr in attributesToRemove)
-        {
-            output.Attributes.Remove(attr);
         }
     }
 }

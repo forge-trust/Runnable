@@ -10,7 +10,7 @@ public static class PathUtils
         var current = new DirectoryInfo(startPath);
 
         // If startPath doesn't exist, walk up until we find one that does
-        while (current != null && !current.Exists)
+        while (current is { Exists: false })
         {
             current = current.Parent;
         }

@@ -55,7 +55,7 @@
     <!-- Sidebar -->
     <aside class="w-64 flex-shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col">
         <div class="p-6">
-            <a href="/" class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            <a href="/docs" class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 RazorDocs
             </a>
         </div>
@@ -69,11 +69,11 @@
 
     <!-- Main Content -->
     <main id="main-content" role="main" class="flex-grow overflow-y-auto bg-slate-900">
-        <turbo-frame id="doc-content" data-turbo-action="advance">
+        <rw:island id="doc-content">
             <div class="max-w-4xl mx-auto px-8 py-12">
                 @RenderBody()
             </div>
-        </turbo-frame>
+        </rw:island>
     </main>
 </div>
 

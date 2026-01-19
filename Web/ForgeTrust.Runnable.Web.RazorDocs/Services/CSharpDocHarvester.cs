@@ -1,5 +1,5 @@
 using System.Net;
-using System.Text.RegularExpressions;
+using System.Text;
 using System.Xml.Linq;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -12,7 +12,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// <summary>
 /// Harvester implementation that scans C# source files for XML documentation comments.
 /// </summary>
-public partial class CSharpDocHarvester : IDocHarvester
+public class CSharpDocHarvester : IDocHarvester
 {
     private readonly ILogger<CSharpDocHarvester> _logger;
 
@@ -40,63 +40,149 @@ public partial class CSharpDocHarvester : IDocHarvester
                 var code = await File.ReadAllTextAsync(file);
                 var tree = CSharpSyntaxTree.ParseText(code);
                 var root = await tree.GetRootAsync();
+                var relativePath = Path.GetRelativePath(rootPath, file);
+
+                var fileContent = new StringBuilder();
+                var hasAnyDoc = false;
 
                 // Capture Classes, Structs, Interfaces, Records
-                var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>();
+                var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>().ToList();
                 foreach (var typeDecl in typeDeclarations)
                 {
                     var doc = ExtractDoc(typeDecl);
                     if (doc != null)
                     {
-                        nodes.Add(
-                            new DocNode(
-                                typeDecl.Identifier.Text,
-                                Path.GetRelativePath(rootPath, file) + "#" + typeDecl.Identifier.Text,
-                                doc
-                            ));
+                        hasAnyDoc = true;
+                        var typeId = StringUtils.ToSafeId(typeDecl.Identifier.Text);
+                        fileContent.Append(
+                            $@"<section id=""{typeId}"" class=""mb-12 scroll-mt-24"">
+                            <div class=""flex items-center gap-2 mb-4"">
+                                <span class=""px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold uppercase tracking-wider"">Type</span>
+                                <h2 class=""text-2xl font-bold text-white"">{typeDecl.Identifier.Text}</h2>
+                            </div>
+                            <div class=""pl-4 border-l-2 border-slate-800"">
+                                {doc}
+                            </div>
+                        </section>");
                     }
 
-                    var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>();
+                    var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>().ToList();
                     foreach (var method in methods)
                     {
                         var methodDoc = ExtractDoc(method);
                         if (methodDoc != null)
                         {
+                            hasAnyDoc = true;
                             var paramList = string.Join(
                                 ", ",
                                 method.ParameterList.Parameters.Select(p =>
                                     $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
 
-                            // Readable signature for the UI Title: e.g. "MyMethod(int, string)"
-                            var readableSignature = $"({paramList})";
-                            var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{readableSignature}";
+                            var methodSignature = $"{method.Identifier.Text}({paramList})";
+                            var methodId = StringUtils.ToSafeId(
+                                $"{typeDecl.Identifier.Text}.{method.Identifier.Text}({paramList})");
 
-                            // Sanitized signature for the Anchor/ID: e.g. "MyMethod-int-string-"
-                            var anchor = StringUtils.ToSafeId(methodId);
-
-                            nodes.Add(
-                                new DocNode(
-                                    methodId, // Title is now readable
-                                    Path.GetRelativePath(rootPath, file) + "#" + anchor, // Path anchor is safe
-                                    methodDoc
-                                ));
+                            fileContent.Append(
+                                $@"<section id=""{methodId}"" class=""mb-8 ml-6 scroll-mt-24"">
+                                <div class=""flex items-center gap-2 mb-2"">
+                                    <span class=""px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider"">Method</span>
+                                    <h3 class=""text-lg font-semibold text-slate-200"">{methodSignature}</h3>
+                                </div>
+                                <div class=""pl-4 border-l-2 border-slate-800/50"">
+                                    {methodDoc}
+                                </div>
+                            </section>");
                         }
                     }
                 }
 
                 // Capture Enums
-                var enums = root.DescendantNodes().OfType<EnumDeclarationSyntax>();
-                foreach (var @enum in enums)
+                var enumDeclarations = root.DescendantNodes().OfType<EnumDeclarationSyntax>().ToList();
+                foreach (var enumDecl in enumDeclarations)
                 {
-                    var doc = ExtractDoc(@enum);
+                    var doc = ExtractDoc(enumDecl);
                     if (doc != null)
                     {
-                        nodes.Add(
-                            new DocNode(
-                                @enum.Identifier.Text,
-                                Path.GetRelativePath(rootPath, file) + "#" + @enum.Identifier.Text,
-                                doc
-                            ));
+                        hasAnyDoc = true;
+                        var enumId = StringUtils.ToSafeId(enumDecl.Identifier.Text);
+                        fileContent.Append(
+                            $@"<section id=""{enumId}"" class=""mb-12 scroll-mt-24"">
+                            <div class=""flex items-center gap-2 mb-4"">
+                                <span class=""px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider"">Enum</span>
+                                <h2 class=""text-2xl font-bold text-white"">{enumDecl.Identifier.Text}</h2>
+                            </div>
+                            <div class=""pl-4 border-l-2 border-slate-800"">
+                                {doc}
+                            </div>
+                        </section>");
+                    }
+                }
+
+                if (hasAnyDoc)
+                {
+                    // Add the main file node
+                    var fileNode = new DocNode(
+                        Path.GetFileName(file),
+                        relativePath,
+                        fileContent.ToString()
+                    );
+                    nodes.Add(fileNode);
+
+                    // Add member-level nodes for the sidebar (navigation stubs)
+                    foreach (var typeDecl in typeDeclarations)
+                    {
+                        // Add type stub if documented
+                        if (ExtractDoc(typeDecl) != null)
+                        {
+                            var typeId = StringUtils.ToSafeId(typeDecl.Identifier.Text);
+                            nodes.Add(
+                                new DocNode(
+                                    typeDecl.Identifier.Text,
+                                    relativePath + "#" + typeId,
+                                    string.Empty,
+                                    relativePath
+                                ));
+                        }
+
+                        // Add method stubs if documented (independent of whether type has docs)
+                        var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>().ToList();
+                        foreach (var method in methods)
+                        {
+                            if (ExtractDoc(method) != null)
+                            {
+                                var paramList = string.Join(
+                                    ", ",
+                                    method.ParameterList.Parameters.Select(p =>
+                                        $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
+
+                                var methodSignature = $"{method.Identifier.Text}({paramList})";
+                                var methodId = StringUtils.ToSafeId(
+                                    $"{typeDecl.Identifier.Text}.{method.Identifier.Text}({paramList})");
+
+                                nodes.Add(
+                                    new DocNode(
+                                        methodSignature,
+                                        relativePath + "#" + methodId,
+                                        string.Empty,
+                                        relativePath
+                                    ));
+                            }
+                        }
+                    }
+
+                    foreach (var enumDecl in enumDeclarations)
+                    {
+                        if (ExtractDoc(enumDecl) != null)
+                        {
+                            var enumId = StringUtils.ToSafeId(enumDecl.Identifier.Text);
+                            nodes.Add(
+                                new DocNode(
+                                    enumDecl.Identifier.Text,
+                                    relativePath + "#" + enumId,
+                                    string.Empty,
+                                    relativePath
+                                ));
+                        }
                     }
                 }
             }

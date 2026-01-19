@@ -42,6 +42,25 @@ public class RazorDocsWebModule : IRunnableWebModule
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
         endpoints.MapControllerRoute(
+            name: "razordocs_doc",
+            pattern: "docs/{*path}",
+            defaults: new
+            {
+                controller = "Docs",
+                action = "Details"
+            });
+
+        endpoints.MapControllerRoute(
+            name: "razordocs_index",
+            pattern: "docs",
+            defaults: new
+            {
+                controller = "Docs",
+                action = "Index"
+            });
+
+        // Maintain fallback for legacy if necessary, but preferred is /docs
+        endpoints.MapControllerRoute(
             name: "razordocs_default",
             pattern: "{controller=Docs}/{action=Index}/{id?}");
     }

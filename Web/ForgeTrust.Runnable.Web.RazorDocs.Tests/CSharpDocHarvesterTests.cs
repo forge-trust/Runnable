@@ -36,8 +36,10 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        Assert.Single(results);
-        Assert.Contains(results, n => n.Title == "Included");
+        // Now returns: 1 File Node + 1 Class Node = 2 nodes
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, n => n.Title == "Included.cs" && string.IsNullOrEmpty(n.ParentPath));
+        Assert.Contains(results, n => n.Title == "Included" && n.ParentPath == "src/Included.cs");
         Assert.DoesNotContain(results, n => n.Title == "Ignored");
     }
 
@@ -69,11 +71,20 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        Assert.Contains(results, n => n.Title == "MyClass" && n.Content.Contains("Class Summary"));
-        Assert.Contains(results, n => n.Title == "MyRecord" && n.Content.Contains("Record Summary"));
-        Assert.Contains(results, n => n.Title == "MyStruct" && n.Content.Contains("Struct Summary"));
-        Assert.Contains(results, n => n.Title == "IMyInterface" && n.Content.Contains("Interface Summary"));
-        Assert.Contains(results, n => n.Title == "MyEnum" && n.Content.Contains("Enum Summary"));
+        // 1 File Node + 5 Type Nodes = 6 nodes
+        Assert.Equal(6, results.Count);
+
+        var fileNode = results.First(n => n.Title == "Types.cs");
+        Assert.Contains("Class Summary", fileNode.Content);
+        Assert.Contains("Record Summary", fileNode.Content);
+        Assert.Contains("Struct Summary", fileNode.Content);
+        Assert.Contains("Interface Summary", fileNode.Content);
+        Assert.Contains("Enum Summary", fileNode.Content);
+
+        // Sub-nodes should exist but have empty content (navigation stubs)
+        Assert.Contains(
+            results,
+            n => n.Title == "MyClass" && string.IsNullOrEmpty(n.Content) && n.ParentPath == "Types.cs");
     }
 
     [Fact]
@@ -112,22 +123,10 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        var methodNode = results.FirstOrDefault(n => n.Title.StartsWith("SignatureTest.MyMethod"));
+        // Sub-node title for method is just the signature
+        var methodNode = results.FirstOrDefault(n => n.Title == "MyMethod(int, string, ref bool)");
         Assert.NotNull(methodNode);
-
-        // Check readable Title: "SignatureTest.MyMethod(int, string, ref bool)"
-        Assert.Equal("SignatureTest.MyMethod(int, string, ref bool)", methodNode.Title);
-
-        // Check sanitized Anchor: "SignatureTest-MyMethod-int-string-ref-bool-"
-        // Note: The sanitizer generally replaces non-alphanumeric with hyphens and trims.
-        // IdentifierRegex is [^a-zA-Z0-9_-]
-        // "SignatureTest.MyMethod(int, string, ref bool)" -> "SignatureTest-MyMethod-int--string--ref-bool-"
-        // Wait, sanitizer implementation: IdentifierRegex().Replace(input, "-").Trim('-')
-        // Let's verify the exact expected string based on logic:
-        // Input: "SignatureTest.MyMethod(int, string, ref bool)"
-        // . -> -
-        // ( -> -
-        // The new ToSafeId implementation normalizes consecutive hyphens
+        Assert.Equal("MyMethod(int, string, ref bool)", methodNode.Title);
         Assert.EndsWith("#SignatureTest-MyMethod-int-string-ref-bool", methodNode.Path);
     }
 

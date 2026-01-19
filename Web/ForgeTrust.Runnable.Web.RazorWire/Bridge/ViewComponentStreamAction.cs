@@ -14,12 +14,6 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     private readonly object? _arguments;
 
     /// <summary>
-    /// Creates a new instance configured to render the specified view component into a Turbo Stream targeting the given element.
-    /// </summary>
-    /// <param name="action">The Turbo Stream action to apply (for example, "replace", "append", or "prepend").</param>
-    /// <param name="target">The target identifier in the DOM that the Turbo Stream will update.</param>
-    /// <param name="componentType">The CLR type of the view component to invoke.</param>
-    /// <summary>
     /// Creates an action that renders the specified view component type into a Turbo Stream targeting a DOM element.
     /// </summary>
     /// <param name="action">The Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
@@ -39,17 +33,13 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     }
 
     /// <summary>
-    /// Renders the configured view component into a Turbo Stream XML fragment that targets a DOM element.
-    /// </summary>
-    /// <param name="viewContext">The current view context used to execute the view component and capture its rendered HTML.</param>
-    /// <summary>
     /// Renders the configured view component into a Turbo Stream fragment that updates the specified target element.
     /// </summary>
     /// <param name="viewContext">The current ViewContext used as the base for rendering the view component.</param>
     /// <returns>A string containing a &lt;turbo-stream&gt; element with the <c>action</c> and <c>target</c> attributes HTML-encoded and a &lt;template&gt; containing the component's rendered HTML.</returns>
     public async Task<string> RenderAsync(ViewContext viewContext)
     {
-        using var writer = new StringWriter();
+        await using var writer = new StringWriter();
 
         // Ensure the ViewComponentHelper sees the writer we want it to write to
         var componentViewContext = new ViewContext(
@@ -86,12 +76,6 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
     private readonly object? _arguments;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="ViewComponentByNameStreamAction"/> that will render the specified view component into a Turbo Stream targeting the given target element.
-    /// </summary>
-    /// <param name="action">The Turbo Stream action to apply (for example, "replace", "append", or "update").</param>
-    /// <param name="target">The DOM target identifier for the Turbo Stream.</param>
-    /// <param name="componentName">The name of the view component to invoke.</param>
-    /// <summary>
     /// Initializes a ViewComponentByNameStreamAction that will render the specified view component (by name) into a Turbo Stream targeting the given DOM element.
     /// </summary>
     /// <param name="action">The Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
@@ -111,17 +95,13 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
     }
 
     /// <summary>
-    /// Renders the configured view component (by name) into a Turbo Streams &lt;turbo-stream&gt; element containing a &lt;template&gt; with the component HTML.
-    /// </summary>
-    /// <param name="viewContext">The current ViewContext used to execute and render the view component.</param>
-    /// <summary>
     /// Renders the configured view component (by name) into a Turbo Stream XML fragment targeting the specified DOM element.
     /// </summary>
     /// <param name="viewContext">The current view context used as the base for creating the component's rendering context.</param>
     /// <returns>A string containing a &lt;turbo-stream&gt; element whose action and target attributes are HTML-encoded and whose &lt;template&gt; contains the rendered component HTML.</returns>
     public async Task<string> RenderAsync(ViewContext viewContext)
     {
-        using var writer = new StringWriter();
+        await using var writer = new StringWriter();
 
         var componentViewContext = new ViewContext(
             viewContext,

@@ -247,9 +247,6 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Projects each element of a sequence into a new form asynchronously, with a limit on the number of concurrent operations,
-    /// yielding results in the original order as they become available.
-    /// <summary>
     /// Projects elements of a sequence into a new form asynchronously and yields results as an async stream with bounded concurrency.
     /// </summary>
     /// <param name="source">The input sequence.</param>

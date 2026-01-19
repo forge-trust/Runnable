@@ -33,9 +33,6 @@ public class ReactivityController : Controller
     }
 
     /// <summary>
-    /// Provide a Turbo/RazorWire frame that contains the UserList view component for the island.
-    /// </summary>
-    /// <summary>
     /// Provides a Turbo/RazorWire frame containing the UserList view component for the island.
     /// </summary>
     /// <returns>An IActionResult that renders the UserList view component wrapped in a Turbo/RazorWire frame with id "user-list".</returns>
@@ -165,9 +162,6 @@ public class ReactivityController : Controller
         return Url.IsLocalUrl(referer) ? Redirect(referer) : RedirectToAction(nameof(Index));
     }
 
-    /// <summary>
-    /// Record a user's activity, generate a stream that updates the user list and online count, and publish it to the "reactivity" channel.
-    /// </summary>
     /// <summary>
     /// Broadcasts a user's presence to connected clients by updating the user list and online count.
     /// </summary>

@@ -31,9 +31,6 @@ public interface IUserPresenceService
     int RecordActivity(string username);
 
     /// <summary>
-    /// Gets the currently active users' presence information.
-    /// </summary>
-    /// <summary>
     /// Retrieves presence information for users currently considered active.
     /// </summary>
     /// <returns>A collection of UserPresenceInfo objects for users considered active at the time of the call.</returns>

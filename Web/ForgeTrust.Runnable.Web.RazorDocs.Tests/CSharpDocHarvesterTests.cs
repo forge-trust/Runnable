@@ -127,17 +127,8 @@ public class CSharpDocHarvesterTests : IDisposable
         // Input: "SignatureTest.MyMethod(int, string, ref bool)"
         // . -> -
         // ( -> -
-        // , -> -
-        // space -> -
-        // ) -> -
-        // So: "SignatureTest-MyMethod-int--string--ref-bool-"
-        // Then Trim('-') -> "SignatureTest-MyMethod-int--string--ref-bool"
-        // Let's assert Contains to be safe on exact hyphen count if multiple replacements merge or not (Regex replace does all)
-        // Actually Regex Replace replaces EACH char. So multiple spaces = multiple hyphens unless regex handles ranges.
-        // The Regex is [^a-zA-Z0-9_-]. It matches one char at a time.
-        // So ", " becomes "--". 
-
-        Assert.EndsWith("#SignatureTest-MyMethod-int--string--ref-bool", methodNode.Path);
+        // The new ToSafeId implementation normalizes consecutive hyphens
+        Assert.EndsWith("#SignatureTest-MyMethod-int-string-ref-bool", methodNode.Path);
     }
 
     public void Dispose()

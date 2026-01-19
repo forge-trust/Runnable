@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
-using ForgeTrust.Runnable.Core;
+using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -72,7 +72,7 @@ public partial class CSharpDocHarvester : IDocHarvester
                             var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{readableSignature}";
 
                             // Sanitized signature for the Anchor/ID: e.g. "MyMethod-int-string-"
-                            var anchor = StringUtils.ToSafeIdentifier(methodId);
+                            var anchor = StringUtils.ToSafeId(methodId);
 
                             nodes.Add(
                                 new DocNode(

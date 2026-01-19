@@ -93,7 +93,7 @@ public class EnumerableExtensionsTests
                                    maxObservedTasks = Math.Max(maxObservedTasks, activeTasks);
                                }
 
-                               await Task.Delay(50);
+                               await Task.Delay(100);
                                lock (lockObj)
                                {
                                    activeTasks--;
@@ -107,9 +107,8 @@ public class EnumerableExtensionsTests
         }
 
         // Assert
-        // We can't strictly assert maxObservedTasks == 2 because of scheduling race conditions 
-        // (a task might start before another fully cleans up), but it should be close and certainly not 10.
-        Assert.True(maxObservedTasks <= 3, $"Expected max degree approx 2, but observed {maxObservedTasks}");
+        // We strictly assert maxObservedTasks <= 2 since we increased the delay to reduce flakiness.
+        Assert.True(maxObservedTasks <= 2, $"Expected max degree 2, but observed {maxObservedTasks}");
     }
 
     [Fact]

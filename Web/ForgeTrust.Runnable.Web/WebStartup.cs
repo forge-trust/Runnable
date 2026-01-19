@@ -166,14 +166,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                                     .AllowCredentials();
                             }
                         }
-                        else if (!context.IsDevelopment)
-                        {
-                            // If CORS is enabled but no origins are specified in production, deny all and log warning
-                            GetStartupLogger()
-                                .LogError(
-                                    "CORS is enabled but AllowedOrigins is empty. Explicitly denying all origins for security in non-development environments.");
-                            builder.SetIsOriginAllowed(_ => false);
-                        }
 
                         //TODO: Make this configurable
                         builder.AllowAnyHeader()

@@ -41,7 +41,7 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
         }
         catch (OperationCanceledException ex)
         {
-            GetStartupLogger().LogWarning(ex, "Service(s) did not exit in a timely fashion..");
+            GetStartupLogger().LogWarning(ex, "Service(s) did not exit in a timely fashion.");
         }
         catch (Exception e)
         {

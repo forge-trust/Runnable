@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using CliFx.Infrastructure;
 
@@ -116,11 +117,16 @@ public class ExportEngine
         var normalizedFull = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var normalizedOutput = fullOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
+        // Filesystem case-sensitivity varies by OS. Linux/macOS are typically case-sensitive (Ordinal).
+        var comparison = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
         // Ensure the resolved file path is strictly within the output directory
-        if (!normalizedFull.Equals(normalizedOutput, StringComparison.OrdinalIgnoreCase)
+        if (!normalizedFull.Equals(normalizedOutput, comparison)
             && !normalizedFull.StartsWith(
                 normalizedOutput + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase))
+                comparison))
         {
             throw new InvalidOperationException($"Invalid route path traversal detected: {route}");
         }

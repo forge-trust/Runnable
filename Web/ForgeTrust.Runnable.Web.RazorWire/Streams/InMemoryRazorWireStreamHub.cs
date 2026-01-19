@@ -24,13 +24,15 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
                 var closedSubscribers = new List<ChannelWriter<string>>();
                 var subscribers = subscribersDict.Keys.ToList();
 
-                foreach (var subscriber in subscribers.Where(s => !s.TryWrite(message)))
+                foreach (var subscriber in subscribers)
                 {
-                    // If we can't write, the channel might be closed or full (though we use DropOldest)
-                    // In either case, checking for completion is good practice, but for Bounded/DropOldest TryWrite should succeed unless closed.
-                    // If it returns false and we are DropOldest, it implies closure.
-                    if (!subscriber.TryComplete())
+                    // Try to publish the message. If it fails, the channel is closed or full (though we use DropOldest).
+                    if (!subscriber.TryWrite(message))
                     {
+                        // Explicitly attempt to complete to trigger any underlying cleanup logic
+                        subscriber.TryComplete();
+
+                        // Unconditionally add to cleanup list
                         closedSubscribers.Add(subscriber);
                     }
                 }

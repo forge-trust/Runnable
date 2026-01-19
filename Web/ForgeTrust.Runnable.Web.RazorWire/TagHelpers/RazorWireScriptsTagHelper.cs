@@ -8,6 +8,11 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement("rw:scripts")]
 public class RazorWireScriptsTagHelper : TagHelper
 {
+    /// <summary>
+    /// Renders the client-side script tags required by RazorWire and removes the wrapper element so no enclosing tag is emitted.
+    /// </summary>
+    /// <param name="context">The current tag helper context.</param>
+    /// <param name="output">The tag helper output that will be modified to contain the script elements and have no wrapper tag.</param>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = null; // No wrapper tag

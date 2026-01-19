@@ -27,6 +27,12 @@ public class RequiresStreamTagHelper : TagHelper
     /// <item><description><c>disabled</c> to <c>"disabled"</c></description></item>
     /// </list>
     /// The element is therefore disabled until client-side code removes or updates these attributes.
+    /// <summary>
+    /// Applies stream-requirement attributes and disables the element when a requires-stream value is present.
+    /// </summary>
+    /// <remarks>
+    /// If <c>RequiresStream</c> is null or empty, the output is left unchanged. Otherwise adds the following attributes to the element:
+    /// <c>data-rw-requires-stream</c> (set to the <c>RequiresStream</c> value), <c>aria-disabled="true"</c>, and <c>disabled="disabled"</c>.
     /// </remarks>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {

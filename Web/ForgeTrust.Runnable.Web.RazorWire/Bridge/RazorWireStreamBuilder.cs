@@ -11,7 +11,10 @@ public class RazorWireStreamBuilder
     /// <summary>
     /// Initializes a new instance of <see cref="RazorWireStreamBuilder"/> and optionally associates a controller for later rendering.
     /// </summary>
-    /// <param name="controller">An optional <see cref="Controller"/> whose context will be captured for rendering partials or view components; may be <c>null</c>.</param>
+    /// <summary>
+    /// Initializes a new instance of RazorWireStreamBuilder and captures an optional Controller for rendering partials or view components.
+    /// </summary>
+    /// <param name="controller">Optional <see cref="Controller"/> whose context will be used when rendering partials or view components; may be <c>null</c>.</param>
     public RazorWireStreamBuilder(Controller? controller = null)
     {
         _controller = controller;
@@ -22,6 +25,11 @@ public class RazorWireStreamBuilder
     /// </summary>
     /// <param name="target">The target DOM selector or element identifier to which the HTML will be appended.</param>
     /// <param name="templateHtml">The HTML fragment to append into the target element.</param>
+    /// <summary>
+    /// Queues an append turbo-stream action that inserts the provided raw HTML into the specified target.
+    /// </summary>
+    /// <param name="target">The DOM target selector or identifier to which the HTML will be appended.</param>
+    /// <param name="templateHtml">The HTML fragment to append inside the target's turbo-stream template.</param>
     /// <returns>The same <see cref="RazorWireStreamBuilder"/> instance to allow fluent chaining.</returns>
     public RazorWireStreamBuilder Append(string target, string templateHtml)
     {
@@ -30,6 +38,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues an action to append the rendered partial view to the specified DOM target.
+    /// </summary>
+    /// <param name="target">The DOM target selector or element identifier where the partial will be appended.</param>
+    /// <param name="viewName">The name of the partial view to render.</param>
+    /// <param name="model">An optional model to pass to the partial view.</param>
+    /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
     public RazorWireStreamBuilder AppendPartial(string target, string viewName, object? model = null)
     {
         _actions.Add(new PartialViewStreamAction("append", target, viewName, model));
@@ -37,6 +52,12 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues a raw HTML prepend action targeting the specified DOM element.
+    /// </summary>
+    /// <param name="target">The DOM target selector or identifier to receive the content.</param>
+    /// <param name="templateHtml">The HTML content to insert before the target element's existing content.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
     public RazorWireStreamBuilder Prepend(string target, string templateHtml)
     {
         _actions.Add(new RawHtmlStreamAction("prepend", target, templateHtml));
@@ -44,6 +65,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues an action to prepend the rendered partial view into the specified DOM target.
+    /// </summary>
+    /// <param name="target">The DOM selector or element identifier to receive the rendered partial.</param>
+    /// <param name="viewName">The name or path of the partial view to render.</param>
+    /// <param name="model">The model to pass to the partial view, or null if none.</param>
+    /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
     public RazorWireStreamBuilder PrependPartial(string target, string viewName, object? model = null)
     {
         _actions.Add(new PartialViewStreamAction("prepend", target, viewName, model));
@@ -51,6 +79,12 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues a raw HTML replace action targeting the specified DOM element.
+    /// </summary>
+    /// <param name="target">The DOM element selector or identifier to target.</param>
+    /// <param name="templateHtml">The HTML content used to replace the target's contents.</param>
+    /// <returns>The current RazorWireStreamBuilder instance.</returns>
     public RazorWireStreamBuilder Replace(string target, string templateHtml)
     {
         _actions.Add(new RawHtmlStreamAction("replace", target, templateHtml));
@@ -58,6 +92,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues a partial view to replace the contents of the specified DOM target with the rendered partial.
+    /// </summary>
+    /// <param name="target">The DOM element selector or identifier to target for the replace action.</param>
+    /// <param name="viewName">The name of the partial view to render.</param>
+    /// <param name="model">An optional model passed to the partial view.</param>
+    /// <returns>The same <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
     public RazorWireStreamBuilder ReplacePartial(string target, string viewName, object? model = null)
     {
         _actions.Add(new PartialViewStreamAction("replace", target, viewName, model));
@@ -65,6 +106,12 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues a raw HTML "update" turbo-stream action for the specified DOM target using the provided HTML template.
+    /// </summary>
+    /// <param name="target">The DOM target selector or identifier to apply the update to.</param>
+    /// <param name="templateHtml">The HTML fragment to use as the action's template.</param>
+    /// <returns>The same RazorWireStreamBuilder instance for fluent chaining.</returns>
     public RazorWireStreamBuilder Update(string target, string templateHtml)
     {
         _actions.Add(new RawHtmlStreamAction("update", target, templateHtml));
@@ -72,6 +119,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues an "update" turbo-stream action that renders the specified partial view into the given target element.
+    /// </summary>
+    /// <param name="target">The DOM target selector or identifier to update.</param>
+    /// <param name="viewName">The name of the partial view to render.</param>
+    /// <param name="model">An optional model to pass to the partial view.</param>
+    /// <returns>The builder instance for further chaining.</returns>
     public RazorWireStreamBuilder UpdatePartial(string target, string viewName, object? model = null)
     {
         _actions.Add(new PartialViewStreamAction("update", target, viewName, model));
@@ -79,6 +133,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues an append action that will render the specified view component into the given DOM target.
+    /// </summary>
+    /// <typeparam name="T">The <see cref="ViewComponent"/> type to render.</typeparam>
+    /// <param name="target">The DOM element selector or identifier to target for the append action.</param>
+    /// <param name="arguments">Optional arguments passed to the view component when rendering.</param>
+    /// <returns>The same <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
     public RazorWireStreamBuilder AppendComponent<T>(string target, object? arguments = null) where T : ViewComponent
     {
         _actions.Add(new ViewComponentStreamAction("append", target, typeof(T), arguments));
@@ -86,6 +147,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues a view component render action that will prepend the component's output into the specified DOM target.
+    /// </summary>
+    /// <typeparam name="T">The view component type to render.</typeparam>
+    /// <param name="target">The DOM target selector or identifier to prepend the component into.</param>
+    /// <param name="arguments">Optional arguments passed to the view component.</param>
+    /// <returns>The same <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
     public RazorWireStreamBuilder PrependComponent<T>(string target, object? arguments = null) where T : ViewComponent
     {
         _actions.Add(new ViewComponentStreamAction("prepend", target, typeof(T), arguments));
@@ -93,6 +161,12 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues a view component replace action targeting the specified DOM element.
+    /// </summary>
+    /// <param name="target">The DOM target selector or identifier to apply the replace action to.</param>
+    /// <param name="arguments">Optional arguments to pass to the view component.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
     public RazorWireStreamBuilder ReplaceComponent<T>(string target, object? arguments = null) where T : ViewComponent
     {
         _actions.Add(new ViewComponentStreamAction("replace", target, typeof(T), arguments));
@@ -100,6 +174,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues an "update" turbo-stream action that renders the specified view component type into the given target element.
+    /// </summary>
+    /// <typeparam name="T">The view component type to render.</typeparam>
+    /// <param name="target">The DOM element selector or identifier that the turbo-stream will target.</param>
+    /// <param name="arguments">Optional arguments to pass to the view component.</param>
+    /// <returns>The same <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
     public RazorWireStreamBuilder UpdateComponent<T>(string target, object? arguments = null) where T : ViewComponent
     {
         _actions.Add(new ViewComponentStreamAction("update", target, typeof(T), arguments));
@@ -107,6 +188,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues an "append" turbo-stream action that will render the specified view component (by name) into the given target element.
+    /// </summary>
+    /// <param name="target">The DOM element selector or identifier to target.</param>
+    /// <param name="componentName">The name of the view component to render.</param>
+    /// <param name="arguments">Optional arguments to pass to the view component.</param>
+    /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for method chaining.</returns>
     public RazorWireStreamBuilder AppendComponent(string target, string componentName, object? arguments = null)
     {
         _actions.Add(new ViewComponentByNameStreamAction("append", target, componentName, arguments));
@@ -114,6 +202,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues a view component prepend action targeting a DOM element by name.
+    /// </summary>
+    /// <param name="target">The DOM element selector or identifier to target.</param>
+    /// <param name="componentName">The name of the view component to render and prepend.</param>
+    /// <param name="arguments">Optional arguments to pass to the view component.</param>
+    /// <returns>The current builder instance for fluent chaining.</returns>
     public RazorWireStreamBuilder PrependComponent(string target, string componentName, object? arguments = null)
     {
         _actions.Add(new ViewComponentByNameStreamAction("prepend", target, componentName, arguments));
@@ -121,6 +216,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queue a replace action that renders the specified view component by name into the given DOM target.
+    /// </summary>
+    /// <param name="target">The DOM target selector or identifier to apply the replace action to.</param>
+    /// <param name="componentName">The name of the view component to render.</param>
+    /// <param name="arguments">Optional arguments to pass to the view component.</param>
+    /// <returns>The same RazorWireStreamBuilder instance for fluent chaining.</returns>
     public RazorWireStreamBuilder ReplaceComponent(string target, string componentName, object? arguments = null)
     {
         _actions.Add(new ViewComponentByNameStreamAction("replace", target, componentName, arguments));
@@ -128,6 +230,13 @@ public class RazorWireStreamBuilder
         return this;
     }
 
+    /// <summary>
+    /// Queues a view component update action for a named view component.
+    /// </summary>
+    /// <param name="target">The DOM target selector or identifier to apply the update to.</param>
+    /// <param name="componentName">The name of the view component to render.</param>
+    /// <param name="arguments">Optional arguments to pass to the view component.</param>
+    /// <returns>The builder instance for fluent chaining.</returns>
     public RazorWireStreamBuilder UpdateComponent(string target, string componentName, object? arguments = null)
     {
         _actions.Add(new ViewComponentByNameStreamAction("update", target, componentName, arguments));
@@ -139,6 +248,10 @@ public class RazorWireStreamBuilder
     /// Queue a remove action that will remove the element identified by the specified target.
     /// </summary>
     /// <param name="target">The DOM target selector or element identifier to remove.</param>
+    /// <summary>
+    /// Queues a "remove" turbo-stream action targeting the specified DOM element.
+    /// </summary>
+    /// <param name="target">The DOM target selector or identifier whose element will be removed.</param>
     /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
     public RazorWireStreamBuilder Remove(string target)
     {
@@ -151,6 +264,10 @@ public class RazorWireStreamBuilder
     /// Builds a single string containing the queued turbo-stream elements for all raw HTML actions.
     /// </summary>
     /// <returns>The concatenated turbo-stream markup for the builder's raw HTML actions.</returns>
+    /// <summary>
+    /// Builds a single concatenated Turbo Stream markup string from the queued raw HTML actions.
+    /// </summary>
+    /// <returns>The concatenated Turbo Stream markup representing the queued raw HTML actions.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the builder contains actions that require asynchronous rendering (such as partial views or view components); use RenderAsync(viewContext) or BuildResult() instead.</exception>
     public string Build()
     {
@@ -184,6 +301,10 @@ public class RazorWireStreamBuilder
     /// Renders all queued stream actions using the given view context and returns their combined output.
     /// </summary>
     /// <param name="viewContext">The view rendering context used by each action to produce its HTML.</param>
+    /// <summary>
+    /// Renders all queued stream actions using the provided ViewContext and concatenates their rendered HTML into a single string.
+    /// </summary>
+    /// <param name="viewContext">The view rendering context to use for each action.</param>
     /// <returns>The concatenated HTML string produced by rendering each queued action.</returns>
     public async Task<string> RenderAsync(Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext)
     {
@@ -200,6 +321,9 @@ public class RazorWireStreamBuilder
 
     /// <summary>
     /// Creates a RazorWireStreamResult containing a snapshot of the builder's queued actions and the optional controller.
+    /// </summary>
+    /// <summary>
+    /// Create a RazorWireStreamResult containing the builder's queued stream actions and associated controller.
     /// </summary>
     /// <returns>A RazorWireStreamResult initialized with a copy of the queued actions and the builder's controller.</returns>
     public RazorWireStreamResult BuildResult()
@@ -218,6 +342,11 @@ public class RazorWireStreamBuilder
         /// </summary>
         /// <param name="action">The turbo-stream action name (e.g., "append", "prepend", "replace", "update", "remove").</param>
         /// <param name="target">The DOM target identifier or selector to which the action applies.</param>
+        /// <summary>
+        /// Initializes a RawHtmlStreamAction with the specified turbo-stream action, target, and optional HTML template.
+        /// </summary>
+        /// <param name="action">The turbo-stream action name (for example, "append", "prepend", "replace", "update", or "remove").</param>
+        /// <param name="target">The DOM target selector or identifier that the action will be applied to.</param>
         /// <param name="html">The HTML template to use for the action; pass <c>null</c> for actions that do not require a template (such as "remove").</param>
         public RawHtmlStreamAction(string action, string target, string? html)
         {
@@ -229,7 +358,11 @@ public class RazorWireStreamBuilder
         /// <summary>
         /// Produces the turbo-stream element representing this action and its target.
         /// </summary>
-        /// <returns>The turbo-stream element for the action and target; for action &quot;remove&quot; a stream without a &lt;template&gt;, otherwise a stream whose &lt;template&gt; contains the action's HTML.</returns>
+        /// <summary>
+        /// Render the action as a turbo-stream HTML string.
+        /// </summary>
+        /// <param name="viewContext">The rendering context used when rendering the action.</param>
+        /// <returns>The turbo-stream element for the action and target; for action "remove" the element has no &lt;template&gt;, otherwise its &lt;template&gt; contains the action's HTML.</returns>
         public Task<string> RenderAsync(Microsoft.AspNetCore.Mvc.Rendering.ViewContext viewContext)
         {
             var encodedTarget = HtmlEncoder.Default.Encode(Target);

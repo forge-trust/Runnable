@@ -9,6 +9,10 @@ public static class RazorWireControllerExtensions
     /// Creates a RazorWireStreamBuilder tied to the specified controller.
     /// </summary>
     /// <param name="controller">The controller instance used to initialize the builder.</param>
+    /// <summary>
+    /// Creates a RazorWireStreamBuilder bound to the specified controller.
+    /// </summary>
+    /// <param name="controller">The Controller instance used to initialize the builder.</param>
     /// <returns>A RazorWireStreamBuilder configured to operate with the given controller.</returns>
     public static RazorWireStreamBuilder RazorWireStream(this Controller controller)
     {

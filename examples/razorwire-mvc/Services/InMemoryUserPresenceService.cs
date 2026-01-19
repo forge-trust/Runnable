@@ -16,6 +16,10 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// Record the current UTC activity time for the specified user and update their presence status.
     /// </summary>
     /// <param name="username">The user's name (lookup is case-insensitive).</param>
+    /// <summary>
+    /// Record the current UTC time as the specified user's last activity.
+    /// </summary>
+    /// <param name="username">The username to record activity for; stored using a case-insensitive key.</param>
     /// <returns>The number of users whose last activity is within the current ActiveWindow.</returns>
     public int RecordActivity(string username)
     {
@@ -31,7 +35,10 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// <summary>
     /// Retrieve users whose last recorded activity falls within the current ActiveWindow.
     /// </summary>
-    /// <returns>A list of UserPresenceInfo objects (each containing Username, SafeId, and the activity timestamp) for users active within the ActiveWindow, ordered by Username.</returns>
+    /// <summary>
+    /// Retrieves the users whose last recorded activity falls within the configured ActiveWindow.
+    /// </summary>
+    /// <returns>An enumerable of UserPresenceInfo for users active within the ActiveWindow; each item contains the Username, a safe identifier, and the last-activity timestamp. The sequence is ordered by Username.</returns>
     public IEnumerable<UserPresenceInfo> GetActiveUsers()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
@@ -53,6 +60,11 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// </summary>
     /// <returns>
     /// A tuple where `Removed` is a read-only list of UserPresenceInfo objects for each entry removed due to inactivity (each containing the username, its safe id, and the removed timestamp), and `ActiveCount` is the number of remaining entries whose last activity is within the ActiveWindow.
+    /// <summary>
+    /// Removes users whose last recorded activity is older than the ActiveWindow and reports the removals and current active count.
+    /// </summary>
+    /// <returns>
+    /// A tuple where `Removed` is a read-only list of UserPresenceInfo for users removed due to inactivity, and `ActiveCount` is the number of users with activity within the ActiveWindow.
     /// </returns>
     public (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse()
     {

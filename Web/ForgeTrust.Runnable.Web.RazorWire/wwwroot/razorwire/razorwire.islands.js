@@ -8,13 +8,17 @@
     const initializedElements = new WeakSet();
 
     /**
-     * Finds unhydrated island elements (marked with `data-rw-module`) and mounts each according to its `data-rw-strategy`.
+     * Hydrates all unhydrated RazorWire islands in the document according to each element's data-rw-strategy.
      *
-     * Iterates DOM elements that have `data-rw-module` and are not yet hydrated, reads optional JSON props from
-     * `data-rw-props` (falls back to `{}` and logs an error on parse failure), and mounts each island according to
-     * its `data-rw-strategy`: `load` mounts immediately, `visible` mounts when the element becomes visible, `idle`
-     * schedules mounting during browser idle time (with a 200ms fallback), and `only` clears the element before mounting.
-     * Hydration state is marked on the element and tracked to avoid duplicate initialization.
+     * For each element with `data-rw-module` that is not yet hydrated, attempts to parse JSON props from
+     * `data-rw-props` (falls back to `{}` and logs an error on parse failure) and mounts the island according to
+     * `data-rw-strategy`:
+     * - `load`: mount immediately
+     * - `visible`: mount when the element becomes visible
+     * - `idle`: schedule mount during browser idle time (200ms fallback)
+     * - `only`: clear the element's content, then mount immediately
+     *
+     * Successfully mounted elements are marked as hydrated and tracked to avoid duplicate initialization.
      */
     async function hydrateIslands() {
         const islands = document.querySelectorAll('[data-rw-module]:not([data-rw-hydrated])');
@@ -48,6 +52,14 @@
         }
     }
 
+    /**
+     * Dynamically imports the module at modulePath and, if it exports a `mount` function, calls it to hydrate the provided root element.
+     *
+     * After a successful mount, marks the root with `data-rw-hydrated="true"` and adds it to the internal initializedElements set.
+     * @param {HTMLElement} root - The DOM element to hydrate.
+     * @param {string} modulePath - The module specifier used for dynamic import.
+     * @param {Record<string, any>} props - Props passed to the module's `mount` function.
+     */
     async function mountIsland(root, modulePath, props) {
         try {
             const module = await import(modulePath);
@@ -61,6 +73,16 @@
         }
     }
 
+    /**
+     * Observe an island element and mount its module when the element becomes visible in the viewport.
+     *
+     * When the island intersects the viewport, the observer stops observing that element and invokes
+     * mountIsland(island, modulePath, props) to perform the mount.
+     *
+     * @param {Element} island - The DOM element representing the island to observe and mount.
+     * @param {string} modulePath - The module path to dynamically import for mounting.
+     * @param {Object} props - The props object to pass to the module's mount function.
+     */
     function setupIntersectionObserver(island, modulePath, props) {
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(async (entry) => {

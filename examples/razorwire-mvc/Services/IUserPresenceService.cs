@@ -6,7 +6,12 @@ public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOff
     /// Produces a safe identifier from a username by replacing characters not in [a-zA-Z0-9-_] with '-' and appending a short deterministic hash suffix.
     /// </summary>
     /// <param name="username">The original username to normalize.</param>
+    /// <summary>
+    /// Produces a safe identifier from a username by replacing characters not in [a-zA-Z0-9-_] with '-' and appending a deterministic 4-hex-character SHA-256 suffix.
+    /// </summary>
+    /// <param name="username">The original username to convert into a safe identifier.</param>
     /// <returns>The sanitized identifier combining the normalized username and a 4-hex-character hash suffix.</returns>
+    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="username"/> is null.</exception>
     public static string ToSafeId(string username)
     {
         ArgumentNullException.ThrowIfNull(username);
@@ -29,18 +34,28 @@ public interface IUserPresenceService
     /// Record activity for the specified user and update their presence.
     /// </summary>
     /// <param name="username">The username whose activity should be recorded.</param>
-    /// <returns>The current number of active users after recording the activity.</returns>
+    /// <summary>
+/// Record activity for the specified user and update their presence tracking.
+/// </summary>
+/// <param name="username">The username whose activity should be recorded.</param>
+/// <returns>The current number of active users after recording the activity.</returns>
     int RecordActivity(string username);
 
     /// <summary>
     /// Retrieves presence information for users currently considered active.
     /// </summary>
-    /// <returns>A collection of UserPresenceInfo objects for users considered active at the time of the call.</returns>
+    /// <summary>
+/// Retrieve presence information for users currently considered active.
+/// </summary>
+/// <returns>A collection of UserPresenceInfo objects for users considered active at the time of the call.</returns>
     IEnumerable<UserPresenceInfo> GetActiveUsers();
 
     /// <summary>
     /// Advances presence tracking and expires users considered inactive during this pulse.
     /// </summary>
-    /// <returns>A tuple where <c>Removed</c> is a read-only list of UserPresenceInfo objects removed during this pulse, and <c>ActiveCount</c> is the current number of active users after the pulse.</returns>
+    /// <summary>
+/// Advance presence tracking and expire users considered inactive during this pulse.
+/// </summary>
+/// <returns>A tuple where <c>Removed</c> is a read-only list of users removed during this pulse, and <c>ActiveCount</c> is the current number of active users after the pulse.</returns>
     (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse();
 }

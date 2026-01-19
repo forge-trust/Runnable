@@ -14,7 +14,12 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     /// </summary>
     /// <param name="channel">The name of the channel to publish to.</param>
     /// <param name="message">The message payload to send to subscribers.</param>
-    /// <returns>`ValueTask.CompletedTask` on success; a faulted `ValueTask` if an exception occurred during publishing.</returns>
+    /// <summary>
+    /// Publish a message to all subscribers of the specified channel.
+    /// </summary>
+    /// <param name="channel">The name of the channel to publish to.</param>
+    /// <param name="message">The message to deliver to channel subscribers.</param>
+    /// <returns>`ValueTask.CompletedTask` on success, or a faulted `ValueTask` containing the exception if publishing failed.</returns>
     public ValueTask PublishAsync(string channel, string message)
     {
         try
@@ -60,7 +65,12 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     /// The subscription uses an in-memory bounded buffer with capacity 100 that drops the oldest messages when full.
     /// </summary>
     /// <param name="channel">The name of the channel to subscribe to.</param>
-    /// <returns>A <see cref="ChannelReader{String}"/> that yields messages published to the given channel until the subscription is removed or the writer is completed.</returns>
+    /// <summary>
+    /// Subscribe to a named channel and receive messages published to it.
+    /// </summary>
+    /// <param name="channel">The channel name to subscribe to.</param>
+    /// <remarks>Creates a bounded in-memory buffer (capacity 100). When the buffer is full, the oldest messages are dropped.</remarks>
+    /// <returns>A <see cref="ChannelReader{String}"/> that yields messages published to the specified channel until the subscription is removed or the writer is completed.</returns>
     public ChannelReader<string> Subscribe(string channel)
     {
         var subscriber = Channel.CreateBounded<string>(
@@ -79,6 +89,10 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     /// Unregisters a subscriber from the specified channel and completes its associated writer.
     /// </summary>
     /// <param name="channel">The name of the channel to remove the subscriber from.</param>
+    /// <summary>
+    /// Unregisters a subscriber from the specified channel and completes its associated writer.
+    /// </summary>
+    /// <param name="channel">The name of the channel to detach the subscriber from.</param>
     /// <param name="reader">The subscriber's <see cref="ChannelReader{String}"/>; its paired writer will be completed and removed from channel tracking.</param>
     public void Unsubscribe(string channel, ChannelReader<string> reader)
     {

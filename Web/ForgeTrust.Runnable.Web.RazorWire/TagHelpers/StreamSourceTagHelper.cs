@@ -15,7 +15,10 @@ public class StreamSourceTagHelper : TagHelper
     /// <summary>
     /// Initializes a new instance of <see cref="StreamSourceTagHelper"/> with the specified RazorWire options.
     /// </summary>
-    /// <param name="options">Configuration options used to build stream source URLs.</param>
+    /// <summary>
+    /// Creates a new StreamSourceTagHelper configured with the specified RazorWire options.
+    /// </summary>
+    /// <param name="options">RazorWire configuration used to construct stream source URLs (e.g., Streams.BasePath).</param>
     public StreamSourceTagHelper(RazorWireOptions options)
     {
         _options = options;
@@ -32,6 +35,14 @@ public class StreamSourceTagHelper : TagHelper
     /// </summary>
     /// <remarks>
     /// Validates that <see cref="Channel"/> is provided, sets the element's <c>src</c> attribute to the configured streams base path combined with <see cref="Channel"/>, and adds a <c>data-turbo-permanent</c> attribute when <see cref="Permanent"/> is true.
+    /// </remarks>
+    /// <summary>
+    /// Renders an rw-stream-source element and configures its attributes from the tag helper properties.
+    /// </summary>
+    /// <remarks>
+    /// Sets the tag name to "rw-stream-source" and the tag mode to StartTagAndEndTag, validates the <see cref="Channel"/> property,
+    /// assigns the computed "src" attribute using <see cref="_options"/>'s streams base path and the channel, and adds a
+    /// "data-turbo-permanent" attribute when <see cref="Permanent"/> is true.
     /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown when <see cref="Channel"/> is null, empty, or contains only whitespace.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)

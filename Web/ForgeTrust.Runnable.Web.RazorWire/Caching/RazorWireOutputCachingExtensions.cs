@@ -5,6 +5,14 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 
 public static class RazorWireOutputCachingExtensions
 {
+    /// <summary>
+    /// Adds two output caching policies for Razor Wire using names from <paramref name="rwOptions"/>:
+    /// a page policy with 1-minute expiration and an island policy with 30-second expiration,
+    /// both restricted to responses for unauthenticated users.
+    /// </summary>
+    /// <param name="options">The OutputCacheOptions instance to configure.</param>
+    /// <param name="rwOptions">RazorWire configuration providing policy names.</param>
+    /// <returns>The modified <see cref="OutputCacheOptions"/> instance.</returns>
     public static OutputCacheOptions AddRazorWirePolicies(this OutputCacheOptions options, RazorWireOptions rwOptions)
     {
         options.AddPolicy(rwOptions.Caching.PagePolicyName, builder =>

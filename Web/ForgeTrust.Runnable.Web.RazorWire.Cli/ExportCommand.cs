@@ -26,6 +26,11 @@ public class ExportCommand : ICommand
     /// </summary>
     /// <param name="console">Console used to write progress and completion messages.</param>
     /// <returns>A ValueTask that completes when the export operation finishes.</returns>
+    /// <summary>
+    /// Executes the export process for the RazorWire site to the configured output directory.
+    /// </summary>
+    /// <param name="console">Console used to write progress and completion messages.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
     /// <exception cref="CommandException">Thrown when <c>BaseUrl</c> is not an absolute HTTP or HTTPS URL.</exception>
     public async ValueTask ExecuteAsync(IConsole console)
     {

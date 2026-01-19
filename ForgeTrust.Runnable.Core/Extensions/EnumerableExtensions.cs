@@ -14,7 +14,18 @@ public static class EnumerableExtensions
     /// <param name="cancellationToken">A token to observe for cancellation of the operation.</param>
     /// <returns>An IEnumerable&lt;TResult&gt; containing the transformed results in the same order as the source.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="body"/> is null.</exception>
+    /// <summary>
+    /// Projects each element of a sequence into a new form with bounded concurrency and preserves the input order of results.
+    /// </summary>
+    /// <param name="source">The sequence of input items.</param>
+    /// <param name="body">An asynchronous transform that receives an input item and a cancellation token and produces a result.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent invocations of <paramref name="body"/>; must be greater than zero.</param>
+    /// <param name="cancellationToken">A token to observe while waiting for tasks to complete.</param>
+    /// <returns>An <see cref="IEnumerable{T}"/> of results in the same order as the input sequence.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="body"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero.</exception>
+    /// <exception cref="OperationCanceledException">The operation was canceled via <paramref name="cancellationToken"/>.</exception>
+    /// <remarks>Exceptions thrown by the <paramref name="body"/> function propagate to the returned task.</remarks>
     public static async Task<IEnumerable<TResult>> ParallelSelectAsync<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, CancellationToken, Task<TResult>> body,
@@ -73,7 +84,14 @@ public static class EnumerableExtensions
     /// <param name="body">A transform function that produces a result for an element.</param>
     /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
     /// <param name="cancellationToken">Token to observe for cancellation of the operation.</param>
-    /// <returns>An async sequence that yields the transformed elements in the same order as the input, produced with bounded concurrency and buffering.</returns>
+    /// <summary>
+    /// Produces an async sequence that yields each input element transformed by <paramref name="body"/> in the same order as the source, with bounded concurrency.
+    /// </summary>
+    /// <param name="source">The input sequence to transform.</param>
+    /// <param name="body">A transform function that produces a result for an element.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transforms to run; must be greater than zero.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    /// <returns>The sequence of transformed elements in the original input order; concurrency is limited to <paramref name="maxDegreeOfParallelism"/>.</returns>
     public static IAsyncEnumerable<TResult> ParallelSelectAsync<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, Task<TResult>> body,
@@ -97,7 +115,17 @@ public static class EnumerableExtensions
     /// <param name="cancellationToken">Token to observe for cancellation of the overall enumeration.</param>
     /// <returns>An async enumerable that yields transformed results in the same order as the source.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="body"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero or if <paramref name="bufferMultiplier"/> is less than 1.</exception>
+    /// <summary>
+    /// Projects each element of <paramref name="source"/> into a new form using an asynchronous transform, running up to <paramref name="maxDegreeOfParallelism"/> transforms concurrently and yielding results in the original input order as they become available.
+    /// </summary>
+    /// <param name="source">The input sequence of items to transform.</param>
+    /// <param name="body">An asynchronous transform that receives an item and a <see cref="CancellationToken"/> and produces a result.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
+    /// <param name="bufferMultiplier">Multiplier used to compute the internal channel capacity as <c>maxDegreeOfParallelism * bufferMultiplier</c>; must be at least 1.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the enumeration and internal operations.</param>
+    /// <returns>An <see cref="IAsyncEnumerable{T}"/> that yields transformed results in the same order as the source.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="body"/> is <c>null</c>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero, or if <paramref name="bufferMultiplier"/> is less than 1.</exception>
     public static async IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, CancellationToken, Task<TResult>> body,
@@ -263,7 +291,15 @@ public static class EnumerableExtensions
     /// <param name="cancellationToken">Token to observe for cancellation of the asynchronous stream.</param>
     /// <returns>
     /// An IAsyncEnumerable<TResult> that yields transformed results in the order produced, with backpressure controlled by the configured buffer and concurrency limit.
-    /// </returns>
+    /// <summary>
+    /// Produces an async sequence of transformed elements with bounded concurrency while preserving the input order.
+    /// </summary>
+    /// <param name="source">The input sequence to transform.</param>
+    /// <param name="body">An asynchronous transform for each element. The transform's cancellation token is ignored by this overload.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
+    /// <param name="bufferMultiplier">Multiplier used to compute the internal bounded channel capacity as <c>maxDegreeOfParallelism * bufferMultiplier</c>; must be at least 1.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the overall operation.</param>
+    /// <returns>An <see cref="IAsyncEnumerable{TResult}"/> that yields transformed elements in the same order as <paramref name="source"/>.</returns>
     public static IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, Task<TResult>> body,
@@ -278,4 +314,3 @@ public static class EnumerableExtensions
             cancellationToken);
     }
 }
-

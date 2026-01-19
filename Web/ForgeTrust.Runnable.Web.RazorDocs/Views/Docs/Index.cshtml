@@ -47,6 +47,7 @@
             </header>
 
             <div class="docs-content">
+                @* Safe: Content is sanitized by DocAggregator before caching. *@
                 @Html.Raw(doc.Content)
             </div>
 

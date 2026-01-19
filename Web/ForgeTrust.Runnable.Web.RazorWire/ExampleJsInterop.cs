@@ -12,14 +12,37 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 public class ExampleJsInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 {
     private readonly Lazy<Task<IJSObjectReference>> moduleTask = new(() => jsRuntime.InvokeAsync<IJSObjectReference>(
-            "import", "./_content/ForgeTrust.Runnable.Web.RazorWire/exampleJsInterop.js").AsTask());
+            "import",
+            "./_content/ForgeTrust.Runnable.Web.RazorWire/exampleJsInterop.js")
+        .AsTask());
 
-    public async ValueTask<string> Prompt(string message)
+    /// <summary>
+    /// Shows a JavaScript prompt dialog with the specified message and returns the user's input.
+    /// </summary>
+    /// <param name="message">The message to display in the prompt dialog.</param>
+    /// <summary>
+    /// Shows a browser prompt dialog with the specified message and returns the entered text.
+    /// </summary>
+    /// <param name="message">The message to display in the prompt dialog.</param>
+    /// <returns>A string containing the user's input, or <c>null</c> if the dialog was dismissed.</returns>
+    public async ValueTask<string?> Prompt(string message)
     {
         var module = await moduleTask.Value;
-        return await module.InvokeAsync<string>("showPrompt", message);
+
+        return await module.InvokeAsync<string?>("showPrompt", message);
     }
 
+    /// <summary>
+    /// Disposes the imported JavaScript module if it has been loaded.
+    /// </summary>
+    /// <remarks>
+    /// If the module was created, awaits the module reference and disposes it to release underlying JavaScript resources.
+    /// <summary>
+    /// Disposes the loaded JavaScript module if it has been initialized.
+    /// </summary>
+    /// <remarks>
+    /// If the module was created (lazy-loaded), this method awaits the module reference and calls its DisposeAsync to release associated JavaScript resources; if the module was never loaded, no action is taken.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         if (moduleTask.IsValueCreated)

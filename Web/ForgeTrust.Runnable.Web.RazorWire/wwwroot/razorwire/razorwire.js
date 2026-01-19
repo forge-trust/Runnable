@@ -232,11 +232,14 @@
         }
 
         updateSourceState(src, state) {
+            if (!src) return;
             const source = this.sources.get(src);
             if (!source && state !== 'disconnected') return;
 
             // Should be impossible if source is gone, but safety check
             const channel = source ? source.channel : this.getChannelName(src);
+            if (!channel) return;
+
             if (source) source.state = state;
 
             // Update global trackers
@@ -277,8 +280,8 @@
             if (!src) return null;
             try {
                 const url = new URL(src, window.location.origin);
-                const segments = url.pathname.split('/').filter(Boolean);
-                return segments.pop();
+                const path = url.pathname.split('/').filter(Boolean).pop() || '';
+                return path + url.search + url.hash;
             } catch {
                 return null;
             }

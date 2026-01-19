@@ -2,8 +2,10 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 
 public class RazorWireOptions
 {
+    public static RazorWireOptions Default { get; } = new();
+
     public RazorWireStreamOptions Streams { get; } = new();
-    
+
     public RazorWireCacheOptions Caching { get; } = new();
 }
 

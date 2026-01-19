@@ -1,6 +1,6 @@
 @model RazorWireWebExample.Services.UserPresenceInfo
 
-<li id="user-@Model.Username" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm transition-all duration-200">
+<li id="user-@Model.SafeUsername" class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200 hover:bg-white hover:shadow-sm transition-all duration-200">
     <div class="flex items-center gap-3">
         <div class="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white text-xs font-bold uppercase tracking-tighter ring-2 ring-white shadow-sm group-hover:scale-110 transition-transform">
             @Model.Username.Substring(0, Math.Min(2, Model.Username.Length))

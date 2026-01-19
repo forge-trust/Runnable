@@ -11,7 +11,8 @@ Islands are isolated regions of a page that can be loaded, reloaded, or updated 
 RazorWire uses Server-Sent Events (SSE) to push updates from the server to one or more clients. These updates are delivered as Turbo Streams, which can perform actions like `append`, `prepend`, `replace`, or `remove` on specific DOM elements.
 
 ### ⚡ Form Enhancement
-Standard HTML forms are enhanced to perform partial page updates. Instead of a full page reload or redirect, forms can return Turbo Stream actions to update only the necessary parts of the UI.
+
+Standard HTML forms are enhanced to perform partial-page updates. Instead of a full page reload or redirect, forms can return Turbo Stream actions to update only the necessary parts of the UI.
 
 ## Getting Started
 
@@ -122,4 +123,5 @@ RazorWire supports a hybrid approach where server-rendered "Islands" can be augm
 RazorWire can be used to generate static or hybrid sites. For more details, see the [RazorWire CLI](../../Web/ForgeTrust.Runnable.Web.RazorWire.Cli/README.md).
 
 ## Examples
+
 For a practical demonstration of these features, see the [RazorWire MVC Example](../../examples/razorwire-mvc/README.md).

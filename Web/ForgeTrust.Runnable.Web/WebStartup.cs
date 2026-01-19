@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web;
 
@@ -10,10 +11,16 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     where TModule : IRunnableWebModule, new()
 {
     private Action<WebOptions>? _configureOptions;
-    private WebOptions _options = new();
+    private WebOptions _options = WebOptions.Default;
     private bool _modulesBuilt;
+    private bool _optionsBuilt;
     private readonly List<IRunnableWebModule> _modules = new();
 
+    /// <summary>
+    /// Registers an optional callback to configure WebOptions which will be applied when web options are built.
+    /// </summary>
+    /// <param name="configureOptions">An optional action that receives a WebOptions instance to modify configuration.</param>
+    /// <returns>The same <see cref="WebStartup{TModule}"/> instance to support fluent configuration.</returns>
     public WebStartup<TModule> WithOptions(Action<WebOptions>? configureOptions = null)
     {
         _configureOptions = configureOptions;
@@ -21,6 +28,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         return this;
     }
 
+    /// <summary>
+    /// Collects all IRunnableWebModule instances from the startup context's dependencies and root module and caches them for later use.
+    /// </summary>
+    /// <param name="context">The startup context used to enumerate dependencies and the root module.</param>
+    /// <remarks>Operation is performed once; subsequent calls have no effect.</remarks>
     private void BuildModules(StartupContext context)
     {
         if (_modulesBuilt)
@@ -45,11 +57,18 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         _modulesBuilt = true;
     }
 
-    private WebOptions BuildWebOptions(StartupContext context)
+    /// <summary>
+    /// Initializes and caches WebOptions by applying configuration from discovered modules and any external configurator.
+    /// </summary>
+    /// <param name="context">The startup context containing environment, dependencies, and module information used during configuration.</param>
+    /// <remarks>
+    /// This method is idempotent; subsequent calls have no effect once options are built. If MVC support level is at or above ControllersWithViews, static file support is enabled on the resulting options.
+    /// </remarks>
+    private void BuildWebOptions(StartupContext context)
     {
-        if (_options != WebOptions.Default)
+        if (_optionsBuilt)
         {
-            return _options;
+            return;
         }
 
         _options = new();
@@ -66,17 +85,15 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             _options.StaticFiles.EnableStaticFiles = true;
         }
 
-        // TODO: I think this is not needed as ASP.NET Core will handle this for us
-
-        // Auto-enable static web assets for development
-        // if (context.IsDevelopment)
-        // {
-        //     _options.StaticFiles.EnableStaticWebAssets = true;
-        // }
-
-        return _options;
+        _optionsBuilt = true;
     }
 
+    /// <summary>
+    /// Configures web-related services (MVC and CORS) on the provided service collection according to discovered web modules and the resolved WebOptions.
+    /// </summary>
+    /// <param name="context">The startup context providing environment info and the entry point assembly.</param>
+    /// <param name="services">The service collection to which MVC and CORS services will be added and configured.</param>
+    /// <exception cref="InvalidOperationException">Thrown when CORS is enabled but no allowed origins are specified, except when all origins are explicitly allowed in development.</exception>
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
         BuildModules(context);
@@ -117,20 +134,46 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         if (_options.Cors.EnableCors
             || (context.IsDevelopment && _options.Cors.EnableAllOriginsInDevelopment))
         {
+            // Enforce that origins are specified if CORS is enabled, except when allowing all in development
+            if (_options.Cors is { EnableCors: true, AllowedOrigins.Length: 0 }
+                && !(_options.Cors.EnableAllOriginsInDevelopment && context.IsDevelopment))
+            {
+                throw new InvalidOperationException(
+                    "CORS is enabled but AllowedOrigins is empty. To prevent security surprises, you must specify allowed origins or rely on 'EnableAllOriginsInDevelopment' only during development.");
+            }
+
+            // The user has configured CORS options, so we need to add CORS services
             services.AddCors(o =>
                 o.AddPolicy(
                     _options.Cors.PolicyName,
                     builder =>
                     {
+                        // If we have all origins enabled in development, allow all origins
                         if (_options.Cors.EnableAllOriginsInDevelopment && context.IsDevelopment)
                         {
                             builder.AllowAnyOrigin();
                         }
-                        else
+                        // If we have specific origins defined, use them
+                        else if (_options.Cors.AllowedOrigins.Length > 0)
                         {
-                            builder.SetIsOriginAllowedToAllowWildcardSubdomains()
-                                .WithOrigins(_options.Cors.AllowedOrigins)
-                                .AllowCredentials();
+                            if (_options.Cors.AllowedOrigins.Contains("*"))
+                            {
+                                if (!context.IsDevelopment)
+                                {
+                                    // Log a warning if wildcard is used in production
+                                    GetStartupLogger()
+                                        .LogWarning(
+                                            "CORS is enabled with a wildcard origin ('*'). It is recommended to set specific AllowedOrigins for production environments.");
+                                }
+
+                                builder.AllowAnyOrigin();
+                            }
+                            else
+                            {
+                                builder.SetIsOriginAllowedToAllowWildcardSubdomains()
+                                    .WithOrigins(_options.Cors.AllowedOrigins)
+                                    .AllowCredentials();
+                            }
                         }
 
                         //TODO: Make this configurable
@@ -140,6 +183,13 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         }
     }
 
+
+    /// <summary>
+    /// Configures the provided host builder with web host defaults and application initialization based on discovered modules and web options.
+    /// </summary>
+    /// <param name="context">The startup context used to build modules and construct web options.</param>
+    /// <param name="builder">The host builder to configure for web hosting.</param>
+    /// <returns>The same <see cref="IHostBuilder"/> configured with web host defaults and the application's initialization pipeline.</returns>
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)
     {
         BuildModules(context);
@@ -156,6 +206,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         });
     }
 
+    /// <summary>
+    /// Configure the provided application builder for the web application using discovered modules and the current WebOptions.
+    /// </summary>
+    /// <param name="context">The startup context containing environment and dependency information.</param>
+    /// <param name="app">The application builder to configure (middleware, routing, CORS, endpoints, etc.).</param>
     private void InitializeWebApplication(StartupContext context, IApplicationBuilder app)
     {
         foreach (var module in _modules)

@@ -8,6 +8,19 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 
 public static class RazorWireEndpointRouteBuilderExtensions
 {
+    /// <summary>
+    /// Adds a GET endpoint at "{BasePath}/{channel}" that streams Server-Sent Events (SSE) for the specified channel.
+    /// </summary>
+    /// <param name="endpoints">The endpoint route builder to configure.</param>
+    /// <summary>
+    /// Adds a GET endpoint that streams Server-Sent Events (SSE) for a named channel at "{BasePath}/{channel}".
+    /// </summary>
+    /// <remarks>
+    /// The endpoint authorizes the request using <c>IRazorWireChannelAuthorizer</c>, subscribes to <c>IRazorWireStreamHub</c>,
+    /// writes messages as SSE `data:` lines, sends periodic SSE heartbeat comments to keep the connection alive, and unsubscribes when the client disconnects.
+    /// </remarks>
+    /// <param name="endpoints">The endpoint route builder to add the SSE endpoint to.</param>
+    /// <returns>The original <see cref="IEndpointRouteBuilder"/> instance.</returns>
     public static IEndpointRouteBuilder MapRazorWire(this IEndpointRouteBuilder endpoints)
     {
         var options = endpoints.ServiceProvider.GetRequiredService<RazorWireOptions>();
@@ -50,17 +63,14 @@ public static class RazorWireEndpointRouteBuilderExtensions
                         // 2. Loop with heartbeat support
                         while (!context.RequestAborted.IsCancellationRequested)
                         {
-                            var readTask = reader.ReadAsync(context.RequestAborted).AsTask();
-                            var heartbeatTask = Task.Delay(20000, context.RequestAborted); // 20s heartbeat
+                            using var cts = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+                            cts.CancelAfter(20000); // 20s heartbeat
 
-                            var completedTask = await Task.WhenAny(readTask, heartbeatTask);
-
-                            if (completedTask == readTask)
+                            try
                             {
-                                var message = await readTask;
+                                var message = await reader.ReadAsync(cts.Token);
                                 using var stringReader = new StringReader(message);
-                                string? line;
-                                while ((line = stringReader.ReadLine()) != null)
+                                while (stringReader.ReadLine() is { } line)
                                 {
                                     await context.Response.WriteAsync($"data: {line}\n", context.RequestAborted);
                                 }
@@ -68,7 +78,8 @@ public static class RazorWireEndpointRouteBuilderExtensions
                                 await context.Response.WriteAsync("\n", context.RequestAborted);
                                 await context.Response.Body.FlushAsync(context.RequestAborted);
                             }
-                            else
+                            catch (OperationCanceledException) when (cts.IsCancellationRequested
+                                                                     && !context.RequestAborted.IsCancellationRequested)
                             {
                                 // Send heartbeat comment
                                 await context.Response.WriteAsync(":\n\n", context.RequestAborted);

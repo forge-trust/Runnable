@@ -72,7 +72,11 @@ public class WebStartupTests
     {
         var root = new TestWebModule();
         var startup = new TestWebStartup(root);
-        startup.WithOptions(o => o.Cors.EnableCors = true);
+        startup.WithOptions(o =>
+        {
+            o.Cors.EnableCors = true;
+            o.Cors.AllowedOrigins = new[] { "https://example.com" };
+        });
         var context = new StartupContext([], root);
 
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
@@ -208,6 +212,7 @@ public class WebStartupTests
         startup.WithOptions(o =>
         {
             o.Cors.EnableCors = true;
+            o.Cors.AllowedOrigins = ["https://example.com"];
             o.StaticFiles.EnableStaticFiles = true;
             o.Mvc.MvcSupportLevel = MvcSupport.Controllers;
             o.MapEndpoints = endpoints => { endpoints.MapGet("/test-direct", () => "Direct"); };
@@ -240,8 +245,7 @@ public class WebStartupTests
 
     private class TestWebModule : IRunnableWebModule
     {
-        private static int _count;
-        public MvcSupport MvcLevel { get; set; } = MvcSupport.None;
+        public MvcSupport MvcLevel { get; init; } = MvcSupport.None;
         public bool IncludeAsApplicationPart => true;
 
         public void ConfigureWebOptions(StartupContext context, WebOptions options)

@@ -97,7 +97,7 @@ public class CorsOptionsTests
             var policy = await policyProvider.GetPolicyAsync(new DefaultHttpContext(), "DefaultCorsPolicy");
 
             Assert.False(policy!.AllowAnyOrigin);
-            Assert.Contains("https://example.com", policy!.Origins);
+            Assert.Contains("https://example.com", policy.Origins);
         }
         finally
         {
@@ -106,7 +106,7 @@ public class CorsOptionsTests
     }
 
     [Fact]
-    public async Task NoConfiguredOrigins_DisallowsAnyOriginOutsideDevelopment()
+    public void EmptyOrigins_WithEnableCors_ThrowsException()
     {
         var previous = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
         try
@@ -118,13 +118,8 @@ public class CorsOptionsTests
 
             var context = new StartupContext([], new TestWebModule());
             var services = new ServiceCollection();
-            startup.ConfigureServicesPublic(context, services);
 
-            var provider = services.BuildServiceProvider();
-            var policyProvider = provider.GetRequiredService<ICorsPolicyProvider>();
-            var policy = await policyProvider.GetPolicyAsync(new DefaultHttpContext(), "DefaultCorsPolicy");
-
-            Assert.False(policy!.AllowAnyOrigin);
+            Assert.Throws<InvalidOperationException>(() => startup.ConfigureServicesPublic(context, services));
         }
         finally
         {

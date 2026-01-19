@@ -23,13 +23,11 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: |
+            10.0.x
 
       - name: Build project
         run: dotnet build --configuration Release
-
-      - name: Install Aspire Workload
-        run: dotnet workload install aspire
 
       - name: Run tests
         run: |

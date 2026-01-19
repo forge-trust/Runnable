@@ -11,7 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Console\ForgeTrust.Runnable.Console\ForgeTrust.Runnable.Console.csproj" />
+      <ProjectReference Include="../../Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj" />
     </ItemGroup>
 
 </Project>

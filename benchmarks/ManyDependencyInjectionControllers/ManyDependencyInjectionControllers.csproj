@@ -6,7 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="..\DependencyInjectionControllers\DependencyInjectionControllers.csproj" />
+    <ProjectReference Include="../DependencyInjectionControllers/DependencyInjectionControllers.csproj" />
   </ItemGroup>
 </Project>
 

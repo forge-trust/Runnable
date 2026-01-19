@@ -1,6 +1,7 @@
-using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
+namespace ForgeTrust.Runnable.Core.Tests;
 
 [Collection("NoParallel")]
 public class RunnableStartupTests
@@ -269,4 +270,9 @@ public class RunnableStartupTests
         {
         }
     }
+}
+
+[CollectionDefinition("NoParallel", DisableParallelization = true)]
+public class NoParallelCollectionDefinition
+{
 }

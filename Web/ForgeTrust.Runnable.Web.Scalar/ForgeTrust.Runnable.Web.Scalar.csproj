@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ForgeTrust.Runnable.Web.OpenApi\ForgeTrust.Runnable.Web.OpenApi.csproj"/>
+    <ProjectReference Include="../ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj"/>
   </ItemGroup>
 
   <ItemGroup>

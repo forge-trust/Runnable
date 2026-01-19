@@ -88,7 +88,7 @@ public class CSharpDocHarvesterTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(_testRoot, "Broken.cs"), code);
 
         // Act
-        var results = await _harvester.HarvestAsync(_testRoot);
+        await _harvester.HarvestAsync(_testRoot);
 
         // Assert
         // Should not throw, and likely returns sanitized or empty content depending on parser resilience

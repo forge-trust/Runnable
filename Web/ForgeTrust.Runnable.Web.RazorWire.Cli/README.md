@@ -18,16 +18,12 @@ dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- [command] [opt
 Exports a RazorWire application to a static directory.
 
 **Options:**
-- **`-p|--project <path>`** (Required): Path to the project file to export.
 - **`-o|--output <path>`**: Output directory where the static files will be saved (default: `dist`).
-- **`-m|--mode <s3|hybrid>`**: Export mode.
-  - `s3`: Full static export suitable for S3/CDN hosting.
-  - `hybrid` (default): Static assets with support for dynamic Islands.
 - **`-r|--routes <path>`**: Optional path to a file containing seed routes to crawl.
 - **`-u|--url <url>`**: The base URL of the running application used for crawling (default: `http://localhost:5000`).
 
 **Example:**
 
 ```bash
-dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- export -p MyWebApp.csproj -o ./dist --mode hybrid
+dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- export -o ./dist -u http://localhost:5233
 ```

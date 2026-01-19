@@ -43,7 +43,7 @@ Forms are enhanced to perform partial page updates without full reloads.
     ```
 
 2.  **Open the demo**:
-    Navigate to `http://localhost:5000` (or the port indicated in the console).
+    Navigate to `http://localhost:5233` (or the port indicated in the console).
 3.  **Test Reactivity**:
     *   Open the app in multiple browser tabs.
     *   Join with a username in one tab.

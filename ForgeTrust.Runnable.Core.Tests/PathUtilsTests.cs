@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace ForgeTrust.Runnable.Core.Tests;
 
 public class PathUtilsTests : IDisposable
@@ -19,7 +17,7 @@ public class PathUtilsTests : IDisposable
         var repoRoot = Path.Combine(_testRoot, "repo");
         var gitDir = Path.Combine(repoRoot, ".git");
         var nestedDir = Path.Combine(repoRoot, "src", "sub");
-        
+
         Directory.CreateDirectory(gitDir);
         Directory.CreateDirectory(nestedDir);
 

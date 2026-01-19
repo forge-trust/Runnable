@@ -5,7 +5,18 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
 
-public abstract class RunnableStartup<TRootModule> : IRunnableStartup
+public abstract class RunnableStartup
+{
+    protected static readonly Lazy<ILoggerFactory> StartupLoggerFactory =
+        new(() => LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug)));
+
+    protected ILogger GetStartupLogger()
+    {
+        return StartupLoggerFactory.Value.CreateLogger(GetType().Name);
+    }
+}
+
+public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableStartup
     where TRootModule : IRunnableHostModule, new()
 {
     async Task IRunnableStartup.RunAsync(StartupContext context)
@@ -30,19 +41,13 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
         }
         catch (OperationCanceledException ex)
         {
-            CreateBootstrapLogger().LogWarning(ex, "Service(s) did not exit in a timely fashion..");
+            GetStartupLogger().LogWarning(ex, "Service(s) did not exit in a timely fashion..");
         }
         catch (Exception e)
         {
-            CreateBootstrapLogger().LogCritical(e, "Fatal Processing Error");
+            GetStartupLogger().LogCritical(e, "Fatal Processing Error");
             Environment.ExitCode = -100;
         }
-    }
-
-    private ILogger CreateBootstrapLogger()
-    {
-        return LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug))
-            .CreateLogger(GetType().Name);
     }
 
     private IHost CreateHost(StartupContext context) => ((IRunnableStartup)this).CreateHostBuilder(context).Build();

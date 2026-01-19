@@ -182,13 +182,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         }
     }
 
-    private static readonly Lazy<ILoggerFactory> _startupLoggerFactory =
-        new(() => LoggerFactory.Create(builder => builder.AddConsole()));
-
-    private ILogger GetStartupLogger()
-    {
-        return _startupLoggerFactory.Value.CreateLogger(GetType().Name);
-    }
 
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)
     {

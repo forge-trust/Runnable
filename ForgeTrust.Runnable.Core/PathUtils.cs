@@ -7,6 +7,11 @@ public static class PathUtils
     /// </summary>
     public static string FindRepositoryRoot(string startPath)
     {
+        if (string.IsNullOrWhiteSpace(startPath))
+        {
+            throw new ArgumentException("Start path cannot be null or whitespace.", nameof(startPath));
+        }
+
         var current = new DirectoryInfo(startPath);
 
         // If startPath doesn't exist, walk up until we find one that does

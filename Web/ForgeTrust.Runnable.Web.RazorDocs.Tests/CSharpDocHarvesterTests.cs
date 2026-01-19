@@ -131,6 +131,39 @@ public class CSharpDocHarvesterTests : IDisposable
         Assert.EndsWith("#SignatureTest-MyMethod-int-string-ref-bool", methodNode.Path);
     }
 
+    [Fact]
+    public async Task HarvestAsync_ShouldDifferentiateMethodOverloads()
+    {
+        // Arrange: Create a file with overloaded methods
+        var testFile = Path.Combine(_testRoot, "Calculator.cs");
+        File.WriteAllText(
+            testFile,
+            @"
+namespace TestNamespace;
+
+public class Calculator
+{
+    /// <summary>Process an integer value.</summary>
+    public void Process(int value) { }
+
+    /// <summary>Process a reference to an integer.</summary>
+    public void Process(ref int value) { }
+}
+");
+
+        // Act
+        var results = await _harvester.HarvestAsync(_testRoot);
+        var processNodes = results.Where(n => n.Title.Contains("Process")).ToList();
+
+        // Assert: Should have two distinct Process methods
+        Assert.Equal(2, processNodes.Count);
+        Assert.NotEqual(processNodes[0].Path, processNodes[1].Path);
+
+        // Verify both have distinct anchors
+        Assert.Contains("Process", processNodes[0].Path);
+        Assert.Contains("Process", processNodes[1].Path);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))

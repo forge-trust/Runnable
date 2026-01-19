@@ -18,18 +18,9 @@ public class ExportCommand : ICommand
     public string BaseUrl { get; init; } = "http://localhost:5000";
 
     /// <summary>
-    /// Validates options, runs the export engine to produce a static site, and writes progress messages to the console.
+    /// Executes the export process for the RazorWire site to the configured output directory, validating options and writing progress to the console.
     /// </summary>
-    /// <returns>A ValueTask that completes when the export operation finishes.</returns>
-    /// <summary>
-    /// Executes the export command: validates options, runs the export engine, and writes progress to the console.
-    /// </summary>
-    /// <param name="console">Console used to write progress and completion messages.</param>
-    /// <returns>A ValueTask that completes when the export operation finishes.</returns>
-    /// <summary>
-    /// Executes the export process for the RazorWire site to the configured output directory.
-    /// </summary>
-    /// <param name="console">Console used to write progress and completion messages.</param>
+    /// <param name="console">The console used to write progress and completion messages.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
     /// <exception cref="CommandException">Thrown when <c>BaseUrl</c> is not an absolute HTTP or HTTPS URL.</exception>
     public async ValueTask ExecuteAsync(IConsole console)

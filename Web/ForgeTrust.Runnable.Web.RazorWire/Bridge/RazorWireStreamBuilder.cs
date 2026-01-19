@@ -9,10 +9,7 @@ public class RazorWireStreamBuilder
     private readonly List<IRazorWireStreamAction> _actions = new();
 
     /// <summary>
-    /// Initializes a new instance of <see cref="RazorWireStreamBuilder"/> and optionally associates a controller for later rendering.
-    /// </summary>
-    /// <summary>
-    /// Initializes a new instance of RazorWireStreamBuilder and captures an optional Controller for rendering partials or view components.
+    /// Initializes a new instance of <see cref="RazorWireStreamBuilder"/> and captures an optional <see cref="Controller"/> for rendering partials or view components.
     /// </summary>
     /// <param name="controller">Optional <see cref="Controller"/> whose context will be used when rendering partials or view components; may be <c>null</c>.</param>
     public RazorWireStreamBuilder(Controller? controller = null)
@@ -21,15 +18,10 @@ public class RazorWireStreamBuilder
     }
 
     /// <summary>
-    /// Queues an append stream action that inserts the provided HTML into the specified target element.
+    /// Queues an append action that inserts the provided HTML into the specified target element.
     /// </summary>
     /// <param name="target">The target DOM selector or element identifier to which the HTML will be appended.</param>
-    /// <param name="templateHtml">The HTML fragment to append into the target element.</param>
-    /// <summary>
-    /// Queues an append turbo-stream action that inserts the provided raw HTML into the specified target.
-    /// </summary>
-    /// <param name="target">The DOM target selector or identifier to which the HTML will be appended.</param>
-    /// <param name="templateHtml">The HTML fragment to append inside the target's turbo-stream template.</param>
+    /// <param name="templateHtml">The HTML fragment to append inside the target's template.</param>
     /// <returns>The same <see cref="RazorWireStreamBuilder"/> instance to allow fluent chaining.</returns>
     public RazorWireStreamBuilder Append(string target, string templateHtml)
     {
@@ -245,11 +237,7 @@ public class RazorWireStreamBuilder
     }
 
     /// <summary>
-    /// Queue a remove action that will remove the element identified by the specified target.
-    /// </summary>
-    /// <param name="target">The DOM target selector or element identifier to remove.</param>
-    /// <summary>
-    /// Queues a "remove" turbo-stream action targeting the specified DOM element.
+    /// Queues a remove action targeting the specified DOM element.
     /// </summary>
     /// <param name="target">The DOM target selector or identifier whose element will be removed.</param>
     /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
@@ -260,10 +248,6 @@ public class RazorWireStreamBuilder
         return this;
     }
 
-    /// <summary>
-    /// Builds a single string containing the queued turbo-stream elements for all raw HTML actions.
-    /// </summary>
-    /// <returns>The concatenated turbo-stream markup for the builder's raw HTML actions.</returns>
     /// <summary>
     /// Builds a single concatenated Turbo Stream markup string from the queued raw HTML actions.
     /// </summary>
@@ -298,10 +282,6 @@ public class RazorWireStreamBuilder
     }
 
     /// <summary>
-    /// Renders all queued stream actions using the given view context and returns their combined output.
-    /// </summary>
-    /// <param name="viewContext">The view rendering context used by each action to produce its HTML.</param>
-    /// <summary>
     /// Renders all queued stream actions using the provided ViewContext and concatenates their rendered HTML into a single string.
     /// </summary>
     /// <param name="viewContext">The view rendering context to use for each action.</param>
@@ -320,12 +300,9 @@ public class RazorWireStreamBuilder
 
 
     /// <summary>
-    /// Creates a RazorWireStreamResult containing a snapshot of the builder's queued actions and the optional controller.
+    /// Creates a <see cref="RazorWireStreamResult"/> containing the builder's queued stream actions and associated controller.
     /// </summary>
-    /// <summary>
-    /// Create a RazorWireStreamResult containing the builder's queued stream actions and associated controller.
-    /// </summary>
-    /// <returns>A RazorWireStreamResult initialized with a copy of the queued actions and the builder's controller.</returns>
+    /// <returns>A <see cref="RazorWireStreamResult"/> initialized with a copy of the queued actions and the builder's controller.</returns>
     public RazorWireStreamResult BuildResult()
     {
         return new RazorWireStreamResult(_actions.ToList(), _controller);
@@ -338,14 +315,9 @@ public class RazorWireStreamBuilder
         public string? Html { get; }
 
         /// <summary>
-        /// Initializes a new instance with the specified stream action, target, and optional HTML template.
+        /// Initializes a new instance with the specified turbo-stream action, target, and optional HTML template.
         /// </summary>
-        /// <param name="action">The turbo-stream action name (e.g., "append", "prepend", "replace", "update", "remove").</param>
-        /// <param name="target">The DOM target identifier or selector to which the action applies.</param>
-        /// <summary>
-        /// Initializes a RawHtmlStreamAction with the specified turbo-stream action, target, and optional HTML template.
-        /// </summary>
-        /// <param name="action">The turbo-stream action name (for example, "append", "prepend", "replace", "update", or "remove").</param>
+        /// <param name="action">The turbo-stream action name (e.g., "append", "prepend", "replace", "update", or "remove").</param>
         /// <param name="target">The DOM target selector or identifier that the action will be applied to.</param>
         /// <param name="html">The HTML template to use for the action; pass <c>null</c> for actions that do not require a template (such as "remove").</param>
         public RawHtmlStreamAction(string action, string target, string? html)
@@ -356,10 +328,7 @@ public class RazorWireStreamBuilder
         }
 
         /// <summary>
-        /// Produces the turbo-stream element representing this action and its target.
-        /// </summary>
-        /// <summary>
-        /// Render the action as a turbo-stream HTML string.
+        /// Renders the action as a turbo-stream HTML string.
         /// </summary>
         /// <param name="viewContext">The rendering context used when rendering the action.</param>
         /// <returns>The turbo-stream element for the action and target; for action "remove" the element has no &lt;template&gt;, otherwise its &lt;template&gt; contains the action's HTML.</returns>

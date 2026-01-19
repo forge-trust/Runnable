@@ -15,18 +15,12 @@ public class ExportEngine
     private readonly Queue<string> _queue = new();
 
     /// <summary>
-    /// Initializes a new ExportEngine that will crawl a base URL and write exported HTML files to the specified output directory.
+    /// Initializes a new <see cref="ExportEngine"/> that crawls the specified base URL and writes exported HTML to the given output directory.
     /// </summary>
-    /// <param name="outputPath">Directory where exported HTML files will be written.</param>
-    /// <param name="seedRoutesPath">Optional path to a file with seed routes; if null the root route ("/") is used.</param>
-    /// <param name="baseUrl">Base URL to crawl; any trailing slash will be trimmed.</param>
-    /// <summary>
-    /// Initializes a new ExportEngine that will crawl the specified base URL and write exported HTML to the given output directory.
-    /// </summary>
-    /// <param name="outputPath">Directory where exported HTML files will be written.</param>
-    /// <param name="seedRoutesPath">Optional path to a file containing seed routes (one per line); pass null to start from the root route.</param>
-    /// <param name="baseUrl">Base URL to crawl; any trailing slash will be removed.</param>
-    /// <param name="console">Console abstraction used for logging and status output.</param>
+    /// <param name="outputPath">The directory where exported HTML files will be written.</param>
+    /// <param name="seedRoutesPath">An optional path to a file containing seed routes (one per line); pass <c>null</c> to start from the root route ("/").</param>
+    /// <param name="baseUrl">The base URL to crawl; any trailing slash will be removed.</param>
+    /// <param name="console">The console abstraction used for logging and status output.</param>
     public ExportEngine(
         string outputPath,
         string? seedRoutesPath,
@@ -77,12 +71,9 @@ public class ExportEngine
     }
 
     /// <summary>
-    /// Fetches the specified route from the base URL, writes the returned HTML to the configured output directory, and enqueues any discovered internal routes found in links or turbo-frame sources.
-    /// </summary>
-    /// <summary>
     /// Fetches the HTML for the specified route from the base URL, writes the rendered page to the output directory, and enqueues any discovered internal links and turbo-frame sources for further export.
     /// </summary>
-    /// <param name="route">Route path relative to the base URL (typically starting with '/').</param>
+    /// <param name="route">The route path relative to the base URL (typically starting with '/').</param>
     private async Task ExportRouteAsync(string route)
     {
         _console.Output.WriteLine($"  -> {route}");
@@ -116,15 +107,10 @@ public class ExportEngine
     }
 
     /// <summary>
-    /// Maps a web route to an absolute file path under the configured output directory, normalizing routes to index files as needed.
+    /// Maps a root-relative route to an absolute HTML file path inside the configured output directory, normalizing routes to index files as needed.
     /// </summary>
-    /// <param name="route">The route to map (for example "/" or "/about/team").</param>
-    /// <returns>The absolute filesystem path within the output directory where the route's HTML should be written.</returns>
-    /// <summary>
-    /// Map a root-relative route to an absolute HTML file path inside the configured output directory.
-    /// </summary>
-    /// <param name="route">The route to map, expected to be root-relative (for example, "/about" or "/").</param>
-    /// <returns>The absolute file system path for the HTML file corresponding to the route.</returns>
+    /// <param name="route">The route to map, expected to be root-relative (for example, "/" or "/about").</param>
+    /// <returns>The absolute filesystem path for the HTML file corresponding to the route.</returns>
     /// <remarks>
     /// Routes that end in "/" or have no file component are normalized to an "index.html" target.
     /// The method enforces that the resolved file path resides strictly within the configured output directory.
@@ -164,12 +150,9 @@ public class ExportEngine
     }
 
     /// <summary>
-    /// Scans the provided HTML for root-relative href targets and enqueues each discovered route that is not a protocol, fragment, begins with "//", or already visited.
-    /// </summary>
-    /// <summary>
     /// Extracts root-relative internal link targets from the provided HTML and enqueues any unvisited routes for crawling.
     /// </summary>
-    /// <param name="html">HTML source to scan; href values that begin with '/' and do not include protocol indicators, fragments, or double-slash prefixes are considered internal routes to enqueue.</param>
+    /// <param name="html">HTML source to scan; href values that begin with '/' and do not include protocol indicators, fragments, or double-slash prefixes are considered internal routes onto enqueue.</param>
     private void ExtractLinks(string html)
     {
         var matches = Regex.Matches(html, "href=\"([^\"]+)\"");
@@ -188,14 +171,12 @@ public class ExportEngine
     }
 
     /// <summary>
-    /// Finds internal turbo-frame `src` attributes in the provided HTML and enqueues each discovered route for later processing.
-    /// </summary>
-    /// <remarks>
-    /// Only `src` values that start with '/' (but not '//'), do not contain ':' or '#', and have not already been visited are enqueued.
-    /// <summary>
     /// Extracts root-relative `src` values from &lt;turbo-frame&gt; elements in the provided HTML and enqueues each unvisited path for export.
     /// </summary>
     /// <param name="html">HTML content to scan for turbo-frame `src` attributes.</param>
+    /// <remarks>
+    /// Only `src` values that start with '/' (but not '//'), do not contain ':' or '#', and have not already been visited are enqueued.
+    /// </remarks>
     private void ExtractFrames(string html)
     {
         var matches = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"");

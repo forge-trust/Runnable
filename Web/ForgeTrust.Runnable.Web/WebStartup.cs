@@ -17,10 +17,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     private readonly List<IRunnableWebModule> _modules = new();
 
     /// <summary>
-    /// Registers an optional callback to configure WebOptions which will be applied when web options are built.
-    /// </summary>
-    /// <param name="configureOptions">An optional action that receives a WebOptions instance to modify configuration.</param>
-    /// <summary>
     /// Registers an optional callback to customize WebOptions and enables fluent chaining.
     /// </summary>
     /// <param name="configureOptions">An optional action invoked later when WebOptions are built to modify configuration.</param>
@@ -33,14 +29,10 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     }
 
     /// <summary>
-    /// Collects all IRunnableWebModule instances from the startup context's dependencies and root module and caches them for later use.
-    /// </summary>
-    /// <param name="context">The startup context used to enumerate dependencies and the root module.</param>
-    /// <summary>
-    /// Collects and caches all IRunnableWebModule instances found in the provided startup context.
+    /// Collects and caches all IRunnableWebModule instances found in the provided startup context. This method is idempotent.
     /// </summary>
     /// <param name="context">The startup context whose dependencies and root module are inspected for web modules.</param>
-    /// <remarks>This method is idempotent; calling it multiple times has no effect after the first successful invocation.</remarks>
+    /// <remarks>This method is idempotent; subsequent calls have no effect once modules are built.</remarks>
     private void BuildModules(StartupContext context)
     {
         if (_modulesBuilt)
@@ -66,16 +58,10 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     }
 
     /// <summary>
-    /// Initializes and caches WebOptions by applying configuration from discovered modules and any external configurator.
-    /// </summary>
-    /// <param name="context">The startup context containing environment, dependencies, and module information used during configuration.</param>
-    /// <remarks>
-    /// This method is idempotent; subsequent calls have no effect once options are built. If MVC support level is at or above ControllersWithViews, static file support is enabled on the resulting options.
-    /// <summary>
-    /// Builds and caches the WebOptions instance by applying configuration from discovered modules and the optional custom callback; enables static file support when MVC is configured for controllers with views.
+    /// Initializes and caches WebOptions by applying configuration from discovered modules and the optional custom callback; enables static file support when MVC is configured for controllers with views.
     /// </summary>
     /// <param name="context">The startup context used when invoking module and custom option configuration.</param>
-    /// <remarks>This method is idempotent; once options have been built, subsequent calls have no effect.</remarks>
+    /// <remarks>This method is idempotent; subsequent calls have no effect once options are built.</remarks>
     private void BuildWebOptions(StartupContext context)
     {
         if (_optionsBuilt)
@@ -100,11 +86,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         _optionsBuilt = true;
     }
 
-    /// <summary>
-    /// Configures web-related services (MVC and CORS) on the provided service collection according to discovered web modules and the resolved WebOptions.
-    /// </summary>
-    /// <param name="context">The startup context providing environment info and the entry point assembly.</param>
-    /// <param name="services">The service collection to which MVC and CORS services will be added and configured.</param>
     /// <summary>
     /// Configures services required for the web application: registers MVC application parts from the entry assembly and enabled web modules, and adds a CORS policy when CORS is enabled.
     /// </summary>
@@ -202,11 +183,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
 
     /// <summary>
-    /// Configures the provided host builder with web host defaults and application initialization based on discovered modules and web options.
-    /// </summary>
-    /// <param name="context">The startup context used to build modules and construct web options.</param>
-    /// <param name="builder">The host builder to configure for web hosting.</param>
-    /// <summary>
     /// Configures the provided host builder with web host defaults and registers the application's web initialization pipeline.
     /// </summary>
     /// <param name="context">The startup context used to collect modules and build web options.</param>
@@ -228,10 +204,6 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         });
     }
 
-    /// <summary>
-    /// Configure the provided application builder for the web application using discovered modules and the current WebOptions.
-    /// </summary>
-    /// <param name="context">The startup context containing environment and dependency information.</param>
     /// <summary>
     /// Configures the application's middleware pipeline and endpoint routing for the web application.
     /// </summary>

@@ -6,15 +6,17 @@ namespace ForgeTrust.Runnable.Core.Extensions;
 public static class EnumerableExtensions
 {
     /// <summary>
-    /// Projects each element of the source sequence into a new form using an asynchronous transform with a limit on concurrent operations, producing results in the original input order.
+    /// Projects each element of a sequence into a new form with bounded concurrency and preserves the input order of results.
     /// </summary>
-    /// <param name="source">The input sequence of elements to transform.</param>
-    /// <param name="body">An asynchronous transform that receives an element and a <see cref="CancellationToken"/> and produces a result.</param>
-    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
-    /// <param name="cancellationToken">A token to observe for cancellation of the operation.</param>
-    /// <returns>An IEnumerable&lt;TResult&gt; containing the transformed results in the same order as the source.</returns>
+    /// <param name="source">The sequence of input items.</param>
+    /// <param name="body">An asynchronous transform that receives an input item and a cancellation token and produces a result.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent invocations of <paramref name="body"/>; must be greater than zero.</param>
+    /// <param name="cancellationToken">A token to observe while waiting for tasks to complete.</param>
+    /// <returns>An <see cref="IEnumerable{T}"/> of results in the same order as the input sequence.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="body"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero.</exception>
+    /// <exception cref="OperationCanceledException">The operation was canceled via <paramref name="cancellationToken"/>.</exception>
+    /// <remarks>Exceptions thrown by the <paramref name="body"/> function propagate to the returned task.</remarks>
     public static async Task<IEnumerable<TResult>> ParallelSelectAsync<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, CancellationToken, Task<TResult>> body,
@@ -30,50 +32,68 @@ public static class EnumerableExtensions
         var tasks = new List<Task>();
         long index = 0;
 
-        foreach (var item in source)
+        try
         {
-            var capturedIndex = index++;
-            await semaphore.WaitAsync(cancellationToken);
+            foreach (var item in source)
+            {
+                var capturedIndex = index++;
+                await semaphore.WaitAsync(cancellationToken);
 
-            tasks.Add(
-                Task.Run(
-                    async () =>
-                    {
-                        try
-                        {
-                            var result = await body(item, cancellationToken);
-                            results.TryAdd(capturedIndex, result);
-                        }
-                        finally
+                tasks.Add(
+                    Task.Run(
+                        async () =>
                         {
                             try
                             {
-                                // ReSharper disable AccessToDisposedClosure
-                                semaphore.Release();
-                                // ReSharper restore AccessToDisposedClosure
+                                var result = await body(item, cancellationToken);
+                                results.TryAdd(capturedIndex, result);
                             }
-                            catch (ObjectDisposedException)
+                            finally
                             {
-                                // Intentionally ignored: the operation was cancelled and the semaphore was disposed
+                                try
+                                {
+                                    // ReSharper disable AccessToDisposedClosure
+                                    semaphore.Release();
+                                    // ReSharper restore AccessToDisposedClosure
+                                }
+                                catch (ObjectDisposedException)
+                                {
+                                    // Intentionally ignored: the operation was cancelled and the semaphore was disposed
+                                }
                             }
-                        }
-                    },
-                    cancellationToken));
-        }
+                        },
+                        cancellationToken));
+            }
 
-        await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks);
+        }
+        catch (Exception)
+        {
+            // JOIN ALL ACTIVE TASKS before disposing the semaphore
+            // This ensures no background work is left unobserved and avoids NREs/ODEs
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch
+            {
+                // Exceptions in individual tasks are already captured by the main Task.WhenAll
+            }
+
+            throw;
+        }
 
         return results.OrderBy(kvp => kvp.Key).Select(kvp => kvp.Value);
     }
 
     /// <summary>
-    /// Projects elements of <paramref name="source"/> into a new form and yields the transformed elements in the original order while limiting concurrent operations.
+    /// Produces an async sequence that yields each input element transformed by <paramref name="body"/> in the same order as the source, with bounded concurrency.
     /// </summary>
-    /// <param name="source">The sequence of input elements to transform.</param>
+    /// <param name="source">The input sequence to transform.</param>
     /// <param name="body">A transform function that produces a result for an element.</param>
     /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
-    /// <param name="cancellationToken">Token to observe for cancellation of the operation.</param>
-    /// <returns>An async sequence that yields the transformed elements in the same order as the input, produced with bounded concurrency and buffering.</returns>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    /// <returns>The sequence of transformed elements in the original input order; concurrency is limited to <paramref name="maxDegreeOfParallelism"/>.</returns>
     public static IAsyncEnumerable<TResult> ParallelSelectAsync<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, Task<TResult>> body,
@@ -88,7 +108,7 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Asynchronously projects each element of <paramref name="source"/> with a bounded degree of concurrency and yields results in the original order as they become available.
+    /// Asynchronously projects each element of the <paramref name="source"/> sequence with a bounded degree of concurrency using the specified <paramref name="body"/>, <paramref name="maxDegreeOfParallelism"/>, <paramref name="bufferMultiplier"/>, and <paramref name="cancellationToken"/>, yielding transformed results in the original source order.
     /// </summary>
     /// <param name="source">The input sequence to project.</param>
     /// <param name="body">An asynchronous transform that receives an element and a <see cref="CancellationToken"/> and produces a result.</param>
@@ -125,8 +145,15 @@ public static class EnumerableExtensions
             throw new ArgumentOutOfRangeException(nameof(bufferMultiplier));
         }
 
+        // Calculate capacity using long to prevent integer overflow
+        long capacity = (long)maxDegreeOfParallelism * bufferMultiplier;
+        if (capacity > int.MaxValue)
+        {
+            capacity = int.MaxValue;
+        }
+
         var channel = Channel.CreateBounded<Task<TResult>>(
-            new BoundedChannelOptions(maxDegreeOfParallelism * bufferMultiplier)
+            new BoundedChannelOptions((int)capacity)
             {
                 SingleWriter = true,
                 SingleReader = true
@@ -247,16 +274,14 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Projects elements of a sequence into a new form asynchronously and yields results as an async stream with bounded concurrency.
+    /// Produces an async sequence of transformed elements with bounded concurrency while preserving the input order.
     /// </summary>
-    /// <param name="source">The input sequence.</param>
-    /// <param name="body">A transform function that produces a result for each source element.</param>
-    /// <param name="maxDegreeOfParallelism">Maximum number of concurrent transform operations; must be greater than zero.</param>
-    /// <param name="bufferMultiplier">Multiplier applied to <paramref name="maxDegreeOfParallelism"/> to size the internal buffer; must be at least 1.</param>
-    /// <param name="cancellationToken">Token to observe for cancellation of the asynchronous stream.</param>
-    /// <returns>
-    /// An IAsyncEnumerable<TResult> that yields transformed results in the order produced, with backpressure controlled by the configured buffer and concurrency limit.
-    /// </returns>
+    /// <param name="source">The input sequence to transform.</param>
+    /// <param name="body">An asynchronous transform for each element. The transform's cancellation token is ignored by this overload.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
+    /// <param name="bufferMultiplier">Multiplier used to compute the internal bounded channel capacity as <c>maxDegreeOfParallelism * bufferMultiplier</c>; must be at least 1.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the overall operation.</param>
+    /// <returns>An <see cref="IAsyncEnumerable{TResult}"/> that yields transformed elements in the same order as <paramref name="source"/>.</returns>
     public static IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, Task<TResult>> body,
@@ -271,4 +296,3 @@ public static class EnumerableExtensions
             cancellationToken);
     }
 }
-

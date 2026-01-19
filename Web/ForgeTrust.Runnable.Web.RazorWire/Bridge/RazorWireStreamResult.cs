@@ -16,14 +16,10 @@ public class RazorWireStreamResult : IActionResult
     private readonly Controller? _controller;
 
     /// <summary>
-    /// Initializes a new RazorWireStreamResult that will stream the specified sequence of Razor wire actions as a Turbo Stream response.
+    /// Initializes a new <see cref="RazorWireStreamResult"/> with the sequence of actions to render and an optional controller whose view context may be reused.
     /// </summary>
-    /// <param name="actions">Sequence of IRazorWireStreamAction instances whose rendered outputs will be written to the response in order.</param>
-    /// <summary>
-    /// Initializes a RazorWireStreamResult with a sequence of stream actions and an optional controller whose view context data should be reused.
-    /// </summary>
-    /// <param name="actions">Sequence of IRazorWireStreamAction instances to render and stream.</param>
-    /// <param name="controller">Optional Controller whose ViewData and TempData will be reused during rendering; if null, fresh view/temp data will be created.</param>
+    /// <param name="actions">Sequence of IRazorWireStreamAction instances to render and stream as Turbo Stream HTML fragments.</param>
+    /// <param name="controller">Optional controller whose ViewData and TempData will be reused during rendering; if null, fresh view and temp data are created.</param>
     public RazorWireStreamResult(IEnumerable<IRazorWireStreamAction> actions, Controller? controller = null)
     {
         _actions = actions;
@@ -31,10 +27,7 @@ public class RazorWireStreamResult : IActionResult
     }
 
     /// <summary>
-    /// Creates a RazorWireStreamResult that will stream the provided raw HTML as a single Turbo Stream action.
-    /// </summary>
-    /// <summary>
-    /// Initializes a result that will stream the provided raw HTML as a single Razor wire action.
+    /// Creates a <see cref="RazorWireStreamResult"/> that will stream the provided raw HTML as a single render action.
     /// </summary>
     /// <param name="rawContent">Raw HTML to stream; if null, an empty string is used.</param>
     public RazorWireStreamResult(string? rawContent)
@@ -43,23 +36,11 @@ public class RazorWireStreamResult : IActionResult
     }
 
     /// <summary>
-    /// Streams the rendered HTML from each configured IRazorWireStreamAction to the HTTP response as a Turbo Stream.
+    /// Streams rendered Turbo Stream HTML for the configured actions to the HTTP response.
     /// </summary>
-    /// <param name="context">The current ActionContext used to build the view context and write the response.</param>
-    /// <returns>A task that completes when all actions have been rendered and written to the response.</returns>
+    /// <param name="context">The current action context used to build the view context and access the HTTP response.</param>
     /// <remarks>
-    /// Sets the response Content-Type to "text/vnd.turbo-stream.html" and, if an antiforgery service is available,
-    /// generates and stores antiforgery tokens before writing any response data.
-    /// <summary>
-    /// Streams rendered Razor wire actions to the HTTP response as Turbo Stream HTML for the current action context.
-    /// </summary>
-    /// <param name="context">The action context for the current request.</param>
-    /// <returns>A task that represents the execution of the result.</returns>
-    /// <remarks>
-    /// - Ensures antiforgery tokens (and any related cookies) are generated before writing to the response.
-    /// - Sets the response Content-Type to "text/vnd.turbo-stream.html".
-    /// - Builds a ViewContext and renders each configured IRazorWireStreamAction, writing each rendered HTML fragment to the response using UTF-8 encoding.
-    /// - Renders actions in parallel with a maximum degree of parallelism of 64.
+    /// Generates and stores antiforgery tokens before sending any response data, sets the response Content-Type to "text/vnd.turbo-stream.html", and streams each action's rendered HTML to the response using UTF-8 encoding. Rendering of actions is performed asynchronously in parallel.
     /// </remarks>
     public async Task ExecuteResultAsync(ActionContext context)
     {
@@ -88,21 +69,10 @@ public class RazorWireStreamResult : IActionResult
     }
 
     /// <summary>
-    /// Create a ViewContext for rendering Razor stream actions based on the given ActionContext.
-    /// </summary>
-    /// <param name="actionContext">The action context whose HttpContext and ModelState are used to initialize the view context.</param>
-    /// <returns>
-    /// A ViewContext configured with:
-    /// - a NullView for the IView,
-    /// - a ViewDataDictionary created from an EmptyModelMetadataProvider and the provided ModelState,
-    /// - TempData obtained from the request's ITempDataDictionaryFactory,
-    /// - TextWriter.Null as the writer,
-    /// - default HtmlHelperOptions.
-    /// <summary>
-    /// Creates a ViewContext configured for rendering the stream actions, optionally inheriting ViewData and TempData from the associated controller.
+    /// Creates a <see cref="ViewContext"/> configured for rendering the stream actions, optionally inheriting ViewData and TempData from the associated controller.
     /// </summary>
     /// <param name="actionContext">The current ActionContext used to build the ViewContext.</param>
-    /// <returns>A ViewContext with a NullView, the prepared ViewData, TempData (from the controller if present or created via ITempDataDictionaryFactory), TextWriter.Null, and default HtmlHelperOptions.</returns>
+    /// <returns>A ViewContext configured with a <see cref="NullView"/>, the prepared ViewData, TempData (the controller's if available or obtained from ITempDataDictionaryFactory), TextWriter.Null, and default HtmlHelperOptions.</returns>
     private ViewContext CreateViewContext(ActionContext actionContext)
     {
         var services = actionContext.HttpContext.RequestServices;
@@ -138,30 +108,31 @@ public class RazorWireStreamResult : IActionResult
         private readonly string _html;
 
         /// <summary>
-        /// Initializes a RawHtmlStreamAction that returns the provided raw HTML when rendered.
+        /// Initializes a new <see cref="RawHtmlStreamAction"/> that will return the specified HTML when rendered.
         /// </summary>
-        /// <param name="html">The raw HTML content to be returned by RenderAsync.</param>
+        /// <param name="html">HTML content that RenderAsync will return (can be empty).</param>
         public RawHtmlStreamAction(string html)
         {
             _html = html;
         }
 
         /// <summary>
-/// Produces the stored raw HTML as the rendered output for the given view context.
-/// </summary>
-/// <param name="viewContext">The view rendering context supplied to the action.</param>
-/// <returns>The rendered HTML string stored by this action.</returns>
-public Task<string> RenderAsync(ViewContext viewContext) => Task.FromResult(_html);
+        /// Produces the stored raw HTML as the rendered output for the given view context.
+        /// </summary>
+        /// <param name="viewContext">The view rendering context supplied to the action.</param>
+        /// <returns>The stored HTML string.</returns>
+        public Task<string> RenderAsync(ViewContext viewContext) => Task.FromResult(_html);
     }
 
     private class NullView : IView
     {
         public string Path => string.Empty;
+
         /// <summary>
-/// Performs no rendering and completes immediately.
-/// </summary>
-/// <param name="viewContext">The rendering context provided by the framework; this implementation ignores it.</param>
-/// <returns>A completed Task representing the finished (no-op) render operation.</returns>
-public Task RenderAsync(ViewContext viewContext) => Task.CompletedTask;
+        /// Performs no rendering and completes immediately.
+        /// </summary>
+        /// <param name="viewContext">The rendering context provided by the framework; this implementation ignores it.</param>
+        /// <returns>A completed <see cref="Task"/> representing the finished render operation.</returns>
+        public Task RenderAsync(ViewContext viewContext) => Task.CompletedTask;
     }
 }

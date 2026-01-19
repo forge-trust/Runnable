@@ -22,7 +22,11 @@ public class UserPresenceBackgroundService : CriticalService
     /// </summary>
     /// <param name="presence">Service that provides presence pulse data (removed users and active count).</param>
     /// <param name="hub">RazorWire stream hub used to publish built streams to connected clients.</param>
-    /// <param name="applicationLifetime">Host application lifetime used to tie the background service to the application's lifecycle.</param>
+    /// <summary>
+    /// Initializes a background service that monitors user presence and publishes stream updates to connected clients.
+    /// </summary>
+    /// <param name="presence">Service that pulses presence and provides removed users and the current active user count.</param>
+    /// <param name="hub">Hub used to publish RazorWire streams to connected clients.</param>
     public UserPresenceBackgroundService(
         IUserPresenceService presence,
         IRazorWireStreamHub hub,
@@ -42,6 +46,10 @@ public class UserPresenceBackgroundService : CriticalService
     /// <summary>
     /// Periodically polls user presence, removes departed users from the reactive stream, and publishes updates to connected clients via the RazorWire stream hub.
     /// </summary>
+    /// <summary>
+    /// Periodically pulses user presence, removes departed users from the reactive stream, and publishes updates to connected clients.
+    /// </summary>
+    /// <param name="stoppingToken">Cancellation token used to stop the background loop.</param>
     /// <returns>A task that completes when the background loop stops.</returns>
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {

@@ -5,21 +5,21 @@ public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOff
 public interface IUserPresenceService
 {
     /// <summary>
-    /// Record activity for the specified user and update their presence.
+    /// Record activity for the specified user and update their presence tracking.
     /// </summary>
     /// <param name="username">The username whose activity should be recorded.</param>
     /// <returns>The current number of active users after recording the activity.</returns>
     int RecordActivity(string username);
 
     /// <summary>
-    /// Retrieves presence information for users currently considered active.
+    /// Retrieve presence information for users currently considered active.
     /// </summary>
     /// <returns>A collection of UserPresenceInfo objects for users considered active at the time of the call.</returns>
     IEnumerable<UserPresenceInfo> GetActiveUsers();
 
     /// <summary>
-    /// Advances presence tracking and expires users considered inactive during this pulse.
+    /// Advance presence tracking and expire users considered inactive during this pulse.
     /// </summary>
-    /// <returns>A tuple where <c>Removed</c> is a read-only list of UserPresenceInfo objects removed during this pulse, and <c>ActiveCount</c> is the current number of active users after the pulse.</returns>
+    /// <returns>A tuple where <c>Removed</c> is a read-only list of users removed during this pulse, and <c>ActiveCount</c> is the current number of active users after the pulse.</returns>
     (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse();
 }

@@ -10,29 +10,23 @@ public class InMemoryUserPresenceService : IUserPresenceService
     public TimeSpan ActiveWindow { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// Updates the stored last-activity timestamp for the specified user.
+    /// Record the current UTC time as the specified user's last activity.
     /// </summary>
-    /// <param name="username">The user's name; lookup is case-insensitive.</param>
-    /// <summary>
-    /// Record the current UTC activity time for the specified user and update their presence status.
-    /// </summary>
-    /// <param name="username">The user's name (lookup is case-insensitive).</param>
+    /// <param name="username">The username to record activity for; stored using a case-insensitive key.</param>
     /// <returns>The number of users whose last activity is within the current ActiveWindow.</returns>
     public int RecordActivity(string username)
     {
-        _userActivity[username] = DateTimeOffset.UtcNow;
-        var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
+        var now = DateTimeOffset.UtcNow;
+        _userActivity[username] = now;
+        var cutoff = now - ActiveWindow;
 
         return _userActivity.Values.Count(v => v >= cutoff);
     }
 
     /// <summary>
-    /// Gets users whose last recorded activity falls within the service's ActiveWindow.
+    /// Retrieves the users whose last recorded activity falls within the configured ActiveWindow.
     /// </summary>
-    /// <summary>
-    /// Retrieve users whose last recorded activity falls within the current ActiveWindow.
-    /// </summary>
-    /// <returns>A list of UserPresenceInfo objects (each containing Username, SafeId, and the activity timestamp) for users active within the ActiveWindow, ordered by Username.</returns>
+    /// <returns>An enumerable of UserPresenceInfo for users active within the ActiveWindow; each item contains the Username, a safe identifier, and the last-activity timestamp. The sequence is ordered by Username.</returns>
     public IEnumerable<UserPresenceInfo> GetActiveUsers()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
@@ -48,15 +42,10 @@ public class InMemoryUserPresenceService : IUserPresenceService
     }
 
     /// <summary>
-    /// Removes entries whose last activity is older than the configured ActiveWindow (relative to current UTC) and reports which presences were removed and how many remain active.
+    /// Removes users whose last recorded activity is older than the ActiveWindow and reports the removals and current active count.
     /// </summary>
     /// <returns>
-    /// A tuple where `Removed` is a read-only list of UserPresenceInfo for each user removed (including the original username, a safe-id, and the removed timestamp), and `ActiveCount` is the number of users with a last-activity timestamp greater than or equal to the ActiveWindow cutoff.
-    /// <summary>
-    /// Removes user activity entries older than the configured ActiveWindow and reports what was removed.
-    /// </summary>
-    /// <returns>
-    /// A tuple where `Removed` is a read-only list of UserPresenceInfo objects for each entry removed due to inactivity (each containing the username, its safe id, and the removed timestamp), and `ActiveCount` is the number of remaining entries whose last activity is within the ActiveWindow.
+    /// A tuple where `Removed` is a read-only list of UserPresenceInfo for users removed due to inactivity, and `ActiveCount` is the number of users with activity within the ActiveWindow.
     /// </returns>
     public (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse()
     {

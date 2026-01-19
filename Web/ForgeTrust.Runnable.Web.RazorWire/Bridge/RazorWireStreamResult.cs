@@ -23,7 +23,11 @@ public class RazorWireStreamResult : IActionResult
     /// Initializes a RazorWireStreamResult with a sequence of stream actions and an optional controller whose view context data should be reused.
     /// </summary>
     /// <param name="actions">Sequence of IRazorWireStreamAction instances to render and stream.</param>
-    /// <param name="controller">Optional Controller whose ViewData and TempData will be reused during rendering; if null, fresh view/temp data will be created.</param>
+    /// <summary>
+    /// Initializes a new RazorWireStreamResult with the sequence of actions to render and an optional controller whose view context may be reused.
+    /// </summary>
+    /// <param name="actions">Actions to render and stream as Turbo Stream HTML fragments.</param>
+    /// <param name="controller">Optional controller whose ViewData and TempData will be reused during rendering; if null, fresh view and temp data are created.</param>
     public RazorWireStreamResult(IEnumerable<IRazorWireStreamAction> actions, Controller? controller = null)
     {
         _actions = actions;
@@ -35,6 +39,9 @@ public class RazorWireStreamResult : IActionResult
     /// </summary>
     /// <summary>
     /// Initializes a result that will stream the provided raw HTML as a single Razor wire action.
+    /// </summary>
+    /// <summary>
+    /// Creates a RazorWireStreamResult that will stream the provided raw HTML as a single render action.
     /// </summary>
     /// <param name="rawContent">Raw HTML to stream; if null, an empty string is used.</param>
     public RazorWireStreamResult(string? rawContent)
@@ -60,6 +67,12 @@ public class RazorWireStreamResult : IActionResult
     /// - Sets the response Content-Type to "text/vnd.turbo-stream.html".
     /// - Builds a ViewContext and renders each configured IRazorWireStreamAction, writing each rendered HTML fragment to the response using UTF-8 encoding.
     /// - Renders actions in parallel with a maximum degree of parallelism of 64.
+    /// <summary>
+    /// Writes rendered Turbo Stream HTML for the configured actions to the HTTP response.
+    /// </summary>
+    /// <param name="context">The current action context used to build the view context and access the HTTP response.</param>
+    /// <remarks>
+    /// Generates and stores antiforgery tokens before sending any response data, sets the response Content-Type to "text/vnd.turbo-stream.html", and streams each action's rendered HTML to the response using UTF-8 encoding. Rendering of actions is performed with limited parallelism.
     /// </remarks>
     public async Task ExecuteResultAsync(ActionContext context)
     {
@@ -102,7 +115,11 @@ public class RazorWireStreamResult : IActionResult
     /// Creates a ViewContext configured for rendering the stream actions, optionally inheriting ViewData and TempData from the associated controller.
     /// </summary>
     /// <param name="actionContext">The current ActionContext used to build the ViewContext.</param>
-    /// <returns>A ViewContext with a NullView, the prepared ViewData, TempData (from the controller if present or created via ITempDataDictionaryFactory), TextWriter.Null, and default HtmlHelperOptions.</returns>
+    /// <summary>
+    /// Creates a ViewContext configured for rendering the stream actions for the given action context.
+    /// </summary>
+    /// <param name="actionContext">The current ActionContext used to populate the returned ViewContext.</param>
+    /// <returns>A ViewContext configured with a NullView, the prepared ViewData, TempData (the controller's if available or obtained from ITempDataDictionaryFactory), TextWriter.Null, and default HtmlHelperOptions.</returns>
     private ViewContext CreateViewContext(ActionContext actionContext)
     {
         var services = actionContext.HttpContext.RequestServices;
@@ -140,7 +157,10 @@ public class RazorWireStreamResult : IActionResult
         /// <summary>
         /// Initializes a RawHtmlStreamAction that returns the provided raw HTML when rendered.
         /// </summary>
-        /// <param name="html">The raw HTML content to be returned by RenderAsync.</param>
+        /// <summary>
+        /// Initializes a new RawHtmlStreamAction that will return the specified HTML when rendered.
+        /// </summary>
+        /// <param name="html">HTML content that RenderAsync will return (can be empty).</param>
         public RawHtmlStreamAction(string html)
         {
             _html = html;
@@ -150,7 +170,11 @@ public class RazorWireStreamResult : IActionResult
 /// Produces the stored raw HTML as the rendered output for the given view context.
 /// </summary>
 /// <param name="viewContext">The view rendering context supplied to the action.</param>
-/// <returns>The rendered HTML string stored by this action.</returns>
+/// <summary>
+/// Provide the stored HTML string as the rendered result.
+/// </summary>
+/// <param name="viewContext">The view context supplied for rendering; this implementation does not use it.</param>
+/// <returns>The stored HTML string.</returns>
 public Task<string> RenderAsync(ViewContext viewContext) => Task.FromResult(_html);
     }
 
@@ -161,7 +185,11 @@ public Task<string> RenderAsync(ViewContext viewContext) => Task.FromResult(_htm
 /// Performs no rendering and completes immediately.
 /// </summary>
 /// <param name="viewContext">The rendering context provided by the framework; this implementation ignores it.</param>
-/// <returns>A completed Task representing the finished (no-op) render operation.</returns>
+/// <summary>
+/// A no-op renderer that performs no output when asked to render a view.
+/// </summary>
+/// <param name="viewContext">The view context provided for rendering; this implementation ignores it.</param>
+/// <returns>A completed <see cref="Task"/> representing the finished render operation.</returns>
 public Task RenderAsync(ViewContext viewContext) => Task.CompletedTask;
     }
 }

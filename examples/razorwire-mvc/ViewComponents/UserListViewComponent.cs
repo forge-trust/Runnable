@@ -10,7 +10,10 @@ public class UserListViewComponent : ViewComponent
     /// <summary>
     /// Initializes a new instance of the UserListViewComponent and stores the provided presence service.
     /// </summary>
-    /// <param name="presence">Service used to record and retrieve user presence information.</param>
+    /// <summary>
+    /// Initializes a new instance of <see cref="UserListViewComponent"/> with the specified user presence service.
+    /// </summary>
+    /// <param name="presence">Service used to record user activity and retrieve active users.</param>
     public UserListViewComponent(IUserPresenceService presence)
     {
         _presence = presence;
@@ -23,7 +26,14 @@ public class UserListViewComponent : ViewComponent
     /// <returns>A view result whose model is a List&lt;UserPresenceInfo&gt; containing the active users.</returns>
     /// <remarks>
     /// If the request contains a non-empty "razorwire-username" cookie, the component records that user's activity before rendering the view.
+    /// <summary>
+    /// Renders a view displaying the current active users.
+    /// </summary>
+    /// <remarks>
+    /// If a non-empty "razorwire-username" cookie is present on the request, the user's activity is recorded via the presence service before rendering.
     /// </remarks>
+    /// <param name="users">An optional collection of user presence entries to display; if null, active users are retrieved from the presence service.</param>
+    /// <returns>A view result whose model is a List&lt;UserPresenceInfo&gt; representing the active users.</returns>
     public IViewComponentResult Invoke(IEnumerable<UserPresenceInfo>? users = null)
     {
         // Side-effect: If the user is fetching the list, they are active.

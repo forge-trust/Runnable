@@ -20,6 +20,12 @@ public static class RazorWireEndpointRouteBuilderExtensions
     /// writes messages as SSE `data:` lines, sends periodic SSE heartbeat comments to keep the connection alive, and unsubscribes when the client disconnects.
     /// </remarks>
     /// <param name="endpoints">The endpoint route builder to add the SSE endpoint to.</param>
+    /// <summary>
+    /// Registers a Server-Sent Events (SSE) GET endpoint at the configured streams base path that streams messages for a named channel.
+    /// </summary>
+    /// <remarks>
+    /// The endpoint enforces channel subscription authorization, streams hub messages as SSE (each line emitted as a `data:` event), sends a 20-second heartbeat comment when idle, and unsubscribes on client disconnect.
+    /// </remarks>
     /// <returns>The original <see cref="IEndpointRouteBuilder"/> instance.</returns>
     public static IEndpointRouteBuilder MapRazorWire(this IEndpointRouteBuilder endpoints)
     {

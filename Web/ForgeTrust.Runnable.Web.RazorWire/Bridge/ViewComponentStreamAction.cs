@@ -14,18 +14,12 @@ internal static class ViewComponentStreamHelper
     /// <summary>
     /// Renders a view component into a Turbo Stream XML fragment.
     /// </summary>
-    /// <param name="viewContext">The current view context.</param>
+    /// <param name="viewContext">The current Razor view context used as the basis for rendering.</param>
     /// <param name="action">The Turbo Stream action (e.g., "replace", "append").</param>
     /// <param name="target">The DOM element identifier to update.</param>
-    /// <param name="componentIdentifier">The component type or name to invoke.</param>
-    /// <param name="arguments">Optional arguments to pass to the component.</param>
-    /// <summary>
-    /// Render a view component into a Turbo Stream XML fragment.
-    /// </summary>
-    /// <param name="viewContext">The current Razor view context used as the basis for rendering.</param>
-    /// <param name="componentIdentifier">The view component to invoke; either a CLR Type or the component's string name.</param>
+    /// <param name="componentIdentifier">The view component to invoke; either a CLR <see cref="Type"/> or the component's string name.</param>
     /// <param name="arguments">Optional arguments to pass to the view component.</param>
-    /// <returns>A Turbo Stream XML fragment whose `action` and `target` attributes are HTML-encoded and whose `<template>` contains the rendered component HTML.</returns>
+    /// <returns>A Turbo Stream XML fragment whose `action` and `target` attributes are HTML-encoded and whose &lt;template&gt; contains the rendered component HTML.</returns>
     public static async Task<string> RenderComponentStreamAsync(
         ViewContext viewContext,
         string action,
@@ -69,12 +63,6 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     private readonly object? _arguments;
 
     /// <summary>
-    /// Creates an action that renders the specified view component type into a Turbo Stream targeting a DOM element.
-    /// </summary>
-    /// <param name="action">The Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
-    /// <param name="target">The DOM element id or target selector that the Turbo Stream will update.</param>
-    /// <param name="componentType">The CLR type of the view component to invoke.</param>
-    /// <summary>
     /// Creates an action that renders the specified view component type into a Turbo Stream fragment targeting the given element.
     /// </summary>
     /// <param name="action">The Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
@@ -87,16 +75,16 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
         Type componentType,
         object? arguments = null)
     {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(componentType);
+
         _action = action;
         _target = target;
         _componentType = componentType;
         _arguments = arguments;
     }
 
-    /// <summary>
-    /// Renders the configured view component into a Turbo Stream fragment that updates the specified target element.
-    /// </summary>
-    /// <param name="viewContext">The current ViewContext used as the base for rendering the view component.</param>
     /// <summary>
     /// Renders the configured view component into a Turbo Stream fragment.
     /// </summary>
@@ -121,12 +109,6 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
     private readonly object? _arguments;
 
     /// <summary>
-    /// Initializes a ViewComponentByNameStreamAction that will render the specified view component (by name) into a Turbo Stream targeting the given DOM element.
-    /// </summary>
-    /// <param name="action">The Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
-    /// <param name="target">The DOM element identifier to update.</param>
-    /// <param name="componentName">The name of the view component to invoke.</param>
-    /// <summary>
     /// Creates an action that renders a named view component into a Turbo Stream fragment targeting the specified element.
     /// </summary>
     /// <param name="action">Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
@@ -139,16 +121,16 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
         string componentName,
         object? arguments = null)
     {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(componentName);
+
         _action = action;
         _target = target;
         _componentName = componentName;
         _arguments = arguments;
     }
 
-    /// <summary>
-    /// Renders the configured view component (by name) into a Turbo Stream XML fragment targeting the specified DOM element.
-    /// </summary>
-    /// <param name="viewContext">The current view context used as the base for creating the component's rendering context.</param>
     /// <summary>
     /// Render the configured view component (by name) into a Turbo Stream fragment.
     /// </summary>

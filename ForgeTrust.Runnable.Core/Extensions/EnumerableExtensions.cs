@@ -32,38 +32,56 @@ public static class EnumerableExtensions
         var tasks = new List<Task>();
         long index = 0;
 
-        foreach (var item in source)
+        try
         {
-            var capturedIndex = index++;
-            await semaphore.WaitAsync(cancellationToken);
+            foreach (var item in source)
+            {
+                var capturedIndex = index++;
+                await semaphore.WaitAsync(cancellationToken);
 
-            tasks.Add(
-                Task.Run(
-                    async () =>
-                    {
-                        try
-                        {
-                            var result = await body(item, cancellationToken);
-                            results.TryAdd(capturedIndex, result);
-                        }
-                        finally
+                tasks.Add(
+                    Task.Run(
+                        async () =>
                         {
                             try
                             {
-                                // ReSharper disable AccessToDisposedClosure
-                                semaphore.Release();
-                                // ReSharper restore AccessToDisposedClosure
+                                var result = await body(item, cancellationToken);
+                                results.TryAdd(capturedIndex, result);
                             }
-                            catch (ObjectDisposedException)
+                            finally
                             {
-                                // Intentionally ignored: the operation was cancelled and the semaphore was disposed
+                                try
+                                {
+                                    // ReSharper disable AccessToDisposedClosure
+                                    semaphore.Release();
+                                    // ReSharper restore AccessToDisposedClosure
+                                }
+                                catch (ObjectDisposedException)
+                                {
+                                    // Intentionally ignored: the operation was cancelled and the semaphore was disposed
+                                }
                             }
-                        }
-                    },
-                    cancellationToken));
-        }
+                        },
+                        cancellationToken));
+            }
 
-        await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks);
+        }
+        catch (Exception)
+        {
+            // JOIN ALL ACTIVE TASKS before disposing the semaphore
+            // This ensures no background work is left unobserved and avoids NREs/ODEs
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch
+            {
+                // Exceptions in individual tasks are already captured by the main Task.WhenAll
+            }
+
+            throw;
+        }
 
         return results.OrderBy(kvp => kvp.Key).Select(kvp => kvp.Value);
     }

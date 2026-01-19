@@ -100,14 +100,15 @@ public class ReactivityController : Controller
     public async Task<IActionResult> PublishMessage([FromForm] string message)
     {
         var effectiveUsername = Request.Cookies["razorwire-username"];
+        var isAnonymous = string.IsNullOrWhiteSpace(effectiveUsername);
+        var displayName = isAnonymous ? "Anonymous" : effectiveUsername!.Trim();
 
-        if (!string.IsNullOrWhiteSpace(effectiveUsername))
+        if (!isAnonymous)
         {
-            await BroadcastUserPresenceAsync(effectiveUsername.Trim());
+            await BroadcastUserPresenceAsync(displayName);
         }
 
         // 1. Publish message to SSE
-        var displayName = string.IsNullOrWhiteSpace(effectiveUsername) ? "Anonymous" : effectiveUsername.Trim();
         var time = DateTimeOffset.UtcNow.ToString("T");
 
         // HTML-encode user input to prevent XSS attacks
@@ -133,10 +134,8 @@ public class ReactivityController : Controller
         // 2. Return stream result to caller
         if (Request.IsTurboRequest())
         {
-            var currentUsername = Request.Cookies["razorwire-username"] ?? "";
-
             return this.RazorWireStream()
-                .ReplacePartial("message-form", "_MessageForm", currentUsername)
+                .ReplacePartial("message-form", "_MessageForm", displayName == "Anonymous" ? "" : displayName)
                 .BuildResult();
         }
 

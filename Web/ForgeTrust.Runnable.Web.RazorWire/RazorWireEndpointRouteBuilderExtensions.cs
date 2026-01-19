@@ -3,26 +3,16 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
+using System.Threading.Channels;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
 public static class RazorWireEndpointRouteBuilderExtensions
 {
     /// <summary>
-    /// Adds a GET endpoint at "{BasePath}/{channel}" that streams Server-Sent Events (SSE) for the specified channel.
-    /// </summary>
-    /// <param name="endpoints">The endpoint route builder to configure.</param>
-    /// <summary>
-    /// Adds a GET endpoint that streams Server-Sent Events (SSE) for a named channel at "{BasePath}/{channel}".
-    /// </summary>
-    /// <remarks>
-    /// The endpoint authorizes the request using <c>IRazorWireChannelAuthorizer</c>, subscribes to <c>IRazorWireStreamHub</c>,
-    /// writes messages as SSE `data:` lines, sends periodic SSE heartbeat comments to keep the connection alive, and unsubscribes when the client disconnects.
-    /// </remarks>
-    /// <param name="endpoints">The endpoint route builder to add the SSE endpoint to.</param>
-    /// <summary>
     /// Registers a Server-Sent Events (SSE) GET endpoint at the configured streams base path that streams messages for a named channel.
     /// </summary>
+    /// <param name="endpoints">The endpoint route builder to configure.</param>
     /// <remarks>
     /// The endpoint enforces channel subscription authorization, streams hub messages as SSE (each line emitted as a `data:` event), sends a 20-second heartbeat comment when idle, and unsubscribes on client disconnect.
     /// </remarks>
@@ -83,6 +73,11 @@ public static class RazorWireEndpointRouteBuilderExtensions
 
                                 await context.Response.WriteAsync("\n", context.RequestAborted);
                                 await context.Response.Body.FlushAsync(context.RequestAborted);
+                            }
+                            catch (ChannelClosedException)
+                            {
+                                // Normal exit on channel completion
+                                break;
                             }
                             catch (OperationCanceledException) when (cts.IsCancellationRequested
                                                                      && !context.RequestAborted.IsCancellationRequested)

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using ForgeTrust.Runnable.Web.RazorWire.Caching;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
@@ -32,12 +33,9 @@ public class RazorWireWebModule : IRunnableWebModule
     {
         services.AddRazorWire();
         services.AddOutputCache();
-        
+
         services.AddOptions<OutputCacheOptions>()
-            .PostConfigure<RazorWireOptions>((options, rwOptions) => 
-            {
-                options.AddRazorWirePolicies(rwOptions);
-            });
+            .PostConfigure<RazorWireOptions>((options, rwOptions) => { options.AddRazorWirePolicies(rwOptions); });
     }
 
     /// <summary>

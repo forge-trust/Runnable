@@ -49,7 +49,8 @@ public class ExportEngine
             var validSeeds = seeds.Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s));
             foreach (var seed in validSeeds)
             {
-                _queue.Enqueue(seed);
+                var normalizedSeed = seed.StartsWith("/") ? seed : "/" + seed;
+                _queue.Enqueue(normalizedSeed);
             }
         }
         else
@@ -80,7 +81,7 @@ public class ExportEngine
 
         try
         {
-            var response = await _client.GetAsync($"{_baseUrl}{route}");
+            using var response = await _client.GetAsync($"{_baseUrl}{route}");
             if (!response.IsSuccessStatusCode)
             {
                 _console.Error.WriteLine($"  !! Failed to fetch {route}: {response.StatusCode}");

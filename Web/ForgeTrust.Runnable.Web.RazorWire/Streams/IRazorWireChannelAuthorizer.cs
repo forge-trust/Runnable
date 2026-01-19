@@ -5,12 +5,12 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Streams;
 public interface IRazorWireChannelAuthorizer
 {
     /// <summary>
-/// Determines whether the current HTTP request is permitted to subscribe to the specified channel.
-/// </summary>
-/// <param name="context">The current HTTP context for the subscription request.</param>
-/// <param name="channel">The name of the channel to subscribe to.</param>
-/// <returns><c>true</c> if subscription is permitted, <c>false</c> otherwise.</returns>
-ValueTask<bool> CanSubscribeAsync(HttpContext context, string channel);
+    /// Determines whether the current HTTP request is permitted to subscribe to the specified channel.
+    /// </summary>
+    /// <param name="context">The current HTTP context for the subscription request.</param>
+    /// <param name="channel">The name of the channel to subscribe to.</param>
+    /// <returns><c>true</c> if subscription is permitted, <c>false</c> otherwise.</returns>
+    ValueTask<bool> CanSubscribeAsync(HttpContext context, string channel);
 }
 
 public class DefaultRazorWireChannelAuthorizer : IRazorWireChannelAuthorizer

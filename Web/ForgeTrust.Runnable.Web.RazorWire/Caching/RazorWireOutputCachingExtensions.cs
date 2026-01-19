@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.OutputCaching;
-using Microsoft.Extensions.DependencyInjection;
 
-namespace ForgeTrust.Runnable.Web.RazorWire;
+namespace ForgeTrust.Runnable.Web.RazorWire.Caching;
 
 public static class RazorWireOutputCachingExtensions
 {
@@ -15,18 +14,25 @@ public static class RazorWireOutputCachingExtensions
     /// <returns>The modified <see cref="OutputCacheOptions"/> instance.</returns>
     public static OutputCacheOptions AddRazorWirePolicies(this OutputCacheOptions options, RazorWireOptions rwOptions)
     {
-        options.AddPolicy(rwOptions.Caching.PagePolicyName, builder =>
-        {
-            builder.Expire(TimeSpan.FromMinutes(1));
-            // Rule: authenticated or personalized content should not be cached unless explicitly configured.
-            builder.With(context => context.HttpContext.User.Identity?.IsAuthenticated == false);
-        });
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(rwOptions);
+        ArgumentNullException.ThrowIfNull(rwOptions.Caching);
+        options.AddPolicy(
+            rwOptions.Caching.PagePolicyName,
+            builder =>
+            {
+                builder.Expire(TimeSpan.FromMinutes(1));
+                // Rule: authenticated or personalized content should not be cached unless explicitly configured.
+                builder.With(context => context.HttpContext.User.Identity?.IsAuthenticated == false);
+            });
 
-        options.AddPolicy(rwOptions.Caching.IslandPolicyName, builder =>
-        {
-            builder.Expire(TimeSpan.FromSeconds(30));
-            builder.With(context => context.HttpContext.User.Identity?.IsAuthenticated == false);
-        });
+        options.AddPolicy(
+            rwOptions.Caching.IslandPolicyName,
+            builder =>
+            {
+                builder.Expire(TimeSpan.FromSeconds(30));
+                builder.With(context => context.HttpContext.User.Identity?.IsAuthenticated == false);
+            });
 
         return options;
     }

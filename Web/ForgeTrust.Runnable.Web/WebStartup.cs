@@ -16,6 +16,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     private bool _optionsBuilt;
     private readonly List<IRunnableWebModule> _modules = new();
 
+    /// <summary>
+    /// Registers an optional callback to configure WebOptions which will be applied when web options are built.
+    /// </summary>
+    /// <param name="configureOptions">An optional action that receives a WebOptions instance to modify configuration.</param>
+    /// <returns>The same <see cref="WebStartup{TModule}"/> instance to support fluent configuration.</returns>
     public WebStartup<TModule> WithOptions(Action<WebOptions>? configureOptions = null)
     {
         _configureOptions = configureOptions;
@@ -26,7 +31,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     /// <summary>
     /// Discovers IRunnableWebModule instances from the provided startup context and caches them for later use.
     /// </summary>
+    /// <summary>
+    /// Collects all IRunnableWebModule instances from the startup context's dependencies and root module and caches them for later use.
+    /// </summary>
     /// <param name="context">The startup context used to enumerate dependencies and the root module.</param>
+    /// <remarks>Operation is performed once; subsequent calls have no effect.</remarks>
     private void BuildModules(StartupContext context)
     {
         if (_modulesBuilt)
@@ -54,7 +63,13 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     /// <summary>
     /// Initialize and configure the application's WebOptions instance if it has not yet been initialized.
     /// </summary>
-    /// <param name="context">The startup context used when configuring web options (environment, dependencies, and module context).</param>
+    /// <summary>
+    /// Initializes and caches WebOptions by applying configuration from discovered modules and any external configurator.
+    /// </summary>
+    /// <param name="context">The startup context containing environment, dependencies, and module information used during configuration.</param>
+    /// <remarks>
+    /// This method is idempotent; subsequent calls have no effect once options are built. If MVC support level is at or above ControllersWithViews, static file support is enabled on the resulting options.
+    /// </remarks>
     private void BuildWebOptions(StartupContext context)
     {
         if (_optionsBuilt)
@@ -83,7 +98,12 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     /// Configures DI services required for the web application based on discovered modules and the current WebOptions.
     /// </summary>
     /// <param name="context">Startup context containing environment info and the entry point assembly.</param>
-    /// <param name="services">The service collection to which MVC and CORS services will be added.</param>
+    /// <summary>
+    /// Configures web-related services (MVC and CORS) on the provided service collection according to discovered web modules and the resolved WebOptions.
+    /// </summary>
+    /// <param name="context">The startup context providing environment info and the entry point assembly.</param>
+    /// <param name="services">The service collection to which MVC and CORS services will be added and configured.</param>
+    /// <exception cref="InvalidOperationException">Thrown when CORS is enabled but no allowed origins are specified, except when all origins are explicitly allowed in development.</exception>
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
         BuildModules(context);
@@ -174,6 +194,12 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     }
 
 
+    /// <summary>
+    /// Configures the provided host builder with web host defaults and application initialization based on discovered modules and web options.
+    /// </summary>
+    /// <param name="context">The startup context used to build modules and construct web options.</param>
+    /// <param name="builder">The host builder to configure for web hosting.</param>
+    /// <returns>The same <see cref="IHostBuilder"/> configured with web host defaults and the application's initialization pipeline.</returns>
     protected override IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder)
     {
         BuildModules(context);
@@ -190,6 +216,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         });
     }
 
+    /// <summary>
+    /// Configure the provided application builder for the web application using discovered modules and the current WebOptions.
+    /// </summary>
+    /// <param name="context">The startup context containing environment and dependency information.</param>
+    /// <param name="app">The application builder to configure (middleware, routing, CORS, endpoints, etc.).</param>
     private void InitializeWebApplication(StartupContext context, IApplicationBuilder app)
     {
         foreach (var module in _modules)

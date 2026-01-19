@@ -12,6 +12,14 @@ public static class RazorWireEndpointRouteBuilderExtensions
     /// Adds a GET endpoint at "{BasePath}/{channel}" that streams Server-Sent Events (SSE) for the specified channel.
     /// </summary>
     /// <param name="endpoints">The endpoint route builder to configure.</param>
+    /// <summary>
+    /// Adds a GET endpoint that streams Server-Sent Events (SSE) for a named channel at "{BasePath}/{channel}".
+    /// </summary>
+    /// <remarks>
+    /// The endpoint authorizes the request using <c>IRazorWireChannelAuthorizer</c>, subscribes to <c>IRazorWireStreamHub</c>,
+    /// writes messages as SSE `data:` lines, sends periodic SSE heartbeat comments to keep the connection alive, and unsubscribes when the client disconnects.
+    /// </remarks>
+    /// <param name="endpoints">The endpoint route builder to add the SSE endpoint to.</param>
     /// <returns>The original <see cref="IEndpointRouteBuilder"/> instance.</returns>
     public static IEndpointRouteBuilder MapRazorWire(this IEndpointRouteBuilder endpoints)
     {

@@ -111,4 +111,35 @@ public class EnumerableExtensionsTests
         // (a task might start before another fully cleans up), but it should be close and certainly not 10.
         Assert.True(maxObservedTasks <= 3, $"Expected max degree approx 2, but observed {maxObservedTasks}");
     }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_EarlyBreak_CompletesProducerTask()
+    {
+        // Arrange
+        var input = Enumerable.Range(0, 100);
+        int startedCount = 0;
+
+        // Act
+        await foreach (var item in input.ParallelSelectAsyncEnumerable(
+                           async x =>
+                           {
+                               Interlocked.Increment(ref startedCount);
+                               await Task.Delay(50);
+
+                               return x;
+                           },
+                           maxDegreeOfParallelism: 10))
+        {
+            if (item == 5) break;
+        }
+
+        // Wait a bit to ensure cleanup would have happened
+        await Task.Delay(200);
+
+        // Assert
+        // With 10 parallelism and breaking at item 5, we expect some tasks to have started but not all 100.
+        // If the producer task didn't stop, it might have scheduled more than 15-20 (bufferMultiplier 4x * DOP 10 = 40 possible)
+        // But it definitely SHOULD NOT reach 100.
+        Assert.True(startedCount < 100, $"Expected producer to stop, but {startedCount} tasks were started.");
+    }
 }

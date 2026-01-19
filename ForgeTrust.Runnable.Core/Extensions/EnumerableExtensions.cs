@@ -108,19 +108,22 @@ public static class EnumerableExtensions
                 SingleReader = true
             });
 
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var semaphore = new SemaphoreSlim(maxDegreeOfParallelism);
 
         // Producer: Schedules tasks and writes them to the channel
         // We use Task.Run to offload the scheduling loop so it doesn't block the consumer
-        _ = Task.Run(
+        var producerTask = Task.Run(
             async () =>
             {
                 try
                 {
                     foreach (var item in source)
                     {
+                        if (cts.Token.IsCancellationRequested) break;
+
                         // ReSharper disable once AccessToDisposedClosure
-                        await semaphore.WaitAsync(cancellationToken);
+                        await semaphore.WaitAsync(cts.Token);
 
                         // Start the task. 
                         // We wrap matching the semaphore release to the task completion.
@@ -129,21 +132,28 @@ public static class EnumerableExtensions
                             {
                                 try
                                 {
-                                    return await body(item, cancellationToken);
+                                    return await body(item, cts.Token);
                                 }
                                 finally
                                 {
                                     // Release concurrency limit slot when task completes
-                                    // ReSharper disable once AccessToDisposedClosure
-                                    semaphore.Release();
+                                    try
+                                    {
+                                        // ReSharper disable once AccessToDisposedClosure
+                                        semaphore.Release();
+                                    }
+                                    catch (ObjectDisposedException)
+                                    {
+                                        // Intentionally ignored: the operation was cancelled and the semaphore was disposed
+                                    }
                                 }
                             },
-                            cancellationToken);
+                            cts.Token);
 
                         // Write the task (future result) to the channel
                         // If the consumer is slow, this will block once the channel is full,
                         // providing backpressure but ensuring we have maxDegreeOfParallelism active tasks.
-                        await channel.Writer.WriteAsync(task, cancellationToken);
+                        await channel.Writer.WriteAsync(task, cts.Token);
                     }
 
                     channel.Writer.Complete();
@@ -155,10 +165,32 @@ public static class EnumerableExtensions
             },
             cancellationToken);
 
-        // Consumer: Yields results in order
-        await foreach (var task in channel.Reader.ReadAllAsync(cancellationToken))
+        try
         {
-            yield return await task;
+            // Consumer: Yields results in order
+            await foreach (var task in channel.Reader.ReadAllAsync(cancellationToken))
+            {
+                yield return await task;
+            }
+        }
+        finally
+        {
+            // Signal producer to stop if it's still running (e.g. on break or exception)
+            await cts.CancelAsync();
+
+            try
+            {
+                // Ensure producer task is joined before semaphore is disposed
+                await producerTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on cancellation
+            }
+            catch
+            {
+                // Other task failures are either handled via channel or ignored here during cleanup
+            }
         }
     }
 

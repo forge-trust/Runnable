@@ -72,7 +72,11 @@ public class WebStartupTests
     {
         var root = new TestWebModule();
         var startup = new TestWebStartup(root);
-        startup.WithOptions(o => o.Cors.EnableCors = true);
+        startup.WithOptions(o =>
+        {
+            o.Cors.EnableCors = true;
+            o.Cors.AllowedOrigins = new[] { "https://example.com" };
+        });
         var context = new StartupContext([], root);
 
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
@@ -208,6 +212,7 @@ public class WebStartupTests
         startup.WithOptions(o =>
         {
             o.Cors.EnableCors = true;
+            o.Cors.AllowedOrigins = new[] { "https://example.com" };
             o.StaticFiles.EnableStaticFiles = true;
             o.Mvc.MvcSupportLevel = MvcSupport.Controllers;
             o.MapEndpoints = endpoints => { endpoints.MapGet("/test-direct", () => "Direct"); };

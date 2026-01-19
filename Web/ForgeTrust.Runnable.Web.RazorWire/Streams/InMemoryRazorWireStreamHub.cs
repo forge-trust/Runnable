@@ -7,6 +7,7 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
 {
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<ChannelWriter<string>, byte>> _channels = new();
     private readonly ConcurrentDictionary<ChannelReader<string>, ChannelWriter<string>> _readerToWriter = new();
+    private readonly ConcurrentDictionary<ChannelWriter<string>, ChannelReader<string>> _writerToReader = new();
 
     /// <summary>
     /// Publish a string message to all subscribers of the specified channel.
@@ -39,11 +40,10 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
                 {
                     subscribersDict.TryRemove(closed, out _);
 
-                    // Also remove the reverse mapping from _readerToWriter to prevent leaks
-                    var readerMapping = _readerToWriter.FirstOrDefault(kvp => kvp.Value == closed);
-                    if (readerMapping.Key != null)
+                    // Also remove the bidirectional mappings to prevent leaks
+                    if (_writerToReader.TryRemove(closed, out var reader))
                     {
-                        _readerToWriter.TryRemove(readerMapping.Key, out _);
+                        _readerToWriter.TryRemove(reader, out _);
                     }
                 }
             }
@@ -67,6 +67,7 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
             new BoundedChannelOptions(100) { FullMode = BoundedChannelFullMode.DropOldest });
 
         _readerToWriter.TryAdd(subscriber.Reader, subscriber.Writer);
+        _writerToReader.TryAdd(subscriber.Writer, subscriber.Reader);
 
         var subscribers = _channels.GetOrAdd(channel, _ => new ConcurrentDictionary<ChannelWriter<string>, byte>());
         subscribers.TryAdd(subscriber.Writer, 0);
@@ -83,6 +84,7 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     {
         if (_readerToWriter.TryRemove(reader, out var writer))
         {
+            _writerToReader.TryRemove(writer, out _);
             writer.TryComplete();
             if (_channels.TryGetValue(channel, out var subscribers))
             {

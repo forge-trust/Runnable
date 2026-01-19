@@ -1,3 +1,4 @@
+using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -22,7 +23,7 @@ public class DocAggregator
         _cache = cache;
         _logger = logger;
         _repositoryRoot = configuration["RepositoryRoot"]
-                          ?? Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", ".."));
+                          ?? PathUtils.FindRepositoryRoot(environment.ContentRootPath);
     }
 
     public async Task<IEnumerable<DocNode>> GetDocsAsync()

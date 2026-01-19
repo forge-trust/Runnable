@@ -14,7 +14,16 @@ public static class EnumerableExtensions
     /// <param name="body">A transform function to apply to each element.</param>
     /// <param name="maxDegreeOfParallelism">The maximum number of concurrent tasks.</param>
     /// <param name="cancellationToken">The CancellationToken to monitor for cancellation requests.</param>
-    /// <returns>A task that represents the complete operation. The task result contains an IEnumerable of type TResult.</returns>
+    /// <summary>
+    /// Projects each element of the source sequence into a new form using an asynchronous transform with a limit on concurrent operations, producing results in the original input order.
+    /// </summary>
+    /// <param name="source">The input sequence of elements to transform.</param>
+    /// <param name="body">An asynchronous transform that receives an element and a <see cref="CancellationToken"/> and produces a result.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation of the operation.</param>
+    /// <returns>An IEnumerable&lt;TResult&gt; containing the transformed results in the same order as the source.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/> or <paramref name="body"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero.</exception>
     public static async Task<IEnumerable<TResult>> ParallelSelectAsync<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, CancellationToken, Task<TResult>> body,
@@ -66,6 +75,14 @@ public static class EnumerableExtensions
         return results.OrderBy(kvp => kvp.Key).Select(kvp => kvp.Value);
     }
 
+    /// <summary>
+    /// Projects elements of <paramref name="source"/> into a new form and yields the transformed elements in the original order while limiting concurrent operations.
+    /// </summary>
+    /// <param name="source">The sequence of input elements to transform.</param>
+    /// <param name="body">A transform function that produces a result for an element.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the operation.</param>
+    /// <returns>An async sequence that yields the transformed elements in the same order as the input, produced with bounded concurrency and buffering.</returns>
     public static IAsyncEnumerable<TResult> ParallelSelectAsync<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, Task<TResult>> body,
@@ -90,7 +107,17 @@ public static class EnumerableExtensions
     /// <param name="maxDegreeOfParallelism">The maximum number of concurrent tasks.</param>
     /// <param name="bufferMultiplier">Multiplier for the channel buffer size (default 4). Allows producer to run ahead of consumer.</param>
     /// <param name="cancellationToken">The CancellationToken to monitor for cancellation requests.</param>
-    /// <returns>An async enumerable that yields results in order.</returns>
+    /// <summary>
+    /// Asynchronously projects each element of <paramref name="source"/> with a bounded degree of concurrency and yields results in the original order as they become available.
+    /// </summary>
+    /// <param name="source">The input sequence to project.</param>
+    /// <param name="body">An asynchronous transform that receives an element and a <see cref="CancellationToken"/> and produces a result.</param>
+    /// <param name="maxDegreeOfParallelism">Maximum number of concurrent transform operations; must be greater than zero.</param>
+    /// <param name="bufferMultiplier">Multiplier used to size the internal channel buffer; the channel capacity is <c>maxDegreeOfParallelism * bufferMultiplier</c>. Must be at least 1.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the overall enumeration.</param>
+    /// <returns>An async enumerable that yields transformed results in the same order as the source.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="body"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero or if <paramref name="bufferMultiplier"/> is less than 1.</exception>
     public static async IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, CancellationToken, Task<TResult>> body,
@@ -242,7 +269,17 @@ public static class EnumerableExtensions
     /// <summary>
     /// Projects each element of a sequence into a new form asynchronously, with a limit on the number of concurrent operations,
     /// yielding results in the original order as they become available.
+    /// <summary>
+    /// Projects elements of a sequence into a new form asynchronously and yields results as an async stream with bounded concurrency.
     /// </summary>
+    /// <param name="source">The input sequence.</param>
+    /// <param name="body">A transform function that produces a result for each source element.</param>
+    /// <param name="maxDegreeOfParallelism">Maximum number of concurrent transform operations; must be greater than zero.</param>
+    /// <param name="bufferMultiplier">Multiplier applied to <paramref name="maxDegreeOfParallelism"/> to size the internal buffer; must be at least 1.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the asynchronous stream.</param>
+    /// <returns>
+    /// An IAsyncEnumerable<TResult> that yields transformed results in the order produced, with backpressure controlled by the configured buffer and concurrency limit.
+    /// </returns>
     public static IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, Task<TResult>> body,
@@ -257,5 +294,4 @@ public static class EnumerableExtensions
             cancellationToken);
     }
 }
-
 

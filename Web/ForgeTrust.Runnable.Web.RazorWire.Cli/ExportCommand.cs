@@ -21,7 +21,12 @@ public class ExportCommand : ICommand
     /// Validates options, runs the export engine to produce a static site, and writes progress messages to the console.
     /// </summary>
     /// <returns>A ValueTask that completes when the export operation finishes.</returns>
-    /// <exception cref="CommandException">Thrown when <c>BaseUrl</c> is not an absolute HTTP/HTTPS URL or when <c>Mode</c> is not "s3" or "hybrid".</exception>
+    /// <summary>
+    /// Executes the export command: validates options, runs the export engine, and writes progress to the console.
+    /// </summary>
+    /// <param name="console">Console used to write progress and completion messages.</param>
+    /// <returns>A ValueTask that completes when the export operation finishes.</returns>
+    /// <exception cref="CommandException">Thrown when <c>BaseUrl</c> is not an absolute HTTP or HTTPS URL.</exception>
     public async ValueTask ExecuteAsync(IConsole console)
     {
         if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri)

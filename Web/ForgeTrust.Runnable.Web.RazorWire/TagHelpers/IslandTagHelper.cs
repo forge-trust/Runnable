@@ -29,7 +29,11 @@ public class IslandTagHelper : TagHelper
     /// Renders the rw:island element as a &lt;turbo-frame&gt; and applies attributes based on the tag helper's properties.
     /// </summary>
     /// <param name="context">The current tag helper context.</param>
-    /// <param name="output">The output to modify; the method sets TagName to "turbo-frame", TagMode to StartTagAndEndTag, and updates attributes.</param>
+    /// <summary>
+    /// Transforms the element into a turbo-frame and applies island-specific attributes from the tag helper's properties.
+    /// </summary>
+    /// <param name="context">The current tag helper execution context.</param>
+    /// <param name="output">The output to modify; sets TagName to "turbo-frame", TagMode to StartTagAndEndTag, and updates attributes (id, src, loading, data-turbo-permanent, data-rw-swr, view-transition-name in style, data-rw-export, and client-related data attributes) based on the helper's properties.</param>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = "turbo-frame";

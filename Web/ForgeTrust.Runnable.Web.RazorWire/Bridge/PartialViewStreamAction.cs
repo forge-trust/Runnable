@@ -20,6 +20,12 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     /// <param name="action">Turbo Stream action attribute (for example, "replace", "append", "update").</param>
     /// <param name="target">The target identifier for the Turbo Stream element.</param>
     /// <param name="viewName">The name or path of the partial view to render.</param>
+    /// <summary>
+    /// Creates an instance configured to render a specified partial view and wrap its output in a Turbo Stream element.
+    /// </summary>
+    /// <param name="action">The Turbo Stream action attribute (for example, "replace" or "update").</param>
+    /// <param name="target">The Turbo Stream target attribute that identifies the element to update.</param>
+    /// <param name="viewName">The name or path of the partial view to render.</param>
     /// <param name="model">Optional model to supply to the partial view; may be null.</param>
     public PartialViewStreamAction(
         string action,
@@ -38,6 +44,11 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     /// </summary>
     /// <param name="viewContext">The current view context used to locate services, view engines, model state, and rendering resources.</param>
     /// <returns>An HTML string representing a &lt;turbo-stream&gt; element whose &lt;template&gt; contains the rendered partial view.</returns>
+    /// <summary>
+    /// Renders the configured partial view into a Turbo Stream element using the provided view context.
+    /// </summary>
+    /// <param name="viewContext">The current view context used to locate services and render the partial view.</param>
+    /// <returns>A string containing a &lt;turbo-stream&gt; element with the rendered partial view inside its &lt;template&gt;.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the partial view cannot be located.</exception>
     public async Task<string> RenderAsync(ViewContext viewContext)
     {

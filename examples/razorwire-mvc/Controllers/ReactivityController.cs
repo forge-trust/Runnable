@@ -23,6 +23,10 @@ public class ReactivityController : Controller
         return View();
     }
 
+    /// <summary>
+    /// Renders the sidebar as a permanent RazorWire/Turbo frame for the UI island.
+    /// </summary>
+    /// <returns>An IActionResult that renders a RazorWire frame containing the sidebar content with frame ID "permanent-island".</returns>
     public IActionResult Sidebar()
     {
         return RazorWireBridge.Frame(this, "permanent-island", "_Sidebar");
@@ -31,7 +35,10 @@ public class ReactivityController : Controller
     /// <summary>
     /// Provide a Turbo/RazorWire frame that contains the UserList view component for the island.
     /// </summary>
-    /// <returns>An action result that renders the UserList view component wrapped in a Turbo/RazorWire frame with id "user-list".</returns>
+    /// <summary>
+    /// Provides a Turbo/RazorWire frame containing the UserList view component for the island.
+    /// </summary>
+    /// <returns>An IActionResult that renders the UserList view component wrapped in a Turbo/RazorWire frame with id "user-list".</returns>
     public IActionResult UserList()
     {
         // Wrap the ViewComponent in a Turbo Frame for the island
@@ -42,7 +49,11 @@ public class ReactivityController : Controller
     /// Handle a user registration submitted via form: persist the trimmed username in an HttpOnly cookie and broadcast the user's presence to connected clients.
     /// </summary>
     /// <param name="username">The submitted username from the form; leading and trailing whitespace will be trimmed. If null, empty, or whitespace only, no cookie is set and no presence broadcast is performed.</param>
-    /// <returns>A Turbo Stream that replaces the message form and updates the register form when the request is a Turbo request; otherwise a redirect to the Index action.</returns>
+    /// <summary>
+    /// Registers the provided username, persists it in a cookie, and broadcasts the user's presence to other clients.
+    /// </summary>
+    /// <param name="username">The username submitted from the registration form. If empty or whitespace, no username is persisted or broadcast.</param>
+    /// <returns>A result that is a Turbo Stream replacing the message form and updating the register form when the request is a Turbo request; otherwise a redirect to the Index action.</returns>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RegisterUser([FromForm] string username)
@@ -86,7 +97,12 @@ public class ReactivityController : Controller
     /// <param name="username">Optional username to attribute the message; if null, the controller will read the "razorwire-username" cookie.</param>
     /// <returns>
     /// A result that replaces the message form partial when the request is a Turbo request, or a redirect to the Index action otherwise.
-    /// </returns>
+    /// <summary>
+    /// Publishes a chat message to connected clients and returns an updated response for the sender.
+    /// </summary>
+    /// <param name="message">The message text submitted from the form.</param>
+    /// <param name="username">An optional username submitted with the form; when omitted the stored cookie value is used.</param>
+    /// <returns>A Turbo/RazorWire stream that replaces the message form when the request is a Turbo request; otherwise a redirect to the Index action.</returns>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> PublishMessage([FromForm] string message, [FromForm] string? username)
@@ -138,7 +154,11 @@ public class ReactivityController : Controller
     /// A result that:
     /// - if the request is a Turbo request, updates the instance score, session score, and the hidden client-count input via a Turbo Stream;
     /// - otherwise redirects to the request's Referer when it is a local URL, or to the Index action.
-    /// </returns>
+    /// <summary>
+    /// Increments the server-side counter and the supplied client counter, then responds with a RazorWire/Turbo stream to update the UI or with a safe redirect.
+    /// </summary>
+    /// <param name="clientCount">The client's current session counter value; this value is incremented and returned to the client.</param>
+    /// <returns>For Turbo requests: a stream that updates "instance-score-value" with the server counter, updates "session-score-value" with the incremented client count, and replaces the hidden "client-count-input" with the new value; otherwise a redirect to the referring local URL or the Index action.</returns>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult IncrementCounter([FromForm] int clientCount)
@@ -168,7 +188,10 @@ public class ReactivityController : Controller
     /// <summary>
     /// Record a user's activity, generate a stream that updates the user list and online count, and publish it to the "reactivity" channel.
     /// </summary>
-    /// <param name="username">The user's name to record and render in the user list.</param>
+    /// <summary>
+    /// Broadcasts a user's presence to connected clients by updating the user list and online count.
+    /// </summary>
+    /// <param name="username">The display name to record as active and render in the user list.</param>
     private async Task BroadcastUserPresenceAsync(string username)
     {
         // Record activity and get the current active count

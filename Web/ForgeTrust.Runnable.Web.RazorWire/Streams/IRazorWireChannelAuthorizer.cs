@@ -18,6 +18,16 @@ public class DefaultRazorWireChannelAuthorizer : IRazorWireChannelAuthorizer
     /// <summary>
     /// Determine whether the request represented by the <paramref name="context"/> may subscribe to the specified channel.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>SECURITY WARNING:</strong> This default implementation allows ALL subscriptions to ANY channel.
+    /// It is intended for development and prototyping only.
+    /// </para>
+    /// <para>
+    /// In a production environment, you should replace this service with an implementation that enforces
+    /// your application's specific authorization rules (e.g., checking user claims or roles).
+    /// </para>
+    /// </remarks>
     /// <param name="context">The HTTP context of the requesting client.</param>
     /// <param name="channel">The name of the channel to subscribe to.</param>
     /// <returns>`true` if subscription is allowed, `false` otherwise.</returns>

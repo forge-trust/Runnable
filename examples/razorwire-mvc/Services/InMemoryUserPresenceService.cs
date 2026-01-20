@@ -52,15 +52,22 @@ public class InMemoryUserPresenceService : IUserPresenceService
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
         var removed = new List<UserPresenceInfo>();
 
+        var collection = (ICollection<KeyValuePair<string, DateTimeOffset>>)_userActivity;
+
         foreach (var kvp in _userActivity)
         {
-            if (kvp.Value < cutoff && _userActivity.TryRemove(kvp.Key, out _))
+            // Atomically remove only if the value matches our snapshot.
+            // This prevents removing a user who updated their activity *after* we retrieved the value but *before* we tried to remove it.
+            if (kvp.Value < cutoff)
             {
-                removed.Add(
-                    new UserPresenceInfo(
-                        kvp.Key,
-                        StringUtils.ToSafeId(kvp.Key, appendHash: true),
-                        kvp.Value));
+                if (collection.Remove(kvp))
+                {
+                    removed.Add(
+                        new UserPresenceInfo(
+                            kvp.Key,
+                            StringUtils.ToSafeId(kvp.Key, appendHash: true),
+                            kvp.Value));
+                }
             }
         }
 

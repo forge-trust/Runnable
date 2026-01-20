@@ -4,7 +4,7 @@ using CliFx.Infrastructure;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
-public class ExportEngine
+public class ExportEngine : IDisposable
 {
     private readonly string _outputPath;
     private readonly string? _seedRoutesPath;
@@ -128,7 +128,12 @@ public class ExportEngine
             normalized = normalized.TrimEnd('/') + "/index";
         }
 
-        var relativePath = normalized.TrimStart('/').Replace('/', Path.DirectorySeparatorChar) + ".html";
+        var relativePath = normalized.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        if (!Path.HasExtension(relativePath))
+        {
+            relativePath += ".html";
+        }
+
         var fullPath = Path.GetFullPath(Path.Combine(_outputPath, relativePath));
         var fullOutputPath = Path.GetFullPath(_outputPath);
 
@@ -163,13 +168,16 @@ public class ExportEngine
         foreach (Match match in matches)
         {
             var href = match.Groups[1].Value;
-            if (href.StartsWith("/")
+            if (href.StartsWith('/')
                 && !href.StartsWith("//")
-                && !href.Contains(":")
-                && !href.Contains("#")
-                && !_visited.Contains(href))
+                && !href.Contains(':'))
             {
-                _queue.Enqueue(href);
+                // Strip query and fragment
+                var normalized = href.Split('?')[0].Split('#')[0];
+                if (!_visited.Contains(normalized))
+                {
+                    _queue.Enqueue(normalized);
+                }
             }
         }
     }
@@ -186,15 +194,24 @@ public class ExportEngine
         var matches = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"");
         var frames = matches.Select(m => m.Groups[1].Value)
             .Where(src =>
-                src.StartsWith("/")
+                src.StartsWith('/')
                 && !src.StartsWith("//")
-                && !src.Contains(":")
-                && !src.Contains("#")
-                && !_visited.Contains(src));
+                && !src.Contains(':'));
 
         foreach (var src in frames)
         {
-            _queue.Enqueue(src);
+            // Strip query and fragment
+            var normalized = src.Split('?')[0].Split('#')[0];
+            if (!_visited.Contains(normalized))
+            {
+                _queue.Enqueue(normalized);
+            }
         }
+    }
+
+    public void Dispose()
+    {
+        _client.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

@@ -30,7 +30,12 @@ public class RequiresStreamTagHelper : TagHelper
         output.Attributes.SetAttribute("data-rw-requires-stream", RequiresStream);
         output.Attributes.SetAttribute("aria-disabled", "true");
 
-        // Automatically disable by default until JS enables it
-        output.Attributes.SetAttribute("disabled", "disabled");
+        // Only add the standard disabled attribute for form elements where it is valid
+        // For others, the aria-disabled attribute + JS handling is sufficient (and creating visual styles based on it)
+        var tagName = output.TagName?.ToLowerInvariant() ?? context.TagName.ToLowerInvariant();
+        if (tagName is "button" or "input" or "select" or "textarea" or "optgroup" or "option" or "fieldset")
+        {
+            output.Attributes.SetAttribute("disabled", "disabled");
+        }
     }
 }

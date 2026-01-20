@@ -58,9 +58,11 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     /// <summary>
     /// Renders the configured partial view and wraps its output in a Turbo Stream element.
     /// </summary>
+    /// <param name="viewContext">The current view context used to locate services and render the partial view.</param>
+    /// <param name="cancellationToken">A token to observe while waiting for the task to complete.</param>
     /// <returns>The turbo-stream HTML string containing the rendered partial inside a &lt;template&gt; element.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the partial view cannot be located.</exception>
-    public async Task<string> RenderAsync(ViewContext viewContext)
+    public async Task<string> RenderAsync(ViewContext viewContext, CancellationToken cancellationToken = default)
     {
         var services = viewContext.HttpContext.RequestServices;
         var viewEngine = services.GetRequiredService<ICompositeViewEngine>();
@@ -93,6 +95,9 @@ public class PartialViewStreamAction : IRazorWireStreamAction
             writer,
             new HtmlHelperOptions()
         );
+
+        // We can check cancellation before rendering
+        cancellationToken.ThrowIfCancellationRequested();
 
         await viewResult.View.RenderAsync(partialViewContext);
         var content = writer.ToString();

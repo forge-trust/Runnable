@@ -6,6 +6,7 @@
     window.RazorWireIslandsInitialized = true;
 
     const initializedElements = new WeakSet();
+    const scheduledElements = new WeakSet();
 
     /**
      * Hydrates all unhydrated RazorWire islands in the document according to each element's data-rw-strategy.
@@ -24,9 +25,13 @@
         const islands = document.querySelectorAll('[data-rw-module]:not([data-rw-hydrated])');
 
         for (const island of islands) {
-            if (initializedElements.has(island)) continue;
+            // Guard against double-scheduling: check both already-mounted and currently-scheduled elements
+            if (initializedElements.has(island) || scheduledElements.has(island)) continue;
 
             const modulePath = island.getAttribute('data-rw-module');
+            if (!modulePath) continue; // Safety guard
+
+            scheduledElements.add(island);
             const strategy = island.getAttribute('data-rw-strategy') || 'load';
             let props = {};
             try {

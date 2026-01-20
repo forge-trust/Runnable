@@ -61,10 +61,11 @@ public class RazorWireStreamResult : IActionResult
         var viewContext = CreateViewContext(context);
 
         await foreach (var html in _actions.ParallelSelectAsyncEnumerable(
-                           async action => await action.RenderAsync(viewContext),
-                           maxDegreeOfParallelism: 64))
+                           async (action, ct) => await action.RenderAsync(viewContext, ct),
+                           maxDegreeOfParallelism: 64,
+                           cancellationToken: context.HttpContext.RequestAborted))
         {
-            await response.WriteAsync(html, Encoding.UTF8);
+            await response.WriteAsync(html, Encoding.UTF8, context.HttpContext.RequestAborted);
         }
     }
 
@@ -120,8 +121,10 @@ public class RazorWireStreamResult : IActionResult
         /// Produces the stored raw HTML as the rendered output for the given view context.
         /// </summary>
         /// <param name="viewContext">The view rendering context supplied to the action.</param>
+        /// <param name="cancellationToken">Cancellation token (ignored for raw HTML).</param>
         /// <returns>The stored HTML string.</returns>
-        public Task<string> RenderAsync(ViewContext viewContext) => Task.FromResult(_html);
+        public Task<string> RenderAsync(ViewContext viewContext, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_html);
     }
 
     private class NullView : IView

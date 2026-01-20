@@ -90,12 +90,22 @@
 }
 
 /* Island Hydration Softening */
+/* Island Hydration Softening */
 turbo-frame {
     transition: opacity 0.3s ease-in-out;
 }
 
 turbo-frame[loading="lazy"] {
     opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    turbo-frame,
+    turbo-frame[loading="lazy"] {
+        transition: none;
+        opacity: 1 !important;
+    }
 }
 
 #active-user-list h4 {

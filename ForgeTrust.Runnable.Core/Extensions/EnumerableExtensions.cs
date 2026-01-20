@@ -252,7 +252,7 @@ public static class EnumerableExtensions
             {
                 // Expected on cancellation
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex)
             {
 #if DEBUG
                 System.Diagnostics.Debug.WriteLine(

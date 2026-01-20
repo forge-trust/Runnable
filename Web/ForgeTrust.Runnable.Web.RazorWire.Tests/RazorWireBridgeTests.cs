@@ -1,7 +1,11 @@
+using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Routing;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Tests;
 
@@ -62,5 +66,41 @@ public class RazorWireBridgeTests
     {
         var builder = RazorWireBridge.CreateStream();
         Assert.NotNull(builder);
+    }
+
+    [Fact]
+    public void CreateViewContext_ReturnsConfiguredViewContext()
+    {
+        // Arrange
+        var controller = new TestController();
+        var httpContext = new DefaultHttpContext();
+        var serviceProvider = A.Fake<IServiceProvider>();
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+
+        A.CallTo(() => serviceProvider.GetService(typeof(ITempDataDictionaryFactory))).Returns(tempDataFactory);
+        A.CallTo(() => tempDataFactory.GetTempData(httpContext)).Returns(A.Fake<ITempDataDictionary>());
+
+        httpContext.RequestServices = serviceProvider;
+        var routeData = new RouteData();
+        var actionDescriptor = new ControllerActionDescriptor();
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = httpContext,
+            RouteData = routeData,
+            ActionDescriptor = actionDescriptor
+        };
+
+        // Act
+        var viewContext = controller.CreateViewContext();
+
+        // Assert
+        Assert.NotNull(viewContext);
+        Assert.Same(controller.ControllerContext.HttpContext, viewContext.HttpContext);
+        Assert.Same(controller.ControllerContext.RouteData, viewContext.RouteData);
+        Assert.Same(controller.ControllerContext.ActionDescriptor, viewContext.ActionDescriptor);
+        Assert.Same(controller.ViewData, viewContext.ViewData);
+        Assert.NotNull(viewContext.View);
+        Assert.NotNull(viewContext.TempData);
+        Assert.Same(TextWriter.Null, viewContext.Writer);
     }
 }

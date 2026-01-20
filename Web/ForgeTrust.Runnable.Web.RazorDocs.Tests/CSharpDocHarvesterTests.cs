@@ -211,6 +211,55 @@ namespace NamespaceB
         Assert.Contains("Remarks here", node.Content);
     }
 
+    [Fact]
+    public async Task HarvestAsync_ShouldHandleNestedTypes()
+    {
+        // Arrange
+        var code = @"
+            namespace Test;
+            public class Outer {
+                /// <summary>Inner Summary</summary>
+                public class Inner {}
+            }
+        ";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Nested.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        // We expect "Outer.Inner" in Title (if logic supports it) or check Path which contains nesting
+        Assert.Contains(results, n => n.Path.Contains("Outer-Inner") && n.Content.Contains("Inner Summary"));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldHandleExceptionDuringFileProcessing()
+    {
+        // Arrange
+        // I'll try to create a file and then make it unreadable
+        var filePath = Path.Combine(_testRoot, "Exception.cs");
+        await File.WriteAllTextAsync(filePath, "docs");
+
+        // On macOS/Linux, we can use chmod 000
+        // File.SetUnixFileMode is available in .NET 7+
+        File.SetUnixFileMode(filePath, UnixFileMode.None);
+
+        // Act
+        try
+        {
+            var results = await _harvester.HarvestAsync(_testRoot);
+
+            // Assert
+            // Should not throw, should just log and continue (empty in this case)
+            Assert.Empty(results);
+        }
+        finally
+        {
+            // Restore permissions so it can be deleted during Dispose
+            File.SetUnixFileMode(filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))

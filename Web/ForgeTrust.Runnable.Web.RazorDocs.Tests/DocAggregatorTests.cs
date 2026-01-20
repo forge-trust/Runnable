@@ -6,13 +6,14 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Ext_IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
 public class DocAggregatorTests : IDisposable
 {
     private readonly IDocHarvester _harvesterFake;
-    private readonly Microsoft.Extensions.Configuration.IConfiguration _configFake;
+    private readonly Ext_IConfiguration _configFake;
     private readonly IWebHostEnvironment _envFake;
     private readonly ILogger<DocAggregator> _loggerFake;
     private readonly IHtmlSanitizer _sanitizerFake;
@@ -22,7 +23,7 @@ public class DocAggregatorTests : IDisposable
     public DocAggregatorTests()
     {
         _harvesterFake = A.Fake<IDocHarvester>();
-        _configFake = A.Fake<Microsoft.Extensions.Configuration.IConfiguration>();
+        _configFake = A.Fake<Ext_IConfiguration>();
         _envFake = A.Fake<IWebHostEnvironment>();
         _loggerFake = A.Fake<ILogger<DocAggregator>>();
         _sanitizerFake = A.Fake<IHtmlSanitizer>();
@@ -142,6 +143,25 @@ public class DocAggregatorTests : IDisposable
         // Assert
         Assert.Single(result);
         Assert.Equal("Success", result.First().Title);
+    }
+
+    [Fact]
+    public async Task GetDocByPathAsync_WhenDocNotFound_ReturnsNull()
+    {
+        // Arrange
+        var aggregator = new DocAggregator(
+            Enumerable.Empty<IDocHarvester>(),
+            A.Fake<Ext_IConfiguration>(),
+            _envFake,
+            _cache,
+            _sanitizerFake,
+            _loggerFake);
+
+        // Act
+        var result = await aggregator.GetDocByPathAsync("non-existent");
+
+        // Assert
+        Assert.Null(result);
     }
 
     public void Dispose()

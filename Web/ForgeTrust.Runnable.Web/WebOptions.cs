@@ -10,5 +10,7 @@ public record WebOptions
 
     public CorsOptions Cors { get; set; } = CorsOptions.Default;
 
+    public StaticFilesOptions StaticFiles { get; set; } = StaticFilesOptions.Default;
+
     public Action<IEndpointRouteBuilder>? MapEndpoints { get; set; }
 }

@@ -5,17 +5,56 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
 
-public abstract class RunnableStartup<TRootModule> : IRunnableStartup
+public abstract class RunnableStartup
+{
+    protected static readonly Lazy<ILoggerFactory> StartupLoggerFactory =
+        new(() => LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug)));
+
+    /// <summary>
+    /// Provides an <see cref="ILogger"/> named after the concrete startup type.
+    /// </summary>
+    /// <returns>An <see cref="ILogger"/> whose category name is the concrete startup type's name.</returns>
+    protected ILogger GetStartupLogger()
+    {
+        return StartupLoggerFactory.Value.CreateLogger(GetType().Name);
+    }
+}
+
+public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableStartup
     where TRootModule : IRunnableHostModule, new()
 {
+    /// <summary>
+    /// Runs the startup sequence using the provided startup context.
+    /// </summary>
+    /// <param name="context">Startup configuration including application arguments, root module, and dependency/module registrations.</param>
+    /// <returns>A task that completes when the startup sequence finishes.</returns>
     async Task IRunnableStartup.RunAsync(StartupContext context)
     {
         await RunAsync(context);
     }
 
+    /// <summary>
+    /// Creates an IHostBuilder configured for the provided startup context.
+    /// </summary>
+    /// <param name="context">The startup context whose application name, modules, and registrations drive host configuration.</param>
+    /// <returns>An <see cref="IHostBuilder"/> configured according to the given <paramref name="context"/>.</returns>
     IHostBuilder IRunnableStartup.CreateHostBuilder(StartupContext context) => CreateHostBuilderCore(context);
+
+    /// <summary>
+    /// Starts the application's run sequence using the specified command-line arguments.
+    /// </summary>
+    /// <param name="args">Command-line arguments supplied to the application.</param>
+    /// <returns>A task that completes when the host run finishes.</returns>
     public Task RunAsync(string[] args) => RunAsync(new StartupContext(args, CreateRootModule()));
 
+    /// <summary>
+    /// Runs the host configured by the provided startup context and logs lifecycle events.
+    /// </summary>
+    /// <param name="context">Context containing application name, root module, dependencies, and any custom registrations used to build and configure the host.</param>
+    /// <returns>A task that completes when the host run has finished and shutdown processing is complete.</returns>
+    /// <remarks>
+    /// Logs a warning if shutdown is cancelled or does not complete in time. On an unhandled exception logs a critical error and sets <c>Environment.ExitCode</c> to <c>-100</c>.
+    /// </remarks>
     public async Task RunAsync(StartupContext context)
     {
         try
@@ -30,26 +69,38 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
         }
         catch (OperationCanceledException ex)
         {
-            CreateBootstrapLogger().LogWarning(ex, "Service(s) did not exit in a timely fashion..");
+            GetStartupLogger().LogWarning(ex, "Service(s) did not exit in a timely fashion.");
         }
         catch (Exception e)
         {
-            CreateBootstrapLogger().LogCritical(e, "Fatal Processing Error");
+            GetStartupLogger().LogCritical(e, "Fatal Processing Error");
             Environment.ExitCode = -100;
         }
     }
 
-    private ILogger CreateBootstrapLogger()
-    {
-        return LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug))
-            .CreateLogger(GetType().Name);
-    }
-
+    /// <summary>
+    /// Builds an <see cref="IHost"/> from the host builder configured for the provided startup context.
+    /// </summary>
+    /// <param name="context">The startup context that provides application name, modules, and configuration used to construct the host.</param>
+    /// <returns>The constructed <see cref="IHost"/>.</returns>
     private IHost CreateHost(StartupContext context) => ((IRunnableStartup)this).CreateHostBuilder(context).Build();
 
+    /// <summary>
+    /// Create and configure a host builder using values from the provided startup context.
+    /// </summary>
+    /// <param name="context">Startup context containing the ApplicationName, RootModule, and Dependencies used to configure the host builder.</param>
+    /// <returns>A host builder configured with the context's application name, registered modules, and service registrations.</returns>
     private IHostBuilder CreateHostBuilderCore(StartupContext context)
     {
         var builder = Host.CreateDefaultBuilder();
+
+        // Ensure the host environment correctly reflects the application name from the context.
+        // This is critical for features like Static Web Assets that rely on the application name to find manifests.
+        builder.ConfigureAppConfiguration((hostingContext, _) =>
+        {
+            hostingContext.HostingEnvironment.ApplicationName = context.ApplicationName;
+        });
+
         builder.ConfigureHostConfiguration(config =>
             config.AddInMemoryCollection(
                 new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName }));
@@ -128,7 +179,18 @@ public abstract class RunnableStartup<TRootModule> : IRunnableStartup
         context.RootModule.ConfigureServices(context, services);
     }
 
+    /// <summary>
+    /// Registers services required for the specific application type (for example, web or worker) into the provided service collection.
+    /// </summary>
+    /// <param name="context">Startup context containing application metadata, dependencies, and configuration used during registration.</param>
+    /// <param name="services">The service collection to which app-type-specific services should be added or overridden.</param>
     protected abstract void ConfigureServicesForAppType(StartupContext context, IServiceCollection services);
 
+    /// <summary>
+    /// Allows the startup to customize the host builder for the specific application type.
+    /// </summary>
+    /// <param name="context">The startup context containing application metadata and dependency modules.</param>
+    /// <param name="builder">The host builder to customize.</param>
+    /// <returns>The configured <see cref="IHostBuilder"/> (by default returns the provided builder unchanged).</returns>
     protected virtual IHostBuilder ConfigureBuilderForAppType(StartupContext context, IHostBuilder builder) => builder;
 }

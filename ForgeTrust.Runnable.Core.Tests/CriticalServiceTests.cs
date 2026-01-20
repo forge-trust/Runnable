@@ -2,6 +2,7 @@ using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+[Collection("NoParallel")]
 public class CriticalServiceTests
 {
     [Fact]

@@ -1,32 +1,38 @@
 <Solution>
   <Folder Name="/Aspire/">
-    <Project Path="Aspire\ForgeTrust.Runnable.Aspire.Tests\ForgeTrust.Runnable.Aspire.Tests.csproj" Type="Classic C#" />
-    <Project Path="Aspire\ForgeTrust.Runnable.Aspire\ForgeTrust.Runnable.Aspire.csproj" Type="Classic C#" />
+    <Project Path="Aspire/ForgeTrust.Runnable.Aspire.Tests/ForgeTrust.Runnable.Aspire.Tests.csproj" />
+    <Project Path="Aspire/ForgeTrust.Runnable.Aspire/ForgeTrust.Runnable.Aspire.csproj" />
   </Folder>
   <Folder Name="/Benchmarks/">
-    <Project Path="benchmarks\AbpSimpleController\AbpSimpleController.csproj" Type="Classic C#" />
-    <Project Path="benchmarks\DependencyInjectionControllers\DependencyInjectionControllers.csproj" Type="Classic C#" />
-    <Project Path="benchmarks\ManyDependencyInjectionControllers\ManyDependencyInjectionControllers.csproj" Type="Classic C#" />
-    <Project Path="benchmarks\RunnableBenchmarks\RunnableBenchmarks.csproj" Type="Classic C#" />
-    <Project Path="benchmarks\SimpleApiController\SimpleApiController.csproj" Type="Classic C#" />
+    <Project Path="benchmarks/AbpSimpleController/AbpSimpleController.csproj" />
+    <Project Path="benchmarks/DependencyInjectionControllers/DependencyInjectionControllers.csproj" />
+    <Project Path="benchmarks/ManyDependencyInjectionControllers/ManyDependencyInjectionControllers.csproj" />
+    <Project Path="benchmarks/RunnableBenchmarks/RunnableBenchmarks.csproj" />
+    <Project Path="benchmarks/SimpleApiController/SimpleApiController.csproj" />
   </Folder>
   <Folder Name="/Console/">
-    <Project Path="Console\\ForgeTrust.Runnable.Console.Tests\\ForgeTrust.Runnable.Console.Tests.csproj" Type="Classic C#" />
-    <Project Path="Console\\ForgeTrust.Runnable.Console\\ForgeTrust.Runnable.Console.csproj" Type="Classic C#" />
+    <Project Path="Console/ForgeTrust.Runnable.Console.Tests/ForgeTrust.Runnable.Console.Tests.csproj" />
+    <Project Path="Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj" />
   </Folder>
   <Folder Name="/Dependency/">
-    <Project Path="Dependency\\ForgeTrust.Runnable.Dependency.Autofac\\ForgeTrust.Runnable.Dependency.Autofac.csproj" Type="Classic C#" />
+    <Project Path="Dependency/ForgeTrust.Runnable.Dependency.Autofac/ForgeTrust.Runnable.Dependency.Autofac.csproj" />
   </Folder>
   <Folder Name="/Examples/">
-    <Project Path="examples\\console-app\\ConsoleAppExample.csproj" Type="Classic C#" />
-    <Project Path="examples\\web-app\\WebAppExample.csproj" Type="Classic C#" />
+    <Project Path="examples/console-app/ConsoleAppExample.csproj" />
+    <Project Path="examples/web-app/WebAppExample.csproj" />
+  </Folder>
+  <Folder Name="/Examples/razorwire-mvc/">
+    <Project Path="examples/razorwire-mvc/RazorWireWebExample.csproj" />
   </Folder>
   <Folder Name="/Web/">
-    <Project Path="Web\\ForgeTrust.Runnable.Web.OpenApi\\ForgeTrust.Runnable.Web.OpenApi.csproj" Type="Classic C#" />
-    <Project Path="Web\\ForgeTrust.Runnable.Web.Scalar\\ForgeTrust.Runnable.Web.Scalar.csproj" Type="Classic C#" />
-    <Project Path="Web\\ForgeTrust.Runnable.Web.Tests\\ForgeTrust.Runnable.Web.Tests.csproj" Type="Classic C#" />
-    <Project Path="Web\\ForgeTrust.Runnable.Web\\ForgeTrust.Runnable.Web.csproj" Type="Classic C#" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire.Tests/ForgeTrust.Runnable.Web.RazorWire.Tests.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire/ForgeTrust.Runnable.Web.RazorWire.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.Scalar/ForgeTrust.Runnable.Web.Scalar.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.Tests/ForgeTrust.Runnable.Web.Tests.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj" />
   </Folder>
-  <Project Path="ForgeTrust.Runnable.Core.Tests\\ForgeTrust.Runnable.Core.Tests.csproj" Type="Classic C#" />
-  <Project Path="ForgeTrust.Runnable.Core\\ForgeTrust.Runnable.Core.csproj" Type="Classic C#" />
+  <Project Path="ForgeTrust.Runnable.Core.Tests/ForgeTrust.Runnable.Core.Tests.csproj" />
+  <Project Path="ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj" />
 </Solution>

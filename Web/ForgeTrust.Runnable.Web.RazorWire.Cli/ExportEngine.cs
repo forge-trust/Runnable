@@ -42,6 +42,10 @@ public class ExportEngine : IDisposable
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
     public async Task RunAsync()
     {
+        // 0. Ensure clean state
+        _visited.Clear();
+        _queue.Clear();
+
         // 1. Seed routes
         if (_seedRoutesPath != null && File.Exists(_seedRoutesPath))
         {
@@ -165,19 +169,19 @@ public class ExportEngine : IDisposable
     private void ExtractLinks(string html)
     {
         var matches = Regex.Matches(html, "href=\"([^\"]+)\"");
-        foreach (Match match in matches)
+        var internalLinks = matches
+            .Select(m => m.Groups[1].Value)
+            .Where(href => href.StartsWith('/')
+                           && !href.StartsWith("//")
+                           && !href.Contains(':'));
+
+        foreach (var href in internalLinks)
         {
-            var href = match.Groups[1].Value;
-            if (href.StartsWith('/')
-                && !href.StartsWith("//")
-                && !href.Contains(':'))
+            // Strip query and fragment
+            var normalized = href.Split('?')[0].Split('#')[0];
+            if (!_visited.Contains(normalized))
             {
-                // Strip query and fragment
-                var normalized = href.Split('?')[0].Split('#')[0];
-                if (!_visited.Contains(normalized))
-                {
-                    _queue.Enqueue(normalized);
-                }
+                _queue.Enqueue(normalized);
             }
         }
     }

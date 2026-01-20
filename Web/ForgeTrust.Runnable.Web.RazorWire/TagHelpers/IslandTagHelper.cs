@@ -63,7 +63,7 @@ public class IslandTagHelper : TagHelper
             output.Attributes.SetAttribute("data-rw-swr", "true");
         }
 
-        if (!string.IsNullOrEmpty(TransitionName))
+        if (!string.IsNullOrWhiteSpace(TransitionName))
         {
             var style = output.Attributes["style"]?.Value.ToString() ?? "";
             if (!style.TrimEnd().EndsWith(";"))

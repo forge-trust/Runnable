@@ -12,6 +12,11 @@ public class RazorDocsWebModuleTests
 {
     private readonly RazorDocsWebModule _module;
 
+    public RazorDocsWebModuleTests()
+    {
+        _module = new RazorDocsWebModule();
+    }
+
     [Fact]
     public void Properties_ShouldReturnDefaultValues()
     {
@@ -31,10 +36,6 @@ public class RazorDocsWebModuleTests
         Assert.Contains(builder.Modules, m => m is RazorWireWebModule);
     }
 
-    public RazorDocsWebModuleTests()
-    {
-        _module = new RazorDocsWebModule();
-    }
 
     [Fact]
     public void ConfigureServices_ShouldRegisterRequiredServices()

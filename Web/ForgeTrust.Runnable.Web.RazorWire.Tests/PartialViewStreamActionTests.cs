@@ -33,7 +33,7 @@ public class PartialViewStreamActionTests
         var httpContext = new DefaultHttpContext();
         var viewEngine = A.Fake<ICompositeViewEngine>();
         var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
-        
+
         var serviceProvider = A.Fake<IServiceProvider>();
         A.CallTo(() => serviceProvider.GetService(typeof(ICompositeViewEngine))).Returns(viewEngine);
         A.CallTo(() => serviceProvider.GetService(typeof(ITempDataDictionaryFactory))).Returns(tempDataFactory);
@@ -48,8 +48,10 @@ public class PartialViewStreamActionTests
             new HtmlHelperOptions()
         );
 
-        A.CallTo(() => viewEngine.FindView(viewContext, viewName, false)).Returns(ViewEngineResult.NotFound(viewName, new string[0]));
-        A.CallTo(() => viewEngine.GetView(null, viewName, false)).Returns(ViewEngineResult.NotFound(viewName, new string[0]));
+        A.CallTo(() => viewEngine.FindView(viewContext, viewName, false))
+            .Returns(ViewEngineResult.NotFound(viewName, Array.Empty<string>()));
+        A.CallTo(() => viewEngine.GetView(null, viewName, false))
+            .Returns(ViewEngineResult.NotFound(viewName, Array.Empty<string>()));
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => streamAction.RenderAsync(viewContext));

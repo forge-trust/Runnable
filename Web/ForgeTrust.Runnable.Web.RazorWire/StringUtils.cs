@@ -52,8 +52,15 @@ public static class StringUtils
     }
 
     /// <summary>
-    /// Generates a short, deterministic 4-character hex hash of the input string.
+    /// Generates a short, deterministic 4-character hex (16 bits) hash of the input string using SHA256.
     /// </summary>
+    /// <remarks>
+    /// This method <c>GetDeterministicHash</c> returns a 4-character lowercase hex string. 
+    /// Due to the short length (16 bits), the collision likelihood is subject to the birthday paradox: 
+    /// there is ~50% chance of collision with only ~256 unique inputs.
+    /// It is NOT guaranteed to be unique for large sets. If higher uniqueness is required, 
+    /// consider returning a longer slice of the hash or the full SHA256 string.
+    /// </remarks>
     /// <param name="input">The string to hash.</param>
     /// <returns>A 4-character lowercase hex string.</returns>
     private static string GetDeterministicHash(string input)

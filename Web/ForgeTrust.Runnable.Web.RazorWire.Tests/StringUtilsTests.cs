@@ -61,4 +61,13 @@ public class StringUtilsTests
         var result = StringUtils.ToSafeId("", appendHash: true);
         Assert.Equal("id-e3b0", result);
     }
+
+    [Fact]
+    public void ToSafeId_WithHash_HandlesWhitespaceInput()
+    {
+        // Whitespace should have a different hash than empty string
+        var result = StringUtils.ToSafeId("   ", appendHash: true);
+        Assert.StartsWith("id-", result);
+        Assert.NotEqual("id-e3b0", result);
+    }
 }

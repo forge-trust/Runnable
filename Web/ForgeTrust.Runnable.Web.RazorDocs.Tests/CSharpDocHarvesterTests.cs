@@ -117,16 +117,7 @@ public class CSharpDocHarvesterTests : IDisposable
         // Check readable Title: "Test.SignatureTest.MyMethod(int, string, ref bool)"
         Assert.Equal("Test.SignatureTest.MyMethod(int, string, ref bool)", methodNode.Title);
 
-        // Check sanitized Anchor: "SignatureTest-MyMethod-int-string-ref-bool-"
-        // Note: The sanitizer generally replaces non-alphanumeric with hyphens and trims.
-        // IdentifierRegex is [^a-zA-Z0-9_-]
-        // "SignatureTest.MyMethod(int, string, ref bool)" -> "SignatureTest-MyMethod-int--string--ref-bool-"
-        // Wait, sanitizer implementation: IdentifierRegex().Replace(input, "-").Trim('-')
-        // Let's verify the exact expected string based on logic:
-        // Input: "SignatureTest.MyMethod(int, string, ref bool)"
-        // . -> -
-        // ( -> -
-        // The new ToSafeId implementation normalizes consecutive hyphens
+        // Expect sanitized ID from ToSafeId
         Assert.EndsWith("#Test-SignatureTest-MyMethod-int-string-ref-bool", methodNode.Path);
     }
 

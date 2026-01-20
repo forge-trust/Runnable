@@ -3,6 +3,9 @@ using ForgeTrust.Runnable.Web.RazorWire;
 
 namespace RazorWireWebExample.Services;
 
+/// <summary>
+/// An in-memory implementation of <see cref="IUserPresenceService"/> using a thread-safe dictionary to track user activity.
+/// </summary>
 public class InMemoryUserPresenceService : IUserPresenceService
 {
     private readonly ConcurrentDictionary<string, DateTimeOffset> _userActivity = new(StringComparer.OrdinalIgnoreCase);

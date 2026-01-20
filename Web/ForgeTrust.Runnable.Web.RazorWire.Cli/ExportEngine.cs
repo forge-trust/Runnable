@@ -4,6 +4,9 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
+/// <summary>
+/// A static generation engine that crawls a RazorWire application and exports its routes to static HTML files.
+/// </summary>
 public class ExportEngine : IDisposable
 {
     private readonly ILogger<ExportEngine> _logger;

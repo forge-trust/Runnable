@@ -18,6 +18,17 @@ public class ExportCommand : ICommand
     [CommandOption("url", 'u', Description = "Base URL of the running application (default: http://localhost:5000).")]
     public string BaseUrl { get; init; } = "http://localhost:5000";
 
+    private readonly ILogger<ExportCommand> _logger;
+    private readonly ILoggerFactory _loggerFactory;
+
+    public ExportCommand(
+        ILogger<ExportCommand> logger,
+        ILoggerFactory loggerFactory)
+    {
+        _logger = logger;
+        _loggerFactory = loggerFactory;
+    }
+
     /// <summary>
     /// Executes the export process for the RazorWire site to the configured output directory, validating options and writing progress to the console.
     /// </summary>
@@ -32,19 +43,13 @@ public class ExportCommand : ICommand
             throw new CommandException("BaseUrl must be a valid HTTP or HTTPS URL.");
         }
 
-        console.Output.WriteLine($"Exporting to {OutputPath}...");
+        _logger.LogInformation($"Exporting to {OutputPath}...");
 
         // Create a basic logger factory for CLI context
-        using var loggerFactory = LoggerFactory.Create(builder =>
-        {
-            builder.AddConsole();
-            builder.SetMinimumLevel(LogLevel.Warning);
-        });
-        var logger = loggerFactory.CreateLogger<ExportEngine>();
-
+        var logger = _loggerFactory.CreateLogger<ExportEngine>();
         var engine = new ExportEngine(OutputPath, SeedRoutesPath, BaseUrl, console, logger);
         await engine.RunAsync();
 
-        console.Output.WriteLine("Export complete!");
+        _logger.LogInformation("Export complete!");
     }
 }

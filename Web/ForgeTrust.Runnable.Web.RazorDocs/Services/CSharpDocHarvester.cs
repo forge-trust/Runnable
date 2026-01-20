@@ -44,10 +44,10 @@ public class CSharpDocHarvester : IDocHarvester
                 var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>();
                 foreach (var typeDecl in typeDeclarations)
                 {
+                    var qualifiedName = GetQualifiedName(typeDecl);
                     var doc = ExtractDoc(typeDecl);
                     if (doc != null)
                     {
-                        var qualifiedName = GetQualifiedName(typeDecl);
                         var safeAnchor = StringUtils.ToSafeId(qualifiedName);
 
                         nodes.Add(
@@ -71,7 +71,7 @@ public class CSharpDocHarvester : IDocHarvester
 
                             // Readable signature for the UI Title: e.g. "MyMethod(int, string)"
                             var readableSignature = $"({paramList})";
-                            var methodId = $"{typeDecl.Identifier.Text}.{method.Identifier.Text}{readableSignature}";
+                            var methodId = $"{qualifiedName}.{method.Identifier.Text}{readableSignature}";
 
                             // Sanitized signature for the Anchor/ID: e.g. "MyMethod-int-string-"
                             var anchor = StringUtils.ToSafeId(methodId);

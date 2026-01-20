@@ -112,11 +112,11 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        var methodNode = results.FirstOrDefault(n => n.Title.StartsWith("SignatureTest.MyMethod"));
+        var methodNode = results.FirstOrDefault(n => n.Title.StartsWith("Test.SignatureTest.MyMethod"));
         Assert.NotNull(methodNode);
 
-        // Check readable Title: "SignatureTest.MyMethod(int, string, ref bool)"
-        Assert.Equal("SignatureTest.MyMethod(int, string, ref bool)", methodNode.Title);
+        // Check readable Title: "Test.SignatureTest.MyMethod(int, string, ref bool)"
+        Assert.Equal("Test.SignatureTest.MyMethod(int, string, ref bool)", methodNode.Title);
 
         // Check sanitized Anchor: "SignatureTest-MyMethod-int-string-ref-bool-"
         // Note: The sanitizer generally replaces non-alphanumeric with hyphens and trims.
@@ -128,7 +128,7 @@ public class CSharpDocHarvesterTests : IDisposable
         // . -> -
         // ( -> -
         // The new ToSafeId implementation normalizes consecutive hyphens
-        Assert.EndsWith("#SignatureTest-MyMethod-int-string-ref-bool", methodNode.Path);
+        Assert.EndsWith("#Test-SignatureTest-MyMethod-int-string-ref-bool", methodNode.Path);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class CSharpDocHarvesterTests : IDisposable
     {
         // Arrange: Create a file with overloaded methods
         var testFile = Path.Combine(_testRoot, "Calculator.cs");
-        File.WriteAllText(
+        await File.WriteAllTextAsync(
             testFile,
             @"
 namespace TestNamespace;

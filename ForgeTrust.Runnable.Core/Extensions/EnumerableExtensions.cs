@@ -267,13 +267,13 @@ public static class EnumerableExtensions
             {
                 await Task.WhenAll(activeTasks);
             }
-            catch (Exception ex)
+            catch (Exception _)
             {
                 // Exceptions in individual tasks are already handled/re-thrown via the channel/yield return.
                 // We catch here to ensure 'WhenAll' doesn't prevent further cleanup if some tasks were already flawed.
 #if DEBUG
                 System.Diagnostics.Debug.WriteLine(
-                    $"Error during ParallelSelectAsyncEnumerable activeTasks join: {ex}");
+                    $"Error during ParallelSelectAsyncEnumerable activeTasks join: {_}");
 #endif
             }
         }

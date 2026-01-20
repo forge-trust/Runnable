@@ -21,7 +21,7 @@ public class RequiresStreamTagHelper : TagHelper
     /// </remarks>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
-        if (string.IsNullOrEmpty(RequiresStream))
+        if (string.IsNullOrWhiteSpace(RequiresStream))
         {
             return;
         }

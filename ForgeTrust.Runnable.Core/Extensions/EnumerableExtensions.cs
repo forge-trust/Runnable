@@ -252,11 +252,11 @@ public static class EnumerableExtensions
             {
                 // Expected on cancellation
             }
-            catch (Exception ex)
+            catch (Exception _)
             {
 #if DEBUG
                 System.Diagnostics.Debug.WriteLine(
-                    $"Error during ParallelSelectAsyncEnumerable cleanup (producer): {ex}");
+                    $"Error during ParallelSelectAsyncEnumerable cleanup (producer): {_}");
 #endif
             }
 

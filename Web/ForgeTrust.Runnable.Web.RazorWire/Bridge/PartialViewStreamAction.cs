@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -14,18 +14,6 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     private readonly string _viewName;
     private readonly object? _model;
 
-    /// <summary>
-    /// Initializes a new instance with the Turbo Stream action/target and the partial view to render.
-    /// </summary>
-    /// <param name="action">Turbo Stream action attribute (for example, "replace", "append", "update").</param>
-    /// <param name="target">The target identifier for the Turbo Stream element.</param>
-    /// <param name="viewName">The name or path of the partial view to render.</param>
-    /// <summary>
-    /// Creates an instance configured to render a specified partial view and wrap its output in a Turbo Stream element.
-    /// </summary>
-    /// <param name="action">The Turbo Stream action attribute (for example, "replace" or "update").</param>
-    /// <param name="target">The Turbo Stream target attribute that identifies the element to update.</param>
-    /// <param name="viewName">The name or path of the partial view to render.</param>
     /// <summary>
     /// Creates a Turbo Stream action that will render a specified partial view into a turbo-stream element.
     /// </summary>
@@ -46,16 +34,6 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     }
 
     /// <summary>
-    /// Renders the specified partial view into a Turbo Stream element and returns the resulting HTML string.
-    /// </summary>
-    /// <param name="viewContext">The current view context used to locate services, view engines, model state, and rendering resources.</param>
-    /// <returns>An HTML string representing a &lt;turbo-stream&gt; element whose &lt;template&gt; contains the rendered partial view.</returns>
-    /// <summary>
-    /// Renders the configured partial view into a Turbo Stream element using the provided view context.
-    /// </summary>
-    /// <param name="viewContext">The current view context used to locate services and render the partial view.</param>
-    /// <returns>A string containing a &lt;turbo-stream&gt; element with the rendered partial view inside its &lt;template&gt;.</returns>
-    /// <summary>
     /// Renders the configured partial view and wraps its output in a Turbo Stream element.
     /// </summary>
     /// <param name="viewContext">The current view context used to locate services and render the partial view.</param>
@@ -68,11 +46,8 @@ public class PartialViewStreamAction : IRazorWireStreamAction
         var viewEngine = services.GetRequiredService<ICompositeViewEngine>();
         var tempDataProvider = services.GetRequiredService<ITempDataDictionaryFactory>();
 
-        // We need a fresh ViewData for the partial
-        var viewData =
-            new ViewDataDictionary(
-                new EmptyModelMetadataProvider(),
-                viewContext.ModelState) { Model = _model };
+        // Preserve parent context (ViewBag/ViewData) and just override the Model
+        var viewData = new ViewDataDictionary(viewContext.ViewData) { Model = _model };
 
         await using var writer = new StringWriter();
 

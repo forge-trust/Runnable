@@ -24,7 +24,7 @@
     border-radius: 1rem;
     border: 1px solid #e2e8f0;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    transition-property: all;
+    transition-property: box-shadow;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 200ms;
     overflow: hidden;

@@ -36,6 +36,11 @@ public class IslandTagHelper : TagHelper
         output.TagName = "turbo-frame";
         output.TagMode = TagMode.StartTagAndEndTag;
 
+        if (string.IsNullOrWhiteSpace(Id))
+        {
+            throw new ArgumentException("The 'id' attribute is required for rw:island.");
+        }
+
         output.Attributes.SetAttribute("id", Id);
 
         if (!string.IsNullOrEmpty(Src))

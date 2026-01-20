@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using CliFx.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
@@ -10,6 +11,7 @@ public class ExportEngine : IDisposable
     private readonly string? _seedRoutesPath;
     private readonly string _baseUrl;
     private readonly IConsole _console;
+    private readonly ILogger<ExportEngine> _logger;
     private readonly HttpClient _client = new();
     private readonly HashSet<string> _visited = new();
     private readonly Queue<string> _queue = new();
@@ -21,16 +23,19 @@ public class ExportEngine : IDisposable
     /// <param name="seedRoutesPath">An optional path to a file containing seed routes (one per line); pass <c>null</c> to start from the root route ("/").</param>
     /// <param name="baseUrl">The base URL to crawl; any trailing slash will be removed.</param>
     /// <param name="console">The console abstraction used for logging and status output.</param>
+    /// <param name="logger"></param>
     public ExportEngine(
         string outputPath,
         string? seedRoutesPath,
         string baseUrl,
-        IConsole console)
+        IConsole console,
+        ILogger<ExportEngine> logger)
     {
         _outputPath = outputPath;
         _seedRoutesPath = seedRoutesPath;
         _baseUrl = baseUrl.TrimEnd('/');
         _console = console;
+        _logger = logger;
     }
 
     /// <summary>
@@ -46,14 +51,28 @@ public class ExportEngine : IDisposable
         if (_seedRoutesPath != null && File.Exists(_seedRoutesPath))
         {
             var seeds = await File.ReadAllLinesAsync(_seedRoutesPath);
-            var validSeeds = seeds
-                .Select(s => s.Trim())
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(s => s.StartsWith("/") ? s : "/" + s);
 
-            foreach (var seed in validSeeds)
+            foreach (var seed in seeds)
             {
-                _queue.Enqueue(seed);
+                var added = false;
+                // Parse as URI to strip query/fragment reliably
+                if (Uri.TryCreate(seed, UriKind.RelativeOrAbsolute, out var uri))
+                {
+                    // If absolute, use PathAndQuery; if relative, just use the string
+                    var path = uri.IsAbsoluteUri ? uri.PathAndQuery : seed;
+
+                    // Normalize using our helper logic (strips query/fragment again to be safe and checks format)
+                    if (TryGetNormalizedRoute(path, out var normalized))
+                    {
+                        added = true;
+                        _queue.Enqueue(normalized);
+                    }
+                }
+
+                if (!added)
+                {
+                    _logger.LogWarning($"Invalid seed route: {seed}");
+                }
             }
         }
         else
@@ -61,7 +80,7 @@ public class ExportEngine : IDisposable
             _queue.Enqueue("/");
         }
 
-        _console.Output.WriteLine($"Crawling from {_baseUrl}...");
+        await _console.Output.WriteLineAsync($"Crawling from {_baseUrl}...");
 
         while (_queue.Count > 0)
         {
@@ -122,16 +141,30 @@ public class ExportEngine : IDisposable
     /// <exception cref="InvalidOperationException">Thrown when the resolved path would lie outside the configured output directory (path traversal detected).</exception>
     private string MapRouteToFilePath(string route)
     {
-        var normalized = route == "/" ? "/index" : route;
-        if (!normalized.EndsWith("/index") && !normalized.EndsWith(".html"))
+        var normalized = route;
+
+        // Check if ends with /index or /index.html (case-insensitive)
+        if (normalized.EndsWith("/index", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith("/index.html", StringComparison.OrdinalIgnoreCase)
+            || normalized == "/")
         {
-            normalized = normalized.TrimEnd('/') + "/index";
+            // Make sure it goes to /index.html logic below
+            if (normalized == "/") normalized = "/index";
+            else if (normalized.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+                normalized = normalized[..^5]; // strip .html for consistent handling
         }
 
         var relativePath = normalized.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-        if (!Path.HasExtension(relativePath))
+
+        // Detect extension on the last segment
+        var fileName = Path.GetFileName(relativePath);
+        if (!Path.HasExtension(fileName) && !relativePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
         {
             relativePath += ".html";
+        }
+        else if (string.IsNullOrEmpty(fileName)) // Ends in slash
+        {
+            relativePath = Path.Combine(relativePath, "index.html");
         }
 
         var fullPath = Path.GetFullPath(Path.Combine(_outputPath, relativePath));
@@ -161,23 +194,16 @@ public class ExportEngine : IDisposable
     /// <summary>
     /// Extracts root-relative internal link targets from the provided HTML and enqueues any unvisited routes for crawling.
     /// </summary>
-    /// <param name="html">HTML source to scan; href values that begin with '/' and do not include protocol indicators, fragments, or double-slash prefixes are considered internal routes onto enqueue.</param>
+    /// <param name="html">HTML source to scan.</param>
     private void ExtractLinks(string html)
     {
         var matches = Regex.Matches(html, "href=\"([^\"]+)\"");
         foreach (Match match in matches)
         {
             var href = match.Groups[1].Value;
-            if (href.StartsWith('/')
-                && !href.StartsWith("//")
-                && !href.Contains(':'))
+            if (TryGetNormalizedRoute(href, out var normalized) && !_visited.Contains(normalized))
             {
-                // Strip query and fragment
-                var normalized = href.Split('?')[0].Split('#')[0];
-                if (!_visited.Contains(normalized))
-                {
-                    _queue.Enqueue(normalized);
-                }
+                _queue.Enqueue(normalized);
             }
         }
     }
@@ -185,28 +211,37 @@ public class ExportEngine : IDisposable
     /// <summary>
     /// Extracts root-relative `src` values from &lt;turbo-frame&gt; elements in the provided HTML and enqueues each unvisited path for export.
     /// </summary>
-    /// <param name="html">HTML content to scan for turbo-frame `src` attributes.</param>
-    /// <remarks>
-    /// Only `src` values that start with '/' (but not '//'), do not contain ':' or '#', and have not already been visited are enqueued.
-    /// </remarks>
+    /// <param name="html">HTML content to scan.</param>
     private void ExtractFrames(string html)
     {
         var matches = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"");
-        var frames = matches.Select(m => m.Groups[1].Value)
-            .Where(src =>
-                src.StartsWith('/')
-                && !src.StartsWith("//")
-                && !src.Contains(':'));
-
-        foreach (var src in frames)
+        foreach (Match match in matches)
         {
-            // Strip query and fragment
-            var normalized = src.Split('?')[0].Split('#')[0];
-            if (!_visited.Contains(normalized))
+            var src = match.Groups[1].Value;
+            if (TryGetNormalizedRoute(src, out var normalized) && !_visited.Contains(normalized))
             {
                 _queue.Enqueue(normalized);
             }
         }
+    }
+
+    private bool TryGetNormalizedRoute(string rawRef, out string normalized)
+    {
+        normalized = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(rawRef)) return false;
+
+        // Must start with /, not //, not contain :
+        if (!rawRef.StartsWith('/') || rawRef.StartsWith("//") || rawRef.Contains(':'))
+        {
+            return false;
+        }
+
+        // Strip query and fragment
+        var split = rawRef.Split(new[] { '?', '#' }, 2);
+        normalized = split[0];
+
+        return !string.IsNullOrEmpty(normalized);
     }
 
     public void Dispose()

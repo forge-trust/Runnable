@@ -50,7 +50,7 @@ public class DefaultConfigManagerTests
                 highPriorityProvider,
                 lowPriorityProvider,
                 environmentProvider, // should be filtered out
-                anotherConfigManager  // should be filtered out
+                anotherConfigManager // should be filtered out
             },
             logger);
 
@@ -85,5 +85,34 @@ public class DefaultConfigManagerTests
             .MustHaveHappenedOnceExactly();
         A.CallTo(() => otherProvider.GetValue<string>("Any", "Missing.Key"))
             .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public void Constructor_HandlesNullOtherProviders()
+    {
+        var environmentProvider = A.Fake<IEnvironmentConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+
+        var manager = new DefaultConfigManager(environmentProvider, null, logger);
+
+        Assert.NotNull(manager);
+    }
+
+    [Fact]
+    public void GetValue_ReturnsDefaultWithNoProviders()
+    {
+        var environmentProvider = A.Fake<IEnvironmentConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+
+        // Setup environment to return null
+        A.CallTo(() => environmentProvider.GetValue<string>(A<string>._, A<string>._))
+            .Returns(null);
+
+        // No other providers
+        var manager = new DefaultConfigManager(environmentProvider, [], logger);
+
+        var value = manager.GetValue<string>("Production", "Any.Key");
+
+        Assert.Null(value);
     }
 }

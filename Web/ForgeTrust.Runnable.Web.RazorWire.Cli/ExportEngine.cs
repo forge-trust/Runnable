@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using CliFx.Infrastructure;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -9,8 +8,6 @@ public class ExportEngine : IDisposable
 {
     private readonly ILogger<ExportEngine> _logger;
     private readonly HttpClient _client = new();
-    private readonly HashSet<string> _visited = new();
-    private readonly Queue<string> _queue = new();
 
     /// <summary>
     /// Initializes a new <see cref="ExportEngine"/>.
@@ -24,26 +21,14 @@ public class ExportEngine : IDisposable
     /// <summary>
     /// Crawl the configured base URL, discover internal routes, and export each route's HTML to the output directory.
     /// </summary>
-    /// <param name="outputPath">The directory where exported HTML files will be written.</param>
-    /// <param name="seedRoutesPath">An optional path to a file containing seed routes (one per line); pass <c>null</c> to start from the root route ("/").</param>
-    /// <param name="baseUrl">The base URL to crawl; any trailing slash will be removed.</param>
-    /// <param name="console">The console abstraction used for logging and status output.</param>
+    /// <param name="context">The export context containing configuration and state.</param>
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
-    public async Task RunAsync(
-        string outputPath,
-        string? seedRoutesPath,
-        string baseUrl,
-        IConsole console)
+    public async Task RunAsync(ExportContext context)
     {
-        _visited.Clear();
-        _queue.Clear();
-
-        var trimmedBaseUrl = baseUrl.TrimEnd('/');
-
         // 1. Seed routes
-        if (seedRoutesPath != null && File.Exists(seedRoutesPath))
+        if (context.SeedRoutesPath != null && File.Exists(context.SeedRoutesPath))
         {
-            var seeds = await File.ReadAllLinesAsync(seedRoutesPath);
+            var seeds = await File.ReadAllLinesAsync(context.SeedRoutesPath);
 
             foreach (var seed in seeds)
             {
@@ -58,7 +43,7 @@ public class ExportEngine : IDisposable
                     if (TryGetNormalizedRoute(path, out var normalized))
                     {
                         added = true;
-                        _queue.Enqueue(normalized);
+                        context.Queue.Enqueue(normalized);
                     }
                 }
 
@@ -70,39 +55,35 @@ public class ExportEngine : IDisposable
         }
         else
         {
-            _queue.Enqueue("/");
+            context.Queue.Enqueue("/");
         }
 
-        console.Output.WriteLine($"Crawling from {trimmedBaseUrl}...");
+        context.Console.Output.WriteLine($"Crawling from {context.BaseUrl}...");
 
-        while (_queue.Count > 0)
+        while (context.Queue.Count > 0)
         {
-            var route = _queue.Dequeue();
+            var route = context.Queue.Dequeue();
 
-            if (_visited.Contains(route)) continue;
-            _visited.Add(route);
+            if (context.Visited.Contains(route)) continue;
+            context.Visited.Add(route);
 
-            await ExportRouteAsync(route, trimmedBaseUrl, outputPath, console);
+            await ExportRouteAsync(route, context);
         }
     }
 
     /// <summary>
     /// Fetches the HTML for the specified route from the base URL, writes the rendered page to the output directory, and enqueues any discovered internal links and turbo-frame sources for further export.
     /// </summary>
-    private async Task ExportRouteAsync(
-        string route,
-        string baseUrl,
-        string outputPath,
-        IConsole console)
+    private async Task ExportRouteAsync(string route, ExportContext context)
     {
-        console.Output.WriteLine($"  -> {route}");
+        context.Console.Output.WriteLine($"  -> {route}");
 
         try
         {
-            using var response = await _client.GetAsync($"{baseUrl}{route}");
+            using var response = await _client.GetAsync($"{context.BaseUrl}{route}");
             if (!response.IsSuccessStatusCode)
             {
-                console.Error.WriteLine($"  !! Failed to fetch {route}: {response.StatusCode}");
+                context.Console.Error.WriteLine($"  !! Failed to fetch {route}: {response.StatusCode}");
 
                 return;
             }
@@ -110,18 +91,18 @@ public class ExportEngine : IDisposable
             var html = await response.Content.ReadAsStringAsync();
 
             // Save file
-            var filePath = MapRouteToFilePath(route, outputPath);
+            var filePath = MapRouteToFilePath(route, context.OutputPath);
             var dirPath = Path.GetDirectoryName(filePath);
             if (dirPath != null && !Directory.Exists(dirPath)) Directory.CreateDirectory(dirPath);
             await File.WriteAllTextAsync(filePath, html);
 
             // Extract links and frames
-            ExtractLinks(html);
-            ExtractFrames(html);
+            ExtractLinks(html, context);
+            ExtractFrames(html, context);
         }
         catch (Exception ex)
         {
-            console.Error.WriteLine($"  !! Error exporting {route}: {ex.Message}");
+            context.Console.Error.WriteLine($"  !! Error exporting {route}: {ex.Message}");
         }
     }
 
@@ -184,16 +165,17 @@ public class ExportEngine : IDisposable
     /// Extracts root-relative internal link targets from the provided HTML and enqueues any unvisited routes for crawling.
     /// </summary>
     /// <param name="html">HTML source to scan.</param>
-    private void ExtractLinks(string html)
+    /// <param name="context">The export context.</param>
+    private void ExtractLinks(string html, ExportContext context)
     {
         var targets = Regex.Matches(html, "href=\"([^\"]+)\"")
             .Select(m => m.Groups[1].Value);
 
         foreach (var href in targets)
         {
-            if (TryGetNormalizedRoute(href, out var normalized) && !_visited.Contains(normalized))
+            if (TryGetNormalizedRoute(href, out var normalized) && !context.Visited.Contains(normalized))
             {
-                _queue.Enqueue(normalized);
+                context.Queue.Enqueue(normalized);
             }
         }
     }
@@ -202,16 +184,17 @@ public class ExportEngine : IDisposable
     /// Extracts root-relative `src` values from &lt;turbo-frame&gt; elements in the provided HTML and enqueues each unvisited path for export.
     /// </summary>
     /// <param name="html">HTML content to scan.</param>
-    private void ExtractFrames(string html)
+    /// <param name="context">The export context.</param>
+    private void ExtractFrames(string html, ExportContext context)
     {
         var targets = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"")
             .Select(m => m.Groups[1].Value);
 
         foreach (var src in targets)
         {
-            if (TryGetNormalizedRoute(src, out var normalized) && !_visited.Contains(normalized))
+            if (TryGetNormalizedRoute(src, out var normalized) && !context.Visited.Contains(normalized))
             {
-                _queue.Enqueue(normalized);
+                context.Queue.Enqueue(normalized);
             }
         }
     }

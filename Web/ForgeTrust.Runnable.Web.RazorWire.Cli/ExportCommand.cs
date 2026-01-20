@@ -45,7 +45,8 @@ public class ExportCommand : ICommand
 
         _logger.LogInformation($"Exporting to {OutputPath}...");
 
-        await _engine.RunAsync(OutputPath, SeedRoutesPath, BaseUrl, console);
+        var context = new ExportContext(OutputPath, SeedRoutesPath, BaseUrl, console);
+        await _engine.RunAsync(context);
 
         _logger.LogInformation("Export complete!");
     }

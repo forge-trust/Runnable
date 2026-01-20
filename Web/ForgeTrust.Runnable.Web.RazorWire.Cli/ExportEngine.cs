@@ -42,10 +42,6 @@ public class ExportEngine : IDisposable
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
     public async Task RunAsync()
     {
-        // 0. Ensure clean state
-        _visited.Clear();
-        _queue.Clear();
-
         // 1. Seed routes
         if (_seedRoutesPath != null && File.Exists(_seedRoutesPath))
         {

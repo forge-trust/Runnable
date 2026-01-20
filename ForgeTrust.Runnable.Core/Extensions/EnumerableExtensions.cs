@@ -252,12 +252,12 @@ public static class EnumerableExtensions
             {
                 // Expected on cancellation
             }
-            catch (Exception ex)
+            catch (Exception _)
             {
                 // Cleanup failures during producer termination are suppressed to avoid shadowing main exceptions
 #if DEBUG
                 System.Diagnostics.Debug.WriteLine(
-                    $"Error during ParallelSelectAsyncEnumerable cleanup (producer): {ex}");
+                    $"Error during ParallelSelectAsyncEnumerable cleanup (producer): {_}");
 #endif
             }
 
@@ -267,13 +267,13 @@ public static class EnumerableExtensions
             {
                 await Task.WhenAll(activeTasks);
             }
-            catch (Exception _)
+            catch (Exception ex)
             {
                 // Exceptions in individual tasks are already handled/re-thrown via the channel/yield return.
-                // We catch here to ensure 'WhenAll' doesn't prevent further cleanup if some tasks were already flawed.
+                // We ignore them here to ensure disposal of resources like the semaphore and CTS continues.
 #if DEBUG
                 System.Diagnostics.Debug.WriteLine(
-                    $"Error during ParallelSelectAsyncEnumerable activeTasks join: {_}");
+                    $"Ignored task exception during ParallelSelectAsyncEnumerable disposal: {ex}");
 #endif
             }
         }

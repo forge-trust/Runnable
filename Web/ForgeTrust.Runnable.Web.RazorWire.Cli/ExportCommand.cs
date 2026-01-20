@@ -2,6 +2,7 @@ using CliFx;
 using CliFx.Attributes;
 using CliFx.Exceptions;
 using CliFx.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
@@ -17,6 +18,17 @@ public class ExportCommand : ICommand
     [CommandOption("url", 'u', Description = "Base URL of the running application (default: http://localhost:5000).")]
     public string BaseUrl { get; init; } = "http://localhost:5000";
 
+    private readonly ILogger<ExportCommand> _logger;
+    private readonly ExportEngine _engine;
+
+    public ExportCommand(
+        ILogger<ExportCommand> logger,
+        ExportEngine engine)
+    {
+        _logger = logger;
+        _engine = engine;
+    }
+
     /// <summary>
     /// Executes the export process for the RazorWire site to the configured output directory, validating options and writing progress to the console.
     /// </summary>
@@ -31,11 +43,11 @@ public class ExportCommand : ICommand
             throw new CommandException("BaseUrl must be a valid HTTP or HTTPS URL.");
         }
 
-        console.Output.WriteLine($"Exporting to {OutputPath}...");
+        _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);
 
-        var engine = new ExportEngine(OutputPath, SeedRoutesPath, BaseUrl, console);
-        await engine.RunAsync();
+        var context = new ExportContext(OutputPath, SeedRoutesPath, BaseUrl, console);
+        await _engine.RunAsync(context);
 
-        console.Output.WriteLine("Export complete!");
+        _logger.LogInformation("Export complete!");
     }
 }

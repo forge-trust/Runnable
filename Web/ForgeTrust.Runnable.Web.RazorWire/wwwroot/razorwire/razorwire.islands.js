@@ -40,20 +40,36 @@
                 console.error('Failed to parse island props:', e);
             }
 
+            // Fire-and-forget: Do not await mountIslandSafe here.
+            // We want all islands to start hydrating in parallel so that a slow network request
+            // for one module doesn't block the initialization of subsequent islands on the page.
+
             if (strategy === 'load') {
-                await mountIsland(island, modulePath, props);
+                mountIslandSafe(island, modulePath, props);
             } else if (strategy === 'visible') {
                 setupIntersectionObserver(island, modulePath, props);
             } else if (strategy === 'idle') {
                 if ('requestIdleCallback' in window) {
-                    window.requestIdleCallback(() => mountIsland(island, modulePath, props));
+                    window.requestIdleCallback(() => mountIslandSafe(island, modulePath, props));
                 } else {
-                    setTimeout(() => mountIsland(island, modulePath, props), 200);
+                    setTimeout(() => mountIslandSafe(island, modulePath, props), 200);
                 }
             } else if (strategy === 'only') {
                 island.innerHTML = '';
-                await mountIsland(island, modulePath, props);
+                mountIslandSafe(island, modulePath, props);
+            } else {
+                // Unknown strategy, cleanup
+                console.warn(`Unknown island strategy: ${strategy}`, island);
+                scheduledElements.delete(island);
             }
+        }
+    }
+
+    async function mountIslandSafe(island, modulePath, props) {
+        try {
+            await mountIsland(island, modulePath, props);
+        } finally {
+            scheduledElements.delete(island);
         }
     }
 
@@ -69,7 +85,7 @@
         try {
             const module = await import(modulePath);
             if (module.mount) {
-                module.mount(root, props);
+                await module.mount(root, props);
                 root.setAttribute('data-rw-hydrated', 'true');
                 initializedElements.add(root);
             }
@@ -89,11 +105,12 @@
      * @param {Object} props - The props object to pass to the module's mount function.
      */
     function setupIntersectionObserver(island, modulePath, props) {
-        const observer = new IntersectionObserver(async (entries) => {
+        const observer = new IntersectionObserver((entries) => {
             for (const entry of entries) {
                 if (entry.isIntersecting) {
                     observer.unobserve(island);
-                    await mountIsland(island, modulePath, props);
+                    // Use safe mount to ensure cleanup
+                    mountIslandSafe(island, modulePath, props);
                 }
             }
         });

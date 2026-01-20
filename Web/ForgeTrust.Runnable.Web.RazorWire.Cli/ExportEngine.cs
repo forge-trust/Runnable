@@ -23,24 +23,26 @@ public class ExportEngine : IDisposable
     /// </summary>
     /// <param name="context">The export context containing configuration and state.</param>
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
-    public async Task RunAsync(ExportContext context)
+    public async Task RunAsync(ExportContext context, CancellationToken cancellationToken = default)
     {
         // 1. Seed routes
         if (!string.IsNullOrEmpty(context.SeedRoutesPath))
         {
             if (!File.Exists(context.SeedRoutesPath))
             {
-                _logger.LogError($"Seed routes file not found: {context.SeedRoutesPath}");
+                _logger.LogError("Seed routes file not found: {SeedRoutesPath}", context.SeedRoutesPath);
 
                 throw new FileNotFoundException(
                     "The specified seed routes file does not exist.",
                     context.SeedRoutesPath);
             }
 
-            var seeds = await File.ReadAllLinesAsync(context.SeedRoutesPath);
+            var seeds = await File.ReadAllLinesAsync(context.SeedRoutesPath, cancellationToken);
 
             foreach (var seed in seeds)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var added = false;
                 // Parse as URI to strip query/fragment reliably
                 if (Uri.TryCreate(seed, UriKind.RelativeOrAbsolute, out var uri))
@@ -58,7 +60,7 @@ public class ExportEngine : IDisposable
 
                 if (!added)
                 {
-                    _logger.LogWarning($"Invalid seed route: {seed}");
+                    _logger.LogWarning("Invalid seed route: {SeedRoute}", seed);
                 }
             }
         }
@@ -71,25 +73,27 @@ public class ExportEngine : IDisposable
 
         while (context.Queue.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var route = context.Queue.Dequeue();
 
             if (context.Visited.Contains(route)) continue;
             context.Visited.Add(route);
 
-            await ExportRouteAsync(route, context);
+            await ExportRouteAsync(route, context, cancellationToken);
         }
     }
 
     /// <summary>
     /// Fetches the HTML for the specified route from the base URL, writes the rendered page to the output directory, and enqueues any discovered internal links and turbo-frame sources for further export.
     /// </summary>
-    private async Task ExportRouteAsync(string route, ExportContext context)
+    private async Task ExportRouteAsync(string route, ExportContext context, CancellationToken cancellationToken)
     {
         context.Console.Output.WriteLine($"  -> {route}");
 
         try
         {
-            using var response = await _client.GetAsync($"{context.BaseUrl}{route}");
+            using var response = await _client.GetAsync($"{context.BaseUrl}{route}", cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 context.Console.Error.WriteLine($"  !! Failed to fetch {route}: {response.StatusCode}");
@@ -97,17 +101,21 @@ public class ExportEngine : IDisposable
                 return;
             }
 
-            var html = await response.Content.ReadAsStringAsync();
+            var html = await response.Content.ReadAsStringAsync(cancellationToken);
 
             // Save file
             var filePath = MapRouteToFilePath(route, context.OutputPath);
             var dirPath = Path.GetDirectoryName(filePath);
             if (dirPath != null && !Directory.Exists(dirPath)) Directory.CreateDirectory(dirPath);
-            await File.WriteAllTextAsync(filePath, html);
+            await File.WriteAllTextAsync(filePath, html, cancellationToken);
 
             // Extract links and frames
             ExtractLinks(html, context);
             ExtractFrames(html, context);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

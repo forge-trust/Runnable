@@ -85,7 +85,7 @@
         try {
             const module = await import(modulePath);
             if (module.mount) {
-                module.mount(root, props);
+                await module.mount(root, props);
                 root.setAttribute('data-rw-hydrated', 'true');
                 initializedElements.add(root);
             }

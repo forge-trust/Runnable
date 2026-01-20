@@ -43,7 +43,7 @@ public class ExportCommand : ICommand
             throw new CommandException("BaseUrl must be a valid HTTP or HTTPS URL.");
         }
 
-        _logger.LogInformation($"Exporting to {OutputPath}...");
+        _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);
 
         var context = new ExportContext(OutputPath, SeedRoutesPath, BaseUrl, console);
         await _engine.RunAsync(context);

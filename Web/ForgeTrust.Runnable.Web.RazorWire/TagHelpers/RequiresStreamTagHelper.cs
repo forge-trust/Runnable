@@ -15,7 +15,7 @@ public class RequiresStreamTagHelper : TagHelper
     /// <list type="bullet">
     /// <item><description><c>data-rw-requires-stream</c> set to the <see cref="RequiresStream"/> value</description></item>
     /// <item><description><c>aria-disabled</c> to <c>"true"</c></description></item>
-    /// <item><description><c>disabled</c> to <c>"disabled"</c></description></item>
+    /// <item><description><c>disabled</c> to <c>"disabled"</c> (only for supported form elements)</description></item>
     /// </list>
     /// The element is therefore disabled until client-side code removes or updates these attributes.
     /// </remarks>
@@ -37,5 +37,8 @@ public class RequiresStreamTagHelper : TagHelper
         {
             output.Attributes.SetAttribute("disabled", "disabled");
         }
+
+        // Remove the source attribute so it doesn't render
+        output.Attributes.RemoveAll("requires-stream");
     }
 }

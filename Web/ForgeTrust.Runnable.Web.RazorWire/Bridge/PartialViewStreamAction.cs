@@ -27,6 +27,10 @@ public class PartialViewStreamAction : IRazorWireStreamAction
         string viewName,
         object? model = null)
     {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(viewName);
+
         _action = action;
         _target = target;
         _viewName = viewName;

@@ -36,10 +36,9 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        // Now returns: 1 File Node + 1 Class Node = 2 nodes
-        Assert.Equal(2, results.Count);
-        Assert.Contains(results, n => n.Title == "Included.cs" && string.IsNullOrEmpty(n.ParentPath));
-        Assert.Contains(results, n => n.Title == "Included" && n.ParentPath == "src/Included.cs");
+        // Now returns: 1 File Node. The Type Node "Included" is suppressed because it matches the filename "Included".
+        Assert.Single(results);
+        Assert.Contains(results, n => n.Title == "Included" && string.IsNullOrEmpty(n.ParentPath));
         Assert.DoesNotContain(results, n => n.Title == "Ignored");
     }
 
@@ -74,7 +73,7 @@ public class CSharpDocHarvesterTests : IDisposable
         // 1 File Node + 5 Type Nodes = 6 nodes
         Assert.Equal(6, results.Count);
 
-        var fileNode = results.First(n => n.Title == "Types.cs");
+        var fileNode = results.First(n => n.Title == "Types");
         Assert.Contains("Class Summary", fileNode.Content);
         Assert.Contains("Record Summary", fileNode.Content);
         Assert.Contains("Struct Summary", fileNode.Content);

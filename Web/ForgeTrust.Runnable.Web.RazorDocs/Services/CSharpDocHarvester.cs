@@ -120,9 +120,11 @@ public class CSharpDocHarvester : IDocHarvester
 
                 if (hasAnyDoc)
                 {
+                    var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
+
                     // Add the main file node
                     var fileNode = new DocNode(
-                        Path.GetFileName(file),
+                        fileNameWithoutExt,
                         relativePath,
                         fileContent.ToString()
                     );
@@ -134,14 +136,22 @@ public class CSharpDocHarvester : IDocHarvester
                         // Add type stub if documented
                         if (ExtractDoc(typeDecl) != null)
                         {
-                            var typeId = StringUtils.ToSafeId(typeDecl.Identifier.Text);
-                            nodes.Add(
-                                new DocNode(
+                            // If the type name matches the file name, we skip the specific type node
+                            // because the file node itself serves as the navigation link for the main type.
+                            if (!string.Equals(
                                     typeDecl.Identifier.Text,
-                                    relativePath + "#" + typeId,
-                                    string.Empty,
-                                    relativePath
-                                ));
+                                    fileNameWithoutExt,
+                                    StringComparison.OrdinalIgnoreCase))
+                            {
+                                var typeId = StringUtils.ToSafeId(typeDecl.Identifier.Text);
+                                nodes.Add(
+                                    new DocNode(
+                                        typeDecl.Identifier.Text,
+                                        relativePath + "#" + typeId,
+                                        string.Empty,
+                                        relativePath
+                                    ));
+                            }
                         }
 
                         // Add method stubs if documented (independent of whether type has docs)

@@ -1,0 +1,113 @@
+/* Custom utilities can go here if needed */
+[disabled],
+[aria-disabled="true"],
+[data-rw-requires-stream][disabled] {
+    pointer-events: none !important;
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+
+[disabled] *,
+[aria-disabled="true"] *,
+[data-rw-requires-stream][disabled] * {
+    pointer-events: none !important;
+}
+
+.glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.card-premium {
+    background-color: white;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    transition-property: box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+    overflow: hidden;
+}
+
+.card-premium:hover {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.input-premium {
+    width: 100%;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+}
+
+.input-premium:focus {
+    --tw-ring-inset: ;
+    --tw-ring-offset-width: 0px;
+    --tw-ring-offset-color: #fff;
+    --tw-ring-color: rgb(99 102 241 / 0.2);
+    --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+    --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+    box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+    border-color: #6366f1;
+}
+
+.btn-premium {
+    padding: 0.5rem 1rem;
+    background-color: #4f46e5;
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+    --tw-shadow-color: #c7d2fe;
+    --tw-shadow: 0 1px 2px 0 var(--tw-shadow-color);
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
+.btn-premium:hover {
+    background-color: #4338ca;
+}
+
+.btn-premium:active {
+    transform: scale(0.95);
+}
+
+.btn-premium:disabled,
+.btn-premium[aria-disabled="true"] {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Island Hydration Softening */
+turbo-frame {
+    transition: opacity 0.3s ease-in-out;
+}
+
+turbo-frame[loading="lazy"] {
+    opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    turbo-frame,
+    turbo-frame[loading="lazy"] {
+        transition: none;
+        opacity: 1 !important;
+    }
+}
+
+#active-user-list h4 {
+    line-height: 1.5rem;
+    /* Stabilize header height */
+}

@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "Navigation";
+}
+
+<div class="mb-10 text-center sm:text-left">
+    <h1 class="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">Intelligent <span class="text-indigo-600">Navigation</span></h1>
+    <p class="mt-4 text-lg text-slate-600 max-w-2xl">See how independent islands can persist and morph across different page layouts while maintaining their state.</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <div class="lg:col-span-4">
+        <rw:island id="permanent-island" src="/Reactivity/Sidebar" loading="lazy" permanent="true" transition-name="permanent-island">
+            <div class="card-premium p-8 flex items-center justify-center animate-pulse">
+                <div class="flex items-center gap-3 text-slate-400">
+                    <div class="h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-sm font-medium">Restoring island...</span>
+                </div>
+            </div>
+        </rw:island>
+    </div>
+
+    <div class="lg:col-span-8 space-y-8">
+        <div class="card-premium p-8">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">How it works</h2>
+            <div class="prose prose-slate max-w-none space-y-4 text-slate-600 leading-relaxed">
+                <p>
+                    By using the same <code class="text-indigo-600 font-semibold">id="sidebar"</code> for the island on different pages, RazorWire allows the component to transition seamlessly. 
+                </p>
+                <p>
+                    In this layout, the sidebar is positioned on the left. On the Reactivity page, it might be on the right. On the Home page, it's embedded within a feature section.
+                </p>
+                <ul class="list-disc pl-5 space-y-2">
+                    <li><strong>State Persistence</strong>: Even if the island is loading, the transition is smooth.</li>
+                    <li><strong>Adaptive UI</strong>: The island content remains the same, but its container adapts to the grid.</li>
+                    <li><strong>Zero JANK</strong>: Turbo handles the DOM swap, and RazorWire ensures the island's source is only fetched once per page lifecycle or as needed.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

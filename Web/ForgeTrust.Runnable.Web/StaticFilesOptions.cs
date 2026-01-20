@@ -1,0 +1,18 @@
+namespace ForgeTrust.Runnable.Web;
+
+public record StaticFilesOptions
+{
+    public static StaticFilesOptions Default { get; } = new();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether static files are enabled.
+    /// This is automatically enabled when <see cref="MvcSupport.ControllersWithViews"/> or higher is used.
+    /// </summary>
+    public bool EnableStaticFiles { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether static web assets (from RCLs) are enabled.
+    /// This is automatically enabled in the development environment.
+    /// </summary>
+    public bool EnableStaticWebAssets { get; set; } = false;
+}

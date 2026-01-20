@@ -1,0 +1,91 @@
+﻿<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50" style="scrollbar-gutter: stable;">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>@ViewData["Title"] - RazorWire</title>
+    <meta name="view-transition" content="same-origin"/>
+    <script src="https://unpkg.com/@@tailwindcss/browser@4.1.18" integrity="sha384-y0axVOJIfo0bJOmTOnyRyUjrqjUotl7L/k6mzSwu2SSrB3r7P+b0cSFkiod+js0X" crossorigin="anonymous"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style type="text/tailwindcss">
+        @@theme {
+            --font-outfit: "Outfit", ui-sans-serif, system-ui;
+        }
+        body {
+            font-family: var(--font-outfit);
+        }
+
+        turbo-frame {
+            display: block;
+        }
+
+        ::view-transition-old(root),
+        ::view-transition-new(root) {
+            /* Soften the swap to mask minor layout differences */
+            animation-duration: 0.2s;
+        }
+
+        /* Synchronized Inchworm Crawl - Soft Landing */
+        @@keyframes inchworm-crawl {
+            0% { transform: scale(1, 1); }
+            25% { transform: scale(1.1, 0.9); }
+            50% { transform: scale(1, 1); }
+            100% { transform: scale(1, 1); }
+        }
+
+        ::view-transition-group(permanent-island) {
+            animation-duration: 1.5s;
+            /* cubic-bezier(0.5, 0, 0.2, 1) provides a very smooth deceleration/landing */
+            animation-timing-function: cubic-bezier(0.5, 0, 0.2, 1);
+        }
+
+        ::view-transition-old(permanent-island),
+        ::view-transition-new(permanent-island) {
+            /* Ensure the snapshots fill the container perfectly to avoid sub-pixel popping */
+            height: 100%;
+            width: 100%;
+        }
+
+        ::view-transition-image-pair(permanent-island) {
+            /* Single synchronized scale run */
+            animation: inchworm-crawl 1.5s cubic-bezier(0.5, 0, 0.2, 1);
+        }
+    </style>
+    <rw:scripts/>
+    <script src="~/js/site.js" asp-append-version="true" data-turbo-eval="false"></script>
+</head>
+<body class="h-full flex flex-col font-outfit text-slate-900 overflow-x-hidden">
+<header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center gap-8">
+                <a class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent" asp-area="" asp-controller="Home" asp-action="Index">
+                    RazorWire
+                </a>
+                <div class="hidden sm:flex gap-4">
+                    <a class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                    <a class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors" asp-area="" asp-controller="Reactivity" asp-action="Index">Reactivity</a>
+                    <a class="text-sm font-medium text-slate-600 hover:text-indigo-600 transition-colors" asp-area="" asp-controller="Navigation" asp-action="Index">Navigation</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>
+
+<main role="main" class="flex-grow py-8 overflow-y-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        @RenderBody()
+    </div>
+</main>
+
+<footer class="border-t border-slate-200 bg-white py-6 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center text-sm text-slate-500">
+        <div>&copy; 2026 - RazorWire</div>
+    </div>
+</footer>
+
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -8,15 +8,18 @@ namespace ForgeTrust.Runnable.Console;
 internal class CommandService : CriticalService
 {
     private readonly IEnumerable<ICommand> _commands;
+    private readonly StartupContext _context;
 
     public CommandService(
         IServiceProvider primaryServiceProvider,
         IEnumerable<ICommand> commands,
         ILogger<CommandService> logger,
-        IHostApplicationLifetime applicationLifetime) : base(logger, applicationLifetime)
+        IHostApplicationLifetime applicationLifetime,
+        StartupContext context) : base(logger, applicationLifetime)
     {
         PrimaryServiceProvider = primaryServiceProvider;
         _commands = commands;
+        _context = context;
     }
 
     internal static IServiceProvider PrimaryServiceProvider { get; set; } = null!;
@@ -30,9 +33,16 @@ internal class CommandService : CriticalService
             builder.AddCommand(cmd.GetType());
         }
 
-        await builder
+        var exitCode = await builder
             .UseTypeActivator(PrimaryServiceProvider)
             .Build()
-            .RunAsync();
+            .RunAsync(_context.Args);
+
+        // Only set the exit code if it hasn't been set already
+        // This allows other parts of the application to set a failure exit code
+        if (Environment.ExitCode == 0)
+        {
+            Environment.ExitCode = exitCode;
+        }
     }
 }

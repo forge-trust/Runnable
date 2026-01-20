@@ -214,8 +214,8 @@ public class ExportEngine : IDisposable
 
         if (string.IsNullOrWhiteSpace(rawRef)) return false;
 
-        // Must start with /, not //, not contain :
-        if (!rawRef.StartsWith('/') || rawRef.StartsWith("//") || rawRef.Contains(':'))
+        // Must start with /, not //
+        if (!rawRef.StartsWith('/') || rawRef.StartsWith("//"))
         {
             return false;
         }

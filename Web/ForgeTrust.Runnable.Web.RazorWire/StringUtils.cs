@@ -21,20 +21,23 @@ public static class StringUtils
     /// <returns>The sanitized identifier.</returns>
     public static string ToSafeId(string? input, bool appendHash = false)
     {
+        string sanitized;
         if (string.IsNullOrWhiteSpace(input))
         {
-            return "id";
-        }
-
-        // 1. Sanitize: Replace non-alphanumeric (except - and _) with -
-        var sanitized = IdentifierRegex.Replace(input, "-");
-
-        // 2. Clean up: Trim and normalize hyphens using Regex
-        sanitized = MultiHyphenRegex.Replace(sanitized, "-").Trim('-');
-
-        if (string.IsNullOrEmpty(sanitized))
-        {
             sanitized = "id";
+        }
+        else
+        {
+            // 1. Sanitize: Replace non-alphanumeric (except - and _) with -
+            sanitized = IdentifierRegex.Replace(input, "-");
+
+            // 2. Clean up: Trim and normalize hyphens using Regex
+            sanitized = MultiHyphenRegex.Replace(sanitized, "-").Trim('-');
+
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                sanitized = "id";
+            }
         }
 
         if (!appendHash)
@@ -43,7 +46,7 @@ public static class StringUtils
         }
 
         // 3. Optional: Append a short deterministic hash of the original input
-        var hash = GetDeterministicHash(input);
+        var hash = GetDeterministicHash(input ?? string.Empty);
 
         return $"{sanitized}-{hash}";
     }

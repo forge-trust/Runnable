@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../ForgeTrust.Runnable.Web.RazorWire/ForgeTrust.Runnable.Web.RazorWire.csproj" />
+    <ProjectReference Include="..\..\Console\ForgeTrust.Runnable.Console\ForgeTrust.Runnable.Console.csproj" />
   </ItemGroup>
 
   <ItemGroup>

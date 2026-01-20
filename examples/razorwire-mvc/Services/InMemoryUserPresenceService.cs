@@ -15,6 +15,11 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// <returns>The number of users whose last activity is within the current ActiveWindow.</returns>
     public int RecordActivity(string username)
     {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            throw new ArgumentException("Username cannot be null or whitespace.", nameof(username));
+        }
+
         var now = DateTimeOffset.UtcNow;
         _userActivity[username] = now;
         var cutoff = now - ActiveWindow;

@@ -266,9 +266,14 @@ public static class EnumerableExtensions
             {
                 await Task.WhenAll(activeTasks);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Exceptions in individual tasks are already handled/re-thrown via the channel/yield return
+                // Exceptions in individual tasks are already handled/re-thrown via the channel/yield return.
+                // We ignore them here to ensure disposal of resources like the semaphore and CTS continues.
+#if DEBUG
+                System.Diagnostics.Debug.WriteLine(
+                    $"Ignored task exception during ParallelSelectAsyncEnumerable disposal: {ex}");
+#endif
             }
         }
     }

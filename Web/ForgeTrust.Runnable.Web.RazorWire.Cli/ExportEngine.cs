@@ -35,6 +35,9 @@ public class ExportEngine : IDisposable
         string baseUrl,
         IConsole console)
     {
+        _visited.Clear();
+        _queue.Clear();
+
         var trimmedBaseUrl = baseUrl.TrimEnd('/');
 
         // 1. Seed routes
@@ -70,7 +73,7 @@ public class ExportEngine : IDisposable
             _queue.Enqueue("/");
         }
 
-        await console.Output.WriteLineAsync($"Crawling from {trimmedBaseUrl}...");
+        console.Output.WriteLine($"Crawling from {trimmedBaseUrl}...");
 
         while (_queue.Count > 0)
         {
@@ -183,10 +186,11 @@ public class ExportEngine : IDisposable
     /// <param name="html">HTML source to scan.</param>
     private void ExtractLinks(string html)
     {
-        var matches = Regex.Matches(html, "href=\"([^\"]+)\"");
-        foreach (Match match in matches)
+        var targets = Regex.Matches(html, "href=\"([^\"]+)\"")
+            .Select(m => m.Groups[1].Value);
+
+        foreach (var href in targets)
         {
-            var href = match.Groups[1].Value;
             if (TryGetNormalizedRoute(href, out var normalized) && !_visited.Contains(normalized))
             {
                 _queue.Enqueue(normalized);
@@ -200,10 +204,11 @@ public class ExportEngine : IDisposable
     /// <param name="html">HTML content to scan.</param>
     private void ExtractFrames(string html)
     {
-        var matches = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"");
-        foreach (Match match in matches)
+        var targets = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"")
+            .Select(m => m.Groups[1].Value);
+
+        foreach (var src in targets)
         {
-            var src = match.Groups[1].Value;
             if (TryGetNormalizedRoute(src, out var normalized) && !_visited.Contains(normalized))
             {
                 _queue.Enqueue(normalized);

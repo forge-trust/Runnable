@@ -254,6 +254,7 @@ public static class EnumerableExtensions
             }
             catch (Exception ex)
             {
+                // Cleanup failures during producer termination are suppressed to avoid shadowing main exceptions
 #if DEBUG
                 System.Diagnostics.Debug.WriteLine(
                     $"Error during ParallelSelectAsyncEnumerable cleanup (producer): {ex}");
@@ -266,9 +267,14 @@ public static class EnumerableExtensions
             {
                 await Task.WhenAll(activeTasks);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Exceptions in individual tasks are already handled/re-thrown via the channel/yield return
+                // Exceptions in individual tasks are already handled/re-thrown via the channel/yield return.
+                // We catch here to ensure 'WhenAll' doesn't prevent further cleanup if some tasks were already flawed.
+#if DEBUG
+                System.Diagnostics.Debug.WriteLine(
+                    $"Error during ParallelSelectAsyncEnumerable activeTasks join: {ex}");
+#endif
             }
         }
     }

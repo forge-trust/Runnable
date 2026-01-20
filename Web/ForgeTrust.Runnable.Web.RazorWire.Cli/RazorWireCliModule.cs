@@ -9,6 +9,8 @@ public class RazorWireCliModule : IRunnableHostModule
 {
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
+        services.AddTransient<ExportEngine>();
+
         // Configure logging
         services.AddLogging(builder =>
         {

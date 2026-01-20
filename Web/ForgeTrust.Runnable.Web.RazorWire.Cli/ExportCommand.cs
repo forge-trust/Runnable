@@ -19,14 +19,14 @@ public class ExportCommand : ICommand
     public string BaseUrl { get; init; } = "http://localhost:5000";
 
     private readonly ILogger<ExportCommand> _logger;
-    private readonly ILoggerFactory _loggerFactory;
+    private readonly ExportEngine _engine;
 
     public ExportCommand(
         ILogger<ExportCommand> logger,
-        ILoggerFactory loggerFactory)
+        ExportEngine engine)
     {
         _logger = logger;
-        _loggerFactory = loggerFactory;
+        _engine = engine;
     }
 
     /// <summary>
@@ -45,10 +45,7 @@ public class ExportCommand : ICommand
 
         _logger.LogInformation($"Exporting to {OutputPath}...");
 
-        // Create a basic logger factory for CLI context
-        var logger = _loggerFactory.CreateLogger<ExportEngine>();
-        var engine = new ExportEngine(OutputPath, SeedRoutesPath, BaseUrl, console, logger);
-        await engine.RunAsync();
+        await _engine.RunAsync(OutputPath, SeedRoutesPath, BaseUrl, console);
 
         _logger.LogInformation("Export complete!");
     }

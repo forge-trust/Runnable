@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -15,12 +14,13 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     private readonly object? _model;
 
     /// <summary>
-    /// Creates a Turbo Stream action that will render a specified partial view into a turbo-stream element.
+    /// Initializes a <see cref="PartialViewStreamAction"/> that will render a partial view into a turbo-stream element with the specified action and target.
     /// </summary>
-    /// <param name="action">The Turbo Stream action attribute (e.g., "replace", "append", "update").</param>
-    /// <param name="target">The Turbo Stream target identifier for the element to update.</param>
+    /// <param name="action">The turbo-stream action (e.g., "replace", "append", "update").</param>
+    /// <param name="target">The identifier of the turbo-stream target element.</param>
     /// <param name="viewName">The name or path of the partial view to render.</param>
     /// <param name="model">Optional model to supply to the partial view; may be null.</param>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="action"/>, <paramref name="target"/>, or <paramref name="viewName"/> is null, empty, or consists only of whitespace.</exception>
     public PartialViewStreamAction(
         string action,
         string target,

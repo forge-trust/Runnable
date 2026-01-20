@@ -15,11 +15,19 @@ public class CSharpDocHarvester : IDocHarvester
 {
     private readonly ILogger<CSharpDocHarvester> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the provided logger.
+    /// </summary>
     public CSharpDocHarvester(ILogger<CSharpDocHarvester> logger)
     {
         _logger = logger;
     }
 
+    /// <summary>
+    /// Collects XML documentation from C# source files under the specified root and produces DocNode entries containing titles, relative file paths with anchors, and HTML-formatted content.
+    /// </summary>
+    /// <param name="rootPath">The root directory to recursively scan for .cs files.</param>
+    /// <returns>A collection of DocNode objects; each contains a title, a relative file path including a fragment anchor, and the extracted HTML documentation.</returns>
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
     {
         var nodes = new List<DocNode>();
@@ -115,10 +123,10 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Extracts XML documentation from the leading trivia of a given syntax node and converts it to HTML.
+    /// Extracts XML documentation from the leading trivia of a syntax node and converts the <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> elements into HTML fragments.
     /// </summary>
-    /// <param name="node">The syntax node to extract documentation from.</param>
-    /// <returns>The generated HTML string if documentation exists; otherwise, null.</returns>
+    /// <param name="node">The syntax node whose leading XML documentation comments will be parsed.</param>
+    /// <returns>The HTML string containing encoded summary and remarks, or <c>null</c> if no documentation is present or parsing fails.</returns>
     private string? ExtractDoc(SyntaxNode node)
     {
         var xml = node.GetLeadingTrivia()
@@ -159,10 +167,11 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Builds a qualified name for a type or enum by walking up the syntax tree and prepending containing type and namespace names.
+    /// Compute the dot-delimited qualified name for the provided type declaration, including enclosing types and containing namespaces.
+    /// Walks up the syntax tree to prepend containing type and namespace names.
     /// </summary>
-    /// <param name="node">The type or enum declaration node.</param>
-    /// <returns>A dot-delimited qualified name string.</returns>
+    /// <param name="node">The type or enum declaration node to compute the qualified name for.</param>
+    /// <returns>The qualified name as a dot-delimited string, including nested type and namespace segments.</returns>
     private string GetQualifiedName(BaseTypeDeclarationSyntax node)
     {
         var parts = new Stack<string>();

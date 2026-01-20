@@ -13,12 +13,12 @@ public static class StringUtils
     private static readonly Regex MultiHyphenRegex = new(@"-+", RegexOptions.Compiled);
 
     /// <summary>
-    /// Produces a safe identifier from an input string by replacing characters not in [a-zA-Z0-9-_] with hyphens.
-    /// Optionally appends a short deterministic hash of the original input to ensure uniqueness.
+    /// Produces a safe identifier by replacing disallowed characters with hyphens, collapsing consecutive hyphens, trimming edge hyphens, and defaulting to "id" for null, whitespace, or empty results.
+    /// Optionally appends a short deterministic 4-character lowercase hex hash (prefixed with a hyphen) derived from the original input to ensure uniqueness.
     /// </summary>
-    /// <param name="input">The original string to normalize.</param>
-    /// <param name="appendHash">If true, appends a 4-character deterministic hash suffix.</param>
-    /// <returns>The sanitized identifier.</returns>
+    /// <param name="input">The source string to convert into a safe identifier.</param>
+    /// <param name="appendHash">If true, appends a short deterministic 4-character lowercase hex hash (prefixed with a hyphen).</param>
+    /// <returns>The sanitized identifier; when <paramref name="appendHash"/> is true the result is suffixed with "-" followed by a 4-character hash.</returns>
     public static string ToSafeId(string? input, bool appendHash = false)
     {
         string sanitized;
@@ -52,14 +52,11 @@ public static class StringUtils
     }
 
     /// <summary>
-    /// Generates a short, deterministic 4-character hex (16 bits) hash of the input string using SHA256.
+    /// Produces a short deterministic 4-character lowercase hexadecimal hash derived from <paramref name="input"/> using SHA-256.
     /// </summary>
     /// <remarks>
-    /// This method <c>GetDeterministicHash</c> returns a 4-character lowercase hex string. 
-    /// Due to the short length (16 bits), the collision likelihood is subject to the birthday paradox: 
-    /// there is ~50% chance of collision with only ~256 unique inputs.
-    /// It is NOT guaranteed to be unique for large sets. If higher uniqueness is required, 
-    /// consider returning a longer slice of the hash or the full SHA256 string.
+    /// Returns only the first 4 hex characters (16 bits) of the SHA-256 digest; collisions are possible.
+    /// If higher uniqueness is required, consider using a longer slice or the full SHA-256 string.
     /// </remarks>
     /// <param name="input">The string to hash.</param>
     /// <returns>A 4-character lowercase hex string.</returns>

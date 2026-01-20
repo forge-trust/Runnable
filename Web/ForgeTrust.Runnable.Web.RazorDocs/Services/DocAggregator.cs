@@ -18,8 +18,15 @@ public class DocAggregator
     private const string CacheKey = "HarvestedDocs";
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DocAggregator"/> class.
+    /// Initializes a new instance of the <see cref="DocAggregator"/> class that aggregates documentation from the provided harvesters.
+    /// Configures caching, HTML sanitization, and logging based on the provided parameters.
     /// </summary>
+    /// <param name="harvesters">Collection of harvesters used to retrieve documentation nodes.</param>
+    /// <param name="configuration">Application configuration; if the "RepositoryRoot" key is present it will be used as the repository root.</param>
+    /// <param name="environment">Host environment used to locate the repository root when configuration does not provide one.</param>
+    /// <param name="cache">Memory cache used to store harvested documentation.</param>
+    /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
+    /// <param name="logger">Logger used to record errors and warnings during harvesting and aggregation.</param>
     public DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
         IConfiguration configuration,
@@ -39,7 +46,7 @@ public class DocAggregator
     /// <summary>
     /// Retrieves all harvested documentation nodes, sorted by path.
     /// </summary>
-    /// <returns>A collection of all documentation nodes.</returns>
+    /// <returns>An enumerable of all <see cref="DocNode"/> objects, ordered by path.</returns>
     public async Task<IEnumerable<DocNode>> GetDocsAsync()
     {
         var cachedDict = await GetCachedDocsAsync();
@@ -50,8 +57,8 @@ public class DocAggregator
     /// <summary>
     /// Retrieves a specific documentation node by its path.
     /// </summary>
-    /// <param name="path">The path/key of the document.</param>
-    /// <returns>The <see cref="DocNode"/> if found; otherwise, null.</returns>
+    /// <param name="path">The documentation path used as the lookup key.</param>
+    /// <returns>The <see cref="DocNode"/> if found, or <c>null</c> if no node exists for the given path.</returns>
     public async Task<DocNode?> GetDocByPathAsync(string path)
     {
         var cachedDict = await GetCachedDocsAsync();
@@ -59,6 +66,17 @@ public class DocAggregator
         return cachedDict.TryGetValue(path, out var doc) ? doc : null;
     }
 
+    /// <summary>
+    /// Retrieves harvested documentation from cache or harvests and caches it if absent.
+    /// </summary>
+    /// <remarks>
+    /// When harvesting, each configured harvester is invoked; harvester failures are logged and treated as producing no nodes.
+    /// Harvested node content is sanitized, duplicate paths are detected (a warning is logged) and the first occurrence is retained.
+    /// The aggregated results are cached with a 5-minute absolute expiration.
+    /// </remarks>
+    /// <returns>
+    /// A dictionary mapping each document Path to its corresponding sanitized <see cref="DocNode"/>; returns an empty dictionary if no documents are available.
+    /// </returns>
     private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync()
     {
         return await _cache.GetOrCreateAsync(

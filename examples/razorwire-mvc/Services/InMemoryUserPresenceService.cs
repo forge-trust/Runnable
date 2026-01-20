@@ -29,9 +29,9 @@ public class InMemoryUserPresenceService : IUserPresenceService
     }
 
     /// <summary>
-    /// Retrieves the users whose last recorded activity falls within the configured ActiveWindow.
+    /// Retrieves the users whose last recorded activity falls within the configured sliding window of <see cref="ActiveWindow"/>.
     /// </summary>
-    /// <returns>An enumerable of UserPresenceInfo for users active within the ActiveWindow; each item contains the Username, a safe identifier, and the last-activity timestamp. The sequence is ordered by Username.</returns>
+    /// <returns>A list of <see cref="UserPresenceInfo"/> for users with last activity at or after the cutoff; ordered by Username.</returns>
     public IEnumerable<UserPresenceInfo> GetActiveUsers()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
@@ -47,10 +47,12 @@ public class InMemoryUserPresenceService : IUserPresenceService
     }
 
     /// <summary>
-    /// Removes users whose last recorded activity is older than the ActiveWindow and reports the removals and current active count.
+    /// Removes users whose last recorded activity is older than the <see cref="ActiveWindow"/> and reports the removals and current active count.
     /// </summary>
     /// <returns>
-    /// A tuple where `Removed` is a read-only list of UserPresenceInfo for users removed due to inactivity, and `ActiveCount` is the number of users with activity within the ActiveWindow.
+    /// A tuple where:
+    /// - <c>Removed</c> is a read-only list of <see cref="UserPresenceInfo"/> for users removed due to inactivity.
+    /// - <c>ActiveCount</c> is the number of users whose last activity is within the <see cref="ActiveWindow"/>.
     /// </returns>
     public (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse()
     {

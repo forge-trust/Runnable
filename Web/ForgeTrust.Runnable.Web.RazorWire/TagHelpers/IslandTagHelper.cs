@@ -60,10 +60,11 @@ public class IslandTagHelper : TagHelper
     public string? ClientProps { get; set; }
 
     /// <summary>
-    /// Renders the rw:island element as a &lt;turbo-frame&gt; and populates its attributes based on the tag helper's properties.
+    /// Renders a <c>&lt;turbo-frame&gt;</c> element and applies attributes (id, src, loading, permanent, etc.) according to the tag helper's properties.
     /// </summary>
     /// <param name="context">The current tag helper execution context.</param>
-    /// <param name="output">The output to modify; sets the tag to &lt;turbo-frame&gt; and applies id, src, loading, data-turbo-permanent, data-rw-swr, view-transition-name (appended to style), data-rw-export, and client-related data attributes according to the helper's properties.</param>
+    /// <param name="output">The output to modify; sets the element to <c>&lt;turbo-frame&gt;</c> and applies corresponding attributes.</param>
+    /// <exception cref="ArgumentException">Thrown when <see cref="Id"/> is null, empty, or consists only of white-space characters.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = "turbo-frame";

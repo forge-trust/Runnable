@@ -19,10 +19,13 @@ public class ExportEngine : IDisposable
     }
 
     /// <summary>
-    /// Crawl the configured base URL, discover internal routes, and export each route's HTML to the output directory.
+    /// Crawls the site starting from configured seed routes (or the root) and exports discovered pages and frame sources to the output path.
     /// </summary>
-    /// <param name="context">The export context containing configuration and state.</param>
-    /// <param name="cancellationToken">Token to observe while waiting for the task to complete.</param>
+    /// <remarks>
+    /// If <see cref="ExportContext.SeedRoutesPath"/> is set, the file is read and each line is validated and normalized as a root-relative route; invalid seeds are logged. If the seed file exists but yields no valid routes, the method falls back to enqueueing the root path ("/"). Discovered internal links and frame sources are queued and processed until the queue is exhausted or the operation is cancelled.
+    /// </remarks>
+    /// <param name="context">Export configuration and runtime state (base URL, queue, visited set, output path, and console/logger references).</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the crawl operation.</param>
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
     public async Task RunAsync(ExportContext context, CancellationToken cancellationToken = default)
     {

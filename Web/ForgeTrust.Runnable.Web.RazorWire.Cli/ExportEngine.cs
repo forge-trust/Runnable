@@ -26,8 +26,17 @@ public class ExportEngine : IDisposable
     public async Task RunAsync(ExportContext context)
     {
         // 1. Seed routes
-        if (context.SeedRoutesPath != null && File.Exists(context.SeedRoutesPath))
+        if (!string.IsNullOrEmpty(context.SeedRoutesPath))
         {
+            if (!File.Exists(context.SeedRoutesPath))
+            {
+                _logger.LogError($"Seed routes file not found: {context.SeedRoutesPath}");
+
+                throw new FileNotFoundException(
+                    "The specified seed routes file does not exist.",
+                    context.SeedRoutesPath);
+            }
+
             var seeds = await File.ReadAllLinesAsync(context.SeedRoutesPath);
 
             foreach (var seed in seeds)
@@ -168,8 +177,8 @@ public class ExportEngine : IDisposable
     /// <param name="context">The export context.</param>
     private void ExtractLinks(string html, ExportContext context)
     {
-        var targets = Regex.Matches(html, "href=\"([^\"]+)\"")
-            .Select(m => m.Groups[1].Value);
+        var targets = Regex.Matches(html, @"href\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value.Trim());
 
         foreach (var href in targets)
         {
@@ -187,8 +196,8 @@ public class ExportEngine : IDisposable
     /// <param name="context">The export context.</param>
     private void ExtractFrames(string html, ExportContext context)
     {
-        var targets = Regex.Matches(html, "<turbo-frame [^>]*src=\"([^\"]+)\"")
-            .Select(m => m.Groups[1].Value);
+        var targets = Regex.Matches(html, @"<turbo-frame[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value.Trim());
 
         foreach (var src in targets)
         {

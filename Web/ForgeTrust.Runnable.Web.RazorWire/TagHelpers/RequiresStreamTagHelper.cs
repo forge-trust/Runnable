@@ -11,7 +11,7 @@ public class RequiresStreamTagHelper : TagHelper
     /// Applies stream-requirement attributes and disables the element when a requires-stream value is present.
     /// </summary>
     /// <remarks>
-    /// If <see cref="RequiresStream"/> is null or empty, the output is left unchanged. Otherwise adds the following attributes to the element:
+    /// If <see cref="RequiresStream"/> is null or whitespace, the output is left unchanged. Otherwise adds the following attributes to the element:
     /// <list type="bullet">
     /// <item><description><c>data-rw-requires-stream</c> set to the <see cref="RequiresStream"/> value</description></item>
     /// <item><description><c>aria-disabled</c> to <c>"true"</c></description></item>

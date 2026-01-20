@@ -68,8 +68,6 @@
     async function mountIslandSafe(island, modulePath, props) {
         try {
             await mountIsland(island, modulePath, props);
-        } catch (e) {
-            console.error(`Failed to mount island ${modulePath}`, e);
         } finally {
             scheduledElements.delete(island);
         }

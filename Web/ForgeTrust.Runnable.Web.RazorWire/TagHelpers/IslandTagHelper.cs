@@ -38,7 +38,7 @@ public class IslandTagHelper : TagHelper
 
         if (string.IsNullOrWhiteSpace(Id))
         {
-            throw new ArgumentException("The 'id' attribute is required for rw:island.");
+            throw new ArgumentException("The 'id' attribute is required for rw:island.", nameof(Id));
         }
 
         output.Attributes.SetAttribute("id", Id);

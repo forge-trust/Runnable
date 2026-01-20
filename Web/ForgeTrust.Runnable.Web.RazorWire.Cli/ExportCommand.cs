@@ -2,6 +2,7 @@ using CliFx;
 using CliFx.Attributes;
 using CliFx.Exceptions;
 using CliFx.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
@@ -33,7 +34,15 @@ public class ExportCommand : ICommand
 
         console.Output.WriteLine($"Exporting to {OutputPath}...");
 
-        var engine = new ExportEngine(OutputPath, SeedRoutesPath, BaseUrl, console);
+        // Create a basic logger factory for CLI context
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddConsole();
+            builder.SetMinimumLevel(LogLevel.Warning);
+        });
+        var logger = loggerFactory.CreateLogger<ExportEngine>();
+
+        var engine = new ExportEngine(OutputPath, SeedRoutesPath, BaseUrl, console, logger);
         await engine.RunAsync();
 
         console.Output.WriteLine("Export complete!");

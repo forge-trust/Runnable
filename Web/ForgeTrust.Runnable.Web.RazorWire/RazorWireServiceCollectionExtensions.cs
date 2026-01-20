@@ -16,6 +16,10 @@ public static class RazorWireServiceCollectionExtensions
     /// Registers RazorWire options and default RazorWire services into the provided service collection.
     /// </summary>
     /// <param name="configure">Optional configuration action for <see cref="RazorWireOptions"/>; if null, no changes are applied.</param>
+    /// <summary>
+    /// Registers RazorWire options and default RazorWire services into the provided <see cref="IServiceCollection"/>.
+    /// </summary>
+    /// <param name="configure">Optional action to configure <see cref="RazorWireOptions"/>; may be null.</param>
     /// <returns>The same <see cref="IServiceCollection"/> instance with RazorWire registrations added.</returns>
     public static IServiceCollection AddRazorWire(
         this IServiceCollection services,

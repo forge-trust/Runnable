@@ -10,11 +10,11 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     private readonly ConcurrentDictionary<ChannelWriter<string>, ChannelReader<string>> _writerToReader = new();
 
     /// <summary>
-    /// Publish a message to all subscribers of the specified channel and remove any subscribers that are closed or unable to accept the message.
+    /// Publishes a message to all subscribers of the specified channel. Any subscribers that are closed or unable to accept the message are removed during the process.
     /// </summary>
     /// <param name="channel">The name of the channel to publish to.</param>
-    /// <param name="message">The message payload to send to subscribers.</param>
-    /// <returns>`ValueTask.CompletedTask` on success; a faulted `ValueTask` if an exception occurred during publishing.</returns>
+    /// <param name="message">The message payload to deliver to subscribers.</param>
+    /// <returns>`ValueTask.CompletedTask` on success, or a faulted `ValueTask` containing the exception if publishing failed.</returns>
     public ValueTask PublishAsync(string channel, string message)
     {
         try
@@ -60,7 +60,7 @@ public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
     /// The subscription uses an in-memory bounded buffer with capacity 100 that drops the oldest messages when full.
     /// </summary>
     /// <param name="channel">The name of the channel to subscribe to.</param>
-    /// <returns>A <see cref="ChannelReader{String}"/> that yields messages published to the given channel until the subscription is removed or the writer is completed.</returns>
+    /// <returns>A <see cref="ChannelReader{String}"/> that yields messages published to the specified channel until the subscription is removed or the writer is completed.</returns>
     public ChannelReader<string> Subscribe(string channel)
     {
         var subscriber = Channel.CreateBounded<string>(

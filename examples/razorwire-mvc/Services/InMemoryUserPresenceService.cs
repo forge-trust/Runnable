@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using ForgeTrust.Runnable.Web.RazorWire;
 
 namespace RazorWireWebExample.Services;
 
@@ -9,61 +10,71 @@ public class InMemoryUserPresenceService : IUserPresenceService
     public TimeSpan ActiveWindow { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// Updates the stored last-activity timestamp for the specified user.
+    /// Record the current UTC time as the specified user's last activity.
     /// </summary>
-    /// <param name="username">The user's name; lookup is case-insensitive.</param>
-    /// <summary>
-    /// Record the current UTC activity time for the specified user and update their presence status.
-    /// </summary>
-    /// <param name="username">The user's name (lookup is case-insensitive).</param>
+    /// <param name="username">The username to record activity for; stored using a case-insensitive key.</param>
     /// <returns>The number of users whose last activity is within the current ActiveWindow.</returns>
     public int RecordActivity(string username)
     {
-        _userActivity[username] = DateTimeOffset.UtcNow;
-        var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            throw new ArgumentException("Username cannot be null or whitespace.", nameof(username));
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        _userActivity[username] = now;
+        var cutoff = now - ActiveWindow;
 
         return _userActivity.Values.Count(v => v >= cutoff);
     }
 
     /// <summary>
-    /// Gets users whose last recorded activity falls within the service's ActiveWindow.
+    /// Retrieves the users whose last recorded activity falls within the configured sliding window of <see cref="ActiveWindow"/>.
     /// </summary>
-    /// <summary>
-    /// Retrieve users whose last recorded activity falls within the current ActiveWindow.
-    /// </summary>
-    /// <returns>A list of UserPresenceInfo objects (each containing Username, SafeId, and the activity timestamp) for users active within the ActiveWindow, ordered by Username.</returns>
+    /// <returns>A list of <see cref="UserPresenceInfo"/> for users with last activity at or after the cutoff; ordered by Username.</returns>
     public IEnumerable<UserPresenceInfo> GetActiveUsers()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
 
         return _userActivity
             .Where(kvp => kvp.Value >= cutoff)
-            .Select(kvp => new UserPresenceInfo(kvp.Key, UserPresenceInfo.ToSafeId(kvp.Key), kvp.Value))
+            .Select(kvp => new UserPresenceInfo(
+                kvp.Key,
+                StringUtils.ToSafeId(kvp.Key, appendHash: true),
+                kvp.Value))
             .OrderBy(u => u.Username)
             .ToList();
     }
 
     /// <summary>
-    /// Removes entries whose last activity is older than the configured ActiveWindow (relative to current UTC) and reports which presences were removed and how many remain active.
+    /// Removes users whose last recorded activity is older than the <see cref="ActiveWindow"/> and reports the removals and current active count.
     /// </summary>
     /// <returns>
-    /// A tuple where `Removed` is a read-only list of UserPresenceInfo for each user removed (including the original username, a safe-id, and the removed timestamp), and `ActiveCount` is the number of users with a last-activity timestamp greater than or equal to the ActiveWindow cutoff.
-    /// <summary>
-    /// Removes user activity entries older than the configured ActiveWindow and reports what was removed.
-    /// </summary>
-    /// <returns>
-    /// A tuple where `Removed` is a read-only list of UserPresenceInfo objects for each entry removed due to inactivity (each containing the username, its safe id, and the removed timestamp), and `ActiveCount` is the number of remaining entries whose last activity is within the ActiveWindow.
+    /// A tuple where:
+    /// - <c>Removed</c> is a read-only list of <see cref="UserPresenceInfo"/> for users removed due to inactivity.
+    /// - <c>ActiveCount</c> is the number of users whose last activity is within the <see cref="ActiveWindow"/>.
     /// </returns>
     public (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
         var removed = new List<UserPresenceInfo>();
 
+        var collection = (ICollection<KeyValuePair<string, DateTimeOffset>>)_userActivity;
+
         foreach (var kvp in _userActivity)
         {
-            if (kvp.Value < cutoff && _userActivity.TryRemove(kvp.Key, out _))
+            // Atomically remove only if the value matches our snapshot.
+            // This prevents removing a user who updated their activity *after* we retrieved the value but *before* we tried to remove it.
+            if (kvp.Value < cutoff)
             {
-                removed.Add(new UserPresenceInfo(kvp.Key, UserPresenceInfo.ToSafeId(kvp.Key), kvp.Value));
+                if (collection.Remove(kvp))
+                {
+                    removed.Add(
+                        new UserPresenceInfo(
+                            kvp.Key,
+                            StringUtils.ToSafeId(kvp.Key, appendHash: true),
+                            kvp.Value));
+                }
             }
         }
 

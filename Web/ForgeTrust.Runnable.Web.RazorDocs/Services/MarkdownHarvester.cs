@@ -8,6 +8,9 @@ public class MarkdownHarvester : IDocHarvester
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="MarkdownHarvester"/> using the provided logger and constructs a Markdown pipeline configured with advanced extensions.
+    /// </summary>
     public MarkdownHarvester(ILogger<MarkdownHarvester> logger)
     {
         _logger = logger;
@@ -16,6 +19,11 @@ public class MarkdownHarvester : IDocHarvester
             .Build();
     }
 
+    /// <summary>
+    /// Harvests Markdown files beneath the specified root directory and converts them into DocNode entries.
+    /// </summary>
+    /// <param name="rootPath">The root directory to search for `.md` files.</param>
+    /// <returns>A collection of DocNode objects representing each processed Markdown file, containing the display title, path relative to <paramref name="rootPath"/>, and generated HTML.</returns>
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
     {
         var nodes = new List<DocNode>();

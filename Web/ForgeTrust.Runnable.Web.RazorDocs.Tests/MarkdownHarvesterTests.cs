@@ -73,6 +73,36 @@ public class MarkdownHarvesterTests : IDisposable
         A.CallTo(_loggerFake).Where(call => call.Method.Name == "Log").MustHaveHappened();
     }
 
+    [Fact]
+    public async Task HarvestAsync_ShouldUseParentDirNameForREADME()
+    {
+        // Arrange
+        var subDir = Path.Combine(_testRoot, "Components");
+        Directory.CreateDirectory(subDir);
+        await File.WriteAllTextAsync(Path.Combine(subDir, "README.md"), "# Components Guide");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        var doc = results.Single(n => n.Path.Contains("README.md"));
+        Assert.Equal("Components", doc.Title);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldReturnHomeForRootREADME()
+    {
+        // Arrange
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "README.md"), "# Project Home");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        var doc = results.Single(n => n.Title == "Home");
+        Assert.Equal("Home", doc.Title);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))

@@ -6,23 +6,32 @@
     window.RazorWireIslandsInitialized = true;
 
     const initializedElements = new WeakSet();
+    const scheduledElements = new WeakSet();
 
     /**
-     * Finds unhydrated island elements (marked with `data-rw-module`) and mounts each according to its `data-rw-strategy`.
+     * Hydrates all unhydrated RazorWire islands in the document according to each element's data-rw-strategy.
      *
-     * Iterates DOM elements that have `data-rw-module` and are not yet hydrated, reads optional JSON props from
-     * `data-rw-props` (falls back to `{}` and logs an error on parse failure), and mounts each island according to
-     * its `data-rw-strategy`: `load` mounts immediately, `visible` mounts when the element becomes visible, `idle`
-     * schedules mounting during browser idle time (with a 200ms fallback), and `only` clears the element before mounting.
-     * Hydration state is marked on the element and tracked to avoid duplicate initialization.
+     * For each element with `data-rw-module` that is not yet hydrated, attempts to parse JSON props from
+     * `data-rw-props` (falls back to `{}` and logs an error on parse failure) and mounts the island according to
+     * `data-rw-strategy`:
+     * - `load`: mount immediately
+     * - `visible`: mount when the element becomes visible
+     * - `idle`: schedule mount during browser idle time (200ms fallback)
+     * - `only`: clear the element's content, then mount immediately
+     *
+     * Successfully mounted elements are marked as hydrated and tracked to avoid duplicate initialization.
      */
     async function hydrateIslands() {
         const islands = document.querySelectorAll('[data-rw-module]:not([data-rw-hydrated])');
 
         for (const island of islands) {
-            if (initializedElements.has(island)) continue;
+            // Guard against double-scheduling: check both already-mounted and currently-scheduled elements
+            if (initializedElements.has(island) || scheduledElements.has(island)) continue;
 
             const modulePath = island.getAttribute('data-rw-module');
+            if (!modulePath) continue; // Safety guard
+
+            scheduledElements.add(island);
             const strategy = island.getAttribute('data-rw-strategy') || 'load';
             let props = {};
             try {
@@ -31,29 +40,61 @@
                 console.error('Failed to parse island props:', e);
             }
 
+            // Fire-and-forget: Do not await mountIslandSafe here.
+            // We want all islands to start hydrating in parallel so that a slow network request
+            // for one module doesn't block the initialization of subsequent islands on the page.
+
             if (strategy === 'load') {
-                await mountIsland(island, modulePath, props);
+                mountIslandSafe(island, modulePath, props);
             } else if (strategy === 'visible') {
                 setupIntersectionObserver(island, modulePath, props);
             } else if (strategy === 'idle') {
                 if ('requestIdleCallback' in window) {
-                    window.requestIdleCallback(() => mountIsland(island, modulePath, props));
+                    window.requestIdleCallback(() => mountIslandSafe(island, modulePath, props));
                 } else {
-                    setTimeout(() => mountIsland(island, modulePath, props), 200);
+                    setTimeout(() => mountIslandSafe(island, modulePath, props), 200);
                 }
             } else if (strategy === 'only') {
                 island.innerHTML = '';
-                await mountIsland(island, modulePath, props);
+                mountIslandSafe(island, modulePath, props);
+            } else {
+                // Unknown strategy, cleanup
+                console.warn(`Unknown island strategy: ${strategy}`, island);
+                scheduledElements.delete(island);
             }
         }
     }
 
+    async function mountIslandSafe(island, modulePath, props) {
+        try {
+            await mountIsland(island, modulePath, props);
+        } finally {
+            scheduledElements.delete(island);
+        }
+    }
+
+    /**
+     * Hydrates a DOM island by importing its module and invoking its `mount` function if present.
+     *
+     * On successful mount, sets `data-rw-hydrated="true"` on the root and records the root in the internal
+     * initializedElements set. If the imported module does not export a function named `mount`, logs an
+     * error, sets `data-rw-hydrated="failed"`, and still records the root in initializedElements. If the
+     * dynamic import or the mount call throws, logs the error and leaves the element's hydration state unchanged.
+     *
+     * @param {HTMLElement} root - The DOM element to hydrate.
+     * @param {string} modulePath - The module specifier used for dynamic import.
+     * @param {Record<string, any>} props - Props passed to the module's `mount` function.
+     */
     async function mountIsland(root, modulePath, props) {
         try {
             const module = await import(modulePath);
-            if (module.mount) {
-                module.mount(root, props);
+            if (typeof module.mount === 'function') {
+                await module.mount(root, props);
                 root.setAttribute('data-rw-hydrated', 'true');
+                initializedElements.add(root);
+            } else {
+                console.error(`Module ${modulePath} does not export a 'mount' function.`);
+                root.setAttribute('data-rw-hydrated', 'failed');
                 initializedElements.add(root);
             }
         } catch (e) {
@@ -61,16 +102,33 @@
         }
     }
 
+    /**
+     * Mount an island's module when the element becomes visible in the viewport.
+     *
+     * Uses IntersectionObserver when available to trigger a single mount on first intersection.
+     * If IntersectionObserver is not supported, the mount is performed immediately as a fallback.
+     *
+     * @param {Element} island - The DOM element representing the island to observe and mount.
+     * @param {string} modulePath - The module path to dynamically import for mounting.
+     * @param {Object} props - The props object to pass to the module's mount function.
+     */
     function setupIntersectionObserver(island, modulePath, props) {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(async (entry) => {
-                if (entry.isIntersecting) {
-                    observer.unobserve(island);
-                    await mountIsland(island, modulePath, props);
+        // Guard against missing IntersectionObserver in older browsers
+        if (typeof IntersectionObserver !== "undefined") {
+            const observer = new IntersectionObserver((entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        observer.unobserve(island);
+                        // Use safe mount to ensure cleanup
+                        mountIslandSafe(island, modulePath, props);
+                    }
                 }
             });
-        });
-        observer.observe(island);
+            observer.observe(island);
+        } else {
+            // Fallback: mount immediately (or defer via timeout) if observer is unsupported
+            mountIslandSafe(island, modulePath, props);
+        }
     }
 
     // Listen for Turbo events

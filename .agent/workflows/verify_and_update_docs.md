@@ -2,6 +2,8 @@
 description: Get all distinct files touched in branch, verify XML comments and Markdown docs, intended for pre-push checks
 ---
 
+# Verify and Update Docs
+
 1. ACQUIRE CONTEXT:
    - Identify distinct files changed in `origin/main...HEAD`.
    - Command: `git diff --name-only origin/main...HEAD`
@@ -19,4 +21,4 @@ description: Get all distinct files touched in branch, verify XML comments and M
 3. VERIFY INTEGRITY (PRE-PUSH):
    - Run the test suite to ensure the new documentation or edits didn't break the build (e.g. malformed XML):
      `dotnet test`
-   - If this is a `RazorDocs` related module, verify the harvesting logic produces clean `DocNode` results.
+   - If this is a `RazorDocs`-related module, verify the harvesting logic produces clean `DocNode` results.

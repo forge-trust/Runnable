@@ -2,6 +2,7 @@ using FakeItEasy;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +16,26 @@ public class RazorDocsWebModuleTests
     {
         _module = new RazorDocsWebModule();
     }
+
+    [Fact]
+    public void Properties_ShouldReturnDefaultValues()
+    {
+        Assert.True(_module.IncludeAsApplicationPart);
+    }
+
+    [Fact]
+    public void RegisterDependentModules_ShouldAddRazorWireModule()
+    {
+        // Arrange
+        var builder = new ModuleDependencyBuilder();
+
+        // Act
+        _module.RegisterDependentModules(builder);
+
+        // Assert
+        Assert.Contains(builder.Modules, m => m is RazorWireWebModule);
+    }
+
 
     [Fact]
     public void ConfigureServices_ShouldRegisterRequiredServices()

@@ -8,7 +8,10 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 public interface IRazorWireStreamAction
 {
     /// <summary>
-    /// Renders the action as HTML.
+    /// Renders the stream action to an HTML string using the provided view rendering context.
     /// </summary>
-    Task<string> RenderAsync(ViewContext viewContext);
+    /// <param name="viewContext">The Razor view rendering context used to produce the HTML output.</param>
+    /// <param name="cancellationToken">A token to observe while waiting for the task to complete.</param>
+    /// <returns>The rendered HTML for this stream action.</returns>
+    Task<string> RenderAsync(ViewContext viewContext, CancellationToken cancellationToken = default);
 }

@@ -6,6 +6,56 @@ using System.Text.Encodings.Web;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
+/// <summary>
+/// Internal helper for rendering view components into Turbo Stream fragments.
+/// </summary>
+internal static class ViewComponentStreamHelper
+{
+    /// <summary>
+    /// Renders a view component into a Turbo Stream XML fragment.
+    /// </summary>
+    /// <param name="viewContext">The current Razor view context used as the basis for rendering.</param>
+    /// <param name="action">The Turbo Stream action (e.g., "replace", "append").</param>
+    /// <param name="target">The DOM element identifier to update.</param>
+    /// <param name="componentIdentifier">The view component to invoke; either a CLR <see cref="Type"/> or the component's string name.</param>
+    /// <param name="arguments">Optional arguments to pass to the view component.</param>
+    /// <returns>A Turbo Stream XML fragment whose `action` and `target` attributes are HTML-encoded and whose &lt;template&gt; contains the rendered component HTML.</returns>
+    public static async Task<string> RenderComponentStreamAsync(
+        ViewContext viewContext,
+        string action,
+        string target,
+        dynamic componentIdentifier,
+        object? arguments)
+    {
+        await using var writer = new StringWriter();
+
+        var services = viewContext.HttpContext.RequestServices;
+        var tempDataProvider = services.GetRequiredService<ITempDataDictionaryFactory>();
+
+        var componentViewContext = new ViewContext(
+            viewContext,
+            viewContext.View,
+            viewContext.ViewData,
+            tempDataProvider.GetTempData(viewContext.HttpContext),
+            writer,
+            new HtmlHelperOptions()
+        );
+        var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
+
+        ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);
+
+        var result = await viewComponentHelper.InvokeAsync(componentIdentifier, arguments);
+        result.WriteTo(writer, HtmlEncoder.Default);
+
+        var content = writer.ToString();
+        var encodedTarget = HtmlEncoder.Default.Encode(target);
+        var encodedAction = HtmlEncoder.Default.Encode(action);
+
+        return
+            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+    }
+}
+
 public class ViewComponentStreamAction : IRazorWireStreamAction
 {
     private readonly string _action;
@@ -14,11 +64,11 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     private readonly object? _arguments;
 
     /// <summary>
-    /// Creates an action that renders the specified view component type into a Turbo Stream targeting a DOM element.
+    /// Creates an action that renders the specified view component type into a Turbo Stream fragment targeting the given element.
     /// </summary>
     /// <param name="action">The Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
-    /// <param name="target">The DOM element id or target selector that the Turbo Stream will update.</param>
-    /// <param name="componentType">The CLR type of the view component to invoke.</param>
+    /// <param name="target">The DOM element id or selector to update.</param>
+    /// <param name="componentType">The CLR <see cref="Type"/> of the view component to invoke.</param>
     /// <param name="arguments">Optional arguments to pass to the view component when invoking it.</param>
     public ViewComponentStreamAction(
         string action,
@@ -26,6 +76,10 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
         Type componentType,
         object? arguments = null)
     {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(componentType);
+
         _action = action;
         _target = target;
         _componentType = componentType;
@@ -33,38 +87,19 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     }
 
     /// <summary>
-    /// Renders the configured view component into a Turbo Stream fragment that updates the specified target element.
+    /// Renders the configured view component into a Turbo Stream fragment.
     /// </summary>
-    /// <param name="viewContext">The current ViewContext used as the base for rendering the view component.</param>
-    /// <returns>A string containing a &lt;turbo-stream&gt; element with the <c>action</c> and <c>target</c> attributes HTML-encoded and a &lt;template&gt; containing the component's rendered HTML.</returns>
-    public async Task<string> RenderAsync(ViewContext viewContext)
+    /// <param name="viewContext">The current MVC view context used to execute and render the view component.</param>
+    /// <param name="cancellationToken">A token to observe while deciding whether to proceed.</param>
+    /// <returns>A string containing a &lt;turbo-stream&gt; element whose <c>action</c> and <c>target</c> attributes are HTML-encoded and whose &lt;template&gt; contains the component's rendered HTML.</returns>
+    public async Task<string> RenderAsync(ViewContext viewContext, CancellationToken cancellationToken = default)
     {
-        await using var writer = new StringWriter();
-
-        // Ensure the ViewComponentHelper sees the writer we want it to write to
-        var componentViewContext = new ViewContext(
+        return await ViewComponentStreamHelper.RenderComponentStreamAsync(
             viewContext,
-            viewContext.View,
-            viewContext.ViewData,
-            viewContext.TempData,
-            writer,
-            new HtmlHelperOptions()
-        );
-
-        var services = viewContext.HttpContext.RequestServices;
-        var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
-
-        ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);
-
-        var result = await viewComponentHelper.InvokeAsync(_componentType, _arguments);
-        result.WriteTo(writer, HtmlEncoder.Default);
-
-        var content = writer.ToString();
-        var encodedTarget = HtmlEncoder.Default.Encode(_target);
-        var encodedAction = HtmlEncoder.Default.Encode(_action);
-
-        return
-            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+            _action,
+            _target,
+            _componentType,
+            _arguments);
     }
 }
 
@@ -76,11 +111,11 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
     private readonly object? _arguments;
 
     /// <summary>
-    /// Initializes a ViewComponentByNameStreamAction that will render the specified view component (by name) into a Turbo Stream targeting the given DOM element.
+    /// Creates an action that renders a named view component into a Turbo Stream fragment targeting the specified element.
     /// </summary>
-    /// <param name="action">The Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
-    /// <param name="target">The DOM element identifier to update.</param>
-    /// <param name="componentName">The name of the view component to invoke.</param>
+    /// <param name="action">Turbo Stream action to perform (e.g., "replace", "append", "prepend").</param>
+    /// <param name="target">DOM element id or selector to update.</param>
+    /// <param name="componentName">Name of the view component to invoke.</param>
     /// <param name="arguments">Optional arguments to pass to the view component; may be null.</param>
     public ViewComponentByNameStreamAction(
         string action,
@@ -88,6 +123,10 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
         string componentName,
         object? arguments = null)
     {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(componentName);
+
         _action = action;
         _target = target;
         _componentName = componentName;
@@ -95,36 +134,18 @@ public class ViewComponentByNameStreamAction : IRazorWireStreamAction
     }
 
     /// <summary>
-    /// Renders the configured view component (by name) into a Turbo Stream XML fragment targeting the specified DOM element.
+    /// Render the configured view component (by name) into a Turbo Stream fragment.
     /// </summary>
-    /// <param name="viewContext">The current view context used as the base for creating the component's rendering context.</param>
+    /// <param name="viewContext">The current Razor view context used to execute and render the view component.</param>
+    /// <param name="cancellationToken">A token to observe while waiting for the task to complete.</param>
     /// <returns>A string containing a &lt;turbo-stream&gt; element whose action and target attributes are HTML-encoded and whose &lt;template&gt; contains the rendered component HTML.</returns>
-    public async Task<string> RenderAsync(ViewContext viewContext)
+    public async Task<string> RenderAsync(ViewContext viewContext, CancellationToken cancellationToken = default)
     {
-        await using var writer = new StringWriter();
-
-        var componentViewContext = new ViewContext(
+        return await ViewComponentStreamHelper.RenderComponentStreamAsync(
             viewContext,
-            viewContext.View,
-            viewContext.ViewData,
-            viewContext.TempData,
-            writer,
-            new HtmlHelperOptions()
-        );
-
-        var services = viewContext.HttpContext.RequestServices;
-        var viewComponentHelper = services.GetRequiredService<IViewComponentHelper>();
-
-        ((IViewContextAware)viewComponentHelper).Contextualize(componentViewContext);
-
-        var result = await viewComponentHelper.InvokeAsync(_componentName, _arguments);
-        result.WriteTo(writer, HtmlEncoder.Default);
-
-        var content = writer.ToString();
-        var encodedTarget = HtmlEncoder.Default.Encode(_target);
-        var encodedAction = HtmlEncoder.Default.Encode(_action);
-
-        return
-            $"<turbo-stream action=\"{encodedAction}\" target=\"{encodedTarget}\"><template>{content}</template></turbo-stream>";
+            _action,
+            _target,
+            _componentName,
+            _arguments);
     }
 }

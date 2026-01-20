@@ -16,11 +16,19 @@ public class CSharpDocHarvester : IDocHarvester
 {
     private readonly ILogger<CSharpDocHarvester> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the provided logger.
+    /// </summary>
     public CSharpDocHarvester(ILogger<CSharpDocHarvester> logger)
     {
         _logger = logger;
     }
 
+    /// <summary>
+    /// Collects XML documentation from C# source files under the specified root and produces DocNode entries containing titles, relative file paths with anchors, and HTML-formatted content.
+    /// </summary>
+    /// <param name="rootPath">The root directory to recursively scan for .cs files.</param>
+    /// <returns>A collection of DocNode objects; each contains a title, a relative file path including a fragment anchor, and the extracted HTML documentation.</returns>
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
     {
         var nodes = new List<DocNode>();
@@ -53,7 +61,10 @@ public class CSharpDocHarvester : IDocHarvester
                     if (doc != null)
                     {
                         hasAnyDoc = true;
-                        var typeId = StringUtils.ToSafeId(typeDecl.Identifier.Text);
+                        var qualifiedName = GetQualifiedName(typeDecl);
+                        // Use qualified name for ID to avoid collisions (e.g. NamespaceA.Class vs NamespaceB.Class)
+                        var typeId = StringUtils.ToSafeId(qualifiedName);
+
                         fileContent.Append(
                             $@"<section id=""{typeId}"" class=""mb-12 scroll-mt-24"">
                             <div class=""flex items-center gap-2 mb-4"">
@@ -79,8 +90,10 @@ public class CSharpDocHarvester : IDocHarvester
                                     $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
 
                             var methodSignature = $"{method.Identifier.Text}({paramList})";
+                            var qualifiedName = GetQualifiedName(typeDecl);
+                            // Use qualified name in method ID as well
                             var methodId = StringUtils.ToSafeId(
-                                $"{typeDecl.Identifier.Text}.{method.Identifier.Text}({paramList})");
+                                $"{qualifiedName}.{method.Identifier.Text}({paramList})");
 
                             fileContent.Append(
                                 $@"<section id=""{methodId}"" class=""mb-8 ml-6 scroll-mt-24"">
@@ -104,7 +117,9 @@ public class CSharpDocHarvester : IDocHarvester
                     if (doc != null)
                     {
                         hasAnyDoc = true;
-                        var enumId = StringUtils.ToSafeId(enumDecl.Identifier.Text);
+                        var qualifiedName = GetQualifiedName(enumDecl);
+                        var enumId = StringUtils.ToSafeId(qualifiedName);
+
                         fileContent.Append(
                             $@"<section id=""{enumId}"" class=""mb-12 scroll-mt-24"">
                             <div class=""flex items-center gap-2 mb-4"">
@@ -143,7 +158,8 @@ public class CSharpDocHarvester : IDocHarvester
                                     fileNameWithoutExt,
                                     StringComparison.OrdinalIgnoreCase))
                             {
-                                var typeId = StringUtils.ToSafeId(typeDecl.Identifier.Text);
+                                var qualifiedName = GetQualifiedName(typeDecl);
+                                var typeId = StringUtils.ToSafeId(qualifiedName);
                                 nodes.Add(
                                     new DocNode(
                                         typeDecl.Identifier.Text,
@@ -166,8 +182,9 @@ public class CSharpDocHarvester : IDocHarvester
                                         $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
 
                                 var methodSignature = $"{method.Identifier.Text}({paramList})";
+                                var qualifiedName = GetQualifiedName(typeDecl);
                                 var methodId = StringUtils.ToSafeId(
-                                    $"{typeDecl.Identifier.Text}.{method.Identifier.Text}({paramList})");
+                                    $"{qualifiedName}.{method.Identifier.Text}({paramList})");
 
                                 nodes.Add(
                                     new DocNode(
@@ -184,7 +201,8 @@ public class CSharpDocHarvester : IDocHarvester
                     {
                         if (ExtractDoc(enumDecl) != null)
                         {
-                            var enumId = StringUtils.ToSafeId(enumDecl.Identifier.Text);
+                            var qualifiedName = GetQualifiedName(enumDecl);
+                            var enumId = StringUtils.ToSafeId(qualifiedName);
                             nodes.Add(
                                 new DocNode(
                                     enumDecl.Identifier.Text,
@@ -205,6 +223,11 @@ public class CSharpDocHarvester : IDocHarvester
         return nodes;
     }
 
+    /// <summary>
+    /// Extracts XML documentation from the leading trivia of a syntax node and converts the <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> elements into HTML fragments.
+    /// </summary>
+    /// <param name="node">The syntax node whose leading XML documentation comments will be parsed.</param>
+    /// <returns>The HTML string containing encoded summary and remarks, or <c>null</c> if no documentation is present or parsing fails.</returns>
     private string? ExtractDoc(SyntaxNode node)
     {
         var xml = node.GetLeadingTrivia()
@@ -242,5 +265,28 @@ public class CSharpDocHarvester : IDocHarvester
 
             return null;
         }
+    }
+
+    private string GetQualifiedName(BaseTypeDeclarationSyntax node)
+    {
+        var parts = new Stack<string>();
+        parts.Push(node.Identifier.Text);
+
+        var parent = node.Parent;
+        while (parent != null)
+        {
+            if (parent is TypeDeclarationSyntax typeDecl)
+            {
+                parts.Push(typeDecl.Identifier.Text);
+            }
+            else if (parent is BaseNamespaceDeclarationSyntax namespaceDecl)
+            {
+                parts.Push(namespaceDecl.Name.ToString());
+            }
+
+            parent = parent.Parent;
+        }
+
+        return string.Join(".", parts);
     }
 }

@@ -18,7 +18,12 @@ public static class StringUtils
     /// </summary>
     /// <param name="input">The original string to normalize.</param>
     /// <param name="appendHash">If true, appends a 4-character deterministic hash suffix.</param>
-    /// <returns>The sanitized identifier.</returns>
+    /// <summary>
+    /// Produces a safe identifier by replacing disallowed characters with hyphens, collapsing consecutive hyphens, trimming edge hyphens, and defaulting to "id" for null, whitespace, or empty results.
+    /// </summary>
+    /// <param name="input">The source string to convert into a safe identifier.</param>
+    /// <param name="appendHash">If true, appends a short deterministic 4-character lowercase hex hash (prefixed with a hyphen) derived from the original input.</param>
+    /// <returns>The sanitized identifier; when <paramref name="appendHash"/> is true the result is suffixed with "-" followed by a 4-character hash.</returns>
     public static string ToSafeId(string? input, bool appendHash = false)
     {
         string sanitized;
@@ -62,7 +67,14 @@ public static class StringUtils
     /// consider returning a longer slice of the hash or the full SHA256 string.
     /// </remarks>
     /// <param name="input">The string to hash.</param>
+    /// <summary>
+    /// Produces a short deterministic 4-character lowercase hexadecimal hash derived from <paramref name="input"/> using SHA-256.
+    /// </summary>
+    /// <param name="input">The input string to hash.</param>
     /// <returns>A 4-character lowercase hex string.</returns>
+    /// <remarks>
+    /// Returns only the first 4 hex characters (16 bits) of the SHA-256 digest; collisions are possible.
+    /// </remarks>
     private static string GetDeterministicHash(string input)
     {
         var bytes = Encoding.UTF8.GetBytes(input);

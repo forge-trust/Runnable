@@ -63,7 +63,12 @@ public class IslandTagHelper : TagHelper
     /// Renders the rw:island element as a &lt;turbo-frame&gt; and populates its attributes based on the tag helper's properties.
     /// </summary>
     /// <param name="context">The current tag helper execution context.</param>
-    /// <param name="output">The output to modify; sets the tag to &lt;turbo-frame&gt; and applies id, src, loading, data-turbo-permanent, data-rw-swr, view-transition-name (appended to style), data-rw-export, and client-related data attributes according to the helper's properties.</param>
+    /// <summary>
+    /// Renders a &lt;turbo-frame&gt; element and applies attributes according to the helper's public properties.
+    /// </summary>
+    /// <param name="context">The current tag helper context.</param>
+    /// <param name="output">The output to modify; sets the element to &lt;turbo-frame&gt; and applies attributes: <c>id</c>, optional <c>src</c> and <c>loading</c>, <c>data-turbo-permanent</c> when <c>Permanent</c> or <c>Swr</c> is true, <c>data-rw-swr</c> when <c>Swr</c> is true, a <c>view-transition-name</c> entry appended to the <c>style</c> attribute when <c>TransitionName</c> is provided, optional <c>data-rw-export</c>, and client-related attributes <c>data-rw-module</c>, <c>data-rw-strategy</c>, and <c>data-rw-props</c> when corresponding properties are set.</param>
+    /// <exception cref="ArgumentException">Thrown when <see cref="Id"/> is null, empty, or consists only of white-space characters.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = "turbo-frame";

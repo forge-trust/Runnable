@@ -74,9 +74,13 @@
     }
 
     /**
-     * Dynamically imports the module at modulePath and, if it exports a `mount` function, calls it to hydrate the provided root element.
+     * Hydrates a DOM island by importing its module and invoking its `mount` function if present.
      *
-     * After a successful mount, marks the root with `data-rw-hydrated="true"` and adds it to the internal initializedElements set.
+     * On successful mount, sets `data-rw-hydrated="true"` on the root and records the root in the internal
+     * initializedElements set. If the imported module does not export a function named `mount`, logs an
+     * error, sets `data-rw-hydrated="failed"`, and still records the root in initializedElements. If the
+     * dynamic import or the mount call throws, logs the error and leaves the element's hydration state unchanged.
+     *
      * @param {HTMLElement} root - The DOM element to hydrate.
      * @param {string} modulePath - The module specifier used for dynamic import.
      * @param {Record<string, any>} props - Props passed to the module's `mount` function.
@@ -99,10 +103,10 @@
     }
 
     /**
-     * Observe an island element and mount its module when the element becomes visible in the viewport.
+     * Mount an island's module when the element becomes visible in the viewport.
      *
-     * When the island intersects the viewport, the observer stops observing that element and invokes
-     * mountIsland(island, modulePath, props) to perform the mount.
+     * Uses IntersectionObserver when available to trigger a single mount on first intersection.
+     * If IntersectionObserver is not supported, the mount is performed immediately as a fallback.
      *
      * @param {Element} island - The DOM element representing the island to observe and mount.
      * @param {string} modulePath - The module path to dynamically import for mounting.

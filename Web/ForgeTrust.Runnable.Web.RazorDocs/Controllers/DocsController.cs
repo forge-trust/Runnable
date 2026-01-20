@@ -11,10 +11,7 @@ public class DocsController : Controller
     private readonly DocAggregator _aggregator;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DocsController"/> class.
-    /// </summary>
-    /// <summary>
-    /// Initializes a new instance of DocsController with the specified documentation aggregator.
+    /// Initializes a new instance of <see cref="DocsController"/> with the specified documentation aggregator.
     /// </summary>
     /// <param name="aggregator">The DocAggregator used to retrieve documentation items.</param>
     public DocsController(DocAggregator aggregator)
@@ -22,9 +19,6 @@ public class DocsController : Controller
         _aggregator = aggregator;
     }
 
-    /// <summary>
-    /// Displays the documentation index page.
-    /// </summary>
     /// <summary>
     /// Displays the index view containing the collection of documentation items.
     /// </summary>
@@ -37,14 +31,10 @@ public class DocsController : Controller
     }
 
     /// <summary>
-    /// Displays the details for a specific documentation item.
-    /// </summary>
-    /// <param name="path">The unique path of the document.</param>
-    /// <summary>
     /// Displays the details view for a documentation item identified by the given path.
     /// </summary>
-    /// <param name="path">The path or identifier of the documentation item to retrieve.</param>
-    /// <returns>`IActionResult` that renders the details view with the document when found; otherwise a 404 NotFound result.</returns>
+    /// <param name="path">The unique path or identifier of the documentation item to retrieve.</param>
+    /// <returns><see cref="IActionResult"/> that renders the details view with the document when found; otherwise a 404 <see cref="NotFoundResult"/>.</returns>
     public async Task<IActionResult> Details(string path)
     {
         var doc = await _aggregator.GetDocByPathAsync(path);

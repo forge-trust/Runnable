@@ -108,23 +108,14 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Asynchronously projects each element of the <paramref name="source"/> sequence with a bounded degree of concurrency using the specified <paramref name="body"/>, <paramref name="maxDegreeOfParallelism"/>, <paramref name="bufferMultiplier"/>, and <paramref name="cancellationToken"/>, yielding transformed results in the original source order.
-    /// </summary>
-    /// <param name="source">The input sequence to project.</param>
-    /// <param name="body">An asynchronous transform that receives an element and a <see cref="CancellationToken"/> and produces a result.</param>
-    /// <param name="maxDegreeOfParallelism">Maximum number of concurrent transform operations; must be greater than zero.</param>
-    /// <param name="bufferMultiplier">Multiplier used to size the internal channel buffer; the channel capacity is <c>maxDegreeOfParallelism * bufferMultiplier</c>. Must be at least 1.</param>
-    /// <param name="cancellationToken">Token to observe for cancellation of the overall enumeration.</param>
-    /// <returns>An async enumerable that yields transformed results in the same order as the source.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="body"/> is null.</exception>
-    /// <summary>
-    /// Project source elements in parallel with a bounded degree of concurrency and yield results in the original input order.
+    /// Projects source elements in parallel with a bounded degree of concurrency and yields results in the original input order via an async sequence.
+    /// The internal channel capacity is capped at <c>maxDegreeOfParallelism * bufferMultiplier</c>.
     /// </summary>
     /// <param name="source">The sequence of input items to process.</param>
-    /// <param name="body">An asynchronous delegate invoked for each item; receives the item and a <see cref="CancellationToken"/> that is linked to the enumeration's cancellation.</param>
+    /// <param name="body">An asynchronous delegate invoked for each item; receives the item and a <see cref="CancellationToken"/> linked to the enumeration's cancellation.</param>
     /// <param name="maxDegreeOfParallelism">The maximum number of concurrently executing body invocations; must be greater than zero.</param>
     /// <param name="bufferMultiplier">Multiplier applied to <paramref name="maxDegreeOfParallelism"/> to determine the internal channel capacity; must be at least 1.</param>
-    /// <param name="cancellationToken">A token to cancel the overall enumeration and scheduling.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the overall enumeration and scheduling.</param>
     /// <returns>An asynchronous sequence of results corresponding to the input items, yielded in the same order as the source.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="body"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero or if <paramref name="bufferMultiplier"/> is less than 1.</exception>
@@ -290,22 +281,15 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Produces an async sequence of transformed elements with bounded concurrency while preserving the input order.
+    /// Projects elements of <paramref name="source"/> into an asynchronous sequence using a task-returning selector, preserving the input order while bounding concurrency.
+    /// Individual transforms are not cancelled directly as the provided delegate does not receive a <see cref="CancellationToken"/>.
     /// </summary>
     /// <param name="source">The input sequence to transform.</param>
-    /// <param name="body">An asynchronous transform for each element. This delegate does not receive a <see cref="CancellationToken"/>, so individual transforms cannot be cancelled directly.</param>
-    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
-    /// <param name="bufferMultiplier">Multiplier used to compute the internal bounded channel capacity as <c>maxDegreeOfParallelism * bufferMultiplier</c>; must be at least 1.</param>
-    /// <param name="cancellationToken">Token to observe for cancellation of the overall operation (e.g., channel backpressure, semaphore waits, and producer scheduling), but not forwarded to the <paramref name="body"/>.</param>
-    /// <summary>
-    /// Projects elements of <paramref name="source"/> into an asynchronous sequence using a task-returning selector, preserving the input order while bounding concurrency.
-    /// </summary>
-    /// <param name="source">The input sequence.</param>
     /// <param name="body">A selector that transforms each element into a <see cref="Task{TResult}"/>. The provided delegate does not receive or observe the <paramref name="cancellationToken"/>.</param>
-    /// <param name="maxDegreeOfParallelism">The maximum number of selector tasks allowed to run concurrently; must be greater than zero.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrently executing transform operations; must be greater than zero.</param>
     /// <param name="bufferMultiplier">Multiplier for the internal buffer capacity (internal capacity = <paramref name="maxDegreeOfParallelism"/> × <paramref name="bufferMultiplier"/>); must be at least 1.</param>
-    /// <param name="cancellationToken">A token to observe for cancelling the overall operation and internal coordination. This token is not forwarded to <paramref name="body"/>.</param>
-    /// <returns>An <see cref="IAsyncEnumerable{TResult}"/> that yields transformed elements in the same order as <paramref name="source"/>.</returns>
+    /// <param name="cancellationToken">Token to observe for cancelling the overall operation and internal coordination, such as channel backpressure and scheduling waits. This token is not forwarded to <paramref name="body"/>.</param>
+    /// <returns>An asynchronous sequence of results corresponding to the input items, yielded in the same order as the source.</returns>
     public static IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,
         Func<TSource, Task<TResult>> body,

@@ -14,13 +14,7 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     private readonly object? _model;
 
     /// <summary>
-    /// Creates a Turbo Stream action that will render a specified partial view into a turbo-stream element.
-    /// </summary>
-    /// <param name="action">The Turbo Stream action attribute (e.g., "replace", "append", "update").</param>
-    /// <param name="target">The Turbo Stream target identifier for the element to update.</param>
-    /// <param name="viewName">The name or path of the partial view to render.</param>
-    /// <summary>
-    /// Initializes a PartialViewStreamAction that will render a partial view into a turbo-stream element with the specified action and target.
+    /// Initializes a <see cref="PartialViewStreamAction"/> that will render a partial view into a turbo-stream element with the specified action and target.
     /// </summary>
     /// <param name="action">The turbo-stream action (e.g., "replace", "append", "update").</param>
     /// <param name="target">The identifier of the turbo-stream target element.</param>

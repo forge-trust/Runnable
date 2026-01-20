@@ -21,13 +21,9 @@ public record DocNode(
 public interface IDocHarvester
 {
     /// <summary>
-    /// Asynchronously scans the specified root path and returns a collection of documentation nodes.
+    /// Asynchronously scans the specified root path and returns a collection of documentation nodes harvested from sources under that path.
     /// </summary>
-    /// <param name="rootPath">The root directory to scan for documentation.</param>
-    /// <summary>
-/// Harvests documentation nodes located under the specified root path.
-/// </summary>
-/// <param name="rootPath">The filesystem root path to scan for documentation sources.</param>
-/// <returns>A collection of <see cref="DocNode"/> representing the harvested documentation.</returns>
+    /// <param name="rootPath">The filesystem root path to scan for documentation sources.</param>
+    /// <returns>A collection of <see cref="DocNode"/> representing the harvested documentation.</returns>
     Task<IEnumerable<DocNode>> HarvestAsync(string rootPath);
 }

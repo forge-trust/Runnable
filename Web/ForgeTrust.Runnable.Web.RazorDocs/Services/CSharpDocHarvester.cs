@@ -123,14 +123,10 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Extracts XML documentation from the leading trivia of a given syntax node and converts it to HTML.
-    /// </summary>
-    /// <param name="node">The syntax node to extract documentation from.</param>
-    /// <summary>
-    /// Extracts XML documentation from the leading trivia of a syntax node and converts the `<summary>` and `<remarks>` elements into HTML fragments.
+    /// Extracts XML documentation from the leading trivia of a syntax node and converts the <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> elements into HTML fragments.
     /// </summary>
     /// <param name="node">The syntax node whose leading XML documentation comments will be parsed.</param>
-    /// <returns>The HTML string containing encoded summary and remarks, or `null` if no documentation is present or parsing fails.</returns>
+    /// <returns>The HTML string containing encoded summary and remarks, or <c>null</c> if no documentation is present or parsing fails.</returns>
     private string? ExtractDoc(SyntaxNode node)
     {
         var xml = node.GetLeadingTrivia()
@@ -171,13 +167,10 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Builds a qualified name for a type or enum by walking up the syntax tree and prepending containing type and namespace names.
-    /// </summary>
-    /// <param name="node">The type or enum declaration node.</param>
-    /// <summary>
     /// Compute the dot-delimited qualified name for the provided type declaration, including enclosing types and containing namespaces.
+    /// Walks up the syntax tree to prepend containing type and namespace names.
     /// </summary>
-    /// <param name="node">The type declaration to compute the qualified name for.</param>
+    /// <param name="node">The type or enum declaration node to compute the qualified name for.</param>
     /// <returns>The qualified name as a dot-delimited string, including nested type and namespace segments.</returns>
     private string GetQualifiedName(BaseTypeDeclarationSyntax node)
     {

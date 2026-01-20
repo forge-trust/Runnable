@@ -1,6 +1,7 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.Extensions.Logging;
+using System.Runtime.InteropServices;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -241,8 +242,11 @@ namespace NamespaceB
         await File.WriteAllTextAsync(filePath, "docs");
 
         // On macOS/Linux, we can use chmod 000
-        // File.SetUnixFileMode is available in .NET 7+
-        File.SetUnixFileMode(filePath, UnixFileMode.None);
+        // File.SetUnixFileMode is available in .NET 7+, but throws on Windows.
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            File.SetUnixFileMode(filePath, UnixFileMode.None);
+        }
 
         // Act
         try
@@ -256,7 +260,10 @@ namespace NamespaceB
         finally
         {
             // Restore permissions so it can be deleted during Dispose
-            File.SetUnixFileMode(filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                File.SetUnixFileMode(filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
         }
     }
 

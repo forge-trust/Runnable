@@ -6,14 +6,13 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
 public class CSharpDocHarvesterTests : IDisposable
 {
-    private readonly ILogger<CSharpDocHarvester> _loggerFake;
     private readonly CSharpDocHarvester _harvester;
     private readonly string _testRoot;
 
     public CSharpDocHarvesterTests()
     {
-        _loggerFake = A.Fake<ILogger<CSharpDocHarvester>>();
-        _harvester = new CSharpDocHarvester(_loggerFake);
+        var loggerFake = A.Fake<ILogger<CSharpDocHarvester>>();
+        _harvester = new CSharpDocHarvester(loggerFake);
         _testRoot = Path.Combine(Path.GetTempPath(), "RazorDocsTests", Guid.NewGuid().ToString());
         Directory.CreateDirectory(_testRoot);
     }
@@ -196,6 +195,29 @@ namespace NamespaceB
         // Verify qualified anchors
         Assert.Contains("#NamespaceA-SharedName", types.Single(t => t.Content.Contains("Summary A")).Path);
         Assert.Contains("#NamespaceB-SharedName", types.Single(t => t.Content.Contains("Summary B")).Path);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldExtractRemarks_WhenPresent()
+    {
+        // Arrange
+        var code = @"
+            namespace Test;
+            /// <summary>Summary</summary>
+            /// <remarks>Remarks here</remarks>
+            public class RemarksTest {}
+        ";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Remarks.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var node = results.Single(n => n.Title == "RemarksTest");
+
+        // Assert
+        Assert.Contains("<div class='doc-summary", node.Content);
+        Assert.Contains("Summary", node.Content);
+        Assert.Contains("<div class='doc-remarks", node.Content);
+        Assert.Contains("Remarks here", node.Content);
     }
 
     public void Dispose()

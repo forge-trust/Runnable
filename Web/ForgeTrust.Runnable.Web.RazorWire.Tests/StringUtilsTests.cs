@@ -34,6 +34,18 @@ public class StringUtilsTests
         Assert.Matches(@"^test-example-com-[0-9a-f]{4}$", result1);
     }
 
+    [Theory]
+    [InlineData("user1", "user1")]
+    [InlineData(null, "id")]
+    [InlineData("   ", "id")]
+    [InlineData("", "id")]
+    public void ToSafeId_WithHash_ReturnsHashedIdentifier(string? input, string expectedPrefix)
+    {
+        var result = StringUtils.ToSafeId(input, appendHash: true);
+        Assert.StartsWith(expectedPrefix + "-", result);
+        Assert.Matches(@".+-[0-9a-f]{4}$", result);
+    }
+
     [Fact]
     public void ToSafeId_WithHash_ProducesDifferentHashesForDifferentInputs()
     {

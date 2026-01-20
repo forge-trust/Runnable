@@ -6,25 +6,58 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement("rw:island")]
 public class IslandTagHelper : TagHelper
 {
+    /// <summary>
+    /// The unique identifier for the island, which becomes the id of the rendered turbo-frame.
+    /// </summary>
     public string Id { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The source URL for the turbo-frame content.
+    /// </summary>
     public string? Src { get; set; }
 
+    /// <summary>
+    /// The loading strategy for the turbo-frame (e.g., "eager", "lazy").
+    /// </summary>
     public string? Loading { get; set; }
 
+    /// <summary>
+    /// If true, the rendered element will have the 'data-turbo-permanent' attribute.
+    /// </summary>
     public bool Permanent { get; set; }
 
+    /// <summary>
+    /// If true, enables Stale-While-Revalidate behavior via 'data-rw-swr'.
+    /// </summary>
     public bool Swr { get; set; }
 
+    /// <summary>
+    /// The name for the CSS View Transition, applied as 'view-transition-name' in the style attribute.
+    /// </summary>
     public string? TransitionName { get; set; }
 
+    /// <summary>
+    /// The name of the client-side module to export/expose.
+    /// </summary>
     public string? Export { get; set; }
 
-    [HtmlAttributeName("client-module")] public string? ClientModule { get; set; }
+    /// <summary>
+    /// The path to the client-side module to mount on this island.
+    /// </summary>
+    [HtmlAttributeName("client-module")]
+    public string? ClientModule { get; set; }
 
-    [HtmlAttributeName("client-strategy")] public string? ClientStrategy { get; set; }
+    /// <summary>
+    /// The mounting strategy for the client module (e.g., "load", "visible", "idle").
+    /// </summary>
+    [HtmlAttributeName("client-strategy")]
+    public string? ClientStrategy { get; set; }
 
-    [HtmlAttributeName("client-props")] public string? ClientProps { get; set; }
+    /// <summary>
+    /// Initial properties (JSON) to pass to the client module's mount function.
+    /// </summary>
+    [HtmlAttributeName("client-props")]
+    public string? ClientProps { get; set; }
 
     /// <summary>
     /// Renders the rw:island element as a &lt;turbo-frame&gt; and populates its attributes based on the tag helper's properties.

@@ -114,7 +114,34 @@ public class DocAggregatorTests : IDisposable
         // Assert
         Assert.Single(result);
         Assert.Equal("First", result.First().Title);
-        // Warning log check is optional but good if we want to be thorough
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldHandleHarvesterExceptions_ByLoggingAndSkipping()
+    {
+        // Arrange
+        var failingHarvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => failingHarvester.HarvestAsync(A<string>._)).Throws(new Exception("Harvester boom"));
+
+        var workingHarvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => workingHarvester.HarvestAsync(A<string>._))
+            .Returns(new List<DocNode> { new DocNode("Success", "path", "content") });
+
+        var aggregator = new DocAggregator(
+            new[] { failingHarvester, workingHarvester },
+            _configFake,
+            _envFake,
+            _cache,
+            _sanitizerFake,
+            _loggerFake
+        );
+
+        // Act
+        var result = (await aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal("Success", result.First().Title);
     }
 
     public void Dispose()

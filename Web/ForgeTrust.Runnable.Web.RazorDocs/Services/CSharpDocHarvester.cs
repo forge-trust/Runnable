@@ -47,10 +47,13 @@ public class CSharpDocHarvester : IDocHarvester
                     var doc = ExtractDoc(typeDecl);
                     if (doc != null)
                     {
+                        var qualifiedName = GetQualifiedName(typeDecl);
+                        var safeAnchor = StringUtils.ToSafeId(qualifiedName);
+
                         nodes.Add(
                             new DocNode(
                                 typeDecl.Identifier.Text,
-                                Path.GetRelativePath(rootPath, file) + "#" + typeDecl.Identifier.Text,
+                                Path.GetRelativePath(rootPath, file) + "#" + safeAnchor,
                                 doc
                             ));
                     }
@@ -90,10 +93,13 @@ public class CSharpDocHarvester : IDocHarvester
                     var doc = ExtractDoc(@enum);
                     if (doc != null)
                     {
+                        var qualifiedName = GetQualifiedName(@enum);
+                        var safeAnchor = StringUtils.ToSafeId(qualifiedName);
+
                         nodes.Add(
                             new DocNode(
                                 @enum.Identifier.Text,
-                                Path.GetRelativePath(rootPath, file) + "#" + @enum.Identifier.Text,
+                                Path.GetRelativePath(rootPath, file) + "#" + safeAnchor,
                                 doc
                             ));
                     }
@@ -145,5 +151,28 @@ public class CSharpDocHarvester : IDocHarvester
 
             return null;
         }
+    }
+
+    private string GetQualifiedName(BaseTypeDeclarationSyntax node)
+    {
+        var parts = new Stack<string>();
+        parts.Push(node.Identifier.Text);
+
+        var parent = node.Parent;
+        while (parent != null)
+        {
+            if (parent is TypeDeclarationSyntax typeDecl)
+            {
+                parts.Push(typeDecl.Identifier.Text);
+            }
+            else if (parent is BaseNamespaceDeclarationSyntax namespaceDecl)
+            {
+                parts.Push(namespaceDecl.Name.ToString());
+            }
+
+            parent = parent.Parent;
+        }
+
+        return string.Join(".", parts);
     }
 }

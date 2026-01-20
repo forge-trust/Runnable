@@ -164,6 +164,40 @@ public class Calculator
         Assert.Contains("Process", processNodes[1].Path);
     }
 
+    [Fact]
+    public async Task HarvestAsync_ShouldGenerateDistinctQualifiedAnchors_ForTypesWithSameName()
+    {
+        // Arrange
+        var testFile = Path.Combine(_testRoot, "Collision.cs");
+        File.WriteAllText(
+            testFile,
+            @"
+namespace NamespaceA
+{
+    /// <summary>Summary A</summary>
+    public class SharedName {}
+}
+
+namespace NamespaceB
+{
+    /// <summary>Summary B</summary>
+    public class SharedName {}
+}
+");
+
+        // Act
+        var results = await _harvester.HarvestAsync(_testRoot);
+        var types = results.Where(n => n.Title == "SharedName").ToList();
+
+        // Assert
+        Assert.Equal(2, types.Count);
+        Assert.NotEqual(types[0].Path, types[1].Path);
+
+        // Verify qualified anchors
+        Assert.Contains("#NamespaceA-SharedName", types.Single(t => t.Content.Contains("Summary A")).Path);
+        Assert.Contains("#NamespaceB-SharedName", types.Single(t => t.Content.Contains("Summary B")).Path);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))

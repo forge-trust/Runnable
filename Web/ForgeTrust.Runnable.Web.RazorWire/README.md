@@ -103,6 +103,12 @@ Injects necessary RazorWire and Turbo client scripts.
 <rw:scripts />
 ```
 
+## Utilities
+
+### `StringUtils`
+Provides safe identifier generation for DOM elements and URL anchors.
+- **`ToSafeId(input, appendHash)`**: Sanitizes strings by replacing non-alphanumeric characters with hyphens and collapse consecutive hyphens. Optionally appends a deterministic hash for uniqueness.
+
 ## Client-Side Interop (Hybrid Components)
 
 RazorWire supports a hybrid approach where server-rendered "Islands" can be augmented with client-side modules (e.g., React, Vue, or Vanilla JS).

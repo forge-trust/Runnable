@@ -114,6 +114,11 @@ public class CSharpDocHarvester : IDocHarvester
         return nodes;
     }
 
+    /// <summary>
+    /// Extracts XML documentation from the leading trivia of a given syntax node and converts it to HTML.
+    /// </summary>
+    /// <param name="node">The syntax node to extract documentation from.</param>
+    /// <returns>The generated HTML string if documentation exists; otherwise, null.</returns>
     private string? ExtractDoc(SyntaxNode node)
     {
         var xml = node.GetLeadingTrivia()
@@ -153,6 +158,11 @@ public class CSharpDocHarvester : IDocHarvester
         }
     }
 
+    /// <summary>
+    /// Builds a qualified name for a type or enum by walking up the syntax tree and prepending containing type and namespace names.
+    /// </summary>
+    /// <param name="node">The type or enum declaration node.</param>
+    /// <returns>A dot-delimited qualified name string.</returns>
     private string GetQualifiedName(BaseTypeDeclarationSyntax node)
     {
         var parts = new Stack<string>();

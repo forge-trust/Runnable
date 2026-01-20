@@ -47,13 +47,20 @@ public static class StringUtils
 
         // 3. Optional: Append a short deterministic hash of the original input
         var hash = GetDeterministicHash(input);
+
         return $"{sanitized}-{hash}";
     }
 
+    /// <summary>
+    /// Generates a short, deterministic 4-character hex hash of the input string.
+    /// </summary>
+    /// <param name="input">The string to hash.</param>
+    /// <returns>A 4-character lowercase hex string.</returns>
     private static string GetDeterministicHash(string input)
     {
         var bytes = Encoding.UTF8.GetBytes(input);
         var hashBytes = SHA256.HashData(bytes);
+
         return Convert.ToHexString(hashBytes)[..4].ToLowerInvariant();
     }
 }

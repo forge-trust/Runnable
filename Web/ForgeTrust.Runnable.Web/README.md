@@ -51,5 +51,9 @@ Built-in support for CORS configuration:
 
 Modules can define their own endpoints, making it easy to slice features vertically ("Vertical Slice Architecture").
 
+### Configuration Overrides
+
+The web host supports standard ASP.NET Core configuration sources. Note that while `urls` can be configured via `appsettings.json`, command-line overrides (e.g., `--urls`) are being refined. See [Issue #45](https://github.com/forge-trust/Runnable/issues/45) for implementation status and details on documented command-line port overrides.
+
 ---
 [📂 Back to Web List](../README.md) | [🏠 Back to Root](../../README.md)

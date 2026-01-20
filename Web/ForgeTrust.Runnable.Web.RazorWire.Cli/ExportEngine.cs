@@ -22,6 +22,7 @@ public class ExportEngine : IDisposable
     /// Crawl the configured base URL, discover internal routes, and export each route's HTML to the output directory.
     /// </summary>
     /// <param name="context">The export context containing configuration and state.</param>
+    /// <param name="cancellationToken">Token to observe while waiting for the task to complete.</param>
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
     public async Task RunAsync(ExportContext context, CancellationToken cancellationToken = default)
     {
@@ -63,6 +64,13 @@ public class ExportEngine : IDisposable
                     _logger.LogWarning("Invalid seed route: {SeedRoute}", seed);
                 }
             }
+
+            if (context.Queue.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Seed file provided but no valid routes were found. Falling back to default root path.");
+                context.Queue.Enqueue("/");
+            }
         }
         else
         {
@@ -70,7 +78,6 @@ public class ExportEngine : IDisposable
         }
 
         context.Console.Output.WriteLine($"Crawling from {context.BaseUrl}...");
-
         while (context.Queue.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();

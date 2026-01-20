@@ -10,6 +10,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 public static class StringUtils
 {
     private static readonly Regex IdentifierRegex = new(@"[^a-zA-Z0-9-_]", RegexOptions.Compiled);
+    private static readonly Regex MultiHyphenRegex = new(@"-+", RegexOptions.Compiled);
 
     /// <summary>
     /// Produces a safe identifier from an input string by replacing characters not in [a-zA-Z0-9-_] with hyphens.
@@ -22,18 +23,14 @@ public static class StringUtils
     {
         if (string.IsNullOrWhiteSpace(input))
         {
-            return string.Empty;
+            return "id";
         }
 
         // 1. Sanitize: Replace non-alphanumeric (except - and _) with -
         var sanitized = IdentifierRegex.Replace(input, "-");
 
-        // 2. Clean up: Trim and normalize hyphens
-        sanitized = sanitized.Trim('-');
-        while (sanitized.Contains("--"))
-        {
-            sanitized = sanitized.Replace("--", "-");
-        }
+        // 2. Clean up: Trim and normalize hyphens using Regex
+        sanitized = MultiHyphenRegex.Replace(sanitized, "-").Trim('-');
 
         if (string.IsNullOrEmpty(sanitized))
         {

@@ -84,9 +84,13 @@
     async function mountIsland(root, modulePath, props) {
         try {
             const module = await import(modulePath);
-            if (module.mount) {
+            if (typeof module.mount === 'function') {
                 await module.mount(root, props);
                 root.setAttribute('data-rw-hydrated', 'true');
+                initializedElements.add(root);
+            } else {
+                console.error(`Module ${modulePath} does not export a 'mount' function.`);
+                root.setAttribute('data-rw-hydrated', 'failed');
                 initializedElements.add(root);
             }
         } catch (e) {
@@ -105,16 +109,22 @@
      * @param {Object} props - The props object to pass to the module's mount function.
      */
     function setupIntersectionObserver(island, modulePath, props) {
-        const observer = new IntersectionObserver((entries) => {
-            for (const entry of entries) {
-                if (entry.isIntersecting) {
-                    observer.unobserve(island);
-                    // Use safe mount to ensure cleanup
-                    mountIslandSafe(island, modulePath, props);
+        // Guard against missing IntersectionObserver in older browsers
+        if (typeof IntersectionObserver !== "undefined") {
+            const observer = new IntersectionObserver((entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        observer.unobserve(island);
+                        // Use safe mount to ensure cleanup
+                        mountIslandSafe(island, modulePath, props);
+                    }
                 }
-            }
-        });
-        observer.observe(island);
+            });
+            observer.observe(island);
+        } else {
+            // Fallback: mount immediately (or defer via timeout) if observer is unsupported
+            mountIslandSafe(island, modulePath, props);
+        }
     }
 
     // Listen for Turbo events

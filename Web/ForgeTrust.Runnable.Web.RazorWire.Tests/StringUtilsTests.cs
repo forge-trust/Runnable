@@ -9,9 +9,9 @@ public class StringUtilsTests
     [InlineData("foo_bar", "foo_bar")]
     [InlineData("multiple   spaces", "multiple-spaces")]
     [InlineData("---leading-trailing---", "leading-trailing")]
-    [InlineData("", "")]
-    [InlineData(null, "")]
-    [InlineData("   ", "")]
+    [InlineData("", "id")]
+    [InlineData(null, "id")]
+    [InlineData("   ", "id")]
     [InlineData("!@#$%", "id")]
     public void ToSafeId_WithoutHash_SanitizesCorrectly(string? input, string expected)
     {
@@ -47,6 +47,16 @@ public class StringUtilsTests
     public void ToSafeId_WithHash_HandlesEmptyInput()
     {
         var result = StringUtils.ToSafeId("", appendHash: true);
-        Assert.Equal("", result);
+        // "id" is fallback, but hash is appended? 
+        // Logic: if not string.IsNullOrEmpty(sanitized) -> "id". 
+        // Then if (!appendHash) return sanitized.
+        // If appendHash: hash = GetDeterministicHash(input). Input is "".
+        // Hash of empty string?
+        // Let's verify logic in StringUtils.cs
+        // if (string.IsNullOrWhiteSpace(input)) return "id";
+        // So it returns "id" immediately, ignoring appendHash logic for the first check.
+        // Wait, review StringUtils.cs again.
+
+        Assert.Equal("id", result);
     }
 }

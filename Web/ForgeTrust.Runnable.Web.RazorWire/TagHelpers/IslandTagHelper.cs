@@ -6,7 +6,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement("rw:island")]
 public class IslandTagHelper : TagHelper
 {
-    public string Id { get; set; } = null!;
+    public string Id { get; set; } = string.Empty;
 
     public string? Src { get; set; }
 
@@ -71,18 +71,12 @@ public class IslandTagHelper : TagHelper
                 style += ";";
             }
 
-            // Strict whitelist for transition names to prevent CSS injection
-            // Allows alphanumeric, dashes, and underscores
-            var safeTransitionName = System.Text.RegularExpressions.Regex.IsMatch(TransitionName, @"^[A-Za-z0-9_-]+$")
-                ? TransitionName
-                : null;
+            // Sanitize transition name using centralized logic
+            var safeTransitionName = StringUtils.ToSafeId(TransitionName);
 
-            if (safeTransitionName != null)
-            {
-                // Encoding is still a good practice even if regex passes, but regex ensures it's a valid identifier
-                var encoded = HtmlEncoder.Default.Encode(safeTransitionName);
-                output.Attributes.SetAttribute("style", $"{style} view-transition-name: {encoded};");
-            }
+            // Encoding is still a good practice even if ToSafeId ensures safe chars
+            var encoded = HtmlEncoder.Default.Encode(safeTransitionName);
+            output.Attributes.SetAttribute("style", $"{style} view-transition-name: {encoded};");
         }
 
         if (!string.IsNullOrEmpty(Export))

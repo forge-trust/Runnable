@@ -283,10 +283,10 @@ public static class EnumerableExtensions
     /// Produces an async sequence of transformed elements with bounded concurrency while preserving the input order.
     /// </summary>
     /// <param name="source">The input sequence to transform.</param>
-    /// <param name="body">An asynchronous transform for each element. The transform's cancellation token is ignored by this overload.</param>
+    /// <param name="body">An asynchronous transform for each element. This delegate does not receive a <see cref="CancellationToken"/>, so individual transforms cannot be cancelled directly.</param>
     /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
     /// <param name="bufferMultiplier">Multiplier used to compute the internal bounded channel capacity as <c>maxDegreeOfParallelism * bufferMultiplier</c>; must be at least 1.</param>
-    /// <param name="cancellationToken">Token to observe for cancellation of the overall operation.</param>
+    /// <param name="cancellationToken">Token to observe for cancellation of the overall operation (e.g., channel backpressure, semaphore waits, and producer scheduling), but not forwarded to the <paramref name="body"/>.</param>
     /// <returns>An <see cref="IAsyncEnumerable{TResult}"/> that yields transformed elements in the same order as <paramref name="source"/>.</returns>
     public static IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
         this IEnumerable<TSource> source,

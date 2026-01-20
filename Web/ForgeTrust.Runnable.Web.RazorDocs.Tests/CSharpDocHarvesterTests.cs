@@ -169,7 +169,7 @@ public class Calculator
     {
         // Arrange
         var testFile = Path.Combine(_testRoot, "Collision.cs");
-        File.WriteAllText(
+        await File.WriteAllTextAsync(
             testFile,
             @"
 namespace NamespaceA

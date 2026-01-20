@@ -5,9 +5,11 @@
 ## Core Concepts
 
 ### 🏝️ Islands (Turbo Frames)
+
 Islands are isolated regions of a page that can be loaded, reloaded, or updated independently. This is achieved using Turbo Frames, allowing you to decompose complex pages into smaller, manageable pieces.
 
 ### 📡 Real-time Streaming (Turbo Streams & SSE)
+
 RazorWire uses Server-Sent Events (SSE) to push updates from the server to one or more clients. These updates are delivered as Turbo Streams, which can perform actions like `append`, `prepend`, `replace`, or `remove` on specific DOM elements.
 
 ### ⚡ Form Enhancement
@@ -17,6 +19,7 @@ Standard HTML forms are enhanced to perform partial-page updates. Instead of a f
 ## Getting Started
 
 ### 1. Add the Module
+
 To enable RazorWire in your Runnable application, add the `RazorWireWebModule` to your root module or application startup:
 
 ```csharp
@@ -30,6 +33,7 @@ public class MyRootModule : IRunnableWebModule
 ```
 
 ### 2. Configure Services (Optional)
+
 You can customize RazorWire behavior via `RazorWireOptions`:
 
 ```csharp
@@ -39,6 +43,7 @@ services.AddRazorWire(options => {
 ```
 
 ### 3. Use in Controllers
+
 Return reactive responses directly from your MVC controllers:
 
 ```csharp
@@ -54,13 +59,16 @@ return this.RazorWireStream()
 ## API Reference
 
 ### `RazorWireBridge`
+
 - **`Frame(controller, id, viewName, model)`**: Returns a partial view wrapped in a `<turbo-frame>` with the specified ID.
 
 ### `IRazorWireStreamHub`
+
 The central hub for publishing real-time updates to connected clients.
 - **`PublishAsync(channel, content)`**: Broadcasts a Turbo Stream fragment to all subscribers of a specific channel.
 
 ### `this.RazorWireStream()` (Controller Extension)
+
 A fluent API for building Turbo Stream responses:
 - **`Append(target, content)`**: Adds content to the end of the target element.
 - **`Prepend(target, content)`**: Adds content to the beginning.
@@ -73,6 +81,7 @@ A fluent API for building Turbo Stream responses:
 RazorWire provides several TagHelpers to simplify working with Turbo Frames and Streams in Razor views.
 
 ### `rw:island`
+
 Wraps content in a `<turbo-frame>`.
 - **`id`**: Unique identifier for the island.
 - **`src`**: URL to load content from (optional).
@@ -86,6 +95,7 @@ Wraps content in a `<turbo-frame>`.
 ```
 
 ### `rw:form`
+
 Enhances a standard form to return Turbo Stream updates.
 - **`target`**: The frame to target (optional).
 
@@ -97,6 +107,7 @@ Enhances a standard form to return Turbo Stream updates.
 ```
 
 ### `rw:scripts`
+
 Injects necessary RazorWire and Turbo client scripts.
 
 ```html
@@ -106,6 +117,7 @@ Injects necessary RazorWire and Turbo client scripts.
 ## Utilities
 
 ### `StringUtils`
+
 Provides safe identifier generation for DOM elements and URL anchors.
 - **`ToSafeId(input, appendHash)`**: Sanitizes strings by replacing non-alphanumeric characters with hyphens and collapse consecutive hyphens. Optionally appends a deterministic hash for uniqueness.
 
@@ -126,6 +138,7 @@ RazorWire supports a hybrid approach where server-rendered "Islands" can be augm
 ```
 
 ## Static Export
+
 RazorWire can be used to generate static or hybrid sites. For more details, see the [RazorWire CLI](../../Web/ForgeTrust.Runnable.Web.RazorWire.Cli/README.md).
 
 ## Examples

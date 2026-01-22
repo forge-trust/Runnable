@@ -62,3 +62,6 @@ BenchmarkDotNet.Artifacts/
 
 # Runtime Artifacts
 *.log
+
+# Coverage
+*.cobertura.xml

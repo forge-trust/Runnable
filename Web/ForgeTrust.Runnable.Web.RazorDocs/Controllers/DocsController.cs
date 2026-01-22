@@ -37,6 +37,11 @@ public class DocsController : Controller
     /// <returns><see cref="IActionResult"/> that renders the details view with the document when found; otherwise a 404 <see cref="NotFoundResult"/>.</returns>
     public async Task<IActionResult> Details(string path)
     {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return NotFound();
+        }
+
         var doc = await _aggregator.GetDocByPathAsync(path);
         if (doc == null)
         {

@@ -1,6 +1,6 @@
 using ForgeTrust.Runnable.Config;
 
-namespace ForgeTrust.Runnable.config.Tests;
+namespace ForgeTrust.Runnable.Config.Tests;
 
 public class DefaultConfigFileLocationProviderTests
 {

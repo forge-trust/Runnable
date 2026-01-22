@@ -1,14 +1,13 @@
 using FakeItEasy;
-using ForgeTrust.Runnable.Config;
 using ForgeTrust.Runnable.Core;
 
-namespace ForgeTrust.Runnable.config.Tests;
+namespace ForgeTrust.Runnable.Config.Tests;
 
 public class ConfigTests
 {
     private sealed class TestConfig : Config<string>
     {
-        public override string? DefaultValue => "fallback";
+        public override string DefaultValue => "fallback";
     }
 
     private sealed class TestStructConfig : ConfigStruct<int>
@@ -76,10 +75,7 @@ public class ConfigTests
     [Fact]
     public void Init_ForStructConfigUsesManagerValueWhenPresent()
     {
-        var configManager = new IntConfigManagerStub
-        {
-            ValueToReturn = 7
-        };
+        var configManager = new IntConfigManagerStub { ValueToReturn = 7 };
         var environmentProvider = A.Fake<IEnvironmentProvider>();
         var config = new TestStructConfig();
 
@@ -88,6 +84,6 @@ public class ConfigTests
         config.Init(configManager, environmentProvider, "Struct.Key");
 
         Assert.True(config.HasValue);
-        Assert.Equal<int?>(7, config.Value);
+        Assert.Equal(7, config.Value);
     }
 }

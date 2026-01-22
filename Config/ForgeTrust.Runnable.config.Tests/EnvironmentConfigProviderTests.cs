@@ -2,7 +2,7 @@ using FakeItEasy;
 using ForgeTrust.Runnable.Config;
 using ForgeTrust.Runnable.Core;
 
-namespace ForgeTrust.Runnable.config.Tests;
+namespace ForgeTrust.Runnable.Config.Tests;
 
 public class EnvironmentConfigProviderTests
 {

@@ -2,7 +2,7 @@ using FakeItEasy;
 using ForgeTrust.Runnable.Config;
 using Microsoft.Extensions.Logging;
 
-namespace ForgeTrust.Runnable.config.Tests;
+namespace ForgeTrust.Runnable.Config.Tests;
 
 public class DefaultConfigManagerTests
 {

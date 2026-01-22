@@ -3,7 +3,7 @@ using ForgeTrust.Runnable.Config;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.Logging;
 
-namespace ForgeTrust.Runnable.config.Tests;
+namespace ForgeTrust.Runnable.Config.Tests;
 
 public class FileBasedConfigProviderTests
 {

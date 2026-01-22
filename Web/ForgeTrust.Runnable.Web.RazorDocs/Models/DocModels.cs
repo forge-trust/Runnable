@@ -24,10 +24,6 @@ public interface IDocHarvester
     /// Asynchronously scans the specified root path and returns a collection of documentation nodes harvested from sources under that path.
     /// </summary>
     /// <param name="rootPath">The filesystem root path to scan for documentation sources.</param>
-    /// <summary>
-/// Harvests documentation nodes from the specified filesystem root path.
-/// </summary>
-/// <param name="rootPath">The filesystem root path to scan for documentation sources.</param>
-/// <returns>A collection of <see cref="DocNode"/> representing the harvested documentation.</returns>
+    /// <returns>A collection of <see cref="DocNode"/> representing the harvested documentation.</returns>
     Task<IEnumerable<DocNode>> HarvestAsync(string rootPath);
 }

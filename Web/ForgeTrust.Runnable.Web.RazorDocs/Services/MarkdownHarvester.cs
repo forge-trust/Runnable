@@ -3,17 +3,18 @@ using Markdig;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
+/// <summary>
+/// Harvester implementation that scans Markdown source files and converts them into documentation nodes.
+/// </summary>
 public class MarkdownHarvester : IDocHarvester
 {
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="MarkdownHarvester"/> using the provided logger and constructs a Markdown pipeline configured with advanced extensions.
-    /// <summary>
-    /// Initializes a new MarkdownHarvester and configures its Markdown processing pipeline.
+    /// Initializes a new instance of <see cref="MarkdownHarvester"/> with the specified logger and configures the Markdown pipeline.
     /// </summary>
-    /// <param name="logger">Logger used to report errors and informational messages during harvesting.</param>
+    /// <param name="logger">Logger used for recording harvesting events and errors.</param>
     public MarkdownHarvester(ILogger<MarkdownHarvester> logger)
     {
         _logger = logger;
@@ -22,10 +23,6 @@ public class MarkdownHarvester : IDocHarvester
             .Build();
     }
 
-    /// <summary>
-    /// Harvests Markdown files beneath the specified root directory and converts them into DocNode entries.
-    /// </summary>
-    /// <param name="rootPath">The root directory to search for `.md` files.</param>
     /// <summary>
     /// Harvests Markdown files under the specified root directory and converts each into a DocNode containing a display title, relative path, and generated HTML.
     /// </summary>

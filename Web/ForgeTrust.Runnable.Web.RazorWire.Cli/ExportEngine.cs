@@ -13,9 +13,6 @@ public class ExportEngine : IDisposable
     private readonly HttpClient _client = new();
 
     /// <summary>
-    /// Initializes a new <see cref="ExportEngine"/>.
-    /// </summary>
-    /// <summary>
     /// Initializes a new instance of <see cref="ExportEngine"/> using the specified logger.
     /// </summary>
     /// <param name="logger">Logger used for informational and error messages produced by the export engine.</param>
@@ -27,18 +24,10 @@ public class ExportEngine : IDisposable
     /// <summary>
     /// Crawls the site starting from configured seed routes (or the root) and exports discovered pages and frame sources to the output path.
     /// </summary>
-    /// <remarks>
-    /// If <see cref="ExportContext.SeedRoutesPath"/> is set, the file is read and each line is validated and normalized as a root-relative route; invalid seeds are logged. If the seed file exists but yields no valid routes, the method falls back to enqueueing the root path ("/"). Discovered internal links and frame sources are queued and processed until the queue is exhausted or the operation is cancelled.
-    /// </remarks>
-    /// <param name="context">Export configuration and runtime state (base URL, queue, visited set, output path, and console reference).</param>
-    /// <param name="cancellationToken">Token to observe for cancellation of the crawl operation.</param>
-    /// <summary>
-    /// Crawls the app starting from seed routes (or the root) and exports discovered pages and frame sources to the configured output path.
-    /// </summary>
-    /// <param name="context">Export context containing BaseUrl, OutputPath, optional SeedRoutesPath, and the Queue/Visited collections used during the crawl.</param>
+    /// <param name="context">Export configuration and runtime state including base URL, output path, queue, and visited set.</param>
     /// <param name="cancellationToken">Token to observe for cooperative cancellation of the crawl and export operations.</param>
     /// <remarks>
-    /// If <see cref="ExportContext.SeedRoutesPath"/> is provided, the file is read and each line is validated and normalized to a root-relative route; invalid seeds are logged. If the seed file exists but yields no valid routes, the root path ("/") is enqueued. If no seed file is provided, the root path is enqueued.
+    /// If <see cref="ExportContext.SeedRoutesPath"/> is provided, the file is read and each line is validated and normalized to a root-relative route; invalid seeds are logged. If the seed file exists but yields no valid routes, the root path ("/") is enqueued. If no seed file is provided, the root path is enqueued. Discovered internal links and frame sources are queued and processed until the queue is exhausted or the operation is cancelled.
     /// </remarks>
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
     /// <exception cref="FileNotFoundException">Thrown when <see cref="ExportContext.SeedRoutesPath"/> is specified but the file does not exist.</exception>

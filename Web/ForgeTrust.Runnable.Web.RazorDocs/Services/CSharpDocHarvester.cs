@@ -16,8 +16,6 @@ public class CSharpDocHarvester : IDocHarvester
     private readonly ILogger<CSharpDocHarvester> _logger;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the provided logger.
-    /// <summary>
     /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the specified logger.
     /// </summary>
     public CSharpDocHarvester(ILogger<CSharpDocHarvester> logger)
@@ -26,13 +24,9 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Collects XML documentation from C# source files under the specified root and produces DocNode entries containing titles, relative file paths with anchors, and HTML-formatted content.
-    /// </summary>
-    /// <param name="rootPath">The root directory to recursively scan for .cs files.</param>
-    /// <summary>
     /// Harvests XML documentation comments from C# source files under the specified root directory into DocNode entries.
     /// </summary>
-    /// <param name="rootPath">The root directory to scan for .cs files; returned DocNode paths are relative to this directory.</param>
+    /// <param name="rootPath">The root directory to recursively scan for .cs files; returned DocNode paths are relative to this directory.</param>
     /// <returns>A collection of DocNode objects; each contains a title, a relative file path including a fragment anchor, and the extracted HTML documentation.</returns>
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
     {
@@ -129,11 +123,7 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Extracts XML documentation from the leading trivia of a syntax node and converts the <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> elements into HTML fragments.
-    /// </summary>
-    /// <param name="node">The syntax node whose leading XML documentation comments will be parsed.</param>
-    /// <summary>
-    /// Extracts XML documentation from the given syntax node's leading trivia and produces an HTML fragment containing the encoded `<summary>` and `<remarks>` content.
+    /// Extracts XML documentation from the given syntax node's leading trivia and produces an HTML fragment containing the encoded <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> content.
     /// </summary>
     /// <param name="node">The syntax node whose leading XML documentation trivia will be parsed.</param>
     /// <returns>The HTML string containing encoded summary and remarks, or <c>null</c> if no documentation is present or parsing fails.</returns>
@@ -177,14 +167,9 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Compute the dot-delimited qualified name for the provided type declaration, including enclosing types and containing namespaces.
-    /// Walks up the syntax tree to prepend containing type and namespace names.
+    /// Builds the dot-delimited qualified name for a type or enum declaration, including enclosing types and namespaces.
     /// </summary>
-    /// <param name="node">The type or enum declaration node to compute the qualified name for.</param>
-    /// <summary>
-    /// Builds the dot-delimited qualified name for a type declaration, including enclosing types and namespaces.
-    /// </summary>
-    /// <param name="node">The type declaration syntax node to compute the qualified name for.</param>
+    /// <param name="node">The type or enum declaration syntax node to compute the qualified name for.</param>
     /// <returns>The qualified name as a dot-delimited string containing nested type and namespace segments.</returns>
     private string GetQualifiedName(BaseTypeDeclarationSyntax node)
     {

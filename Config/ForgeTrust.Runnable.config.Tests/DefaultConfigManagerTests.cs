@@ -45,13 +45,12 @@ public class DefaultConfigManagerTests
 
         var manager = new DefaultConfigManager(
             environmentProvider,
-            new IConfigProvider[]
-            {
+            [
                 highPriorityProvider,
                 lowPriorityProvider,
                 environmentProvider, // should be filtered out
                 anotherConfigManager // should be filtered out
-            },
+            ],
             logger);
 
         var value = manager.GetValue<string>("Production", "Feature.Flag");

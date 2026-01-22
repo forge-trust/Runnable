@@ -28,13 +28,12 @@ public class FileBasedConfigProviderTests
                 """{"Feature":{"Enabled":true,"Extra":"Value"}}""");
             File.WriteAllText(Path.Combine(tempDir, "config_bad.json"), "{not json}");
 
-            var environmentProvider = A.Fake<IEnvironmentProvider>();
             var locationProvider = A.Fake<IConfigFileLocationProvider>();
             var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
             A.CallTo(() => locationProvider.Directory).Returns(tempDir);
 
-            var provider = new FileBasedConfigProvider(environmentProvider, locationProvider, logger);
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
 
             Assert.Equal("Dev", provider.GetValue<string>("Development", "Feature.Name"));
             Assert.True(provider.GetValue<bool>("Development", "Feature.Enabled"));
@@ -55,14 +54,13 @@ public class FileBasedConfigProviderTests
     [Fact]
     public void GetValue_ReturnsDefaultWhenDirectoryMissing()
     {
-        var environmentProvider = A.Fake<IEnvironmentProvider>();
         var locationProvider = A.Fake<IConfigFileLocationProvider>();
         var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
         A.CallTo(() => locationProvider.Directory)
             .Returns(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")));
 
-        var provider = new FileBasedConfigProvider(environmentProvider, locationProvider, logger);
+        var provider = new FileBasedConfigProvider(locationProvider, logger);
 
         Assert.Null(provider.GetValue<string>("Production", "Any.Key"));
     }
@@ -78,13 +76,12 @@ public class FileBasedConfigProviderTests
             var configPath = Path.Combine(tempDir, "appsettings.json");
             File.WriteAllText(configPath, """{"Feature":{"Enabled":true}}""");
 
-            var environmentProvider = A.Fake<IEnvironmentProvider>();
             var locationProvider = A.Fake<IConfigFileLocationProvider>();
             var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
             A.CallTo(() => locationProvider.Directory).Returns(tempDir);
 
-            var provider = new FileBasedConfigProvider(environmentProvider, locationProvider, logger);
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
 
             Assert.True(provider.GetValue<bool>("Production", "Feature.Enabled"));
 
@@ -124,13 +121,12 @@ public class FileBasedConfigProviderTests
                 Path.Combine(tempDir, "config_array.json"),
                 """[1, 2, 3]""");
 
-            var environmentProvider = A.Fake<IEnvironmentProvider>();
             var locationProvider = A.Fake<IConfigFileLocationProvider>();
             var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
             A.CallTo(() => locationProvider.Directory).Returns(tempDir);
 
-            var provider = new FileBasedConfigProvider(environmentProvider, locationProvider, logger);
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
 
             // Should still read valid file and ignore others
             Assert.True(provider.GetValue<bool>("Production", "Feature.Enabled"));
@@ -160,13 +156,12 @@ public class FileBasedConfigProviderTests
                 Path.Combine(tempDir, "config_override.json"),
                 """{"Feature":{"Enabled":null}}""");
 
-            var environmentProvider = A.Fake<IEnvironmentProvider>();
             var locationProvider = A.Fake<IConfigFileLocationProvider>();
             var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
             A.CallTo(() => locationProvider.Directory).Returns(tempDir);
 
-            var provider = new FileBasedConfigProvider(environmentProvider, locationProvider, logger);
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
 
             // Null in override should not trigger overwrite
             Assert.True(provider.GetValue<bool>("Production", "Feature.Enabled"));
@@ -192,13 +187,12 @@ public class FileBasedConfigProviderTests
                 Path.Combine(tempDir, "appsettings.json"),
                 """{"Feature":{"Count":"NotANumber"}}""");
 
-            var environmentProvider = A.Fake<IEnvironmentProvider>();
             var locationProvider = A.Fake<IConfigFileLocationProvider>();
             var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
             A.CallTo(() => locationProvider.Directory).Returns(tempDir);
 
-            var provider = new FileBasedConfigProvider(environmentProvider, locationProvider, logger);
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
 
             var value = provider.GetValue<int>("Production", "Feature.Count");
 
@@ -231,13 +225,12 @@ public class FileBasedConfigProviderTests
                 Path.Combine(tempDir, "config_Base.json"),
                 """{"Env":"Base"}""");
 
-            var environmentProvider = A.Fake<IEnvironmentProvider>();
             var locationProvider = A.Fake<IConfigFileLocationProvider>();
             var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
             A.CallTo(() => locationProvider.Directory).Returns(tempDir);
 
-            var provider = new FileBasedConfigProvider(environmentProvider, locationProvider, logger);
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
 
             Assert.Equal("Staging", provider.GetValue<string>("Staging", "Env"));
             Assert.Equal("Dev", provider.GetValue<string>("Development", "Env"));

@@ -1,3 +1,5 @@
+using Xunit;
+
 namespace ForgeTrust.Runnable.Config.Tests;
 
 public class DefaultConfigFileLocationProviderTests

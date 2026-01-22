@@ -64,6 +64,12 @@ public class IslandTagHelper : TagHelper
     /// </summary>
     /// <param name="context">The current tag helper execution context.</param>
     /// <param name="output">The output to modify; sets the element to <c>&lt;turbo-frame&gt;</c> and applies corresponding attributes.</param>
+    /// <summary>
+    /// Renders a turbo-frame element whose attributes are populated from the tag helper's properties.
+    /// </summary>
+    /// <remarks>
+    /// Validates that <see cref="Id"/> is not null, empty, or whitespace and sets attributes such as id, src, loading, data-turbo-permanent, data-rw-swr, style (view-transition-name), data-rw-export, and client-related data attributes when the corresponding properties are provided.
+    /// </remarks>
     /// <exception cref="ArgumentException">Thrown when <see cref="Id"/> is null, empty, or consists only of white-space characters.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {

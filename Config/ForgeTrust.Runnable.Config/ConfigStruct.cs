@@ -20,6 +20,7 @@ public class ConfigStruct<T> : IConfig
     {
         T? rawValue = configManager.GetValue<T>(environmentProvider.Environment, key);
         Value = rawValue ?? DefaultValue;
-        HasValue = Value.HasValue;
+        IsDefaultValue = rawValue == null || Equals(Value, DefaultValue);
+        HasValue = Value != null;
     }
 }

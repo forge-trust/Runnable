@@ -1,5 +1,4 @@
 using FakeItEasy;
-using ForgeTrust.Runnable.Config;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Config.Tests;

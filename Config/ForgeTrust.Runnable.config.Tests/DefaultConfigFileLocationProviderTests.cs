@@ -1,11 +1,9 @@
-using Xunit;
-
 namespace ForgeTrust.Runnable.Config.Tests;
 
 public class DefaultConfigFileLocationProviderTests
 {
     [Fact]
-    public void Directory_ReturnsCurrentDirectory()
+    public void Directory_ReturnsAppContextBaseDirectory()
     {
         var provider = new DefaultConfigFileLocationProvider();
 

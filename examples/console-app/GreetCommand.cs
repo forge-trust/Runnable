@@ -21,8 +21,7 @@ public class GreetCommand : ICommand
 
     public ValueTask ExecuteAsync(IConsole console)
     {
-        // FooConfig always has a default, so IsDefaultValue check or simpler HasValue logic
-        if (_foo.HasValue && !_foo.IsDefaultValue)
+        if (!_foo.IsDefaultValue)
         {
             console.Output.WriteLine($"Holy batman, {Name}! TIL: Foo = {_foo.Value}");
         }
@@ -42,7 +41,7 @@ public class GreetCommand : ICommand
 
 public class FooConfig : Config<string>
 {
-    public override string DefaultValue => "Just a string";
+    public override string? DefaultValue { get; } = "Just a string";
 }
 
 public record Bar(string Message, int Overage);

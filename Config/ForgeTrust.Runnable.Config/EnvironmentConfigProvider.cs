@@ -19,8 +19,8 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
 
     public T? GetValue<T>(string environment, string key)
     {
-        var envPrefix = environment.ToUpper().Replace('.', '_').Replace('-', '_');
-        var keyPart = key.ToUpper().Replace('.', '_').Replace('-', '_');
+        var envPrefix = environment.ToUpperInvariant().Replace('.', '_').Replace('-', '_');
+        var keyPart = key.ToUpperInvariant().Replace('.', '_').Replace('-', '_');
         var envKey = $"{envPrefix}_{keyPart}";
         var value = _environmentProvider.GetEnvironmentVariable(envKey);
         if (value == null)

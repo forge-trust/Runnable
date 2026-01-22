@@ -15,27 +15,6 @@ public class ConfigTests
         public override int? DefaultValue => 42;
     }
 
-    private sealed class IntConfigManagerStub : IConfigManager
-    {
-        public int Priority => 0;
-
-        public string Name => nameof(IntConfigManagerStub);
-
-        public int? ValueToReturn { get; set; }
-
-        public T? GetValue<T>(string environment, string key)
-        {
-            if (typeof(T) == typeof(int))
-            {
-                return ValueToReturn is null
-                    ? default
-                    : (T?)(object?)ValueToReturn;
-            }
-
-            return default;
-        }
-    }
-
     [Fact]
     public void Init_UsesDefaultValueWhenManagerReturnsNull()
     {
@@ -75,15 +54,22 @@ public class ConfigTests
     [Fact]
     public void Init_ForStructConfigUsesManagerValueWhenPresent()
     {
-        var configManager = new IntConfigManagerStub { ValueToReturn = 7 };
+        var configManager = A.Fake<IConfigManager>();
+        A.CallTo(() => configManager.Priority).Returns(0);
+        A.CallTo(() => configManager.Name).Returns(nameof(IConfigManager));
+        // Configure the generic method for int based on the user request to match behavior
+        A.CallTo(() => configManager.GetValue<int>(A<string>._, A<string>._))
+            .Returns(7);
+
         var environmentProvider = A.Fake<IEnvironmentProvider>();
         var config = new TestStructConfig();
 
         A.CallTo(() => environmentProvider.Environment).Returns("Production");
 
-        config.Init(configManager, environmentProvider, "Struct.Key");
+        ((IConfig)config).Init(configManager, environmentProvider, "Struct.Key");
 
         Assert.True(config.HasValue);
+        Assert.False(config.IsDefaultValue);
         Assert.Equal(7, config.Value);
     }
 }

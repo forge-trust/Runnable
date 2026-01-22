@@ -28,7 +28,6 @@ public class RunnableConfigModule : IRunnableModule
                 RegisterConfigFromAssembly(assembly, sp);
             }
         });
-
     }
 
     private void RegisterConfigFromAssembly(Assembly assembly, IServiceCollection services)
@@ -42,22 +41,24 @@ public class RunnableConfigModule : IRunnableModule
 
         foreach (var type in configTypes)
         {
-            services.AddSingleton(type, sp =>
-            {
-                // Determine the key path (your existing attribute helper)
-                var key = ConfigKeyAttribute.GetKeyPath(type);
+            services.AddSingleton(
+                type,
+                sp =>
+                {
+                    // Determine the key path (your existing attribute helper)
+                    var key = ConfigKeyAttribute.GetKeyPath(type);
 
-                // Create instance (supports ctor DI if needed)
-                var instance = (IConfig)ActivatorUtilities.CreateInstance(sp, type);
+                    // Create instance (supports ctor DI if needed)
+                    var instance = (IConfig)ActivatorUtilities.CreateInstance(sp, type);
 
-                // Call your init with required services
-                instance.Init(
-                    sp.GetRequiredService<IConfigManager>(),
-                    sp.GetRequiredService<IEnvironmentProvider>(),
-                    key);
+                    // Call your init with required services
+                    instance.Init(
+                        sp.GetRequiredService<IConfigManager>(),
+                        sp.GetRequiredService<IEnvironmentProvider>(),
+                        key);
 
-                return instance;
-            });
+                    return instance;
+                });
         }
     }
 
@@ -81,6 +82,8 @@ public class ConfigKeyAttribute : Attribute
     public ConfigKeyAttribute(Type t)
     {
         Key = GetKeyPath(t);
+        var foundAttr = GetAttribute(t);
+        Root = foundAttr?.Root ?? false;
     }
 
     public static string? ExtractKey(object obj)
@@ -91,12 +94,13 @@ public class ConfigKeyAttribute : Attribute
     public static string? ExtractKey(Type type)
     {
         var attribute = GetAttribute(type);
+
         return attribute?.Key;
     }
 
     private static ConfigKeyAttribute? GetAttribute(
-        Type type) => type.GetCustomAttributes(typeof(ConfigKeyAttribute), false).Cast<ConfigKeyAttribute>()
-        .FirstOrDefault();
+        Type type) =>
+        type.GetCustomAttribute<ConfigKeyAttribute>(false);
 
     public static string GetKeyPath(
         Type type)
@@ -110,6 +114,7 @@ public class ConfigKeyAttribute : Attribute
         }
 
         var parentPath = GetKeyPath(type.DeclaringType);
+
         return $"{parentPath}.{thisMember}";
     }
 }

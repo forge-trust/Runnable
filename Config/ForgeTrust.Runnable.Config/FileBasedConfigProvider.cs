@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
-using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -8,34 +7,27 @@ namespace ForgeTrust.Runnable.Config;
 
 public class FileBasedConfigProvider : IConfigProvider
 {
-    private readonly IEnvironmentProvider _environmentProvider;
     private readonly IConfigFileLocationProvider _configFileLocationProvider;
     private readonly ILogger<FileBasedConfigProvider> _logger;
 
-    private bool _initialized = false;
-    private readonly Dictionary<string, JsonNode> _environments = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Lazy<Dictionary<string, JsonNode>> _environmentsLazy;
 
     public int Priority { get; } = 1;
     public string Name { get; } = nameof(FileBasedConfigProvider);
 
     public FileBasedConfigProvider(
-        IEnvironmentProvider environmentProvider,
         IConfigFileLocationProvider configFileLocationProvider,
         ILogger<FileBasedConfigProvider> logger)
     {
-        _environmentProvider = environmentProvider;
         _configFileLocationProvider = configFileLocationProvider;
         _logger = logger;
+
+        _environmentsLazy = new Lazy<Dictionary<string, JsonNode>>(InitializeEnvironments, true);
     }
 
     public T? GetValue<T>(string environment, string key)
     {
-        if (!_initialized)
-        {
-            Initialize();
-        }
-
-        if (_environments.TryGetValue(environment, out var envConfig))
+        if (_environmentsLazy.Value.TryGetValue(environment, out var envConfig))
         {
             return GetValue<T>(envConfig, key);
         }
@@ -43,71 +35,65 @@ public class FileBasedConfigProvider : IConfigProvider
         return default;
     }
 
-    private void Initialize()
+    private Dictionary<string, JsonNode> InitializeEnvironments()
     {
-        // Single-shot init; minimal locking (double-checked) for potential multi-threaded access
-        lock (_environments)
+        var environments = new Dictionary<string, JsonNode>(StringComparer.OrdinalIgnoreCase);
+
+        var directory = _configFileLocationProvider.Directory;
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
         {
-            if (_initialized)
-            {
-                return;
-            }
+            return environments;
+        }
 
-            var directory = _configFileLocationProvider.Directory;
-            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
-            {
-                _initialized = true; // Nothing to load
-                return;
-            }
+        // Collect matching files
+        string[] files =
+        [
+            ..Directory.EnumerateFiles(directory, "appsettings*.json", SearchOption.TopDirectoryOnly),
+            ..Directory.EnumerateFiles(directory, "config_*.json", SearchOption.TopDirectoryOnly)
+        ];
 
-            // Collect matching files
-            string[] files =
-            [
-                ..Directory.EnumerateFiles(directory, "appsettings*.json", SearchOption.TopDirectoryOnly),
-                ..Directory.EnumerateFiles(directory, "config_*.json", SearchOption.TopDirectoryOnly)
-            ];
-
-            // Deterministic order so merges are predictable; later files override earlier ones when keys collide
-            foreach (var file in files.OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+        // Deterministic order so merges are predictable; later files override earlier ones when keys collide
+        foreach (var file in files.OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+        {
+            JsonNode? root;
+            try
             {
-                JsonNode? root = null;
-                try
+                var text = File.ReadAllText(file);
+                if (string.IsNullOrWhiteSpace(text))
                 {
-                    var text = File.ReadAllText(file);
-                    if (string.IsNullOrWhiteSpace(text))
-                    {
-                        continue;
-                    }
-                    root = JsonNode.Parse(text);
-                }
-                catch
-                {
-                    // Skip malformed file – could log in future
                     continue;
                 }
 
-                if (root is not JsonObject obj)
-                {
-                    continue; // Only merge JSON objects at the root
-                }
+                root = JsonNode.Parse(text);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Skipping malformed config file {FileName}", Path.GetFileName(file));
 
-                var fileName = Path.GetFileNameWithoutExtension(file) ?? string.Empty;
-                var environment = ExtractEnvironment(fileName);
-
-                if (!_environments.TryGetValue(environment, out var existing))
-                {
-                    existing = new JsonObject();
-                    _environments[environment] = existing;
-                }
-
-                if (existing is JsonObject targetObj)
-                {
-                    MergeJsonObjects(targetObj, obj);
-                }
+                continue;
             }
 
-            _initialized = true;
+            if (root is not JsonObject obj)
+            {
+                continue; // Only merge JSON objects at the root
+            }
+
+            var fileName = Path.GetFileNameWithoutExtension(file);
+            var environment = ExtractEnvironment(fileName);
+
+            if (!environments.TryGetValue(environment, out var existing))
+            {
+                existing = new JsonObject();
+                environments[environment] = existing;
+            }
+
+            if (existing is JsonObject targetObj)
+            {
+                MergeJsonObjects(targetObj, obj);
+            }
         }
+
+        return environments;
     }
 
     private static string ExtractEnvironment(string fileName)
@@ -182,7 +168,7 @@ public class FileBasedConfigProvider : IConfigProvider
                 }
                 else
                 {
-                    target[kvp.Key] = kvp.Value;
+                    target[kvp.Key] = kvp.Value?.DeepClone();
                 }
             }
             else

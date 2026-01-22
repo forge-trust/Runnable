@@ -5,7 +5,7 @@ namespace ForgeTrust.Runnable.Config;
 public interface IConfig
 {
     void Init(
-        IConfigManager configProvider,
+        IConfigManager configManager,
         IEnvironmentProvider environmentProvider,
         string key);
 }

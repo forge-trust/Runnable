@@ -13,7 +13,7 @@ public class ConfigStruct<T> : IConfig
 
     public virtual T? DefaultValue => null;
 
-    public void Init(
+    void IConfig.Init(
         IConfigManager configManager,
         IEnvironmentProvider environmentProvider,
         string key)

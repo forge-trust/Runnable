@@ -11,8 +11,7 @@ public class GreetCommand : ICommand
     private readonly FooConfig _foo;
     private readonly BarConfig _bar;
 
-    [CommandParameter(0, Description = "The name to greet.")]
-    public string Name { get; set; } = string.Empty;
+    [CommandParameter(0, Description = "The name to greet.")] public string Name { get; set; } = string.Empty;
 
     public GreetCommand(FooConfig foo, BarConfig bar)
     {
@@ -22,7 +21,8 @@ public class GreetCommand : ICommand
 
     public ValueTask ExecuteAsync(IConsole console)
     {
-        if (_foo.HasValue)
+        // FooConfig always has a default, so IsDefaultValue check or simpler HasValue logic
+        if (_foo.HasValue && !_foo.IsDefaultValue)
         {
             console.Output.WriteLine($"Holy batman, {Name}! TIL: Foo = {_foo.Value}");
         }
@@ -31,9 +31,9 @@ public class GreetCommand : ICommand
             console.Output.WriteLine($"Hello, {Name}!");
         }
 
-        if (_bar.HasValue)
+        if (_bar.Value is { } bar)
         {
-            console.Output.WriteLine($"Bar says: {_bar.Value.Message} {_bar.Value.Overage}");
+            console.Output.WriteLine($"Bar says: {bar.Message} {bar.Overage}");
         }
 
         return default;

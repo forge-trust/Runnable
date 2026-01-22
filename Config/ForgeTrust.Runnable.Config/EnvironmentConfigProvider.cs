@@ -6,7 +6,8 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
 {
     private readonly IEnvironmentProvider _environmentProvider;
 
-    // We don't use priority here, we will always check environment variables first.
+    // Priority is technically ignored because DefaultConfigManager special-cases this provider
+    // to always check it first, effectively giving it overrides-all priority.
     public int Priority { get; } = -1;
 
     public string Name { get; } = nameof(EnvironmentConfigProvider);
@@ -32,7 +33,31 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
             }
         }
 
-        return (T)Convert.ChangeType(value, typeof(T));
+        try
+        {
+            var targetType = typeof(T);
+            var underlyingType = Nullable.GetUnderlyingType(targetType);
+            if (underlyingType != null)
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    return default;
+                }
+
+                targetType = underlyingType;
+            }
+
+            if (targetType.IsEnum)
+            {
+                return (T)Enum.Parse(targetType, value, true);
+            }
+
+            return (T)Convert.ChangeType(value, targetType);
+        }
+        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+        {
+            return default;
+        }
     }
 
     public string Environment => _environmentProvider.Environment;

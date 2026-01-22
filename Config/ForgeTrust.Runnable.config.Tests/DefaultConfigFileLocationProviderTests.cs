@@ -7,6 +7,6 @@ public class DefaultConfigFileLocationProviderTests
     {
         var provider = new DefaultConfigFileLocationProvider();
 
-        Assert.Equal(Environment.CurrentDirectory, provider.Directory);
+        Assert.Equal(AppContext.BaseDirectory, provider.Directory);
     }
 }

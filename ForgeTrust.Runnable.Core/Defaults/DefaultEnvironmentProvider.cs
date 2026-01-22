@@ -37,5 +37,5 @@ public class DefaultEnvironmentProvider : IEnvironmentProvider
     public bool IsDevelopment { get; }
 
     public string? GetEnvironmentVariable(string name, string? defaultValue = null) =>
-        System.Environment.GetEnvironmentVariable(name) ?? defaultValue ?? null;
+        System.Environment.GetEnvironmentVariable(name) ?? defaultValue;
 }

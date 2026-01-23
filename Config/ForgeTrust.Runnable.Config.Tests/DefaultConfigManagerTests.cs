@@ -90,10 +90,12 @@ public class DefaultConfigManagerTests
     {
         var environmentProvider = A.Fake<IEnvironmentConfigProvider>();
         var logger = A.Fake<ILogger<DefaultConfigManager>>();
+        A.CallTo(() => environmentProvider.GetValue<string>("Production", "Key"))
+            .Returns("env-val");
 
         var manager = new DefaultConfigManager(environmentProvider, null, logger);
 
-        Assert.NotNull(manager);
+        Assert.Equal("env-val", manager.GetValue<string>("Production", "Key"));
     }
 
     [Fact]

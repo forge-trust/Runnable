@@ -49,7 +49,7 @@ public class EnvironmentConfigProviderTests
         var innerProvider = A.Fake<IEnvironmentProvider>();
         A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION_DAY", A<string?>._)).Returns(null);
         A.CallTo(() => innerProvider.GetEnvironmentVariable("DAY", A<string?>._))
-            .Returns("Monday");
+            .Returns("monday");
 
         var provider = new EnvironmentConfigProvider(innerProvider);
 

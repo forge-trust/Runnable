@@ -55,8 +55,6 @@ public class ConfigTests
     public void Init_ForStructConfigUsesManagerValueWhenPresent()
     {
         var configManager = A.Fake<IConfigManager>();
-        A.CallTo(() => configManager.Priority).Returns(0);
-        A.CallTo(() => configManager.Name).Returns(nameof(IConfigManager));
         // Configure the generic method for int based on the user request to match behavior
         A.CallTo(() => configManager.GetValue<int>(A<string>._, A<string>._))
             .Returns(7);

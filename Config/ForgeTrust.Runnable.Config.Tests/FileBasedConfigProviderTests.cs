@@ -392,16 +392,26 @@ public class FileBasedConfigProviderTests
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(tempDir);
-        var locationProvider = A.Fake<IConfigFileLocationProvider>();
-        A.CallTo(() => locationProvider.Directory).Returns(tempDir);
-        var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+        try
+        {
+            var locationProvider = A.Fake<IConfigFileLocationProvider>();
+            A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+            var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
-        File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), "");
+            File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), "");
 
-        var provider = new FileBasedConfigProvider(locationProvider, logger);
-        var result = provider.GetValue<string>("Production", "Key");
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
+            var result = provider.GetValue<string>("Production", "Key");
 
-        Assert.Null(result);
+            Assert.Null(result);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
     }
 
     [Fact]
@@ -409,16 +419,26 @@ public class FileBasedConfigProviderTests
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(tempDir);
-        var locationProvider = A.Fake<IConfigFileLocationProvider>();
-        A.CallTo(() => locationProvider.Directory).Returns(tempDir);
-        var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+        try
+        {
+            var locationProvider = A.Fake<IConfigFileLocationProvider>();
+            A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+            var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
 
-        File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), "   ");
+            File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), "   ");
 
-        var provider = new FileBasedConfigProvider(locationProvider, logger);
-        var result = provider.GetValue<string>("Production", "Key");
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
+            var result = provider.GetValue<string>("Production", "Key");
 
-        Assert.Null(result);
+            Assert.Null(result);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
     }
 
     [Fact]

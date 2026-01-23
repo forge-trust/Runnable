@@ -15,12 +15,17 @@ public class Config<T> : IConfig
     void IConfig.Init(
         IConfigManager configManager,
         IEnvironmentProvider environmentProvider,
+        string key) =>
+        Init(configManager, environmentProvider, key);
+
+    internal virtual void Init(
+        IConfigManager configManager,
+        IEnvironmentProvider environmentProvider,
         string key)
     {
         T? rawValue = configManager.GetValue<T>(environmentProvider.Environment, key);
         Value = rawValue ?? DefaultValue;
         IsDefaultValue = rawValue == null || Equals(Value, DefaultValue);
         HasValue = Value != null;
-
     }
 }

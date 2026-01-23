@@ -9,7 +9,7 @@ public record StartupContext(
     IRunnableHostModule RootModule,
     string? ApplicationName = null,
     IEnvironmentProvider? EnvironmentProvider = null,
-    Action<IServiceCollection>? CustomRegistrations = null)
+    params List<Action<IServiceCollection>> CustomRegistrations)
 {
     internal ModuleDependencyBuilder Dependencies { get; } = new();
 

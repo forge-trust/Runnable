@@ -62,6 +62,10 @@ public class MarkdownHarvester : IDocHarvester
 
                 nodes.Add(new DocNode(title, relativePath, html));
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process markdown file: {File}", file);

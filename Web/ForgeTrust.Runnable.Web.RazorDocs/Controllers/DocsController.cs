@@ -25,7 +25,7 @@ public class DocsController : Controller
     /// <returns>A view result whose model is the collection of documentation items extracted from the repository.</returns>
     public async Task<IActionResult> Index()
     {
-        var docs = await _aggregator.GetDocsAsync();
+        var docs = await _aggregator.GetDocsAsync(HttpContext.RequestAborted);
 
         return View(docs);
     }
@@ -42,7 +42,7 @@ public class DocsController : Controller
             return NotFound();
         }
 
-        var doc = await _aggregator.GetDocByPathAsync(path);
+        var doc = await _aggregator.GetDocByPathAsync(path, HttpContext.RequestAborted);
         if (doc == null)
         {
             return NotFound();

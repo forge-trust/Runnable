@@ -45,10 +45,11 @@ public class DocAggregator
     /// <summary>
     /// Retrieves all harvested documentation nodes sorted by their Path.
     /// </summary>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>An enumerable of all <see cref="DocNode"/> objects ordered by their Path.</returns>
-    public async Task<IEnumerable<DocNode>> GetDocsAsync()
+    public async Task<IEnumerable<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
     {
-        var cachedDict = await GetCachedDocsAsync();
+        var cachedDict = await GetCachedDocsAsync(cancellationToken);
 
         return cachedDict.Values.OrderBy(n => n.Path).ToList();
     }
@@ -57,17 +58,19 @@ public class DocAggregator
     /// Retrieves a specific documentation node for the specified repository path.
     /// </summary>
     /// <param name="path">The documentation path to look up.</param>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>The <see cref="DocNode"/> if found, or <c>null</c> if no node exists for the given path.</returns>
-    public async Task<DocNode?> GetDocByPathAsync(string path)
+    public async Task<DocNode?> GetDocByPathAsync(string path, CancellationToken cancellationToken = default)
     {
-        var cachedDict = await GetCachedDocsAsync();
+        var cachedDict = await GetCachedDocsAsync(cancellationToken);
 
-        return cachedDict.TryGetValue(path, out var doc) ? doc : null;
+        return cachedDict.GetValueOrDefault(path);
     }
 
     /// <summary>
     /// Retrieves harvested documentation nodes from the cache, harvesting and caching them if absent.
     /// </summary>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <remarks>
     /// When harvesting, each configured harvester is invoked; failures from individual harvesters are caught and logged. 
     /// Contents are sanitized before being cached. If multiple nodes share the same Path, a warning is logged and the first occurrence is retained.
@@ -76,7 +79,7 @@ public class DocAggregator
     /// <returns>
     /// A dictionary mapping each documentation Path to its corresponding sanitized <see cref="DocNode"/>. Returns an empty dictionary if no documents are available.
     /// </returns>
-    private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync()
+    private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync(CancellationToken cancellationToken = default)
     {
         return await _cache.GetOrCreateAsync(
                    CacheKey,
@@ -89,7 +92,7 @@ public class DocAggregator
                        {
                            try
                            {
-                               return await harvester.HarvestAsync(_repositoryRoot);
+                               return await harvester.HarvestAsync(_repositoryRoot, cancellationToken);
                            }
                            catch (Exception ex)
                            {

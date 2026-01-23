@@ -281,15 +281,6 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Projects elements of <paramref name="source"/> into an asynchronous sequence using a task-returning selector, preserving the input order while bounding concurrency.
-    /// Individual transforms are not cancelled directly as the provided delegate does not receive a <see cref="CancellationToken"/>.
-    /// </summary>
-    /// <param name="source">The input sequence to transform.</param>
-    /// <param name="body">A selector that transforms each element into a <see cref="Task{TResult}"/>. The provided delegate does not receive or observe the <paramref name="cancellationToken"/>.</param>
-    /// <param name="maxDegreeOfParallelism">The maximum number of concurrently executing transform operations; must be greater than zero.</param>
-    /// <param name="bufferMultiplier">Multiplier for the internal buffer capacity (internal capacity = <paramref name="maxDegreeOfParallelism"/> × <paramref name="bufferMultiplier"/>); must be at least 1.</param>
-    /// <param name="cancellationToken">Token to observe for cancelling the overall operation and internal coordination, such as channel backpressure and scheduling waits. This token is not forwarded to <paramref name="body"/>.</param>
-    /// <summary>
     /// Projects each element of <paramref name="source"/> using the provided task-returning selector with bounded concurrency and yields the results in the same order as the source.
     /// </summary>
     /// <param name="source">The input sequence to project.</param>

@@ -14,6 +14,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 public class CSharpDocHarvester : IDocHarvester
 {
     private readonly ILogger<CSharpDocHarvester> _logger;
+    private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj", "Tests" };
 
     /// <summary>
     /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the specified logger.
@@ -27,26 +28,28 @@ public class CSharpDocHarvester : IDocHarvester
     /// Harvests XML documentation comments from C# source files under the specified root directory into DocNode entries.
     /// </summary>
     /// <param name="rootPath">The root directory to recursively scan for .cs files; returned DocNode paths are relative to this directory.</param>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>A collection of DocNode objects; each contains a title, a relative file path including a fragment anchor, and the extracted HTML documentation.</returns>
-    public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
+    public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
     {
         var nodes = new List<DocNode>();
         var csFiles = Directory.EnumerateFiles(rootPath, "*.cs", SearchOption.AllDirectories);
-        var excludedDirs = new[] { "node_modules", "bin", "obj", "Tests" };
 
         foreach (var file in csFiles)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var segments = file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (segments.Any(s => excludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
+            if (segments.Any(s => ExcludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
             {
                 continue;
             }
 
             try
             {
-                var code = await File.ReadAllTextAsync(file);
-                var tree = CSharpSyntaxTree.ParseText(code);
-                var root = await tree.GetRootAsync();
+                var code = await File.ReadAllTextAsync(file, cancellationToken);
+                var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
+                var root = await tree.GetRootAsync(cancellationToken);
 
                 // Capture Classes, Structs, Interfaces, Records
                 var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>();

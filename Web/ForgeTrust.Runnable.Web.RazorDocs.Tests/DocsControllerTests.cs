@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -42,7 +43,10 @@ public class DocsControllerTests : IDisposable
             loggerFake
         );
 
-        _controller = new DocsController(_aggregator);
+        _controller = new DocsController(_aggregator)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
     }
 
     [Fact]

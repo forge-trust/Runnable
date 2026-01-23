@@ -73,6 +73,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     {
         endpoints.MapControllerRoute(
             name: "razordocs_default",
-            pattern: "docs/{action=Index}/{**path}");
+            pattern: "docs/{action=Index}/{**path}",
+            defaults: new { controller = "Docs" });
     }
 }

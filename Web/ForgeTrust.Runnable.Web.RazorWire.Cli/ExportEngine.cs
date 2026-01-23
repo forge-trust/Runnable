@@ -249,6 +249,9 @@ public class ExportEngine : IDisposable
         return !string.IsNullOrEmpty(normalized);
     }
 
+    /// <summary>
+    /// Releases the resources used by the <see cref="ExportEngine"/>, including the internal <see cref="HttpClient"/>.
+    /// </summary>
     public void Dispose()
     {
         _client.Dispose();

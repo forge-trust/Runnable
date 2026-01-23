@@ -2,12 +2,24 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 
+/// <summary>
+/// A Tag Helper that enhances a standard <c>&lt;form&gt;</c> element with RazorWire/Turbo features.
+/// </summary>
 [HtmlTargetElement("form", Attributes = "rw-active")]
 public class RazorWireFormTagHelper : TagHelper
 {
-    [HtmlAttributeName("rw-active")] public bool Enabled { get; set; } = true;
+    /// <summary>
+    /// Gets or sets a value indicating whether RazorWire/Turbo enhancement is enabled for this form.
+    /// Defaults to <c>true</c>.
+    /// </summary>
+    [HtmlAttributeName("rw-active")]
+    public bool Enabled { get; set; } = true;
 
-    [HtmlAttributeName("rw-target")] public string? TargetFrame { get; set; }
+    /// <summary>
+    /// Gets or sets the identifier of the Turbo Frame that this form should target.
+    /// </summary>
+    [HtmlAttributeName("rw-target")]
+    public string? TargetFrame { get; set; }
 
 
     /// <summary>

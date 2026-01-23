@@ -5,7 +5,11 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement(Attributes = "requires-stream")]
 public class RequiresStreamTagHelper : TagHelper
 {
-    [HtmlAttributeName("requires-stream")] public string? RequiresStream { get; set; }
+    /// <summary>
+    /// Gets or sets the name or identifier of the stream required by this element.
+    /// </summary>
+    [HtmlAttributeName("requires-stream")]
+    public string? RequiresStream { get; set; }
 
     /// <summary>
     /// Applies stream-requirement attributes and disables the element when a requires-stream value is present.

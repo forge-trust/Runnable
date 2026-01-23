@@ -5,15 +5,10 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 public static class TurboRequestExtensions
 {
     /// <summary>
-    /// Determines whether the request's Accept header indicates a Turbo Stream response.
-    /// </summary>
-    /// <summary>
-    /// Determines whether the request's Accept header indicates a Turbo Stream response.
-    /// </summary>
-    /// <summary>
     /// Determines whether the request's Accept header signals a Turbo Stream response.
     /// </summary>
-    /// <returns>`true` if the Accept header contains "text/vnd.turbo-stream.html", `false` otherwise.</returns>
+    /// <param name="request">The <see cref="HttpRequest"/> to check.</param>
+    /// <returns><c>true</c> if the Accept header contains "text/vnd.turbo-stream.html", otherwise <c>false</c>.</returns>
     public static bool IsTurboRequest(this HttpRequest request)
     {
         return request.Headers["Accept"]

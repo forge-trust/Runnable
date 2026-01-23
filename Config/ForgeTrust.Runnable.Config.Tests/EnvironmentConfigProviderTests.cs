@@ -116,4 +116,16 @@ public class EnvironmentConfigProviderTests
         Assert.True(provider.IsDevelopment);
         Assert.Equal("value", provider.GetEnvironmentVariable("ANY"));
     }
+
+    [Fact]
+    public void GetValue_ReturnsDefaultOnInvalidEnum()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("VALUE", A<string?>._))
+            .Returns("InvalidEnumValue");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        Assert.Equal(default(System.UriKind), provider.GetValue<System.UriKind>("Production", "Value"));
+    }
 }

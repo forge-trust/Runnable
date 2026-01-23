@@ -54,7 +54,8 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
 
             return (T)Convert.ChangeType(value, targetType);
         }
-        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException
+                                       or ArgumentException)
         {
             return default;
         }

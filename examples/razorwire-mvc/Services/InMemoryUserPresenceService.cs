@@ -1,7 +1,11 @@
 using System.Collections.Concurrent;
+using ForgeTrust.Runnable.Web.RazorWire;
 
 namespace RazorWireWebExample.Services;
 
+/// <summary>
+/// An in-memory implementation of <see cref="IUserPresenceService"/> using a thread-safe dictionary to track user activity.
+/// </summary>
 public class InMemoryUserPresenceService : IUserPresenceService
 {
     private readonly ConcurrentDictionary<string, DateTimeOffset> _userActivity = new(StringComparer.OrdinalIgnoreCase);
@@ -12,7 +16,12 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// Record the current UTC time as the specified user's last activity.
     /// </summary>
     /// <param name="username">The username to record activity for; stored using a case-insensitive key.</param>
+    /// <summary>
+    /// Records the current UTC time as the specified user's last activity in the in-memory store.
+    /// </summary>
+    /// <param name="username">The username to record; cannot be null, empty, or whitespace.</param>
     /// <returns>The number of users whose last activity is within the current ActiveWindow.</returns>
+    /// <exception cref="System.ArgumentException">Thrown when <paramref name="username"/> is null, empty, or consists only of whitespace.</exception>
     public int RecordActivity(string username)
     {
         if (string.IsNullOrWhiteSpace(username))
@@ -28,26 +37,37 @@ public class InMemoryUserPresenceService : IUserPresenceService
     }
 
     /// <summary>
-    /// Retrieves the users whose last recorded activity falls within the configured ActiveWindow.
+    /// Retrieves the users whose last recorded activity falls within the configured sliding window of <see cref="ActiveWindow"/>.
     /// </summary>
-    /// <returns>An enumerable of UserPresenceInfo for users active within the ActiveWindow; each item contains the Username, a safe identifier, and the last-activity timestamp. The sequence is ordered by Username.</returns>
+    /// <summary>
+    /// Lists users whose last recorded activity falls within the current ActiveWindow.
+    /// </summary>
+    /// <returns>A collection of UserPresenceInfo for users with last activity at or after (now - ActiveWindow), ordered by Username.</returns>
     public IEnumerable<UserPresenceInfo> GetActiveUsers()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
 
         return _userActivity
             .Where(kvp => kvp.Value >= cutoff)
-            .Select(kvp => new UserPresenceInfo(kvp.Key, UserPresenceInfo.ToSafeId(kvp.Key), kvp.Value))
+            .Select(kvp => new UserPresenceInfo(
+                kvp.Key,
+                StringUtils.ToSafeId(kvp.Key, appendHash: true),
+                kvp.Value))
             .OrderBy(u => u.Username)
             .ToList();
     }
 
     /// <summary>
-    /// Removes users whose last recorded activity is older than the ActiveWindow and reports the removals and current active count.
+    /// Removes users whose last recorded activity is older than the <see cref="ActiveWindow"/> and reports the removals and current active count.
     /// </summary>
     /// <returns>
-    /// A tuple where `Removed` is a read-only list of UserPresenceInfo for users removed due to inactivity, and `ActiveCount` is the number of users with activity within the ActiveWindow.
-    /// </returns>
+    /// A tuple where:
+    /// - <c>Removed</c> is a read-only list of <see cref="UserPresenceInfo"/> for users removed due to inactivity.
+    /// - <c>ActiveCount</c> is the number of users whose last activity is within the <see cref="ActiveWindow"/>.
+    /// <summary>
+    /// Removes users whose last activity is older than the sliding ActiveWindow and returns the removed entries along with the current count of active users.
+    /// </summary>
+    /// <returns>`Removed`: a read-only list of user presence entries that were removed because their last activity preceded the ActiveWindow; `ActiveCount`: the number of users whose last activity is within the ActiveWindow.</returns>
     public (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
@@ -63,7 +83,11 @@ public class InMemoryUserPresenceService : IUserPresenceService
             {
                 if (collection.Remove(kvp))
                 {
-                    removed.Add(new UserPresenceInfo(kvp.Key, UserPresenceInfo.ToSafeId(kvp.Key), kvp.Value));
+                    removed.Add(
+                        new UserPresenceInfo(
+                            kvp.Key,
+                            StringUtils.ToSafeId(kvp.Key, appendHash: true),
+                            kvp.Value));
                 }
             }
         }

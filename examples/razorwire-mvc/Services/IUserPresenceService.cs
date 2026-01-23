@@ -1,28 +1,12 @@
 namespace RazorWireWebExample.Services;
 
-public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOffset LastSeen)
-{
-    /// <summary>
-    /// Produces a safe identifier from a username by replacing characters not in [a-zA-Z0-9-_] with '-' and appending a deterministic 4-hex-character SHA-256 suffix.
-    /// </summary>
-    /// <param name="username">The original username to convert into a safe identifier.</param>
-    /// <returns>The sanitized identifier combining the normalized username and a 4-hex-character hash suffix.</returns>
-    /// <exception cref="System.ArgumentNullException">Thrown when <paramref name="username"/> is null.</exception>
-    public static string ToSafeId(string username)
-    {
-        ArgumentNullException.ThrowIfNull(username);
-
-        var sanitized = System.Text.RegularExpressions.Regex.Replace(username, @"[^a-zA-Z0-9-_]", "-");
-
-        // Append a short deterministic hash of the original username to ensure uniqueness
-        using var sha256 = System.Security.Cryptography.SHA256.Create();
-        var bytes = System.Text.Encoding.UTF8.GetBytes(username);
-        var hashBytes = sha256.ComputeHash(bytes);
-        var hash = Convert.ToHexString(hashBytes)[..4].ToLowerInvariant();
-
-        return $"{sanitized}-{hash}";
-    }
-}
+/// <summary>
+/// Represents current presence information for a user.
+/// </summary>
+/// <param name="Username">The unique username.</param>
+/// <param name="SafeUsername">A simplified version of the username safe for use in UI identifiers.</param>
+/// <param name="LastSeen">The timestamp of the user's last recorded activity.</param>
+public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOffset LastSeen);
 
 public interface IUserPresenceService
 {

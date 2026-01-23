@@ -1,7 +1,13 @@
 namespace ForgeTrust.Runnable.Web;
 
+/// <summary>
+/// Represents configuration options for serving static files and web assets.
+/// </summary>
 public record StaticFilesOptions
 {
+    /// <summary>
+    /// Gets a default instance of <see cref="StaticFilesOptions"/> with default configuration settings.
+    /// </summary>
     public static StaticFilesOptions Default { get; } = new();
 
     /// <summary>

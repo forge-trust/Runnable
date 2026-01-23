@@ -8,6 +8,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// </summary>
 public class MarkdownHarvester : IDocHarvester
 {
+    private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj" };
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
 
@@ -36,7 +37,6 @@ public class MarkdownHarvester : IDocHarvester
     {
         var nodes = new List<DocNode>();
         var mdFiles = Directory.EnumerateFiles(rootPath, "*.md", SearchOption.AllDirectories);
-        var excludedDirs = new[] { "node_modules", "bin", "obj" };
 
         foreach (var file in mdFiles)
         {
@@ -45,7 +45,7 @@ public class MarkdownHarvester : IDocHarvester
             {
                 var relativePath = Path.GetRelativePath(rootPath, file).Replace('\\', '/');
                 var segments = relativePath.Split('/');
-                if (segments.Any(s => excludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
+                if (segments.Any(s => ExcludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
                 {
                     continue;
                 }

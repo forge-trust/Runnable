@@ -94,6 +94,10 @@ public class DocAggregator
                            {
                                return await harvester.HarvestAsync(_repositoryRoot, cancellationToken);
                            }
+                           catch (OperationCanceledException)
+                           {
+                               throw;
+                           }
                            catch (Exception ex)
                            {
                                _logger.LogError(

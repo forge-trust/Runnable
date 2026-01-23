@@ -49,6 +49,7 @@ public class DocsControllerTests : IDisposable
         };
     }
 
+
     [Fact]
     public async Task Index_ShouldReturnViewWithDocs()
     {
@@ -86,7 +87,7 @@ public class DocsControllerTests : IDisposable
     {
         // Arrange
         var docs = new List<DocNode> { new DocNode("Title", "other-path", "content") };
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._)).Returns(docs);
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 
         // Act
         var result = await _controller.Details("missing-path");

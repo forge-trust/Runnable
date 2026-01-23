@@ -87,13 +87,6 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Produces an async sequence that yields each input element transformed by <paramref name="body"/> in the same order as the source, with bounded concurrency.
-    /// </summary>
-    /// <param name="source">The input sequence to transform.</param>
-    /// <param name="body">A transform function that produces a result for an element.</param>
-    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent transform operations; must be greater than zero.</param>
-    /// <param name="cancellationToken">A token to observe for cancellation.</param>
-    /// <summary>
     /// Produces an async sequence of results projected from each element of <paramref name="source"/>, yielding results in the original input order while limiting concurrent selector executions.
     /// </summary>
     /// <param name="source">The input sequence to project.</param>
@@ -115,18 +108,8 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Projects source elements in parallel with a bounded degree of concurrency and yields results in the original input order via an async sequence.
-    /// The internal channel capacity is capped at <c>maxDegreeOfParallelism * bufferMultiplier</c>.
-    /// </summary>
-    /// <param name="source">The sequence of input items to process.</param>
-    /// <param name="body">An asynchronous delegate invoked for each item; receives the item and a <see cref="CancellationToken"/> linked to the enumeration's cancellation.</param>
-    /// <param name="maxDegreeOfParallelism">The maximum number of concurrently executing body invocations; must be greater than zero.</param>
-    /// <param name="bufferMultiplier">Multiplier applied to <paramref name="maxDegreeOfParallelism"/> to determine the internal channel capacity; must be at least 1.</param>
-    /// <param name="cancellationToken">Token to observe for cancellation of the overall enumeration and scheduling.</param>
-    /// <returns>An asynchronous sequence of results corresponding to the input items, yielded in the same order as the source.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="body"/> is null.</exception>
-    /// <summary>
     /// Produces an asynchronous sequence of results by applying <paramref name="body"/> to each element of <paramref name="source"/>, limiting concurrency to <paramref name="maxDegreeOfParallelism"/> and preserving the input order.
+    /// The internal channel capacity is capped at <c>maxDegreeOfParallelism * bufferMultiplier</c>.
     /// </summary>
     /// <param name="source">The input sequence to project; must not be null.</param>
     /// <param name="body">A selector that projects an element to a <see cref="Task{TResult}"/>; it receives the element and a <see cref="CancellationToken"/> that is signaled when the operation is canceled.</param>

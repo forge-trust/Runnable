@@ -327,7 +327,7 @@
     // Global safeguard: Block clicks on disabled elements or their children even if pointer-events are enabled
     document.addEventListener('click', (e) => {
         const selector = '[disabled], [aria-disabled="true"], [data-rw-requires-stream][disabled]';
-        const disabledElement = e.target.closest ? e.target.closest(selector) : (e.target.matches && e.target.matches(selector) ? e.target : null);
+        const disabledElement = e.target.closest(selector);
         if (disabledElement) {
             e.preventDefault();
             e.stopPropagation();

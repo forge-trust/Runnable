@@ -16,7 +16,7 @@ public class DocsController : Controller
     /// <param name="aggregator">Service used to retrieve documentation items.</param>
     public DocsController(DocAggregator aggregator)
     {
-        _aggregator = aggregator;
+        _aggregator = aggregator ?? throw new ArgumentNullException(nameof(aggregator));
     }
 
     /// <summary>

@@ -8,19 +8,19 @@ namespace ForgeTrust.Runnable.Web;
 public record MvcOptions
 {
     /// <summary>
-    /// Gets a default instance of <see cref="MvcOptions"/> configured with <see cref="MvcSupport.Controllers"/>.
+    /// Gets a new default instance of <see cref="MvcOptions"/> configured with <see cref="MvcSupport.Controllers"/>.
     /// </summary>
-    public static readonly MvcOptions Default = new();
+    public static MvcOptions Default => new();
 
     /// <summary>
-    /// Gets or sets the level of MVC support to register (e.g., Controllers only, or Controllers with Views).
+    /// Gets the level of MVC support to register (e.g., Controllers only, or Controllers with Views).
     /// </summary>
-    public MvcSupport MvcSupportLevel { get; set; } = MvcSupport.Controllers;
+    public MvcSupport MvcSupportLevel { get; init; } = MvcSupport.Controllers;
 
     /// <summary>
-    /// Gets or sets an optional delegate for performing advanced configuration of the <see cref="IMvcBuilder"/>.
+    /// Gets an optional delegate for performing advanced configuration of the <see cref="IMvcBuilder"/>.
     /// </summary>
-    public Action<IMvcBuilder>? ConfigureMvc { get; set; }
+    public Action<IMvcBuilder>? ConfigureMvc { get; init; }
 }
 
 /// <summary>

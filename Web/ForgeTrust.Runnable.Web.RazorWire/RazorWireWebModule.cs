@@ -21,7 +21,7 @@ public class RazorWireWebModule : IRunnableWebModule
     {
         if (options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews)
         {
-            options.Mvc.MvcSupportLevel = MvcSupport.ControllersWithViews;
+            options.Mvc = options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews };
         }
     }
 

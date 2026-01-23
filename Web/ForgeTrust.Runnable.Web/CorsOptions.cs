@@ -19,6 +19,7 @@ public record CorsOptions
 
     /// <summary>
     /// Gets or sets the collection of origins permitted to make cross-origin requests.
+    /// Defaults to an empty array.
     /// </summary>
     public string[] AllowedOrigins { get; set; } = [];
 

@@ -39,17 +39,17 @@ public class MarkdownHarvester : IDocHarvester
 
         foreach (var file in mdFiles)
         {
-            var segments = file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (segments.Any(s => excludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
             try
             {
+                var relativePath = Path.GetRelativePath(rootPath, file).Replace('\\', '/');
+                var segments = relativePath.Split('/');
+                if (segments.Any(s => excludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
                 var content = await File.ReadAllTextAsync(file);
                 var html = Markdown.ToHtml(content, _pipeline);
-                var relativePath = Path.GetRelativePath(rootPath, file);
                 var title = Path.GetFileNameWithoutExtension(file);
 
                 if (title.Equals("README", StringComparison.OrdinalIgnoreCase))

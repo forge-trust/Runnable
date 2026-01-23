@@ -18,11 +18,6 @@ public static class StringUtils
     /// </summary>
     /// <param name="input">The source string to convert into a safe identifier.</param>
     /// <param name="appendHash">If true, appends a short deterministic 4-character lowercase hex hash (prefixed with a hyphen).</param>
-    /// <summary>
-    /// Produces a sanitized identifier suitable for use as an HTML id or similar.
-    /// </summary>
-    /// <param name="input">The input string to sanitize; null, empty, or whitespace results in "id".</param>
-    /// <param name="appendHash">If true, appends "-" followed by a 4-character deterministic lowercase hex hash of the original input.</param>
     /// <returns>The sanitized identifier; if <paramref name="appendHash"/> is true the value is suffixed with "-" and a 4-character lowercase hex hash.</returns>
     public static string ToSafeId(string? input, bool appendHash = false)
     {
@@ -57,17 +52,12 @@ public static class StringUtils
     }
 
     /// <summary>
-    /// Produces a short deterministic 4-character lowercase hexadecimal hash derived from <paramref name="input"/> using SHA-256.
+    /// Produces a short deterministic 4-character lowercase hexadecimal string derived from the SHA-256 hash of the input.
     /// </summary>
     /// <remarks>
     /// Returns only the first 4 hex characters (16 bits) of the SHA-256 digest; collisions are possible.
-    /// If higher uniqueness is required, consider using a longer slice or the full SHA-256 string.
     /// </remarks>
     /// <param name="input">The string to hash.</param>
-    /// <summary>
-    /// Produces a deterministic 4-character lowercase hexadecimal string derived from the SHA-256 hash of the input.
-    /// </summary>
-    /// <param name="input">The string to derive the hash from.</param>
     /// <returns>A 4-character lowercase hexadecimal string.</returns>
     private static string GetDeterministicHash(string input)
     {

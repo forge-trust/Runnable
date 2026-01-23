@@ -77,11 +77,16 @@ public class CSharpDocHarvester : IDocHarvester
                                 method.ParameterList.Parameters.Select(p =>
                                     $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
 
-                            // Readable signature for the UI Title: e.g. "MyMethod(int, string)"
-                            var readableSignature = $"({paramList})";
-                            var methodId = $"{qualifiedName}.{method.Identifier.Text}{readableSignature}";
+                            // Include type parameters (e.g. <T>) and explicit interface (e.g. IMyInterface.) in the signature
+                            var typeParams = method.TypeParameterList?.ToString().Trim() ?? "";
+                            var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? "";
+                            var methodName = explicitInterface + method.Identifier.Text + typeParams;
 
-                            // Sanitized signature for the Anchor/ID: e.g. "MyMethod-int-string-"
+                            // Readable signature for the UI Title: e.g. "MyMethod<T>(int, string)" or "IMyInterface.MyMethod(int)"
+                            var readableSignature = $"{methodName}({paramList})";
+                            var methodId = $"{qualifiedName}.{readableSignature}";
+
+                            // Sanitized signature for the Anchor/ID: e.g. "MyNamespace-MyClass-MyMethod-T-int-string-"
                             var anchor = StringUtils.ToSafeId(methodId);
 
                             nodes.Add(

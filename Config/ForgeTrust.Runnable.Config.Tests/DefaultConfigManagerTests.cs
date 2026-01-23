@@ -113,4 +113,56 @@ public class DefaultConfigManagerTests
 
         Assert.Null(value);
     }
+
+    [Fact]
+    public void GetValue_DeterministicallyBreaksPriorityTies()
+    {
+        var environmentProvider = A.Fake<IEnvironmentConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+        var provider1 = A.Fake<IConfigProvider>();
+        var provider2 = A.Fake<IConfigProvider>();
+
+        A.CallTo(() => environmentProvider.GetValue<string>(A<string>._, A<string>._)).Returns(null);
+        A.CallTo(() => provider1.Priority).Returns(5);
+        A.CallTo(() => provider1.GetValue<string>("Production", "Key")).Returns("val1");
+        A.CallTo(() => provider2.Priority).Returns(5);
+        A.CallTo(() => provider2.GetValue<string>("Production", "Key")).Returns("val2");
+
+        // When priorities are equal, the order in the list should be preserved by OrderByDescending (stable sort)
+        var manager = new DefaultConfigManager(environmentProvider, [provider1, provider2], logger);
+        Assert.Equal("val1", manager.GetValue<string>("Production", "Key"));
+
+        var manager2 = new DefaultConfigManager(environmentProvider, [provider2, provider1], logger);
+        Assert.Equal("val2", manager2.GetValue<string>("Production", "Key"));
+    }
+
+    [Fact]
+    public void GetValue_LogsRetrievedFromEnvironmentWhenDebugEnabled()
+    {
+        var environmentProvider = A.Fake<IEnvironmentConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+
+        A.CallTo(() => logger.IsEnabled(LogLevel.Debug)).Returns(true);
+        A.CallTo(() => environmentProvider.GetValue<string>(A<string>._, A<string>._)).Returns("val");
+
+        var manager = new DefaultConfigManager(environmentProvider, [], logger);
+        manager.GetValue<string>("Env", "Key");
+
+        A.CallTo(logger).Where(c => c.Method.Name == "Log").MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public void GetValue_LogsKeyNotFoundWhenDebugEnabled()
+    {
+        var environmentProvider = A.Fake<IEnvironmentConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+
+        A.CallTo(() => logger.IsEnabled(LogLevel.Debug)).Returns(true);
+        A.CallTo(() => environmentProvider.GetValue<string>(A<string>._, A<string>._)).Returns(null);
+
+        var manager = new DefaultConfigManager(environmentProvider, [], logger);
+        manager.GetValue<string>("Env", "Missing");
+
+        A.CallTo(logger).Where(c => c.Method.Name == "Log").MustHaveHappenedOnceExactly();
+    }
 }

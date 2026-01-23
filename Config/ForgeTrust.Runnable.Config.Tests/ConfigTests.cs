@@ -72,4 +72,73 @@ public class ConfigTests
         Assert.False(config.IsDefaultValue);
         Assert.Equal(7, config.Value);
     }
+
+    private sealed class RawConfig : Config<string>
+    {
+    }
+
+    private sealed class RawStructConfig : ConfigStruct<int>
+    {
+    }
+
+    [Fact]
+    public void Base_DefaultValue_ReturnsNull()
+    {
+        var config = new RawConfig();
+        Assert.Null(config.DefaultValue);
+
+        var structConfig = new RawStructConfig();
+        Assert.Null(structConfig.DefaultValue);
+    }
+
+    [Fact]
+    public void Init_WithNoValueAndNoDefault_SetsHasValueToFalse()
+    {
+        var configManager = A.Fake<IConfigManager>();
+        var environmentProvider = A.Fake<IEnvironmentProvider>();
+        var config = new RawConfig();
+
+        A.CallTo(() => environmentProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<string>(A<string>._, A<string>._)).Returns(null);
+
+        ((IConfig)config).Init(configManager, environmentProvider, "Key");
+
+        Assert.False(config.HasValue);
+        Assert.True(config.IsDefaultValue);
+        Assert.Null(config.Value);
+    }
+
+    [Fact]
+    public void Struct_Init_PopulatesValueFromConfigManager()
+    {
+        var config = new RawStructConfig();
+        var configManager = A.Fake<IConfigManager>();
+        var environmentProvider = A.Fake<IEnvironmentProvider>();
+
+        A.CallTo(() => environmentProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<int>(A<string>._, A<string>._)).Returns(42);
+
+        ((IConfig)config).Init(configManager, environmentProvider, "Key");
+
+        Assert.True(config.HasValue);
+        Assert.False(config.IsDefaultValue);
+        Assert.Equal(42, config.Value);
+    }
+
+    [Fact]
+    public void Struct_Init_SetsIsDefaultValueToTrueWhenMatchesDefault()
+    {
+        var config = new TestStructConfig(); // DefaultValue is 42
+        var configManager = A.Fake<IConfigManager>();
+        var environmentProvider = A.Fake<IEnvironmentProvider>();
+
+        A.CallTo(() => environmentProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<int>(A<string>._, A<string>._)).Returns(42);
+
+        ((IConfig)config).Init(configManager, environmentProvider, "Key");
+
+        Assert.True(config.HasValue);
+        Assert.True(config.IsDefaultValue);
+        Assert.Equal(42, config.Value);
+    }
 }

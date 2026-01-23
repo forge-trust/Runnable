@@ -9,6 +9,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="ForgeTrust.Runnable.Core.Tests"/>
     <InternalsVisibleTo Include="ForgeTrust.Runnable.Web.Tests"/>
+    <InternalsVisibleTo Include="ForgeTrust.Runnable.Config.Tests"/>
   </ItemGroup>
 
   <ItemGroup>

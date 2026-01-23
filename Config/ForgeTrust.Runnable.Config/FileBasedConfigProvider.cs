@@ -122,7 +122,7 @@ public class FileBasedConfigProvider : IConfigProvider
     private T? GetValue<T>(JsonNode node, string key)
     {
         var keys = key.Split('.');
-        JsonNode? currentNode = node;
+        var currentNode = node;
         foreach (var k in keys)
         {
             if (currentNode is JsonObject obj && obj.TryGetPropertyValue(k, out var nextNode))
@@ -135,19 +135,14 @@ public class FileBasedConfigProvider : IConfigProvider
             }
         }
 
-        if (currentNode != null)
+        try
         {
-            try
-            {
-                return currentNode.Deserialize<T>();
-            }
-            catch
-            {
-                return default;
-            }
+            return currentNode.Deserialize<T>();
         }
-
-        return default;
+        catch
+        {
+            return default;
+        }
     }
 
     private void MergeJsonObjects(JsonObject target, JsonObject source)
@@ -168,12 +163,12 @@ public class FileBasedConfigProvider : IConfigProvider
                 }
                 else
                 {
-                    target[kvp.Key] = kvp.Value?.DeepClone();
+                    target[kvp.Key] = kvp.Value.DeepClone();
                 }
             }
             else
             {
-                target[kvp.Key] = kvp.Value?.DeepClone();
+                target[kvp.Key] = kvp.Value.DeepClone();
             }
         }
     }

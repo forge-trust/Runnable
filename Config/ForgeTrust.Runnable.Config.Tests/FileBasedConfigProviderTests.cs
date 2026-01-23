@@ -243,4 +243,232 @@ public class FileBasedConfigProviderTests
             }
         }
     }
+
+    [Fact]
+    public void GetValue_BindsNestedObjects()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(tempDir, "appsettings.json"),
+                """
+                {
+                  "App": {
+                    "Settings": {
+                      "RetryCount": 3,
+                      "Endpoints": ["http://a.com", "http://b.com"]
+                    }
+                  }
+                }
+                """);
+
+            var locationProvider = A.Fake<IConfigFileLocationProvider>();
+            var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+            A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
+
+            Assert.Equal(3, provider.GetValue<int>("Production", "App.Settings.RetryCount"));
+            var endpoints = provider.GetValue<string[]>("Production", "App.Settings.Endpoints");
+            Assert.NotNull(endpoints);
+            Assert.Equal(2, endpoints.Length);
+            Assert.Equal("http://a.com", endpoints[0]);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void GetValue_ReturnsDeepClonedObjects()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(tempDir, "appsettings.json"),
+                """{"List":["a","b"]}""");
+
+            var locationProvider = A.Fake<IConfigFileLocationProvider>();
+            var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+            A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
+
+            var list1 = provider.GetValue<List<string>>("Production", "List");
+            Assert.NotNull(list1);
+            list1.Add("c");
+
+            var list2 = provider.GetValue<List<string>>("Production", "List");
+            Assert.NotNull(list2);
+
+            // list2 should not contain "c" because list1 was a clone
+            Assert.Equal(2, list2.Count);
+            Assert.DoesNotContain("c", list2);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Initialize_HandlesMissingDirectory()
+    {
+        var locationProvider = A.Fake<IConfigFileLocationProvider>();
+        var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+        A.CallTo(() => locationProvider.Directory).Returns("/non/existent/path/that/should/not/exist");
+
+        var provider = new FileBasedConfigProvider(locationProvider, logger);
+
+        // Should not throw, should just log and have no configs
+        Assert.Null(provider.GetValue<string>("Production", "Any"));
+    }
+
+    [Fact]
+    public void Merge_OverwritesNonObjectWithObject()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), """{"Key": "string"}""");
+            File.WriteAllText(Path.Combine(tempDir, "appsettings.Production.json"), """{"Key": {"Nested": 1}}""");
+
+            var locationProvider = A.Fake<IConfigFileLocationProvider>();
+            var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+            A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
+
+            Assert.Equal(1, provider.GetValue<int>("Production", "Key.Nested"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void GetValue_ReturnsNullWhenTrailingKeyInNonObject()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), """{"Key": [1, 2]}""");
+
+            var locationProvider = A.Fake<IConfigFileLocationProvider>();
+            var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+            A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
+
+            // "Key" is an array, asking for "Key.Sub" should return null via default switch case
+            Assert.Null(provider.GetValue<string>("Production", "Key.Sub"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Initialize_HandlesEmptyFile()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var locationProvider = A.Fake<IConfigFileLocationProvider>();
+        A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+        var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+
+        File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), "");
+
+        var provider = new FileBasedConfigProvider(locationProvider, logger);
+        var result = provider.GetValue<string>("Production", "Key");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void Initialize_HandlesWhitespaceFile()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var locationProvider = A.Fake<IConfigFileLocationProvider>();
+        A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+        var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+
+        File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), "   ");
+
+        var provider = new FileBasedConfigProvider(locationProvider, logger);
+        var result = provider.GetValue<string>("Production", "Key");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void Initialize_MergesMultipleFilesForSameEnvironment()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), "{\"Key1\": \"Value1\"}");
+            File.WriteAllText(Path.Combine(tempDir, "config_extra.json"), "{\"Key2\": \"Value2\"}");
+
+            var locationProvider = A.Fake<IConfigFileLocationProvider>();
+            A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+            var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
+
+            Assert.Equal("Value1", provider.GetValue<string>("Production", "Key1"));
+            Assert.Equal("Value2", provider.GetValue<string>("Production", "Key2"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Initialize_HandlesEmptyDirectoryProperty()
+    {
+        var locationProvider = A.Fake<IConfigFileLocationProvider>();
+        A.CallTo(() => locationProvider.Directory).Returns("");
+        var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+
+        var provider = new FileBasedConfigProvider(locationProvider, logger);
+        var result = provider.GetValue<string>("Production", "Key");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void Initialize_HandlesWhitespaceDirectoryProperty()
+    {
+        var locationProvider = A.Fake<IConfigFileLocationProvider>();
+        A.CallTo(() => locationProvider.Directory).Returns("   ");
+        var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+
+        var provider = new FileBasedConfigProvider(locationProvider, logger);
+        var result = provider.GetValue<string>("Production", "Key");
+
+        Assert.Null(result);
+    }
 }

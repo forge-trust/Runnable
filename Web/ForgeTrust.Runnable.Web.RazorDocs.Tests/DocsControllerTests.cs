@@ -49,7 +49,6 @@ public class DocsControllerTests : IDisposable
         };
     }
 
-
     [Fact]
     public async Task Index_ShouldReturnViewWithDocs()
     {

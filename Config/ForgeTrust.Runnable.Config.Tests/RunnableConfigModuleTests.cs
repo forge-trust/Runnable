@@ -2,7 +2,6 @@ using FakeItEasy;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Xunit;
 using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Config.Tests;
@@ -27,29 +26,6 @@ public class TestHostModule : IRunnableHostModule
 
     public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
     {
-    }
-}
-
-public abstract class AbstractConfig : IConfig
-{
-    public bool IsDefaultValue => true;
-
-    public void Init(IConfigManager configManager, IEnvironmentProvider environmentProvider, string keyPath)
-    {
-    }
-}
-
-public interface IInterfaceConfig : IConfig
-{
-}
-
-public class GenericConfig<T> : IConfig
-{
-    public bool IsDefaultValue => true;
-
-    public void Init(IConfigManager configManager, IEnvironmentProvider environmentProvider, string keyPath)
-    {
-        _ = typeof(T);
     }
 }
 
@@ -100,7 +76,7 @@ public class RunnableConfigModuleTests
     {
         var services = new ServiceCollection();
         var rootModule = new TestHostModule();
-        services.AddSingleton<IEnvironmentProvider>(A.Fake<IEnvironmentProvider>());
+        services.AddSingleton(A.Fake<IEnvironmentProvider>());
 
         var context = new StartupContext([], rootModule)
         {
@@ -125,9 +101,9 @@ public class RunnableConfigModuleTests
         // Test the factory activation
         var configManager = A.Fake<IConfigManager>();
         var envProvider = A.Fake<IEnvironmentProvider>();
-        services.AddSingleton<IConfigManager>(configManager);
-        services.AddSingleton<IEnvironmentProvider>(envProvider);
-        services.AddSingleton<ILogger<DefaultConfigManager>>(A.Fake<ILogger<DefaultConfigManager>>());
+        services.AddSingleton(configManager);
+        services.AddSingleton(envProvider);
+        services.AddSingleton(A.Fake<ILogger<DefaultConfigManager>>());
 
         var sp = services.BuildServiceProvider();
         var resolved = sp.GetRequiredService<TrackingTestConfig>();

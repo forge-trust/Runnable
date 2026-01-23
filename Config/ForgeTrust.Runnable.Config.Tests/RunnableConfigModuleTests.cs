@@ -76,7 +76,6 @@ public class RunnableConfigModuleTests
     {
         var services = new ServiceCollection();
         var rootModule = new TestHostModule();
-        services.AddSingleton(A.Fake<IEnvironmentProvider>());
 
         var context = new StartupContext([], rootModule)
         {

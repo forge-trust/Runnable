@@ -358,7 +358,10 @@ public class FileBasedConfigProviderTests
         }
         finally
         {
-            Directory.Delete(tempDir, true);
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
         }
     }
 
@@ -383,7 +386,10 @@ public class FileBasedConfigProviderTests
         }
         finally
         {
-            Directory.Delete(tempDir, true);
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
         }
     }
 

@@ -7,6 +7,10 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web;
 
+/// <summary>
+/// Provides a base implementation for a web-based <see cref="RunnableStartup{TModule}"/> that handles MVC, CORS, and static file configuration based on registered <see cref="IRunnableWebModule"/> instances.
+/// </summary>
+/// <typeparam name="TModule">The root <see cref="IRunnableWebModule"/> for the application.</typeparam>
 public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     where TModule : IRunnableWebModule, new()
 {

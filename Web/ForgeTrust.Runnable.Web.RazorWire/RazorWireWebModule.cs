@@ -7,6 +7,9 @@ using ForgeTrust.Runnable.Web.RazorWire.Caching;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
+/// <summary>
+/// A web module that integrates RazorWire real-time streaming and output caching into the application.
+/// </summary>
 public class RazorWireWebModule : IRunnableWebModule
 {
     /// <summary>
@@ -22,6 +25,10 @@ public class RazorWireWebModule : IRunnableWebModule
         }
     }
 
+    /// <summary>
+    /// Gets a value indicating whether this module's assembly should be searched for MVC application parts.
+    /// Returns <c>true</c> for RazorWire to enable its tag helpers and other components.
+    /// </summary>
     public bool IncludeAsApplicationPart => true;
 
     /// <summary>

@@ -16,7 +16,12 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// Record the current UTC time as the specified user's last activity.
     /// </summary>
     /// <param name="username">The username to record activity for; stored using a case-insensitive key.</param>
+    /// <summary>
+    /// Records the current UTC time as the specified user's last activity in the in-memory store.
+    /// </summary>
+    /// <param name="username">The username to record; cannot be null, empty, or whitespace.</param>
     /// <returns>The number of users whose last activity is within the current ActiveWindow.</returns>
+    /// <exception cref="System.ArgumentException">Thrown when <paramref name="username"/> is null, empty, or consists only of whitespace.</exception>
     public int RecordActivity(string username)
     {
         if (string.IsNullOrWhiteSpace(username))
@@ -34,7 +39,10 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// <summary>
     /// Retrieves the users whose last recorded activity falls within the configured sliding window of <see cref="ActiveWindow"/>.
     /// </summary>
-    /// <returns>A list of <see cref="UserPresenceInfo"/> for users with last activity at or after the cutoff; ordered by Username.</returns>
+    /// <summary>
+    /// Lists users whose last recorded activity falls within the current ActiveWindow.
+    /// </summary>
+    /// <returns>A collection of UserPresenceInfo for users with last activity at or after (now - ActiveWindow), ordered by Username.</returns>
     public IEnumerable<UserPresenceInfo> GetActiveUsers()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
@@ -56,7 +64,10 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// A tuple where:
     /// - <c>Removed</c> is a read-only list of <see cref="UserPresenceInfo"/> for users removed due to inactivity.
     /// - <c>ActiveCount</c> is the number of users whose last activity is within the <see cref="ActiveWindow"/>.
-    /// </returns>
+    /// <summary>
+    /// Removes users whose last activity is older than the sliding ActiveWindow and returns the removed entries along with the current count of active users.
+    /// </summary>
+    /// <returns>`Removed`: a read-only list of user presence entries that were removed because their last activity preceded the ActiveWindow; `ActiveCount`: the number of users whose last activity is within the ActiveWindow.</returns>
     public (IReadOnlyList<UserPresenceInfo> Removed, int ActiveCount) Pulse()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;

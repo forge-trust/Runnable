@@ -7,6 +7,11 @@ public static class PathUtils
     /// </summary>
     /// <param name="startPath">The path from which to begin searching upward for a repository root.</param>
     /// <returns>The full path of the nearest ancestor directory containing a `.git` directory or file, or the original <paramref name="startPath"/> if none is found.</returns>
+    /// <summary>
+    /// Locates the nearest ancestor directory of <paramref name="startPath"/> that contains a .git directory or file.
+    /// </summary>
+    /// <param name="startPath">Path to start searching from; may refer to a file or directory.</param>
+    /// <returns>The full path of the nearest ancestor directory containing a .git directory or file, or the original <paramref name="startPath"/> if none is found.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="startPath"/> is null, empty, or consists only of whitespace.</exception>
     public static string FindRepositoryRoot(string startPath)
     {

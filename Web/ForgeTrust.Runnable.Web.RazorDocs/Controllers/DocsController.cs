@@ -13,16 +13,16 @@ public class DocsController : Controller
     /// <summary>
     /// Initializes a new instance of <see cref="DocsController"/> with the specified documentation aggregator.
     /// </summary>
-    /// <param name="aggregator">The DocAggregator used to retrieve documentation items.</param>
+    /// <param name="aggregator">Service used to retrieve documentation items.</param>
     public DocsController(DocAggregator aggregator)
     {
         _aggregator = aggregator;
     }
 
     /// <summary>
-    /// Displays the index view containing the collection of documentation items.
+    /// Displays the documentation index view containing available documentation items.
     /// </summary>
-    /// <returns>A view result whose model is the collection of documentation items.</returns>
+    /// <returns>A view result whose model is the collection of documentation items extracted from the repository.</returns>
     public async Task<IActionResult> Index()
     {
         var docs = await _aggregator.GetDocsAsync();
@@ -34,7 +34,7 @@ public class DocsController : Controller
     /// Displays the details view for a documentation item identified by the given path.
     /// </summary>
     /// <param name="path">The unique path or identifier of the documentation item to retrieve.</param>
-    /// <returns><see cref="IActionResult"/> that renders the details view with the document when found; otherwise a 404 <see cref="NotFoundResult"/>.</returns>
+    /// <returns>An <see cref="IActionResult"/> rendering the details view with the document; returns <see cref="NotFoundResult"/> if the path is invalid or the document is missing.</returns>
     public async Task<IActionResult> Details(string path)
     {
         if (string.IsNullOrWhiteSpace(path))

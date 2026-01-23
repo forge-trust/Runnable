@@ -3,14 +3,18 @@ using Markdig;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
+/// <summary>
+/// Harvester implementation that scans Markdown source files and converts them into documentation nodes.
+/// </summary>
 public class MarkdownHarvester : IDocHarvester
 {
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="MarkdownHarvester"/> using the provided logger and constructs a Markdown pipeline configured with advanced extensions.
+    /// Initializes a new instance of <see cref="MarkdownHarvester"/> with the specified logger and configures the Markdown pipeline.
     /// </summary>
+    /// <param name="logger">Logger used for recording harvesting events and errors.</param>
     public MarkdownHarvester(ILogger<MarkdownHarvester> logger)
     {
         _logger = logger;
@@ -20,10 +24,13 @@ public class MarkdownHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Harvests Markdown files beneath the specified root directory and converts them into DocNode entries.
+    /// Harvests Markdown files under the specified root directory and converts each into a DocNode containing a display title, relative path, and generated HTML.
     /// </summary>
-    /// <param name="rootPath">The root directory to search for `.md` files.</param>
+    /// <param name="rootPath">The root directory to search recursively for `.md` files.</param>
     /// <returns>A collection of DocNode objects representing each processed Markdown file, containing the display title, path relative to <paramref name="rootPath"/>, and generated HTML.</returns>
+    /// <remarks>
+    /// Skips files inside directories named "node_modules", "bin", or "obj". If a file's name is "README" (case-insensitive), its title is set to the parent directory name or "Home" for a repository root README. Files that fail to process are skipped and an error is logged.
+    /// </remarks>
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
     {
         var nodes = new List<DocNode>();

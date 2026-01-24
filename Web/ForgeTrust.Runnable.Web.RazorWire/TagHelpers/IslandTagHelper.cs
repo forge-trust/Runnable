@@ -3,6 +3,9 @@ using System.Text.Encodings.Web;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 
+/// <summary>
+/// A TagHelper that renders a Turbo Frame as a "RazorWire Island", enabling partial page updates and client-side module mounting.
+/// </summary>
 [HtmlTargetElement("rw:island")]
 public class IslandTagHelper : TagHelper
 {

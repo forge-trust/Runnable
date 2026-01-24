@@ -3,17 +3,16 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
+/// <summary>
+/// Provides extension methods for MVC controllers to interact with RazorWire.
+/// </summary>
 public static class RazorWireControllerExtensions
 {
     /// <summary>
-    /// Creates a RazorWireStreamBuilder tied to the specified controller.
+    /// Creates a <see cref="RazorWireStreamBuilder"/> bound to the specified controller.
     /// </summary>
     /// <param name="controller">The controller instance used to initialize the builder.</param>
-    /// <summary>
-    /// Creates a RazorWireStreamBuilder bound to the specified controller.
-    /// </summary>
-    /// <param name="controller">The Controller instance used to initialize the builder.</param>
-    /// <returns>A RazorWireStreamBuilder configured to operate with the given controller.</returns>
+    /// <returns>A <see cref="RazorWireStreamBuilder"/> configured to operate with the given controller.</returns>
     public static RazorWireStreamBuilder RazorWireStream(this Controller controller)
     {
         return new RazorWireStreamBuilder(controller);

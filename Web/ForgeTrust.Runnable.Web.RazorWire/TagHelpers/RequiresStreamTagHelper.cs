@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 
+/// <summary>
+/// A TagHelper that marks an element as requiring a specific Turbo Stream to be established before becoming active.
+/// </summary>
 [HtmlTargetElement(Attributes = "requires-stream")]
 public class RequiresStreamTagHelper : TagHelper
 {

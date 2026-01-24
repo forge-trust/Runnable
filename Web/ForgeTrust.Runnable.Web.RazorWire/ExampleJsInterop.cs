@@ -9,6 +9,10 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 // This class can be registered as scoped DI service and then injected into Blazor
 // components for use.
 
+/// <summary>
+/// Provides an example of how JavaScript functionality can be wrapped in a .NET class for easy consumption.
+/// </summary>
+/// <param name="jsRuntime">The JS runtime used to invoke JavaScript functions.</param>
 public class ExampleJsInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 {
     private readonly Lazy<Task<IJSObjectReference>> moduleTask = new(() => jsRuntime.InvokeAsync<IJSObjectReference>(

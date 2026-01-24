@@ -3,6 +3,9 @@ using System.Threading.Channels;
 
 namespace ForgeTrust.Runnable.Core.Extensions;
 
+/// <summary>
+/// Provides extension methods for <see cref="IEnumerable{T}"/> to perform parallel operations.
+/// </summary>
 public static class EnumerableExtensions
 {
     /// <summary>

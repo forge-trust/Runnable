@@ -1,5 +1,8 @@
 namespace ForgeTrust.Runnable.Core;
 
+/// <summary>
+/// Provides utility methods for operations on file and directory paths.
+/// </summary>
 public static class PathUtils
 {
     /// <summary>

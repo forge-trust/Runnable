@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Config;
 
+/// <summary>
+/// A configuration provider that reads settings from JSON files (e.g., appsettings.json, config_*.json).
+/// </summary>
 public class FileBasedConfigProvider : IConfigProvider
 {
     private readonly IConfigFileLocationProvider _configFileLocationProvider;
@@ -12,9 +15,17 @@ public class FileBasedConfigProvider : IConfigProvider
 
     private readonly Lazy<Dictionary<string, JsonNode>> _environmentsLazy;
 
+    /// <inheritdoc />
     public int Priority { get; } = 1;
+
+    /// <inheritdoc />
     public string Name { get; } = nameof(FileBasedConfigProvider);
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FileBasedConfigProvider"/> class.
+    /// </summary>
+    /// <param name="configFileLocationProvider">The provider for configuration file locations.</param>
+    /// <param name="logger">The logger for file operations.</param>
     public FileBasedConfigProvider(
         IConfigFileLocationProvider configFileLocationProvider,
         ILogger<FileBasedConfigProvider> logger)
@@ -25,6 +36,7 @@ public class FileBasedConfigProvider : IConfigProvider
         _environmentsLazy = new Lazy<Dictionary<string, JsonNode>>(InitializeEnvironments, true);
     }
 
+    /// <inheritdoc />
     public T? GetValue<T>(string environment, string key)
     {
         if (_environmentsLazy.Value.TryGetValue(environment, out var envConfig))

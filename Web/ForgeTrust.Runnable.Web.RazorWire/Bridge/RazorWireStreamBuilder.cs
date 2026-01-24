@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
+/// <summary>
+/// A fluent builder for creating Turbo Stream responses.
+/// </summary>
 public class RazorWireStreamBuilder
 {
     private readonly Controller? _controller;

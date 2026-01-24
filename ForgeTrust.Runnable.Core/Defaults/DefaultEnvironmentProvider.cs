@@ -12,6 +12,9 @@ using Microsoft.Extensions.Hosting;
 /// </summary>
 public class DefaultEnvironmentProvider : IEnvironmentProvider
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DefaultEnvironmentProvider"/> class.
+    /// </summary>
     public DefaultEnvironmentProvider()
     {
         // Prefer ASPNETCORE_ENVIRONMENT for Generic Host, fallback to DOTNET_ENVIRONMENT, default to Production
@@ -36,6 +39,16 @@ public class DefaultEnvironmentProvider : IEnvironmentProvider
     /// </summary>
     public bool IsDevelopment { get; }
 
-    public string? GetEnvironmentVariable(string name, string? defaultValue = null) =>
-        System.Environment.GetEnvironmentVariable(name) ?? defaultValue;
+    /// <summary>
+    /// Gets the value of an environment variable from the system.
+    /// </summary>
+    /// <param name="name">The name of the environment variable.</param>
+    /// <param name="defaultValue">The default value to return if the environment variable is null or empty.</param>
+    /// <returns>The environment variable value or the provided default if the variable is null or empty.</returns>
+    public string? GetEnvironmentVariable(string name, string? defaultValue = null)
+    {
+        var value = System.Environment.GetEnvironmentVariable(name);
+
+        return string.IsNullOrEmpty(value) ? defaultValue : value;
+    }
 }

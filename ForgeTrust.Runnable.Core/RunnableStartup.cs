@@ -5,8 +5,14 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
 
+/// <summary>
+/// Provides a base implementation for starting and running applications with module support.
+/// </summary>
 public abstract class RunnableStartup
 {
+    /// <summary>
+    /// A lazy-initialized logger factory used during the early stages of application startup.
+    /// </summary>
     protected static readonly Lazy<ILoggerFactory> StartupLoggerFactory =
         new(() => LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug)));
 
@@ -20,6 +26,10 @@ public abstract class RunnableStartup
     }
 }
 
+/// <summary>
+/// An abstract base class for initializing a Runnable application with a specific root module.
+/// </summary>
+/// <typeparam name="TRootModule">The type of the root module for the application.</typeparam>
 public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableStartup
     where TRootModule : IRunnableHostModule, new()
 {
@@ -121,6 +131,10 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
         return builder;
     }
 
+    /// <summary>
+    /// Creates a new instance of the root module.
+    /// </summary>
+    /// <returns>A new <typeparamref name="TRootModule"/> instance.</returns>
     protected virtual TRootModule CreateRootModule() => new();
 
     private void ConfigureHostBeforeServicesCore(

@@ -6,6 +6,9 @@ using System.Text.Encodings.Web;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
+/// <summary>
+/// A Turbo Stream action that renders a partial view as its content.
+/// </summary>
 public class PartialViewStreamAction : IRazorWireStreamAction
 {
     private readonly string _action;

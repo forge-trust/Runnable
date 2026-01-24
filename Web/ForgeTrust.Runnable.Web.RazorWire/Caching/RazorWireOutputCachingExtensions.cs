@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.OutputCaching;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Caching;
 
+/// <summary>
+/// Provides extension methods for configuring ASP.NET Core Output Caching with RazorWire policies.
+/// </summary>
 public static class RazorWireOutputCachingExtensions
 {
     /// <summary>

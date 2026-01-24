@@ -7,6 +7,9 @@ using System.Threading.Channels;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
+/// <summary>
+/// Provides extension methods for <see cref="IEndpointRouteBuilder"/> to map RazorWire endpoints.
+/// </summary>
 public static class RazorWireEndpointRouteBuilderExtensions
 {
     /// <summary>

@@ -56,6 +56,9 @@ internal static class ViewComponentStreamHelper
     }
 }
 
+/// <summary>
+/// A Turbo Stream action that renders a view component by its <see cref="Type"/>.
+/// </summary>
 public class ViewComponentStreamAction : IRazorWireStreamAction
 {
     private readonly string _action;
@@ -103,6 +106,9 @@ public class ViewComponentStreamAction : IRazorWireStreamAction
     }
 }
 
+/// <summary>
+/// A Turbo Stream action that renders a view component by its name.
+/// </summary>
 public class ViewComponentByNameStreamAction : IRazorWireStreamAction
 {
     private readonly string _action;

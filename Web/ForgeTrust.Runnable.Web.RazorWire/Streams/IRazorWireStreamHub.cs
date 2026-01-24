@@ -2,6 +2,9 @@ using System.Threading.Channels;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Streams;
 
+/// <summary>
+/// Defines the contract for a message hub that supports pub/sub operations over named channels.
+/// </summary>
 public interface IRazorWireStreamHub
 {
     /// <summary>

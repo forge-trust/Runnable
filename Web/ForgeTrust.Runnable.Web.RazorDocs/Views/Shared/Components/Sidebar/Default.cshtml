@@ -22,8 +22,11 @@
                             <ul class="ml-4 mt-1 space-y-0.5 border-l border-slate-800">
                                 @foreach (var sub in subItems)
                                 {
+                                    // Extract the anchor from the sub.Path (e.g., "file.cs#MethodId" -> "#MethodId")
+                                    var anchorIndex = sub.Path.IndexOf('#');
+                                    var anchor = anchorIndex >= 0 ? sub.Path.Substring(anchorIndex) : "";
                                     <li>
-                                        <a href="/docs/@sub.Path"
+                                        <a href="/docs/@docNode.Path@anchor"
                                            data-turbo-frame="doc-content"
                                            data-turbo-action="advance"
                                            class="block px-4 py-1 text-xs text-slate-500 hover:text-cyan-400 transition-colors">

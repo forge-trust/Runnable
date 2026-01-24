@@ -71,15 +71,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <param name="endpoints">Endpoint route builder used to map the module's routes.</param>
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapControllerRoute(
-            name: "razordocs_doc",
-            pattern: "docs/{*path}",
-            defaults: new
-            {
-                controller = "Docs",
-                action = "Details"
-            });
-
+        // Index route MUST come before catch-all to be matched first
         endpoints.MapControllerRoute(
             name: "razordocs_index",
             pattern: "docs",
@@ -87,6 +79,15 @@ public class RazorDocsWebModule : IRunnableWebModule
             {
                 controller = "Docs",
                 action = "Index"
+            });
+
+        endpoints.MapControllerRoute(
+            name: "razordocs_doc",
+            pattern: "docs/{*path}",
+            defaults: new
+            {
+                controller = "Docs",
+                action = "Details"
             });
 
         // Maintain fallback for legacy if necessary, but preferred is /docs

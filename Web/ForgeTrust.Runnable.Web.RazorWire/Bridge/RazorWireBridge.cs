@@ -112,7 +112,7 @@ public class TurboFrameViewModel
     /// <summary>
     /// Gets or sets the unique identifier for the Turbo Frame.
     /// </summary>
-    public string Id { get; set; } = null!;
+    public required string Id { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the partial view to render inside the frame, if any.

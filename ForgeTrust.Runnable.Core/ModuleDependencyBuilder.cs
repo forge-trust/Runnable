@@ -16,7 +16,7 @@ public sealed class ModuleDependencyBuilder
     /// Adds a module of type <typeparamref name="T"/> and its dependencies to the builder.
     /// </summary>
     /// <typeparam name="T">The type of the module to add.</typeparam>
-    /// <returns>the current <see cref="ModuleDependencyBuilder"/> instance.</returns>
+    /// <returns>The current <see cref="ModuleDependencyBuilder"/> instance.</returns>
     public ModuleDependencyBuilder AddModule<T>()
         where T : IRunnableModule, new()
     {

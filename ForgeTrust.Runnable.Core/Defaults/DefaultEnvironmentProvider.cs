@@ -44,7 +44,11 @@ public class DefaultEnvironmentProvider : IEnvironmentProvider
     /// </summary>
     /// <param name="name">The name of the environment variable.</param>
     /// <param name="defaultValue">The default value to return if the environment variable is not found.</param>
-    /// <returns>The environment variable value or the provided default.</returns>
-    public string? GetEnvironmentVariable(string name, string? defaultValue = null) =>
-        System.Environment.GetEnvironmentVariable(name) ?? defaultValue;
+    /// <returns>The environment variable value or the provided default if the variable is null or empty.</returns>
+    public string? GetEnvironmentVariable(string name, string? defaultValue = null)
+    {
+        var value = System.Environment.GetEnvironmentVariable(name);
+
+        return string.IsNullOrEmpty(value) ? defaultValue : value;
+    }
 }

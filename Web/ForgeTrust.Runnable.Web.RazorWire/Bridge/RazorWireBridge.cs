@@ -3,6 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
+/// <summary>
+/// Provides static methods for creating Turbo Frame results and RazorWire stream builders.
+/// </summary>
 public static class RazorWireBridge
 {
     /// <summary>
@@ -101,10 +104,28 @@ public static class RazorWireBridge
     }
 }
 
+/// <summary>
+/// Data model used for rendering the Turbo Frame partial view.
+/// </summary>
 public class TurboFrameViewModel
 {
+    /// <summary>
+    /// Gets or sets the unique identifier for the Turbo Frame.
+    /// </summary>
     public string Id { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the name of the partial view to render inside the frame, if any.
+    /// </summary>
     public string? PartialView { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of the view component to render inside the frame, if any.
+    /// </summary>
     public string? ViewComponent { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional model to pass to the partial view or view component.
+    /// </summary>
     public object? Model { get; set; }
 }

@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Streams;
 
+/// <summary>
+/// Defines the contract for authorizing subscription requests to RazorWire channels.
+/// </summary>
 public interface IRazorWireChannelAuthorizer
 {
     /// <summary>
@@ -13,6 +16,9 @@ public interface IRazorWireChannelAuthorizer
     ValueTask<bool> CanSubscribeAsync(HttpContext context, string channel);
 }
 
+/// <summary>
+/// Provides a default implementation of <see cref="IRazorWireChannelAuthorizer"/> that permits all subscriptions.
+/// </summary>
 public class DefaultRazorWireChannelAuthorizer : IRazorWireChannelAuthorizer
 {
     /// <summary>

@@ -3,6 +3,9 @@ using System.Threading.Channels;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Streams;
 
+/// <summary>
+/// Provides an in-memory implementation of <see cref="IRazorWireStreamHub"/> using <see cref="Channel{T}"/> for message distribution.
+/// </summary>
 public class InMemoryRazorWireStreamHub : IRazorWireStreamHub
 {
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<ChannelWriter<string>, byte>> _channels = new();

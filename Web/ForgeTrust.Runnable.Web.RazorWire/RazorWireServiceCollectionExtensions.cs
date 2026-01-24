@@ -5,21 +5,16 @@ using ForgeTrust.Runnable.Web.RazorWire.Streams;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
+/// <summary>
+/// Provides extension methods for registering RazorWire services into the <see cref="IServiceCollection"/>.
+/// </summary>
 public static class RazorWireServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers RazorWire services and configuration into the provided service collection.
-    /// </summary>
-    /// <param name="services">The service collection to register RazorWire services into.</param>
-    /// <param name="configure">Optional action to configure <see cref="RazorWireOptions"/>; when provided, options are applied via the options pattern.</param>
-    /// <summary>
-    /// Registers RazorWire options and default RazorWire services into the provided service collection.
-    /// </summary>
-    /// <param name="configure">Optional configuration action for <see cref="RazorWireOptions"/>; if null, no changes are applied.</param>
-    /// <summary>
     /// Registers RazorWire options and default RazorWire services into the provided <see cref="IServiceCollection"/>.
     /// </summary>
-    /// <param name="configure">Optional action to configure <see cref="RazorWireOptions"/>; may be null.</param>
+    /// <param name="services">The service collection to register RazorWire services into.</param>
+    /// <param name="configure">Optional action to configure <see cref="RazorWireOptions"/>; if null, default options are used.</param>
     /// <returns>The same <see cref="IServiceCollection"/> instance with RazorWire registrations added.</returns>
     public static IServiceCollection AddRazorWire(
         this IServiceCollection services,

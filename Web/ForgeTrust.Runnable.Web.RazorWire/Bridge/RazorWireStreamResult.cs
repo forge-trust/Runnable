@@ -10,6 +10,9 @@ using ForgeTrust.Runnable.Core.Extensions;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
+/// <summary>
+/// An <see cref="IActionResult"/> that renders and streams Turbo Stream actions to the response.
+/// </summary>
 public class RazorWireStreamResult : IActionResult
 {
     private readonly IEnumerable<IRazorWireStreamAction> _actions;

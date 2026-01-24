@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
+/// <summary>
+/// Provides extension methods for <see cref="HttpRequest"/> to detect Turbo requests.
+/// </summary>
 public static class TurboRequestExtensions
 {
     /// <summary>

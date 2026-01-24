@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- Enable XML documentation generation and missing doc warnings for core projects only -->
+    <IsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests')) OR $(MSBuildProjectDirectory.Contains('/Tests/')) OR $(MSBuildProjectDirectory.Contains('.Tests'))">true</IsTestProject>
+    <IsBenchmarkProject Condition="$(MSBuildProjectDirectory.Contains('/benchmarks/')) OR $(MSBuildProjectName.Contains('Benchmarks'))">true</IsBenchmarkProject>
+    <IsExampleProject Condition="$(MSBuildProjectDirectory.Contains('/examples/'))">true</IsExampleProject>
+    
+    <GenerateDocumentationFile Condition="'$(IsTestProject)' != 'true' AND '$(IsBenchmarkProject)' != 'true' AND '$(IsExampleProject)' != 'true'">true</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

@@ -1,5 +1,11 @@
 namespace RazorWireWebExample.Services;
 
+/// <summary>
+/// Represents current presence information for a user.
+/// </summary>
+/// <param name="Username">The unique username.</param>
+/// <param name="SafeUsername">A simplified version of the username safe for use in UI identifiers.</param>
+/// <param name="LastSeen">The timestamp of the user's last recorded activity.</param>
 public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOffset LastSeen);
 
 public interface IUserPresenceService

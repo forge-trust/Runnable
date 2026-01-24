@@ -9,6 +9,7 @@ description: Get all distinct files touched in branch, verify XML comments and M
    - Command: `git diff --name-only origin/main...HEAD`
 
 2. VERIFY DOCUMENTATION:
+   - Search for 100% documentation coverage for all public types and members.
    - Iterate through the changed files, filtering for:
      - **C# Files (`.cs`)**: Check for **XML Documentation Comments** (`///`).
        - Ensure all public types (classes, interfaces, structs, records, enums) and members have summary tags.
@@ -21,4 +22,6 @@ description: Get all distinct files touched in branch, verify XML comments and M
 3. VERIFY INTEGRITY (PRE-PUSH):
    - Run the test suite to ensure the new documentation or edits didn't break the build (e.g. malformed XML):
      `dotnet test`
+   - **Tip**: Use the compiler to find missing docstrings (`CS1591`) by running a build with documentation generation:
+     `dotnet build /p:GenerateDocumentationFile=true`
    - If this is a `RazorDocs`-related module, verify the harvesting logic produces clean `DocNode` results.

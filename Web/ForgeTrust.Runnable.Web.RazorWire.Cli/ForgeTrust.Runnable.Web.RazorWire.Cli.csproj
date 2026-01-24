@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CliFx" Version="2.3.6" />
+    <PackageReference Include="CliFx" />
   </ItemGroup>
 
 </Project>

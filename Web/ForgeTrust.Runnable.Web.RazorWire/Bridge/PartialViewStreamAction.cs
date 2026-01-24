@@ -14,12 +14,12 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     private readonly object? _model;
 
     /// <summary>
-    /// Initializes a <see cref="PartialViewStreamAction"/> that will render a partial view into a turbo-stream element with the specified action and target.
+    /// Initializes a new <see cref="PartialViewStreamAction"/> configured to render the specified partial view and wrap its output in a Turbo Stream element.
     /// </summary>
-    /// <param name="action">The turbo-stream action (e.g., "replace", "append", "update").</param>
-    /// <param name="target">The identifier of the turbo-stream target element.</param>
+    /// <param name="action">The Turbo Stream action to apply (for example, "replace", "append", or "update").</param>
+    /// <param name="target">The identifier of the target element the Turbo Stream will affect.</param>
     /// <param name="viewName">The name or path of the partial view to render.</param>
-    /// <param name="model">Optional model to supply to the partial view; may be null.</param>
+    /// <param name="model">An optional model to supply to the partial view; may be null.</param>
     /// <exception cref="ArgumentException">Thrown if <paramref name="action"/>, <paramref name="target"/>, or <paramref name="viewName"/> is null, empty, or consists only of whitespace.</exception>
     public PartialViewStreamAction(
         string action,

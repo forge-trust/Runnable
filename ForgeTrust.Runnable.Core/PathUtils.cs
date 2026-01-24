@@ -3,9 +3,9 @@ namespace ForgeTrust.Runnable.Core;
 public static class PathUtils
 {
     /// <summary>
-    /// Locate the nearest ancestor directory (starting at <paramref name="startPath"/>) that contains a `.git` directory or file, effectively identifying the repository root.
+    /// Locates the nearest ancestor directory (starting at <paramref name="startPath"/>) that contains a `.git` directory or file, effectively identifying the repository root.
     /// </summary>
-    /// <param name="startPath">The path from which to begin searching upward for a repository root.</param>
+    /// <param name="startPath">The path from which to begin searching upward for a repository root; may refer to a file or directory.</param>
     /// <returns>The full path of the nearest ancestor directory containing a `.git` directory or file, or the original <paramref name="startPath"/> if none is found.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="startPath"/> is null, empty, or consists only of whitespace.</exception>
     public static string FindRepositoryRoot(string startPath)
@@ -21,6 +21,11 @@ public static class PathUtils
         while (current is { Exists: false })
         {
             current = current.Parent;
+
+            if (current == null)
+            {
+                break;
+            }
         }
 
         while (current != null)

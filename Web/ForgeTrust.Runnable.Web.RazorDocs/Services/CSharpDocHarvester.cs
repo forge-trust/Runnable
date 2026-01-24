@@ -15,6 +15,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 public class CSharpDocHarvester : IDocHarvester
 {
     private readonly ILogger<CSharpDocHarvester> _logger;
+    private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj", "Tests" };
 
     /// <summary>
     /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the provided logger.
@@ -28,26 +29,28 @@ public class CSharpDocHarvester : IDocHarvester
     /// Collects XML documentation from C# source files under the specified root and produces DocNode entries containing titles, relative file paths with anchors, and HTML-formatted content.
     /// </summary>
     /// <param name="rootPath">The root directory to recursively scan for .cs files.</param>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>A collection of DocNode objects; each contains a title, a relative file path including a fragment anchor, and the extracted HTML documentation.</returns>
-    public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
+    public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
     {
         var nodes = new List<DocNode>();
         var csFiles = Directory.EnumerateFiles(rootPath, "*.cs", SearchOption.AllDirectories);
-        var excludedDirs = new[] { "node_modules", "bin", "obj", "Tests" };
 
         foreach (var file in csFiles)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var segments = file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (segments.Any(s => excludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
+            if (segments.Any(s => ExcludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
             {
                 continue;
             }
 
             try
             {
-                var code = await File.ReadAllTextAsync(file);
-                var tree = CSharpSyntaxTree.ParseText(code);
-                var root = await tree.GetRootAsync();
+                var code = await File.ReadAllTextAsync(file, cancellationToken);
+                var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
+                var root = await tree.GetRootAsync(cancellationToken);
                 var relativePath = Path.GetRelativePath(rootPath, file);
 
                 var fileContent = new StringBuilder();
@@ -64,7 +67,7 @@ public class CSharpDocHarvester : IDocHarvester
                         var qualifiedName = GetQualifiedName(typeDecl);
                         // Use qualified name for ID to avoid collisions (e.g. NamespaceA.Class vs NamespaceB.Class)
                         var typeId = StringUtils.ToSafeId(qualifiedName);
-
+                        
                         fileContent.Append(
                             $@"<section id=""{typeId}"" class=""mb-12 scroll-mt-24"">
                             <div class=""flex items-center gap-2 mb-4"">
@@ -89,11 +92,16 @@ public class CSharpDocHarvester : IDocHarvester
                                 method.ParameterList.Parameters.Select(p =>
                                     $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
 
-                            var methodSignature = $"{method.Identifier.Text}({paramList})";
+                            // From main: Include type parameters and explicit interface
+                            var typeParams = method.TypeParameterList?.ToString().Trim() ?? "";
+                            var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? "";
+                            var methodName = explicitInterface + method.Identifier.Text + typeParams;
+                            var methodSignature = $"{methodName}({paramList})";
+
                             var qualifiedName = GetQualifiedName(typeDecl);
                             // Use qualified name in method ID as well
                             var methodId = StringUtils.ToSafeId(
-                                $"{qualifiedName}.{method.Identifier.Text}({paramList})");
+                                $"{qualifiedName}.{methodSignature}");
 
                             fileContent.Append(
                                 $@"<section id=""{methodId}"" class=""mb-8 ml-6 scroll-mt-24"">
@@ -119,7 +127,7 @@ public class CSharpDocHarvester : IDocHarvester
                         hasAnyDoc = true;
                         var qualifiedName = GetQualifiedName(enumDecl);
                         var enumId = StringUtils.ToSafeId(qualifiedName);
-
+                        
                         fileContent.Append(
                             $@"<section id=""{enumId}"" class=""mb-12 scroll-mt-24"">
                             <div class=""flex items-center gap-2 mb-4"">
@@ -151,8 +159,7 @@ public class CSharpDocHarvester : IDocHarvester
                         // Add type stub if documented
                         if (ExtractDoc(typeDecl) != null)
                         {
-                            // If the type name matches the file name, we skip the specific type node
-                            // because the file node itself serves as the navigation link for the main type.
+                            // if type matches file, skip
                             if (!string.Equals(
                                     typeDecl.Identifier.Text,
                                     fileNameWithoutExt,
@@ -170,7 +177,7 @@ public class CSharpDocHarvester : IDocHarvester
                             }
                         }
 
-                        // Add method stubs if documented (independent of whether type has docs)
+                        // Add method stubs
                         var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>().ToList();
                         foreach (var method in methods)
                         {
@@ -181,10 +188,14 @@ public class CSharpDocHarvester : IDocHarvester
                                     method.ParameterList.Parameters.Select(p =>
                                         $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
 
-                                var methodSignature = $"{method.Identifier.Text}({paramList})";
+                                var typeParams = method.TypeParameterList?.ToString().Trim() ?? "";
+                                var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? "";
+                                var methodName = explicitInterface + method.Identifier.Text + typeParams;
+                                var methodSignature = $"{methodName}({paramList})";
+
                                 var qualifiedName = GetQualifiedName(typeDecl);
                                 var methodId = StringUtils.ToSafeId(
-                                    $"{qualifiedName}.{method.Identifier.Text}({paramList})");
+                                    $"{qualifiedName}.{methodSignature}");
 
                                 nodes.Add(
                                     new DocNode(
@@ -266,7 +277,12 @@ public class CSharpDocHarvester : IDocHarvester
             return null;
         }
     }
-
+    
+    /// <summary>
+    /// Builds the dot-delimited qualified name for a type or enum declaration, including enclosing types and namespaces.
+    /// </summary>
+    /// <param name="node">The type or enum declaration syntax node to compute the qualified name for.</param>
+    /// <returns>The qualified name as a dot-delimited string containing nested type and namespace segments.</returns>
     private string GetQualifiedName(BaseTypeDeclarationSyntax node)
     {
         var parts = new Stack<string>();

@@ -3,14 +3,19 @@ using Markdig;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
+/// <summary>
+/// Harvester implementation that scans Markdown source files and converts them into documentation nodes.
+/// </summary>
 public class MarkdownHarvester : IDocHarvester
 {
+    private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj" };
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="MarkdownHarvester"/> using the provided logger and constructs a Markdown pipeline configured with advanced extensions.
+    /// Initializes a new instance of <see cref="MarkdownHarvester"/> with the specified logger and configures the Markdown pipeline.
     /// </summary>
+    /// <param name="logger">Logger used for recording harvesting events and errors.</param>
     public MarkdownHarvester(ILogger<MarkdownHarvester> logger)
     {
         _logger = logger;
@@ -20,29 +25,33 @@ public class MarkdownHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Harvests Markdown files beneath the specified root directory and converts them into DocNode entries.
+    /// Harvests Markdown files under the specified root directory and converts each into a DocNode containing a display title, relative path, and generated HTML.
     /// </summary>
-    /// <param name="rootPath">The root directory to search for `.md` files.</param>
+    /// <param name="rootPath">The root directory to search recursively for `.md` files.</param>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>A collection of DocNode objects representing each processed Markdown file, containing the display title, path relative to <paramref name="rootPath"/>, and generated HTML.</returns>
-    public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath)
+    /// <remarks>
+    /// Skips files inside directories named "node_modules", "bin", or "obj". If a file's name is "README" (case-insensitive), its title is set to the parent directory name or "Home" for a repository root README. Files that fail to process are skipped and an error is logged.
+    /// </remarks>
+    public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
     {
         var nodes = new List<DocNode>();
         var mdFiles = Directory.EnumerateFiles(rootPath, "*.md", SearchOption.AllDirectories);
-        var excludedDirs = new[] { "node_modules", "bin", "obj" };
 
         foreach (var file in mdFiles)
         {
-            var segments = file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (segments.Any(s => excludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                var content = await File.ReadAllTextAsync(file);
+                var relativePath = Path.GetRelativePath(rootPath, file).Replace('\\', '/');
+                var segments = relativePath.Split('/');
+                if (segments.Any(s => ExcludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                var content = await File.ReadAllTextAsync(file, cancellationToken);
                 var html = Markdown.ToHtml(content, _pipeline);
-                var relativePath = Path.GetRelativePath(rootPath, file);
                 var title = Path.GetFileNameWithoutExtension(file);
 
                 if (title.Equals("README", StringComparison.OrdinalIgnoreCase))
@@ -52,6 +61,10 @@ public class MarkdownHarvester : IDocHarvester
                 }
 
                 nodes.Add(new DocNode(title, relativePath, html));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

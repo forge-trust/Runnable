@@ -49,7 +49,8 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocsAsync_ShouldReturnCachedResults_WhenCacheExists()
     {
         // Arrange
-        var cachedDocs = new Dictionary<string, DocNode> { { "path", new DocNode("Cached", "path", "content") } };
+        var cachedDocs =
+            new Dictionary<string, DocNode> { { "path", new DocNode("Cached", "path", "content") } };
         _cache.Set("HarvestedDocs", cachedDocs);
 
         // Act
@@ -58,7 +59,7 @@ public class DocAggregatorTests : IDisposable
         // Assert
         Assert.Single(result);
         Assert.Equal("Cached", result.First().Title);
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._)).MustNotHaveHappened();
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
     }
 
     [Fact]
@@ -66,7 +67,7 @@ public class DocAggregatorTests : IDisposable
     {
         // Arrange
         var harvestedDocs = new List<DocNode> { new DocNode("Fresh", "path", "content") };
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._)).Returns(harvestedDocs);
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
         var result = (await _aggregator.GetDocsAsync()).ToList();
@@ -74,7 +75,8 @@ public class DocAggregatorTests : IDisposable
         // Assert
         Assert.Single(result);
         Assert.Equal("Fresh", result.First().Title);
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._)).MustHaveHappenedOnceExactly();
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
         Assert.True(_cache.TryGetValue("HarvestedDocs", out _));
     }
 
@@ -86,7 +88,7 @@ public class DocAggregatorTests : IDisposable
         var safeHtml = "<p>Safe</p>";
         var harvestedDocs = new List<DocNode> { new DocNode("Title", "path", unsafeHtml) };
 
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._)).Returns(harvestedDocs);
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
         A.CallTo(() => _sanitizerFake.Sanitize(unsafeHtml, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
             .Returns(safeHtml);
 
@@ -107,7 +109,7 @@ public class DocAggregatorTests : IDisposable
             new DocNode("First", "duplicate-path", "content1"),
             new DocNode("Second", "duplicate-path", "content2")
         };
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._)).Returns(harvestedDocs);
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
         var result = (await _aggregator.GetDocsAsync()).ToList();
@@ -122,10 +124,11 @@ public class DocAggregatorTests : IDisposable
     {
         // Arrange
         var failingHarvester = A.Fake<IDocHarvester>();
-        A.CallTo(() => failingHarvester.HarvestAsync(A<string>._)).Throws(new Exception("Harvester boom"));
+        A.CallTo(() => failingHarvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Throws(new Exception("Harvester boom"));
 
         var workingHarvester = A.Fake<IDocHarvester>();
-        A.CallTo(() => workingHarvester.HarvestAsync(A<string>._))
+        A.CallTo(() => workingHarvester.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(new List<DocNode> { new DocNode("Success", "path", "content") });
 
         var aggregator = new DocAggregator(

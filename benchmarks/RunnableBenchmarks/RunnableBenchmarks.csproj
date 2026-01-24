@@ -12,7 +12,7 @@
     <ProjectReference Include="../DependencyInjectionControllers/DependencyInjectionControllers.csproj" />
     <ProjectReference Include="../ManyDependencyInjectionControllers/ManyDependencyInjectionControllers.csproj" />
     <ProjectReference Include="../SimpleApiController/SimpleApiController.csproj" />
-    <PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
+    <PackageReference Include="BenchmarkDotNet" />
   </ItemGroup>
 
   <!-- Runnable.Console benchmarks -->
@@ -31,18 +31,18 @@
   <!-- ABP benchmarks -->
   <ItemGroup Condition="$([System.String]::Copy(';$(DefineConstants);').Contains(';ABP_WEB;'))">
     <ProjectReference Include="../AbpSimpleController/AbpSimpleController.csproj" />
-    <PackageReference Include="Volo.Abp.AspNetCore" Version="9.3.1" />
-    <PackageReference Include="Volo.Abp.Core" Version="9.3.1" />
+    <PackageReference Include="Volo.Abp.AspNetCore" />
+    <PackageReference Include="Volo.Abp.Core" />
   </ItemGroup>
 
   <!-- Carter benchmarks -->
   <ItemGroup Condition="$([System.String]::Copy(';$(DefineConstants);').Contains(';CARTER_WEB;'))">
-    <PackageReference Include="Carter" Version="9.0.0" />
+    <PackageReference Include="Carter" />
   </ItemGroup>
 
   <!-- Spectre.Console.Cli benchmarks -->
   <ItemGroup Condition="$([System.String]::Copy(';$(DefineConstants);').Contains(';SPECTRE_CLI;'))">
-    <PackageReference Include="Spectre.Console.Cli" Version="0.47.0" />
+    <PackageReference Include="Spectre.Console.Cli" />
   </ItemGroup>
 
   <!-- ASP.NET Core shared framework for Native/Carter/ABP servers -->

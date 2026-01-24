@@ -65,6 +65,16 @@
         }
     }
 
+    /**
+     * Mount the given island and ensure it is removed from the scheduled set afterwards.
+     *
+     * Always calls mountIsland with the provided arguments and, regardless of success or failure,
+     * removes the island from `scheduledElements` so it can no longer be treated as pending.
+     *
+     * @param {Element} island - The root DOM element of the island to mount.
+     * @param {string} modulePath - The path to the module that provides the island's `mount`.
+     * @param {Object} props - The props to pass to the island's `mount` function.
+     */
     async function mountIslandSafe(island, modulePath, props) {
         try {
             await mountIsland(island, modulePath, props);
@@ -74,12 +84,11 @@
     }
 
     /**
-     * Hydrates a DOM island by importing its module and invoking its `mount` function if present.
+     * Hydrates a DOM island by dynamically importing its module and invoking its exported `mount` function if present.
      *
-     * On successful mount, sets `data-rw-hydrated="true"` on the root and records the root in the internal
-     * initializedElements set. If the imported module does not export a function named `mount`, logs an
-     * error, sets `data-rw-hydrated="failed"`, and still records the root in initializedElements. If the
-     * dynamic import or the mount call throws, logs the error and leaves the element's hydration state unchanged.
+     * On success sets `data-rw-hydrated="true"` on the root and adds the root to the internal `initializedElements` set.
+     * If the imported module does not export a `mount` function, sets `data-rw-hydrated="failed"` and still records the root.
+     * If the dynamic import or the `mount` call throws, the error is logged and the element's hydration attribute is left unchanged.
      *
      * @param {HTMLElement} root - The DOM element to hydrate.
      * @param {string} modulePath - The module specifier used for dynamic import.
@@ -103,14 +112,14 @@
     }
 
     /**
-     * Mount an island's module when the element becomes visible in the viewport.
+     * Mount the island's module when it first becomes visible in the viewport.
      *
-     * Uses IntersectionObserver when available to trigger a single mount on first intersection.
-     * If IntersectionObserver is not supported, the mount is performed immediately as a fallback.
+     * Triggers a single mount on the first intersection using IntersectionObserver when available;
+     * otherwise mounts immediately as a fallback.
      *
-     * @param {Element} island - The DOM element representing the island to observe and mount.
-     * @param {string} modulePath - The module path to dynamically import for mounting.
-     * @param {Object} props - The props object to pass to the module's mount function.
+     * @param {Element} island - DOM root for the island to observe and mount.
+     * @param {string} modulePath - Path used to dynamically import the island module.
+     * @param {Object} props - Props to pass to the module's `mount` function.
      */
     function setupIntersectionObserver(island, modulePath, props) {
         // Guard against missing IntersectionObserver in older browsers

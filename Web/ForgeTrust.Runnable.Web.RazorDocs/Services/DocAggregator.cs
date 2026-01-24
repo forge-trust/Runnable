@@ -18,15 +18,14 @@ public class DocAggregator
     private const string CacheKey = "HarvestedDocs";
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DocAggregator"/> class that aggregates documentation from the provided harvesters.
-    /// Configures caching, HTML sanitization, and logging based on the provided parameters.
+    /// Initializes a new instance of <see cref="DocAggregator"/> with the provided dependencies and determines the repository root.
     /// </summary>
-    /// <param name="harvesters">Collection of harvesters used to retrieve documentation nodes.</param>
-    /// <param name="configuration">Application configuration; if the "RepositoryRoot" key is present it will be used as the repository root.</param>
-    /// <param name="environment">Host environment used to locate the repository root when configuration does not provide one.</param>
+    /// <param name="harvesters">Collection of <see cref="IDocHarvester"/> instances used to harvest documentation nodes.</param>
+    /// <param name="configuration">Application configuration; the constructor reads the "RepositoryRoot" key to set the repository root if present.</param>
+    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when configuration does not provide it.</param>
     /// <param name="cache">Memory cache used to store harvested documentation.</param>
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
-    /// <param name="logger">Logger used to record errors and warnings during harvesting and aggregation.</param>
+    /// <param name="logger">Logger used for recording aggregation events and errors.</param>
     public DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
         IConfiguration configuration,
@@ -44,40 +43,43 @@ public class DocAggregator
     }
 
     /// <summary>
-    /// Retrieves all harvested documentation nodes, sorted by path.
+    /// Retrieves all harvested documentation nodes sorted by their Path.
     /// </summary>
-    /// <returns>An enumerable of all <see cref="DocNode"/> objects, ordered by path.</returns>
-    public async Task<IEnumerable<DocNode>> GetDocsAsync()
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
+    /// <returns>An enumerable of all <see cref="DocNode"/> objects ordered by their Path.</returns>
+    public async Task<IEnumerable<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
     {
-        var cachedDict = await GetCachedDocsAsync();
+        var cachedDict = await GetCachedDocsAsync(cancellationToken);
 
         return cachedDict.Values.OrderBy(n => n.Path).ToList();
     }
 
     /// <summary>
-    /// Retrieves a specific documentation node by its path.
+    /// Retrieves a specific documentation node for the specified repository path.
     /// </summary>
-    /// <param name="path">The documentation path used as the lookup key.</param>
+    /// <param name="path">The documentation path to look up.</param>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>The <see cref="DocNode"/> if found, or <c>null</c> if no node exists for the given path.</returns>
-    public async Task<DocNode?> GetDocByPathAsync(string path)
+    public async Task<DocNode?> GetDocByPathAsync(string path, CancellationToken cancellationToken = default)
     {
-        var cachedDict = await GetCachedDocsAsync();
+        var cachedDict = await GetCachedDocsAsync(cancellationToken);
 
-        return cachedDict.TryGetValue(path, out var doc) ? doc : null;
+        return cachedDict.GetValueOrDefault(path);
     }
 
     /// <summary>
-    /// Retrieves harvested documentation from cache or harvests and caches it if absent.
+    /// Retrieves harvested documentation nodes from the cache, harvesting and caching them if absent.
     /// </summary>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <remarks>
-    /// When harvesting, each configured harvester is invoked; harvester failures are logged and treated as producing no nodes.
-    /// Harvested node content is sanitized, duplicate paths are detected (a warning is logged) and the first occurrence is retained.
-    /// The aggregated results are cached with a 5-minute absolute expiration.
+    /// When harvesting, each configured harvester is invoked; failures from individual harvesters are caught and logged. 
+    /// Contents are sanitized before being cached. If multiple nodes share the same Path, a warning is logged and the first occurrence is retained.
+    /// The cache entry is created with a 5-minute absolute expiration.
     /// </remarks>
     /// <returns>
-    /// A dictionary mapping each document Path to its corresponding sanitized <see cref="DocNode"/>; returns an empty dictionary if no documents are available.
+    /// A dictionary mapping each documentation Path to its corresponding sanitized <see cref="DocNode"/>. Returns an empty dictionary if no documents are available.
     /// </returns>
-    private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync()
+    private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync(CancellationToken cancellationToken = default)
     {
         return await _cache.GetOrCreateAsync(
                    CacheKey,
@@ -90,7 +92,11 @@ public class DocAggregator
                        {
                            try
                            {
-                               return await harvester.HarvestAsync(_repositoryRoot);
+                               return await harvester.HarvestAsync(_repositoryRoot, cancellationToken);
+                           }
+                           catch (OperationCanceledException)
+                           {
+                               throw;
                            }
                            catch (Exception ex)
                            {

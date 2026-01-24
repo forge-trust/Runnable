@@ -1,6 +1,7 @@
 using ForgeTrust.Runnable.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -214,7 +215,7 @@ public class WebStartupTests
             o.Cors.EnableCors = true;
             o.Cors.AllowedOrigins = ["https://example.com"];
             o.StaticFiles.EnableStaticFiles = true;
-            o.Mvc.MvcSupportLevel = MvcSupport.Controllers;
+            o.Mvc = o.Mvc with { MvcSupportLevel = MvcSupport.Controllers };
             o.MapEndpoints = endpoints => { endpoints.MapGet("/test-direct", () => "Direct"); };
         });
 
@@ -308,8 +309,11 @@ public class WebStartupTests
 
         startup.WithOptions(o =>
         {
-            o.Mvc.MvcSupportLevel = MvcSupport.Controllers;
-            o.Mvc.ConfigureMvc = _ => { mvcConfigured = true; };
+            o.Mvc = o.Mvc with
+            {
+                MvcSupportLevel = MvcSupport.Controllers,
+                ConfigureMvc = _ => { mvcConfigured = true; }
+            };
         });
 
         var context = new StartupContext([], root);
@@ -324,15 +328,14 @@ public class WebStartupTests
     {
         var root = new TestWebModuleNoApplicationPart();
         var startup = new TestWebStartupNoAppPart(root);
-        startup.WithOptions(o => o.Mvc.MvcSupportLevel = MvcSupport.Controllers);
+        startup.WithOptions(o => o.Mvc = o.Mvc with { MvcSupportLevel = MvcSupport.Controllers });
 
         var context = new StartupContext([], root);
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
         using var host = builder.Build();
 
         // Verify MVC services are present
-        Assert.NotNull(
-            host.Services.GetService<Microsoft.AspNetCore.Mvc.Infrastructure.IActionDescriptorCollectionProvider>());
+        Assert.NotNull(host.Services.GetService<IActionDescriptorCollectionProvider>());
     }
 
     [Fact]
@@ -383,7 +386,7 @@ public class WebStartupTests
 
         public void ConfigureWebOptions(StartupContext context, WebOptions options)
         {
-            options.Mvc.MvcSupportLevel = MvcLevel;
+            options.Mvc = options.Mvc with { MvcSupportLevel = MvcLevel };
         }
 
         public void ConfigureServices(StartupContext context, IServiceCollection services)

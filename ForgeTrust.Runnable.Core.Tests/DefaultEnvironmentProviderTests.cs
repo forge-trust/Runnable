@@ -88,5 +88,6 @@ public class DefaultEnvironmentProviderTests
     {
         public string Environment => environment;
         public bool IsDevelopment => isDevelopment;
+        public string? GetEnvironmentVariable(string name, string? defaultValue = null) => throw new NotImplementedException();
     }
 }

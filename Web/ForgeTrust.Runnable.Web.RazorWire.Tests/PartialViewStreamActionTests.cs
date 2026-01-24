@@ -133,8 +133,8 @@ public class PartialViewStreamActionTests
             TextWriter.Null,
             new HtmlHelperOptions()
         );
-        var cts = new CancellationTokenSource();
-        cts.Cancel();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
 
         // Act & Assert
         await Assert.ThrowsAsync<OperationCanceledException>(() => streamAction.RenderAsync(viewContext, cts.Token));

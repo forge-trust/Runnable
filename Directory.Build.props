@@ -1,9 +1,12 @@
 <Project>
   <PropertyGroup>
-    <!-- Enable XML documentation generation and missing doc warnings for core projects only -->
-    <IsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests')) OR $(MSBuildProjectDirectory.Contains('/Tests/')) OR $(MSBuildProjectDirectory.Contains('\Tests\')) OR $(MSBuildProjectDirectory.Contains('.Tests'))">true</IsTestProject>
-    <IsBenchmarkProject Condition="$(MSBuildProjectDirectory.Contains('/benchmarks/')) OR $(MSBuildProjectDirectory.Contains('\benchmarks\')) OR $(MSBuildProjectName.Contains('Benchmarks'))">true</IsBenchmarkProject>
-    <IsExampleProject Condition="$(MSBuildProjectDirectory.Contains('/examples/')) OR $(MSBuildProjectDirectory.Contains('\examples\'))">true</IsExampleProject>
+    <!-- Normalize path for cross-platform consistency and perform case-insensitive checks -->
+    <_NormalizedProjectDir>$(MSBuildProjectDirectory.Replace('\', '/').ToLowerInvariant())</_NormalizedProjectDir>
+    <_NormalizedProjectName>$(MSBuildProjectName.ToLowerInvariant())</_NormalizedProjectName>
+
+    <IsTestProject Condition="$(_NormalizedProjectName.EndsWith('.tests')) OR $(_NormalizedProjectDir.Contains('/tests/')) OR $(_NormalizedProjectDir.Contains('.tests'))">true</IsTestProject>
+    <IsBenchmarkProject Condition="$(_NormalizedProjectDir.Contains('/benchmarks/')) OR $(_NormalizedProjectName.Contains('benchmarks'))">true</IsBenchmarkProject>
+    <IsExampleProject Condition="$(_NormalizedProjectDir.Contains('/examples/'))">true</IsExampleProject>
     
     <GenerateDocumentationFile Condition="'$(IsTestProject)' != 'true' AND '$(IsBenchmarkProject)' != 'true' AND '$(IsExampleProject)' != 'true'">true</GenerateDocumentationFile>
   </PropertyGroup>

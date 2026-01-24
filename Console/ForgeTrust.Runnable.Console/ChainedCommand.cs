@@ -16,6 +16,7 @@ namespace ForgeTrust.Runnable.Console;
 /// </summary>
 public abstract class ChainedCommand : ICommand
 {
+    /// <inheritdoc />
     public async ValueTask ExecuteAsync(IConsole console)
     {
         var builder = new CommandChainBuilder();

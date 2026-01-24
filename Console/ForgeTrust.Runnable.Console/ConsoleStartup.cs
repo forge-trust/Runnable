@@ -5,9 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Console;
 
+/// <summary>
+/// A base class for console application startup logic, extending the module-based initialization.
+/// </summary>
+/// <typeparam name="TModule">The type of the root module.</typeparam>
 public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
     where TModule : IRunnableHostModule, new()
 {
+    /// <inheritdoc />
     protected sealed override void ConfigureServicesForAppType(StartupContext context, IServiceCollection services)
     {
         // Allow subclasses to add their own services
@@ -27,11 +32,15 @@ public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
         services.AddHostedService<CommandService>();
     }
 
+    /// <summary>
+    /// Allows derived classes to register additional services.
+    /// </summary>
+    /// <param name="context">The startup context.</param>
+    /// <param name="services">The service collection.</param>
     protected virtual void ConfigureAdditionalServices(StartupContext context, IServiceCollection services)
     {
         // Default implementation does nothing, so we don't force an implementation.
     }
-
 
 
     // This will ensure that we register all command types from the assembly of TModule

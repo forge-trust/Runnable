@@ -65,6 +65,16 @@
         }
     }
 
+    /**
+     * Mount the given island and ensure it is removed from the scheduled set afterwards.
+     *
+     * Always calls mountIsland with the provided arguments and, regardless of success or failure,
+     * removes the island from `scheduledElements` so it can no longer be treated as pending.
+     *
+     * @param {Element} island - The root DOM element of the island to mount.
+     * @param {string} modulePath - The path to the module that provides the island's `mount`.
+     * @param {Object} props - The props to pass to the island's `mount` function.
+     */
     async function mountIslandSafe(island, modulePath, props) {
         try {
             await mountIsland(island, modulePath, props);
@@ -74,9 +84,12 @@
     }
 
     /**
-     * Dynamically imports the module at modulePath and, if it exports a `mount` function, calls it to hydrate the provided root element.
+     * Hydrates a DOM island by dynamically importing its module and invoking its exported `mount` function if present.
      *
-     * After a successful mount, marks the root with `data-rw-hydrated="true"` and adds it to the internal initializedElements set.
+     * On success sets `data-rw-hydrated="true"` on the root and adds the root to the internal `initializedElements` set.
+     * If the imported module does not export a `mount` function, sets `data-rw-hydrated="failed"` and still records the root.
+     * If the dynamic import or the `mount` call throws, the error is logged and the element's hydration attribute is left unchanged.
+     *
      * @param {HTMLElement} root - The DOM element to hydrate.
      * @param {string} modulePath - The module specifier used for dynamic import.
      * @param {Record<string, any>} props - Props passed to the module's `mount` function.
@@ -84,9 +97,13 @@
     async function mountIsland(root, modulePath, props) {
         try {
             const module = await import(modulePath);
-            if (module.mount) {
+            if (typeof module.mount === 'function') {
                 await module.mount(root, props);
                 root.setAttribute('data-rw-hydrated', 'true');
+                initializedElements.add(root);
+            } else {
+                console.error(`Module ${modulePath} does not export a 'mount' function.`);
+                root.setAttribute('data-rw-hydrated', 'failed');
                 initializedElements.add(root);
             }
         } catch (e) {
@@ -95,26 +112,32 @@
     }
 
     /**
-     * Observe an island element and mount its module when the element becomes visible in the viewport.
+     * Mount the island's module when it first becomes visible in the viewport.
      *
-     * When the island intersects the viewport, the observer stops observing that element and invokes
-     * mountIsland(island, modulePath, props) to perform the mount.
+     * Triggers a single mount on the first intersection using IntersectionObserver when available;
+     * otherwise mounts immediately as a fallback.
      *
-     * @param {Element} island - The DOM element representing the island to observe and mount.
-     * @param {string} modulePath - The module path to dynamically import for mounting.
-     * @param {Object} props - The props object to pass to the module's mount function.
+     * @param {Element} island - DOM root for the island to observe and mount.
+     * @param {string} modulePath - Path used to dynamically import the island module.
+     * @param {Object} props - Props to pass to the module's `mount` function.
      */
     function setupIntersectionObserver(island, modulePath, props) {
-        const observer = new IntersectionObserver((entries) => {
-            for (const entry of entries) {
-                if (entry.isIntersecting) {
-                    observer.unobserve(island);
-                    // Use safe mount to ensure cleanup
-                    mountIslandSafe(island, modulePath, props);
+        // Guard against missing IntersectionObserver in older browsers
+        if (typeof IntersectionObserver !== "undefined") {
+            const observer = new IntersectionObserver((entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        observer.unobserve(island);
+                        // Use safe mount to ensure cleanup
+                        mountIslandSafe(island, modulePath, props);
+                    }
                 }
-            }
-        });
-        observer.observe(island);
+            });
+            observer.observe(island);
+        } else {
+            // Fallback: mount immediately (or defer via timeout) if observer is unsupported
+            mountIslandSafe(island, modulePath, props);
+        }
     }
 
     // Listen for Turbo events

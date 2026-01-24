@@ -324,5 +324,23 @@
     }
 
     window.RazorWire = { connectionManager };
+    // Global safeguard: Block clicks on disabled elements or their children even if pointer-events are enabled
+    document.addEventListener('click', (e) => {
+        const selector = '[disabled], [aria-disabled="true"], [data-rw-requires-stream][disabled]';
+
+        let target = e.target;
+        if (!(target instanceof Element) && target.parentElement) {
+            target = target.parentElement;
+        }
+
+        if (target instanceof Element) {
+            const disabledElement = target.closest(selector);
+            if (disabledElement) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }
+    }, true); // Capture phase to intervene early
+
     console.log('✅ RazorWire Runtime Initialized');
 })();

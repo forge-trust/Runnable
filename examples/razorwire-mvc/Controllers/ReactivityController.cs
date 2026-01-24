@@ -176,6 +176,12 @@ public class ReactivityController : Controller
     /// <summary>
     /// Broadcasts an updated user-presence stream to connected clients.
     /// </summary>
+    /// <summary>
+    /// Broadcasts that a user is active to connected clients by recording activity, rendering a RazorWire stream that updates the user list and online count, and publishing it to the "reactivity" channel.
+    /// </summary>
+    /// <summary>
+    /// Broadcasts a user's presence to connected clients and updates the rendered user list and count.
+    /// </summary>
     /// <param name="username">The display name to mark as active and include in the rendered user list.</param>
     private async Task BroadcastUserPresenceAsync(string username)
     {
@@ -188,7 +194,10 @@ public class ReactivityController : Controller
             .AppendPartial(
                 "user-list-items",
                 "Components/UserList/_UserItem",
-                new UserPresenceInfo(username, UserPresenceInfo.ToSafeId(username), DateTimeOffset.UtcNow))
+                new UserPresenceInfo(
+                    username,
+                    StringUtils.ToSafeId(username, appendHash: true),
+                    DateTimeOffset.UtcNow))
             .Update("user-count", $"{activeCount} ONLINE")
             .RenderAsync(viewContext);
 

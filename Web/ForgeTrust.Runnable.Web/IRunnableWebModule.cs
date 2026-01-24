@@ -4,8 +4,16 @@ using Microsoft.AspNetCore.Routing;
 
 namespace ForgeTrust.Runnable.Web;
 
+/// <summary>
+/// Defines a module that exposes web-specific configuration, endpoints, and middleware.
+/// </summary>
 public interface IRunnableWebModule : IRunnableHostModule
 {
+    /// <summary>
+    /// Configures <see cref="WebOptions"/> for the application, such as MVC, CORS, and static files.
+    /// </summary>
+    /// <param name="context">The startup context for the application.</param>
+    /// <param name="options">The options to be configured.</param>
     void ConfigureWebOptions(StartupContext context, WebOptions options)
     {
         // Default implementation does nothing, so we don't force an implementation.

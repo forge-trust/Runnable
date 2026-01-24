@@ -6,31 +6,66 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement("rw:island")]
 public class IslandTagHelper : TagHelper
 {
-    public string Id { get; set; } = null!;
-
-    public string? Src { get; set; }
-
-    public string? Loading { get; set; }
-
-    public bool Permanent { get; set; }
-
-    public bool Swr { get; set; }
-
-    public string? TransitionName { get; set; }
-
-    public string? Export { get; set; }
-
-    [HtmlAttributeName("client-module")] public string? ClientModule { get; set; }
-
-    [HtmlAttributeName("client-strategy")] public string? ClientStrategy { get; set; }
-
-    [HtmlAttributeName("client-props")] public string? ClientProps { get; set; }
+    /// <summary>
+    /// The unique identifier for the island, which becomes the id of the rendered turbo-frame.
+    /// </summary>
+    public string Id { get; set; } = string.Empty;
 
     /// <summary>
-    /// Renders the rw:island element as a &lt;turbo-frame&gt; and populates its attributes based on the tag helper's properties.
+    /// The source URL for the turbo-frame content.
     /// </summary>
-    /// <param name="context">The current tag helper execution context.</param>
-    /// <param name="output">The output to modify; sets the tag to &lt;turbo-frame&gt; and applies id, src, loading, data-turbo-permanent, data-rw-swr, view-transition-name (appended to style), data-rw-export, and client-related data attributes according to the helper's properties.</param>
+    public string? Src { get; set; }
+
+    /// <summary>
+    /// The loading strategy for the turbo-frame (e.g., "eager", "lazy").
+    /// </summary>
+    public string? Loading { get; set; }
+
+    /// <summary>
+    /// If true, the rendered element will have the 'data-turbo-permanent' attribute.
+    /// </summary>
+    public bool Permanent { get; set; }
+
+    /// <summary>
+    /// If true, enables Stale-While-Revalidate behavior via 'data-rw-swr'.
+    /// </summary>
+    public bool Swr { get; set; }
+
+    /// <summary>
+    /// The name for the CSS View Transition, applied as 'view-transition-name' in the style attribute.
+    /// </summary>
+    public string? TransitionName { get; set; }
+
+    /// <summary>
+    /// The name of the client-side module to export/expose.
+    /// </summary>
+    public string? Export { get; set; }
+
+    /// <summary>
+    /// The path to the client-side module to mount on this island.
+    /// </summary>
+    [HtmlAttributeName("client-module")]
+    public string? ClientModule { get; set; }
+
+    /// <summary>
+    /// The mounting strategy for the client module (e.g., "load", "visible", "idle").
+    /// </summary>
+    [HtmlAttributeName("client-strategy")]
+    public string? ClientStrategy { get; set; }
+
+    /// <summary>
+    /// Initial properties (JSON) to pass to the client module's mount function.
+    /// </summary>
+    [HtmlAttributeName("client-props")]
+    public string? ClientProps { get; set; }
+
+    /// <exception cref="ArgumentException">Thrown when <see cref="Id"/> is null, empty, or consists only of white-space characters.</exception>
+    /// <summary>
+    /// Renders a <c>&lt;turbo-frame&gt;</c> element whose attributes are populated from the tag helper's properties.
+    /// </summary>
+    /// <remarks>
+    /// Validates that <see cref="Id"/> is not null, empty, or whitespace and sets attributes such as id, src, loading, data-turbo-permanent, data-rw-swr, style (view-transition-name), data-rw-export, and client-related data attributes when the corresponding properties are provided.
+    /// </remarks>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = "turbo-frame";
@@ -63,7 +98,7 @@ public class IslandTagHelper : TagHelper
             output.Attributes.SetAttribute("data-rw-swr", "true");
         }
 
-        if (!string.IsNullOrEmpty(TransitionName))
+        if (!string.IsNullOrWhiteSpace(TransitionName))
         {
             var style = output.Attributes["style"]?.Value.ToString() ?? "";
             if (!style.TrimEnd().EndsWith(";"))
@@ -71,18 +106,12 @@ public class IslandTagHelper : TagHelper
                 style += ";";
             }
 
-            // Strict whitelist for transition names to prevent CSS injection
-            // Allows alphanumeric, dashes, and underscores
-            var safeTransitionName = System.Text.RegularExpressions.Regex.IsMatch(TransitionName, @"^[A-Za-z0-9_-]+$")
-                ? TransitionName
-                : null;
+            // Sanitize transition name using centralized logic
+            var safeTransitionName = StringUtils.ToSafeId(TransitionName);
 
-            if (safeTransitionName != null)
-            {
-                // Encoding is still a good practice even if regex passes, but regex ensures it's a valid identifier
-                var encoded = HtmlEncoder.Default.Encode(safeTransitionName);
-                output.Attributes.SetAttribute("style", $"{style} view-transition-name: {encoded};");
-            }
+            // Encoding is still a good practice even if ToSafeId ensures safe chars
+            var encoded = HtmlEncoder.Default.Encode(safeTransitionName);
+            output.Attributes.SetAttribute("style", $"{style} view-transition-name: {encoded};");
         }
 
         if (!string.IsNullOrEmpty(Export))

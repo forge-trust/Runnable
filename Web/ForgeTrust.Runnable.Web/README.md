@@ -43,13 +43,17 @@ Support for MVC approaches can be configured via `WebOptions`:
 
 ### CORS
 Built-in support for CORS configuration:
-*   **Enforced Origin Safety**: When `EnableCors` is true, you MUST specify at least one origin in `AllowedOrigins`. If left empty, the application will throw a startup exception to prevent unintended security openness.
+*   **Enforced Origin Safety**: When `EnableCors` is true, you MUST specify at least one origin in `AllowedOrigins`, unless running in Development with `EnableAllOriginsInDevelopment` enabled (the default). If `AllowedOrigins` is empty in production or when `EnableAllOriginsInDevelopment` is disabled, the application will throw a startup exception to prevent unintended security openness (verified by tests `EmptyOrigins_WithEnableCors_ThrowsException` and `EnableAllOriginsInDevelopment_AllowsAnyOrigin`).
 *   **Development Convenience**: `EnableAllOriginsInDevelopment` (enabled by default) automatically allows any origin when the environment is `Development`, simplifying local testing without compromising production security.
 *   **Default Policy**: Configures a policy named "DefaultCorsPolicy" (configurable) and automatically registers the CORS middleware.
 
 ### Endpoint Routing
 
 Modules can define their own endpoints, making it easy to slice features vertically ("Vertical Slice Architecture").
+
+### Configuration Overrides
+
+The web host supports standard ASP.NET Core configuration sources. Note that while `urls` can be configured via `appsettings.json`, command-line overrides (e.g., `--urls`) are being refined. See [Issue #45](https://github.com/forge-trust/Runnable/issues/45) for implementation status and details on documented command-line port overrides.
 
 ---
 [📂 Back to Web List](../README.md) | [🏠 Back to Root](../../README.md)

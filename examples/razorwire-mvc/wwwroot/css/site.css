@@ -2,7 +2,6 @@
 [disabled],
 [aria-disabled="true"],
 [data-rw-requires-stream][disabled] {
-    pointer-events: none !important;
     opacity: 0.6 !important;
     cursor: not-allowed !important;
 }
@@ -10,11 +9,12 @@
 [disabled] *,
 [aria-disabled="true"] *,
 [data-rw-requires-stream][disabled] * {
-    pointer-events: none !important;
+    cursor: not-allowed !important;
 }
 
 .glass {
     background: rgba(255, 255, 255, 0.7);
+    -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -44,7 +44,7 @@
     line-height: 1.25rem;
     outline: 2px solid transparent;
     outline-offset: 2px;
-    transition-property: all;
+    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 150ms;
 }
@@ -67,7 +67,7 @@
     font-size: 0.875rem;
     font-weight: 600;
     border-radius: 0.5rem;
-    transition-property: all;
+    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 150ms;
     --tw-shadow-color: #c7d2fe;
@@ -79,6 +79,13 @@
     background-color: #4338ca;
 }
 
+.btn-premium:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+    /* Maintain shadow if present */
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+
 .btn-premium:active {
     transform: scale(0.95);
 }
@@ -86,7 +93,7 @@
 .btn-premium:disabled,
 .btn-premium[aria-disabled="true"] {
     opacity: 0.5;
-    pointer-events: none;
+    cursor: not-allowed;
 }
 
 /* Island Hydration Softening */

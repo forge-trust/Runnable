@@ -1,49 +1,39 @@
 using Microsoft.AspNetCore.Razor.TagHelpers;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 
+/// <summary>
+/// Tag helper that renders an <c>rw-stream-source</c> element to establish a connection to a RazorWire stream.
+/// </summary>
 [HtmlTargetElement("rw:stream-source")]
 public class StreamSourceTagHelper : TagHelper
 {
+    /// <summary>
+    /// Gets or sets the channel name of the stream to connect to. This attribute is required.
+    /// </summary>
     public string Channel { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the stream source should be preserved across Turbo page loads.
+    /// </summary>
     public bool Permanent { get; set; }
 
     private readonly RazorWireOptions _options;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="StreamSourceTagHelper"/> with the specified RazorWire options.
+    /// Initializes a new instance of <see cref="StreamSourceTagHelper"/> with the provided RazorWire options.
     /// </summary>
-    /// <summary>
-    /// Creates a new StreamSourceTagHelper configured with the specified RazorWire options.
-    /// </summary>
-    /// <param name="options">RazorWire configuration used to construct stream source URLs (e.g., Streams.BasePath).</param>
+    /// <param name="options">The RazorWire configuration used to construct stream URLs.</param>
     public StreamSourceTagHelper(RazorWireOptions options)
     {
         _options = options;
     }
 
     /// <summary>
-    /// Renders an rw-stream-source element and sets its attributes from the tag helper's properties.
+    /// Configures the <c>rw-stream-source</c> element by setting its <c>src</c> attribute and handling the <c>permanent</c> option.
     /// </summary>
-    /// <remarks>
-    /// Sets the tag name to "rw-stream-source" and its mode to StartTagAndEndTag. Validates that <see cref="Channel"/> is not null, empty, or whitespace; sets the "src" attribute to the configured stream base path combined with <see cref="Channel"/>. If <see cref="Permanent"/> is true, adds the "data-turbo-permanent" attribute with an empty value.
-    /// </remarks>
-    /// <summary>
-    /// Renders an rw-stream-source element and sets its attributes based on the tag helper configuration.
-    /// </summary>
-    /// <remarks>
-    /// Validates that <see cref="Channel"/> is provided, sets the element's <c>src</c> attribute to the configured streams base path combined with <see cref="Channel"/>, and adds a <c>data-turbo-permanent</c> attribute when <see cref="Permanent"/> is true.
-    /// </remarks>
-    /// <summary>
-    /// Renders an rw-stream-source element and configures its attributes from the tag helper properties.
-    /// </summary>
-    /// <remarks>
-    /// Sets the tag name to "rw-stream-source" and the tag mode to StartTagAndEndTag, validates the <see cref="Channel"/> property,
-    /// assigns the computed "src" attribute using <see cref="_options"/>'s streams base path and the channel, and adds a
-    /// "data-turbo-permanent" attribute when <see cref="Permanent"/> is true.
-    /// </remarks>
+    /// <param name="context">Contains information associated with the current HTML tag.</param>
+    /// <param name="output">A stateful HTML element used to generate an HTML tag.</param>
     /// <exception cref="InvalidOperationException">Thrown when <see cref="Channel"/> is null, empty, or contains only whitespace.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {

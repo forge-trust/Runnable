@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -15,21 +14,22 @@ public class PartialViewStreamAction : IRazorWireStreamAction
     private readonly object? _model;
 
     /// <summary>
-    /// Creates a Turbo Stream action that will render a specified partial view into a turbo-stream element.
+    /// Initializes a new <see cref="PartialViewStreamAction"/> configured to render the specified partial view and wrap its output in a Turbo Stream element.
     /// </summary>
-    /// <param name="action">The Turbo Stream action attribute (e.g., "replace", "append", "update").</param>
-    /// <param name="target">The Turbo Stream target identifier for the element to update.</param>
+    /// <param name="action">The Turbo Stream action to apply (for example, "replace", "append", or "update").</param>
+    /// <param name="target">The identifier of the target element the Turbo Stream will affect.</param>
     /// <param name="viewName">The name or path of the partial view to render.</param>
-    /// <param name="model">Optional model to supply to the partial view; may be null.</param>
+    /// <param name="model">An optional model to supply to the partial view; may be null.</param>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="action"/>, <paramref name="target"/>, or <paramref name="viewName"/> is null, empty, or consists only of whitespace.</exception>
     public PartialViewStreamAction(
         string action,
         string target,
         string viewName,
         object? model = null)
     {
-        ArgumentNullException.ThrowIfNull(action);
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(viewName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(action);
+        ArgumentException.ThrowIfNullOrWhiteSpace(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
 
         _action = action;
         _target = target;

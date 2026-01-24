@@ -43,7 +43,7 @@ public class DefaultEnvironmentProvider : IEnvironmentProvider
     /// Gets the value of an environment variable from the system.
     /// </summary>
     /// <param name="name">The name of the environment variable.</param>
-    /// <param name="defaultValue">The default value to return if the environment variable is not found.</param>
+    /// <param name="defaultValue">The default value to return if the environment variable is null or empty.</param>
     /// <returns>The environment variable value or the provided default if the variable is null or empty.</returns>
     public string? GetEnvironmentVariable(string name, string? defaultValue = null)
     {

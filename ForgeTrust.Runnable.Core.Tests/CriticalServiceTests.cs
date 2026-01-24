@@ -42,7 +42,7 @@ public class CriticalServiceTests
     private class TestLogger<T> : ILogger<T>
     {
         public readonly List<(LogLevel Level, Exception? Exception)> Entries = new();
-        public IDisposable BeginScope<TState>(TState state) => NullScope.Instance;
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(

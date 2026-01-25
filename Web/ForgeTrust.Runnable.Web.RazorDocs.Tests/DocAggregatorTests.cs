@@ -49,7 +49,8 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocsAsync_ShouldReturnCachedResults_WhenCacheExists()
     {
         // Arrange
-        var cachedDocs = new Dictionary<string, DocNode> { { "path", new DocNode("Cached", "path", "content") } };
+        var cachedDocs =
+            new Dictionary<string, DocNode> { { "path", new DocNode("Cached", "path", "content") } };
         _cache.Set("HarvestedDocs", cachedDocs);
 
         // Act
@@ -74,7 +75,8 @@ public class DocAggregatorTests : IDisposable
         // Assert
         Assert.Single(result);
         Assert.Equal("Fresh", result.First().Title);
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
         Assert.True(_cache.TryGetValue("HarvestedDocs", out _));
     }
 

@@ -222,6 +222,9 @@ public class WebStartupTests
         var context = new StartupContext([], root);
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
 
+        // Configure a dynamic port to avoid "address already in use" conflicts
+        builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
+
         // Using StartAsync triggers the actual WebHost initialization which calls InitializeWebApplication
         using var host = builder.Build();
         await host.StartAsync();
@@ -483,6 +486,10 @@ public class WebStartupTests
 
         var context = new StartupContext([], root);
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+        // Configure a dynamic port to avoid "address already in use" conflicts
+        builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
+
         using var host = builder.Build();
         await host.StartAsync();
 

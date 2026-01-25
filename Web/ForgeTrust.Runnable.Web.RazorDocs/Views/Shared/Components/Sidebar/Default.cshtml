@@ -1,0 +1,44 @@
+@model IEnumerable<IGrouping<string, ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode>>
+
+@foreach (var group in Model)
+{
+    <div class="py-2">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-widest px-2 mb-2">@group.Key</h3>
+        <ul class="space-y-1">
+            @foreach (var docNode in group.Where(d => string.IsNullOrEmpty(d.ParentPath)))
+            {
+                <li>
+                    <a href="/docs/@docNode.Path"
+                       data-turbo-frame="doc-content"
+                       data-turbo-action="advance"
+                       class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
+                        @docNode.Title
+                    </a>
+
+                    @{
+                        var subItems = group.Where(d => d.ParentPath == docNode.Path).ToList();
+                        if (subItems.Any())
+                        {
+                            <ul class="ml-4 mt-1 space-y-0.5 border-l border-slate-800">
+                                @foreach (var sub in subItems)
+                                {
+                                    // Extract the anchor from the sub.Path (e.g., "file.cs#MethodId" -> "#MethodId")
+                                    var anchorIndex = sub.Path.IndexOf('#');
+                                    var anchor = anchorIndex >= 0 ? sub.Path.Substring(anchorIndex) : "";
+                                    <li>
+                                        <a href="/docs/@docNode.Path@anchor"
+                                           data-turbo-frame="doc-content"
+                                           data-turbo-action="advance"
+                                           class="block px-4 py-1 text-xs text-slate-500 hover:text-cyan-400 transition-colors">
+                                            @sub.Title
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    }
+                </li>
+            }
+        </ul>
+    </div>
+}

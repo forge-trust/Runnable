@@ -13,10 +13,6 @@ public class InMemoryUserPresenceService : IUserPresenceService
     public TimeSpan ActiveWindow { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// Record the current UTC time as the specified user's last activity.
-    /// </summary>
-    /// <param name="username">The username to record activity for; stored using a case-insensitive key.</param>
-    /// <summary>
     /// Records the current UTC time as the specified user's last activity in the in-memory store.
     /// </summary>
     /// <param name="username">The username to record; cannot be null, empty, or whitespace.</param>
@@ -37,9 +33,6 @@ public class InMemoryUserPresenceService : IUserPresenceService
     }
 
     /// <summary>
-    /// Retrieves the users whose last recorded activity falls within the configured sliding window of <see cref="ActiveWindow"/>.
-    /// </summary>
-    /// <summary>
     /// Lists users whose last recorded activity falls within the current ActiveWindow.
     /// </summary>
     /// <returns>A collection of UserPresenceInfo for users with last activity at or after (now - ActiveWindow), ordered by Username.</returns>
@@ -57,13 +50,6 @@ public class InMemoryUserPresenceService : IUserPresenceService
             .ToList();
     }
 
-    /// <summary>
-    /// Removes users whose last recorded activity is older than the <see cref="ActiveWindow"/> and reports the removals and current active count.
-    /// </summary>
-    /// <returns>
-    /// A tuple where:
-    /// - <c>Removed</c> is a read-only list of <see cref="UserPresenceInfo"/> for users removed due to inactivity.
-    /// - <c>ActiveCount</c> is the number of users whose last activity is within the <see cref="ActiveWindow"/>.
     /// <summary>
     /// Removes users whose last activity is older than the sliding ActiveWindow and returns the removed entries along with the current count of active users.
     /// </summary>

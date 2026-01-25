@@ -62,13 +62,13 @@ public class IslandTagHelper : TagHelper
     [HtmlAttributeName("client-props")]
     public string? ClientProps { get; set; }
 
-    /// <exception cref="ArgumentException">Thrown when <see cref="Id"/> is null, empty, or consists only of white-space characters.</exception>
     /// <summary>
     /// Renders a <c>&lt;turbo-frame&gt;</c> element whose attributes are populated from the tag helper's properties.
     /// </summary>
     /// <remarks>
     /// Validates that <see cref="Id"/> is not null, empty, or whitespace and sets attributes such as id, src, loading, data-turbo-permanent, data-rw-swr, style (view-transition-name), data-rw-export, and client-related data attributes when the corresponding properties are provided.
     /// </remarks>
+    /// <exception cref="ArgumentException">Thrown when <see cref="Id"/> is null, empty, or consists only of white-space characters.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         output.TagName = "turbo-frame";

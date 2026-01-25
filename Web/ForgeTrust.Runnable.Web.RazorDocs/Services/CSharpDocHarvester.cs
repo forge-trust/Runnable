@@ -51,7 +51,8 @@ public class CSharpDocHarvester : IDocHarvester
                 var code = await File.ReadAllTextAsync(file, cancellationToken);
                 var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
                 var root = await tree.GetRootAsync(cancellationToken);
-                var relativePath = Path.GetRelativePath(rootPath, file);
+                var relativePath = Path.GetRelativePath(rootPath, file)
+                    .Replace('\\', '/'); // Normalize to forward slashes for URLs
 
                 var fileContent = new StringBuilder();
                 var hasAnyDoc = false;
@@ -75,7 +76,7 @@ public class CSharpDocHarvester : IDocHarvester
                             $@"<section id=""{typeId}"" class=""mb-12 scroll-mt-24"">
                             <div class=""flex items-center gap-2 mb-4"">
                                 <span class=""px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold uppercase tracking-wider"">Type</span>
-                                <h2 class=""text-2xl font-bold text-white"">{typeDecl.Identifier.Text}</h2>
+                                <h2 class=""text-2xl font-bold text-white"">{WebUtility.HtmlEncode(typeDecl.Identifier.Text)}</h2>
                             </div>
                             <div class=""pl-4 border-l-2 border-slate-800"">
                                 {doc}
@@ -111,7 +112,7 @@ public class CSharpDocHarvester : IDocHarvester
                                 $@"<section id=""{id}"" class=""mb-8 ml-6 scroll-mt-24"">
                                 <div class=""flex items-center gap-2 mb-2"">
                                     <span class=""px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider"">Method</span>
-                                    <h3 class=""text-lg font-semibold text-slate-200"">{signature}</h3>
+                                    <h3 class=""text-lg font-semibold text-slate-200"">{WebUtility.HtmlEncode(signature)}</h3>
                                 </div>
                                 <div class=""pl-4 border-l-2 border-slate-800/50"">
                                     {methodDoc}
@@ -144,7 +145,7 @@ public class CSharpDocHarvester : IDocHarvester
                             $@"<section id=""{enumId}"" class=""mb-12 scroll-mt-24"">
                             <div class=""flex items-center gap-2 mb-4"">
                                 <span class=""px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider"">Enum</span>
-                                <h2 class=""text-2xl font-bold text-white"">{enumDecl.Identifier.Text}</h2>
+                                <h2 class=""text-2xl font-bold text-white"">{WebUtility.HtmlEncode(enumDecl.Identifier.Text)}</h2>
                             </div>
                             <div class=""pl-4 border-l-2 border-slate-800"">
                                 {doc}

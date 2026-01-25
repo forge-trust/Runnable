@@ -55,23 +55,20 @@ public class CSharpDocHarvester : IDocHarvester
 
                 var fileContent = new StringBuilder();
                 var hasAnyDoc = false;
+                var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
 
-                // Cache ExtractDoc results to avoid duplicate XML parsing
-                var typeDocs = new Dictionary<TypeDeclarationSyntax, string?>();
-                var methodDocs = new Dictionary<MethodDeclarationSyntax, string?>();
-                var enumDocs = new Dictionary<EnumDeclarationSyntax, string?>();
+                // Collect stub nodes during content generation to avoid duplicate computation
+                var stubNodes = new List<DocNode>();
 
                 // Capture Classes, Structs, Interfaces, Records
                 var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>().ToList();
                 foreach (var typeDecl in typeDeclarations)
                 {
                     var doc = ExtractDoc(typeDecl);
-                    typeDocs[typeDecl] = doc;
                     if (doc != null)
                     {
                         hasAnyDoc = true;
                         var qualifiedName = GetQualifiedName(typeDecl);
-                        // Use qualified name for ID to avoid collisions (e.g. NamespaceA.Class vs NamespaceB.Class)
                         var typeId = StringUtils.ToSafeId(qualifiedName);
 
                         fileContent.Append(
@@ -84,42 +81,50 @@ public class CSharpDocHarvester : IDocHarvester
                                 {doc}
                             </div>
                         </section>");
+
+                        // Add type stub if name doesn't match filename
+                        if (!string.Equals(
+                                typeDecl.Identifier.Text,
+                                fileNameWithoutExt,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            stubNodes.Add(
+                                new DocNode(
+                                    typeDecl.Identifier.Text,
+                                    relativePath + "#" + typeId,
+                                    string.Empty,
+                                    relativePath));
+                        }
                     }
 
                     var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>().ToList();
                     foreach (var method in methods)
                     {
                         var methodDoc = ExtractDoc(method);
-                        methodDocs[method] = methodDoc;
                         if (methodDoc != null)
                         {
                             hasAnyDoc = true;
-                            var paramList = string.Join(
-                                ", ",
-                                method.ParameterList.Parameters.Select(p =>
-                                    $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
-
-                            // From main: Include type parameters and explicit interface
-                            var typeParams = method.TypeParameterList?.ToString().Trim() ?? "";
-                            var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? "";
-                            var methodName = explicitInterface + method.Identifier.Text + typeParams;
-                            var methodSignature = $"{methodName}({paramList})";
-
-                            var qualifiedName = GetQualifiedName(typeDecl);
-                            // Use qualified name in method ID as well
-                            var methodId = StringUtils.ToSafeId(
-                                $"{qualifiedName}.{methodSignature}");
+                            var qualifiedTypeName = GetQualifiedName(typeDecl);
+                            var (signature, id) = GetMethodSignatureAndId(method, qualifiedTypeName);
 
                             fileContent.Append(
-                                $@"<section id=""{methodId}"" class=""mb-8 ml-6 scroll-mt-24"">
+                                $@"<section id=""{id}"" class=""mb-8 ml-6 scroll-mt-24"">
                                 <div class=""flex items-center gap-2 mb-2"">
                                     <span class=""px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider"">Method</span>
-                                    <h3 class=""text-lg font-semibold text-slate-200"">{methodSignature}</h3>
+                                    <h3 class=""text-lg font-semibold text-slate-200"">{signature}</h3>
                                 </div>
                                 <div class=""pl-4 border-l-2 border-slate-800/50"">
                                     {methodDoc}
                                 </div>
                             </section>");
+
+                            // Add method stub
+                            stubNodes.Add(
+                                new DocNode(
+                                    signature,
+                                    relativePath + "#" + id,
+                                    string.Empty,
+                                    relativePath));
                         }
                     }
                 }
@@ -129,7 +134,6 @@ public class CSharpDocHarvester : IDocHarvester
                 foreach (var enumDecl in enumDeclarations)
                 {
                     var doc = ExtractDoc(enumDecl);
-                    enumDocs[enumDecl] = doc;
                     if (doc != null)
                     {
                         hasAnyDoc = true;
@@ -146,96 +150,34 @@ public class CSharpDocHarvester : IDocHarvester
                                 {doc}
                             </div>
                         </section>");
+
+                        // Add enum stub if name doesn't match filename
+                        if (!string.Equals(
+                                enumDecl.Identifier.Text,
+                                fileNameWithoutExt,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            stubNodes.Add(
+                                new DocNode(
+                                    enumDecl.Identifier.Text,
+                                    relativePath + "#" + enumId,
+                                    string.Empty,
+                                    relativePath));
+                        }
                     }
                 }
 
                 if (hasAnyDoc)
                 {
-                    var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
-
                     // Add the main file node
-                    var fileNode = new DocNode(
-                        fileNameWithoutExt,
-                        relativePath,
-                        fileContent.ToString()
-                    );
-                    nodes.Add(fileNode);
+                    nodes.Add(
+                        new DocNode(
+                            fileNameWithoutExt,
+                            relativePath,
+                            fileContent.ToString()));
 
-                    // Add member-level nodes for the sidebar (navigation stubs)
-                    foreach (var typeDecl in typeDeclarations)
-                    {
-                        // Add type stub if documented and type name doesn't match filename
-                        // Use cached doc result from content generation pass
-                        if (typeDocs.GetValueOrDefault(typeDecl) != null
-                            && !string.Equals(
-                                typeDecl.Identifier.Text,
-                                fileNameWithoutExt,
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            var qualifiedName = GetQualifiedName(typeDecl);
-                            var typeId = StringUtils.ToSafeId(qualifiedName);
-                            nodes.Add(
-                                new DocNode(
-                                    typeDecl.Identifier.Text,
-                                    relativePath + "#" + typeId,
-                                    string.Empty,
-                                    relativePath
-                                ));
-                        }
-
-                        // Add method stubs
-                        var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>().ToList();
-                        foreach (var method in methods)
-                        {
-                            // Use cached doc result from content generation pass
-                            if (methodDocs.GetValueOrDefault(method) != null)
-                            {
-                                var paramList = string.Join(
-                                    ", ",
-                                    method.ParameterList.Parameters.Select(p =>
-                                        $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
-
-                                var typeParams = method.TypeParameterList?.ToString().Trim() ?? "";
-                                var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? "";
-                                var methodName = explicitInterface + method.Identifier.Text + typeParams;
-                                var methodSignature = $"{methodName}({paramList})";
-
-                                var qualifiedName = GetQualifiedName(typeDecl);
-                                var methodId = StringUtils.ToSafeId(
-                                    $"{qualifiedName}.{methodSignature}");
-
-                                nodes.Add(
-                                    new DocNode(
-                                        methodSignature,
-                                        relativePath + "#" + methodId,
-                                        string.Empty,
-                                        relativePath
-                                    ));
-                            }
-                        }
-                    }
-
-                    foreach (var enumDecl in enumDeclarations)
-                    {
-                        // Add enum stub if documented and enum name doesn't match filename
-                        // Use cached doc result from content generation pass
-                        if (enumDocs.GetValueOrDefault(enumDecl) != null
-                            && !string.Equals(
-                                enumDecl.Identifier.Text,
-                                fileNameWithoutExt,
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            var qualifiedName = GetQualifiedName(enumDecl);
-                            var enumId = StringUtils.ToSafeId(qualifiedName);
-                            nodes.Add(
-                                new DocNode(
-                                    enumDecl.Identifier.Text,
-                                    relativePath + "#" + enumId,
-                                    string.Empty,
-                                    relativePath
-                                ));
-                        }
-                    }
+                    // Add all collected stubs
+                    nodes.AddRange(stubNodes);
                 }
             }
             catch (Exception ex)
@@ -245,6 +187,31 @@ public class CSharpDocHarvester : IDocHarvester
         }
 
         return nodes;
+    }
+
+    /// <summary>
+    /// Computes the method signature and safe ID for use in HTML content and stub nodes.
+    /// </summary>
+    /// <param name="method">The method declaration syntax.</param>
+    /// <param name="qualifiedTypeName">The qualified name of the containing type.</param>
+    /// <returns>A tuple containing the method signature and the safe ID.</returns>
+    private static (string Signature, string Id) GetMethodSignatureAndId(
+        MethodDeclarationSyntax method,
+        string qualifiedTypeName)
+    {
+        var paramList = string.Join(
+            ", ",
+            method.ParameterList.Parameters.Select(p =>
+                $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
+
+        var typeParams = method.TypeParameterList?.ToString().Trim() ?? "";
+        var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? "";
+        var methodName = explicitInterface + method.Identifier.Text + typeParams;
+        var signature = $"{methodName}({paramList})";
+
+        var id = StringUtils.ToSafeId($"{qualifiedTypeName}.{signature}");
+
+        return (signature, id);
     }
 
     /// <summary>

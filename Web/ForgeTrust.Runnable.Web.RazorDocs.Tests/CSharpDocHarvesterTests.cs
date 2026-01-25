@@ -278,20 +278,11 @@ namespace NamespaceB
         var filePath = Path.Combine(_testRoot, "Exception.cs");
         await File.WriteAllTextAsync(filePath, "docs");
 
+        // Skip on Windows - this test requires Unix file permissions
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
         // On macOS/Linux, we can use chmod 000
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            File.SetUnixFileMode(filePath, UnixFileMode.None);
-        }
-        else
-        {
-            // On Windows, maybe lock the file? 
-            // Skipping for simplicity or using FileShare.None if needed, but for now just relying on the upstream test's intent.
-            // If we can't easily simulate exception on Windows without locking, we might skip logic.
-            // But let's just assume we only test this on non-Windows or if possible.
-            // Actually, if we can't verify exception, we just return.
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
-        }
+        File.SetUnixFileMode(filePath, UnixFileMode.None);
 
         // Act
         try

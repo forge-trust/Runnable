@@ -19,9 +19,18 @@ public class RazorWireWebModule : IRunnableWebModule
     /// <param name="options">Web options to configure; may be modified to raise Mvc.MvcSupportLevel to ControllersWithViews if it is lower.</param>
     public void ConfigureWebOptions(StartupContext context, WebOptions options)
     {
-        if (options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews)
+        var needsRuntimeCompilation = context.IsDevelopment;
+        var needsMvcUpgrade = options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews;
+
+        if (needsRuntimeCompilation || needsMvcUpgrade)
         {
-            options.Mvc = options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews };
+            options.Mvc = options.Mvc with
+            {
+                MvcSupportLevel = needsMvcUpgrade ? MvcSupport.ControllersWithViews : options.Mvc.MvcSupportLevel,
+                ConfigureMvc = needsRuntimeCompilation
+                    ? options.Mvc.ConfigureMvc + (builder => builder.AddRazorRuntimeCompilation())
+                    : options.Mvc.ConfigureMvc
+            };
         }
     }
 

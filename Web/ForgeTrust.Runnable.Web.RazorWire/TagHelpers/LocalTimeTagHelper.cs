@@ -15,9 +15,16 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 /// &lt;rw:local-time value="@Model.Timestamp" display="datetime" format="short" /&gt;
 /// </code>
 /// </example>
-[HtmlTargetElement("time", Attributes = "rw-local")]
+[HtmlTargetElement("time", Attributes = "rw-type")]
 public class LocalTimeTagHelper : TagHelper
 {
+    /// <summary>
+    /// Gets or sets the trigger type for RazorWire time formatting.
+    /// Must be set to <c>local</c> for this helper to process the element.
+    /// </summary>
+    [HtmlAttributeName("rw-type")]
+    public string? RwType { get; set; }
+
     /// <summary>
     /// The UTC timestamp to display, sourced from the <c>datetime</c> attribute.
     /// </summary>
@@ -47,6 +54,11 @@ public class LocalTimeTagHelper : TagHelper
     /// <exception cref="ArgumentException">Thrown when <see cref="Value"/> is the default value.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
+        if (!string.Equals(RwType, "local", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         if (Value == default)
         {
             throw new ArgumentException(
@@ -75,6 +87,6 @@ public class LocalTimeTagHelper : TagHelper
         }
 
         // Remove the trigger attribute
-        output.Attributes.RemoveAll("rw-local");
+        output.Attributes.RemoveAll("rw-type");
     }
 }

@@ -9,7 +9,11 @@ public class LocalTimeTagHelperTests
     public void Process_RendersTimeElementWithDatetimeAttribute()
     {
         var timestamp = new DateTimeOffset(2026, 1, 24, 12, 30, 0, TimeSpan.Zero);
-        var helper = new LocalTimeTagHelper { Value = timestamp };
+        var helper = new LocalTimeTagHelper
+        {
+            Value = timestamp,
+            RwType = "local"
+        };
         var output = CreateOutput();
 
         helper.Process(CreateContext(), output);
@@ -21,7 +25,11 @@ public class LocalTimeTagHelperTests
     [Fact]
     public void Process_IncludesDataRwLocalTimeAttribute()
     {
-        var helper = new LocalTimeTagHelper { Value = DateTimeOffset.UtcNow };
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "local"
+        };
         var output = CreateOutput();
 
         helper.Process(CreateContext(), output);
@@ -32,7 +40,11 @@ public class LocalTimeTagHelperTests
     [Fact]
     public void Process_DefaultDisplay_DoesNotRenderDisplayAttribute()
     {
-        var helper = new LocalTimeTagHelper { Value = DateTimeOffset.UtcNow };
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "local"
+        };
         var output = CreateOutput();
 
         helper.Process(CreateContext(), output);
@@ -46,6 +58,7 @@ public class LocalTimeTagHelperTests
         var helper = new LocalTimeTagHelper
         {
             Value = DateTimeOffset.UtcNow,
+            RwType = "local",
             Display = "relative"
         };
         var output = CreateOutput();
@@ -61,6 +74,7 @@ public class LocalTimeTagHelperTests
         var helper = new LocalTimeTagHelper
         {
             Value = DateTimeOffset.UtcNow,
+            RwType = "local",
             Display = "datetime"
         };
         var output = CreateOutput();
@@ -76,6 +90,7 @@ public class LocalTimeTagHelperTests
         var helper = new LocalTimeTagHelper
         {
             Value = DateTimeOffset.UtcNow,
+            RwType = "local",
             Format = "short"
         };
         var output = CreateOutput();
@@ -88,7 +103,11 @@ public class LocalTimeTagHelperTests
     [Fact]
     public void Process_WithNullFormat_DoesNotRenderFormatAttribute()
     {
-        var helper = new LocalTimeTagHelper { Value = DateTimeOffset.UtcNow };
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "local"
+        };
         var output = CreateOutput();
 
         helper.Process(CreateContext(), output);
@@ -99,7 +118,7 @@ public class LocalTimeTagHelperTests
     [Fact]
     public void Process_WithDefaultValue_ThrowsArgumentException()
     {
-        var helper = new LocalTimeTagHelper();
+        var helper = new LocalTimeTagHelper { RwType = "local" };
         var output = CreateOutput();
 
         Assert.Throws<ArgumentException>(() => helper.Process(CreateContext(), output));
@@ -110,7 +129,11 @@ public class LocalTimeTagHelperTests
     {
         // Create a timestamp with a non-UTC offset
         var localTimestamp = new DateTimeOffset(2026, 1, 24, 12, 30, 0, TimeSpan.FromHours(-5));
-        var helper = new LocalTimeTagHelper { Value = localTimestamp };
+        var helper = new LocalTimeTagHelper
+        {
+            Value = localTimestamp,
+            RwType = "local"
+        };
         var output = CreateOutput();
 
         helper.Process(CreateContext(), output);
@@ -125,6 +148,7 @@ public class LocalTimeTagHelperTests
         var helper = new LocalTimeTagHelper
         {
             Value = DateTimeOffset.UtcNow,
+            RwType = "local",
             Display = "RELATIVE"
         };
         var output = CreateOutput();
@@ -135,15 +159,38 @@ public class LocalTimeTagHelperTests
     }
 
     [Fact]
-    public void Process_RemovesRwLocalAttribute()
+    public void Process_RemovesRwTypeAttribute()
     {
-        var helper = new LocalTimeTagHelper { Value = DateTimeOffset.UtcNow };
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "local"
+        };
         var output = CreateOutput();
-        output.Attributes.Add("rw-local", null);
+        output.Attributes.Add("rw-type", "local");
 
         helper.Process(CreateContext(), output);
 
-        Assert.False(output.Attributes.ContainsName("rw-local"));
+        Assert.False(output.Attributes.ContainsName("rw-type"));
+    }
+
+    [Fact]
+    public void Process_WithNonLocalType_DoesNotProcess()
+    {
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "utc"
+        };
+        var output = CreateOutput();
+        output.Attributes.Add("rw-type", "utc");
+
+        helper.Process(CreateContext(), output);
+
+        // Should not have added data-rw-local-time
+        Assert.False(output.Attributes.ContainsName("data-rw-local-time"));
+        // Should STILL have rw-type attribute (since we didn't process it)
+        Assert.True(output.Attributes.ContainsName("rw-type"));
     }
 
     private static TagHelperContext CreateContext() =>

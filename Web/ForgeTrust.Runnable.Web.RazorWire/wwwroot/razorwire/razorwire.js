@@ -299,8 +299,10 @@
 
                 if (state === 'connected' || (state === 'connecting' && el.tagName === 'TURBO-FRAME')) {
                     el.removeAttribute('disabled');
+                    el.removeAttribute('aria-disabled');
                 } else {
                     el.setAttribute('disabled', 'disabled');
+                    el.setAttribute('aria-disabled', 'true');
                 }
             });
         }
@@ -315,15 +317,124 @@
         }
     }
 
-    // Initialize
-    const connectionManager = new ConnectionManager();
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => connectionManager.start());
-    } else {
-        connectionManager.start();
+    /**
+     * LocalTimeFormatter - Formats UTC timestamps to user's local timezone
+     * Handles <time data-rw-local-time> elements with support for:
+     * - display: time (default), date, datetime, relative
+     * - format: short, medium (default), long, full
+     */
+    class LocalTimeFormatter {
+        constructor() {
+            this.observer = new MutationObserver(this.handleMutations.bind(this));
+            this.relativeFormatter = typeof Intl.RelativeTimeFormat !== 'undefined'
+                ? new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+                : null;
+        }
+
+        start() {
+            this.formatAll();
+            this.observer.observe(document.body, { childList: true, subtree: true });
+
+            // Re-format on Turbo navigations
+            document.addEventListener('turbo:load', () => this.formatAll());
+            document.addEventListener('turbo:render', () => this.formatAll());
+        }
+
+        handleMutations(mutations) {
+            for (const mutation of mutations) {
+                for (const node of mutation.addedNodes) {
+                    if (node instanceof Element) {
+                        if (node.hasAttribute('data-rw-local-time')) {
+                            this.format(node);
+                        }
+                        node.querySelectorAll('time[data-rw-local-time]').forEach(el => this.format(el));
+                    }
+                }
+            }
+        }
+
+        formatAll(root = document) {
+            root.querySelectorAll('time[data-rw-local-time]').forEach(el => this.format(el));
+        }
+
+        format(el) {
+            const utc = el.getAttribute('datetime');
+            if (!utc) return;
+
+            // Skip if already formatted (unless it's relative which needs updates)
+            const display = el.dataset.rwLocalTimeDisplay || 'time';
+            if (el.textContent && display !== 'relative') return;
+
+            const date = new Date(utc);
+            if (isNaN(date.getTime())) return;
+
+            if (display === 'relative') {
+                el.textContent = this.formatRelative(date);
+            } else {
+                const formatStyle = el.dataset.rwLocalTimeFormat || 'medium';
+                el.textContent = this.formatAbsolute(date, display, formatStyle);
+            }
+        }
+
+        formatRelative(date) {
+            const now = Date.now();
+            const diff = date.getTime() - now;
+            const seconds = Math.round(diff / 1000);
+            const minutes = Math.round(diff / 60000);
+            const hours = Math.round(diff / 3600000);
+            const days = Math.round(diff / 86400000);
+
+            if (this.relativeFormatter) {
+                if (Math.abs(seconds) < 60) return this.relativeFormatter.format(seconds, 'second');
+                if (Math.abs(minutes) < 60) return this.relativeFormatter.format(minutes, 'minute');
+                if (Math.abs(hours) < 24) return this.relativeFormatter.format(hours, 'hour');
+                return this.relativeFormatter.format(days, 'day');
+            }
+
+            // Fallback for older browsers
+            const abs = Math.abs;
+            if (abs(seconds) < 60) return seconds >= 0 ? 'in a moment' : 'just now';
+            if (abs(minutes) < 60) return minutes >= 0 ? `in ${minutes} min` : `${abs(minutes)} min ago`;
+            if (abs(hours) < 24) return hours >= 0 ? `in ${hours} hr` : `${abs(hours)} hr ago`;
+            return days >= 0 ? `in ${days} days` : `${abs(days)} days ago`;
+        }
+
+        formatAbsolute(date, display, style) {
+            const options = {};
+
+            if (display === 'time' || display === 'datetime') {
+                options.timeStyle = style;
+            }
+            if (display === 'date' || display === 'datetime') {
+                options.dateStyle = style;
+            }
+
+            try {
+                return new Intl.DateTimeFormat(undefined, options).format(date);
+            } catch {
+                // Fallback
+                if (display === 'time') return date.toLocaleTimeString();
+                if (display === 'date') return date.toLocaleDateString();
+                return date.toLocaleString();
+            }
+        }
     }
 
-    window.RazorWire = { connectionManager };
+    // Initialize
+    const connectionManager = new ConnectionManager();
+    const localTimeFormatter = new LocalTimeFormatter();
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            connectionManager.start();
+            localTimeFormatter.start();
+        });
+    } else {
+        connectionManager.start();
+        localTimeFormatter.start();
+    }
+
+    window.RazorWire = { connectionManager, localTimeFormatter };
     // Global safeguard: Block clicks on disabled elements or their children even if pointer-events are enabled
     document.addEventListener('click', (e) => {
         const selector = '[disabled], [aria-disabled="true"], [data-rw-requires-stream][disabled]';

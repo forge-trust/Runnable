@@ -56,18 +56,24 @@ public class CSharpDocHarvester : IDocHarvester
                 var fileContent = new StringBuilder();
                 var hasAnyDoc = false;
 
+                // Cache ExtractDoc results to avoid duplicate XML parsing
+                var typeDocs = new Dictionary<TypeDeclarationSyntax, string?>();
+                var methodDocs = new Dictionary<MethodDeclarationSyntax, string?>();
+                var enumDocs = new Dictionary<EnumDeclarationSyntax, string?>();
+
                 // Capture Classes, Structs, Interfaces, Records
                 var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>().ToList();
                 foreach (var typeDecl in typeDeclarations)
                 {
                     var doc = ExtractDoc(typeDecl);
+                    typeDocs[typeDecl] = doc;
                     if (doc != null)
                     {
                         hasAnyDoc = true;
                         var qualifiedName = GetQualifiedName(typeDecl);
                         // Use qualified name for ID to avoid collisions (e.g. NamespaceA.Class vs NamespaceB.Class)
                         var typeId = StringUtils.ToSafeId(qualifiedName);
-                        
+
                         fileContent.Append(
                             $@"<section id=""{typeId}"" class=""mb-12 scroll-mt-24"">
                             <div class=""flex items-center gap-2 mb-4"">
@@ -84,6 +90,7 @@ public class CSharpDocHarvester : IDocHarvester
                     foreach (var method in methods)
                     {
                         var methodDoc = ExtractDoc(method);
+                        methodDocs[method] = methodDoc;
                         if (methodDoc != null)
                         {
                             hasAnyDoc = true;
@@ -122,12 +129,13 @@ public class CSharpDocHarvester : IDocHarvester
                 foreach (var enumDecl in enumDeclarations)
                 {
                     var doc = ExtractDoc(enumDecl);
+                    enumDocs[enumDecl] = doc;
                     if (doc != null)
                     {
                         hasAnyDoc = true;
                         var qualifiedName = GetQualifiedName(enumDecl);
                         var enumId = StringUtils.ToSafeId(qualifiedName);
-                        
+
                         fileContent.Append(
                             $@"<section id=""{enumId}"" class=""mb-12 scroll-mt-24"">
                             <div class=""flex items-center gap-2 mb-4"">
@@ -156,32 +164,31 @@ public class CSharpDocHarvester : IDocHarvester
                     // Add member-level nodes for the sidebar (navigation stubs)
                     foreach (var typeDecl in typeDeclarations)
                     {
-                        // Add type stub if documented
-                        if (ExtractDoc(typeDecl) != null)
+                        // Add type stub if documented and type name doesn't match filename
+                        // Use cached doc result from content generation pass
+                        if (typeDocs.GetValueOrDefault(typeDecl) != null
+                            && !string.Equals(
+                                typeDecl.Identifier.Text,
+                                fileNameWithoutExt,
+                                StringComparison.OrdinalIgnoreCase))
                         {
-                            // if type matches file, skip
-                            if (!string.Equals(
+                            var qualifiedName = GetQualifiedName(typeDecl);
+                            var typeId = StringUtils.ToSafeId(qualifiedName);
+                            nodes.Add(
+                                new DocNode(
                                     typeDecl.Identifier.Text,
-                                    fileNameWithoutExt,
-                                    StringComparison.OrdinalIgnoreCase))
-                            {
-                                var qualifiedName = GetQualifiedName(typeDecl);
-                                var typeId = StringUtils.ToSafeId(qualifiedName);
-                                nodes.Add(
-                                    new DocNode(
-                                        typeDecl.Identifier.Text,
-                                        relativePath + "#" + typeId,
-                                        string.Empty,
-                                        relativePath
-                                    ));
-                            }
+                                    relativePath + "#" + typeId,
+                                    string.Empty,
+                                    relativePath
+                                ));
                         }
 
                         // Add method stubs
                         var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>().ToList();
                         foreach (var method in methods)
                         {
-                            if (ExtractDoc(method) != null)
+                            // Use cached doc result from content generation pass
+                            if (methodDocs.GetValueOrDefault(method) != null)
                             {
                                 var paramList = string.Join(
                                     ", ",
@@ -210,7 +217,13 @@ public class CSharpDocHarvester : IDocHarvester
 
                     foreach (var enumDecl in enumDeclarations)
                     {
-                        if (ExtractDoc(enumDecl) != null)
+                        // Add enum stub if documented and enum name doesn't match filename
+                        // Use cached doc result from content generation pass
+                        if (enumDocs.GetValueOrDefault(enumDecl) != null
+                            && !string.Equals(
+                                enumDecl.Identifier.Text,
+                                fileNameWithoutExt,
+                                StringComparison.OrdinalIgnoreCase))
                         {
                             var qualifiedName = GetQualifiedName(enumDecl);
                             var enumId = StringUtils.ToSafeId(qualifiedName);
@@ -277,7 +290,7 @@ public class CSharpDocHarvester : IDocHarvester
             return null;
         }
     }
-    
+
     /// <summary>
     /// Builds the dot-delimited qualified name for a type or enum declaration, including enclosing types and namespaces.
     /// </summary>

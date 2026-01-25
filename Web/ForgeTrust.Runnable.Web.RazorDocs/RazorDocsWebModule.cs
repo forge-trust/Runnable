@@ -93,6 +93,6 @@ public class RazorDocsWebModule : IRunnableWebModule
         // Maintain fallback for legacy if necessary, but preferred is /docs
         endpoints.MapControllerRoute(
             name: "razordocs_default",
-            pattern: "{controller=Docs}/{action=Index}/{id?}");
+            pattern: "{controller=Docs}/{action=Index}/{path?}");
     }
 }

@@ -235,8 +235,7 @@ namespace NamespaceB
         // Type name "RemarksTest" != Filename "Remarks" -> Type node exists
         var node = results.Last(n => n.Title == "RemarksTest");
         // Note: The STUB node has empty content. The FILE node has the content.
-        // This test from upstream checked 'node.Content' assuming node IS the type node with content.
-        // In consolidated world, 'node' is a stub. We must check the FILE node.
+        // In consolidated architecture, the type node is a stub pointing to the file.
 
         var fileNode = results.Single(n => n.Title == "Remarks");
 

@@ -11,7 +11,7 @@ public class LocalTimeTagHelperTests
         var timestamp = new DateTimeOffset(2026, 1, 24, 12, 30, 0, TimeSpan.Zero);
         var helper = new LocalTimeTagHelper { Value = timestamp };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         Assert.Equal("time", output.TagName);
@@ -23,7 +23,7 @@ public class LocalTimeTagHelperTests
     {
         var helper = new LocalTimeTagHelper { Value = DateTimeOffset.UtcNow };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         Assert.True(output.Attributes.ContainsName("data-rw-local-time"));
@@ -34,7 +34,7 @@ public class LocalTimeTagHelperTests
     {
         var helper = new LocalTimeTagHelper { Value = DateTimeOffset.UtcNow };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         Assert.False(output.Attributes.ContainsName("data-rw-local-time-display"));
@@ -43,13 +43,13 @@ public class LocalTimeTagHelperTests
     [Fact]
     public void Process_WithDisplayRelative_RendersDisplayAttribute()
     {
-        var helper = new LocalTimeTagHelper 
-        { 
+        var helper = new LocalTimeTagHelper
+        {
             Value = DateTimeOffset.UtcNow,
             Display = "relative"
         };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         Assert.Equal("relative", output.Attributes["data-rw-local-time-display"].Value);
@@ -58,13 +58,13 @@ public class LocalTimeTagHelperTests
     [Fact]
     public void Process_WithDisplayDatetime_RendersDisplayAttribute()
     {
-        var helper = new LocalTimeTagHelper 
-        { 
+        var helper = new LocalTimeTagHelper
+        {
             Value = DateTimeOffset.UtcNow,
             Display = "datetime"
         };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         Assert.Equal("datetime", output.Attributes["data-rw-local-time-display"].Value);
@@ -73,13 +73,13 @@ public class LocalTimeTagHelperTests
     [Fact]
     public void Process_WithFormat_RendersFormatAttribute()
     {
-        var helper = new LocalTimeTagHelper 
-        { 
+        var helper = new LocalTimeTagHelper
+        {
             Value = DateTimeOffset.UtcNow,
             Format = "short"
         };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         Assert.Equal("short", output.Attributes["data-rw-local-time-format"].Value);
@@ -90,7 +90,7 @@ public class LocalTimeTagHelperTests
     {
         var helper = new LocalTimeTagHelper { Value = DateTimeOffset.UtcNow };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         Assert.False(output.Attributes.ContainsName("data-rw-local-time-format"));
@@ -112,7 +112,7 @@ public class LocalTimeTagHelperTests
         var localTimestamp = new DateTimeOffset(2026, 1, 24, 12, 30, 0, TimeSpan.FromHours(-5));
         var helper = new LocalTimeTagHelper { Value = localTimestamp };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         // Should be converted to UTC (17:30:00)
@@ -122,16 +122,28 @@ public class LocalTimeTagHelperTests
     [Fact]
     public void Process_DisplayIsCaseInsensitive()
     {
-        var helper = new LocalTimeTagHelper 
-        { 
+        var helper = new LocalTimeTagHelper
+        {
             Value = DateTimeOffset.UtcNow,
             Display = "RELATIVE"
         };
         var output = CreateOutput();
-        
+
         helper.Process(CreateContext(), output);
 
         Assert.Equal("relative", output.Attributes["data-rw-local-time-display"].Value);
+    }
+
+    [Fact]
+    public void Process_RemovesRwLocalAttribute()
+    {
+        var helper = new LocalTimeTagHelper { Value = DateTimeOffset.UtcNow };
+        var output = CreateOutput();
+        output.Attributes.Add("rw-local", null);
+
+        helper.Process(CreateContext(), output);
+
+        Assert.False(output.Attributes.ContainsName("rw-local"));
     }
 
     private static TagHelperContext CreateContext() =>
@@ -139,7 +151,7 @@ public class LocalTimeTagHelperTests
 
     private static TagHelperOutput CreateOutput() =>
         new(
-            "rw:local-time",
+            "time",
             new TagHelperAttributeList(),
             (_, _) => Task.FromResult<TagHelperContent>(new DefaultTagHelperContent()));
 }

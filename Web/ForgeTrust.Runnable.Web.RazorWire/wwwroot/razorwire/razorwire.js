@@ -329,6 +329,7 @@
             this.relativeFormatter = typeof Intl.RelativeTimeFormat !== 'undefined'
                 ? new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
                 : null;
+            this.updateInterval = null;
         }
 
         start() {
@@ -338,6 +339,21 @@
             // Re-format on Turbo navigations
             document.addEventListener('turbo:load', () => this.formatAll());
             document.addEventListener('turbo:render', () => this.formatAll());
+
+            this.startTimer();
+        }
+
+        startTimer() {
+            if (this.updateInterval) return;
+            // Update every 30 seconds to keep relative times (like "just now") fresh
+            this.updateInterval = setInterval(() => this.formatRelativeOnly(), 30000);
+        }
+
+        stopTimer() {
+            if (this.updateInterval) {
+                clearInterval(this.updateInterval);
+                this.updateInterval = null;
+            }
         }
 
         handleMutations(mutations) {
@@ -357,13 +373,19 @@
             root.querySelectorAll('time[data-rw-local-time]').forEach(el => this.format(el));
         }
 
-        format(el) {
+        formatRelativeOnly() {
+            // Only re-format elements specifically marked as relative or needing updates
+            document.querySelectorAll('time[data-rw-local-time][data-rw-local-time-display="relative"], time[data-rw-local-time][data-rw-requires-stream]')
+                .forEach(el => this.format(el, true));
+        }
+
+        format(el, force = false) {
             const utc = el.getAttribute('datetime');
             if (!utc) return;
 
-            // Skip if already formatted (unless it's relative which needs updates)
+            // Skip if already formatted (unless it's relative which needs updates or we are forcing an update)
             const display = el.dataset.rwLocalTimeDisplay || 'time';
-            if (el.textContent && display !== 'relative') return;
+            if (el.textContent && display !== 'relative' && !force) return;
 
             const date = new Date(utc);
             if (isNaN(date.getTime())) return;

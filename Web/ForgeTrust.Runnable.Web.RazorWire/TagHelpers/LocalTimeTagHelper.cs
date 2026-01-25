@@ -15,36 +15,27 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 /// &lt;rw:local-time value="@Model.Timestamp" display="datetime" format="short" /&gt;
 /// </code>
 /// </example>
-[HtmlTargetElement("rw:local-time")]
+[HtmlTargetElement("time", Attributes = "rw-local")]
 public class LocalTimeTagHelper : TagHelper
 {
     /// <summary>
-    /// Gets or sets the UTC timestamp to display. This attribute is required.
+    /// The UTC timestamp to display, sourced from the <c>datetime</c> attribute.
     /// </summary>
+    [HtmlAttributeName("datetime")]
     public DateTimeOffset Value { get; set; }
 
     /// <summary>
     /// Gets or sets the display mode for the formatted time.
     /// Valid values: <c>time</c> (default), <c>date</c>, <c>datetime</c>, or <c>relative</c>.
     /// </summary>
-    /// <remarks>
-    /// <list type="bullet">
-    /// <item><description><c>time</c> - Displays time only (e.g., "3:45 PM")</description></item>
-    /// <item><description><c>date</c> - Displays date only (e.g., "Jan 24, 2026")</description></item>
-    /// <item><description><c>datetime</c> - Displays both date and time</description></item>
-    /// <item><description><c>relative</c> - Displays relative time (e.g., "2 minutes ago")</description></item>
-    /// </list>
-    /// </remarks>
+    [HtmlAttributeName("rw-display")]
     public string Display { get; set; } = "time";
 
     /// <summary>
     /// Gets or sets the format style for absolute time formatting.
     /// Valid values: <c>short</c>, <c>medium</c> (default), <c>long</c>, or <c>full</c>.
     /// </summary>
-    /// <remarks>
-    /// Maps to the <c>dateStyle</c> and <c>timeStyle</c> options of <c>Intl.DateTimeFormat</c>.
-    /// This property is ignored when <see cref="Display"/> is set to <c>relative</c>.
-    /// </remarks>
+    [HtmlAttributeName("rw-format")]
     public string? Format { get; set; }
 
     /// <summary>
@@ -59,14 +50,13 @@ public class LocalTimeTagHelper : TagHelper
         if (Value == default)
         {
             throw new ArgumentException(
-                "The 'value' attribute is required for the 'rw:local-time' tag helper.",
+                "The 'datetime' attribute is required for the local time tag helper.",
                 nameof(Value));
         }
 
-        output.TagName = "time";
         output.TagMode = TagMode.StartTagAndEndTag;
 
-        // Output UTC timestamp in ISO 8601 format
+        // Ensure datetime attribute is in ISO 8601 format
         output.Attributes.SetAttribute("datetime", Value.ToUniversalTime().ToString("o"));
 
         // Add data attribute to signal JavaScript formatting
@@ -83,5 +73,8 @@ public class LocalTimeTagHelper : TagHelper
         {
             output.Attributes.SetAttribute("data-rw-local-time-format", Format.ToLowerInvariant());
         }
+
+        // Remove the trigger attribute
+        output.Attributes.RemoveAll("rw-local");
     }
 }

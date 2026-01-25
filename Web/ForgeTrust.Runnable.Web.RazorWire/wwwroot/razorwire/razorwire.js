@@ -421,7 +421,7 @@
                 // Special handling for "just now" / "in a moment" to match user preference
                 // Intl typically returns "in 0 seconds" or "0 seconds ago"
                 if (absDiff < 60000) {
-                    return seconds >= 0 ? 'in a moment' : 'just now';
+                    return diff >= 0 ? 'in a moment' : 'just now';
                 }
 
                 if (Math.abs(minutes) < 60) return this.formatter.format(minutes, 'minute');
@@ -431,7 +431,7 @@
 
             // Fallback for environments without Intl support
             const abs = Math.abs;
-            if (abs(seconds) < 60) return seconds >= 0 ? 'in a moment' : 'just now';
+            if (abs(seconds) < 60) return diff >= 0 ? 'in a moment' : 'just now';
             if (abs(minutes) < 60) return minutes >= 0 ? `in ${minutes} min` : `${abs(minutes)} min ago`;
             if (abs(hours) < 24) return hours >= 0 ? `in ${hours} hr` : `${abs(hours)} hr ago`;
             return days >= 0 ? `in ${days} days` : `${abs(days)} days ago`;

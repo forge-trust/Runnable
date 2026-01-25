@@ -34,7 +34,7 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        Assert.True(output.Attributes.ContainsName("data-rw-local-time"));
+        Assert.True(output.Attributes.ContainsName("data-rw-time"));
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        Assert.False(output.Attributes.ContainsName("data-rw-local-time-display"));
+        Assert.False(output.Attributes.ContainsName("data-rw-time-display"));
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        Assert.Equal("relative", output.Attributes["data-rw-local-time-display"].Value);
+        Assert.Equal("relative", output.Attributes["data-rw-time-display"].Value);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        Assert.Equal("datetime", output.Attributes["data-rw-local-time-display"].Value);
+        Assert.Equal("datetime", output.Attributes["data-rw-time-display"].Value);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        Assert.Equal("short", output.Attributes["data-rw-local-time-format"].Value);
+        Assert.Equal("short", output.Attributes["data-rw-time-format"].Value);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        Assert.False(output.Attributes.ContainsName("data-rw-local-time-format"));
+        Assert.False(output.Attributes.ContainsName("data-rw-time-format"));
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        Assert.Equal("relative", output.Attributes["data-rw-local-time-display"].Value);
+        Assert.Equal("relative", output.Attributes["data-rw-time-display"].Value);
     }
 
     [Fact]
@@ -187,8 +187,8 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        // Should not have added data-rw-local-time
-        Assert.False(output.Attributes.ContainsName("data-rw-local-time"));
+        // Should not have added data-rw-time
+        Assert.False(output.Attributes.ContainsName("data-rw-time"));
         // Should STILL have rw-type attribute (since we didn't process it)
         Assert.True(output.Attributes.ContainsName("rw-type"));
     }

@@ -72,18 +72,18 @@ public class LocalTimeTagHelper : TagHelper
         output.Attributes.SetAttribute("datetime", Value.ToUniversalTime().ToString("o"));
 
         // Add data attribute to signal JavaScript formatting
-        output.Attributes.SetAttribute("data-rw-local-time", "");
+        output.Attributes.SetAttribute("data-rw-time", "");
 
         // Add display mode if not default
         if (!string.Equals(Display, "time", StringComparison.OrdinalIgnoreCase))
         {
-            output.Attributes.SetAttribute("data-rw-local-time-display", Display.ToLowerInvariant());
+            output.Attributes.SetAttribute("data-rw-time-display", Display.ToLowerInvariant());
         }
 
         // Add format style if specified
         if (!string.IsNullOrWhiteSpace(Format))
         {
-            output.Attributes.SetAttribute("data-rw-local-time-format", Format.ToLowerInvariant());
+            output.Attributes.SetAttribute("data-rw-time-format", Format.ToLowerInvariant());
         }
 
         // Remove the trigger attribute

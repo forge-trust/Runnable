@@ -319,14 +319,14 @@
 
     /**
      * LocalTimeFormatter - Formats UTC timestamps to user's local timezone
-     * Handles <time data-rw-local-time> elements with support for:
+     * Handles <time data-rw-time> elements with support for:
      * - display: time (default), date, datetime, relative
      * - format: short, medium (default), long, full
      */
     class LocalTimeFormatter {
         constructor() {
-            this.observer = new MutationObserver(this.handleMutations.bind(this));
-            this.relativeFormatter = typeof Intl.RelativeTimeFormat !== 'undefined'
+            this.observer = new MutationObserver(mutations => this.handleMutations(mutations));
+            this.formatter = typeof Intl !== 'undefined' && Intl.RelativeTimeFormat
                 ? new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
                 : null;
             this.updateInterval = null;
@@ -360,45 +360,65 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node instanceof Element) {
-                        if (node.hasAttribute('data-rw-local-time')) {
+                        if (node.hasAttribute('data-rw-time')) {
                             this.format(node);
                         }
-                        node.querySelectorAll('time[data-rw-local-time]').forEach(el => this.format(el));
+                        node.querySelectorAll('time[data-rw-time]').forEach(el => this.format(el));
                     }
                 }
             }
         }
 
-        formatAll(root = document) {
-            root.querySelectorAll('time[data-rw-local-time]').forEach(el => this.format(el));
+        formatAll() {
+            document.querySelectorAll('time[data-rw-time]').forEach(el => this.format(el));
         }
 
         formatRelativeOnly() {
-            // Only re-format elements specifically marked as relative or needing updates
-            document.querySelectorAll('time[data-rw-local-time][data-rw-local-time-display="relative"], time[data-rw-local-time][data-rw-requires-stream]')
-                .forEach(el => this.format(el, true));
+            // Optimized update: only target elements that are relative or require stream state
+            const selector = 'time[data-rw-time][data-rw-time-display="relative"], [data-rw-requires-stream]';
+            document.querySelectorAll(selector).forEach(el => {
+                // For time elements, re-format
+                if (el.hasAttribute('data-rw-time')) {
+                    this.format(el);
+                }
+
+                // For stream-dependent elements, re-evaluate their state
+                // Note: This part assumes `this.syncDependentElements` is available or passed.
+                // As per instruction, only applying the selector and `format` call.
+                // if (el.hasAttribute('data-rw-requires-stream')) {
+                //      this.syncDependentElements(el);
+                // }
+            });
         }
 
-        format(el, force = false) {
-            const utc = el.getAttribute('datetime');
-            if (!utc) return;
+        format(element) {
+            const dateStr = element.getAttribute('datetime');
+            if (!dateStr) return;
 
-            // Skip if already formatted (unless it's relative which needs updates or we are forcing an update)
-            const display = el.dataset.rwLocalTimeDisplay || 'time';
-            if (el.textContent && display !== 'relative' && !force) return;
-
-            const date = new Date(utc);
+            const date = new Date(dateStr);
             if (isNaN(date.getTime())) return;
 
-            if (display === 'relative') {
-                el.textContent = this.formatRelative(date);
+            const display = element.getAttribute('data-rw-time-display') || 'time';
+            const formatStyle = element.getAttribute('data-rw-time-format') || 'medium';
+
+            let text = '';
+            if (display === 'relative' && this.formatter) {
+                text = this.getRelativeTime(date);
+            } else if (display === 'date') {
+                text = date.toLocaleDateString(undefined, { dateStyle: formatStyle });
+            } else if (display === 'datetime') {
+                text = date.toLocaleString(undefined, { dateStyle: formatStyle, timeStyle: formatStyle });
             } else {
-                const formatStyle = el.dataset.rwLocalTimeFormat || 'medium';
-                el.textContent = this.formatAbsolute(date, display, formatStyle);
+                // Default to time
+                text = date.toLocaleTimeString(undefined, { timeStyle: formatStyle });
+            }
+
+            if (text) {
+                element.textContent = text;
             }
         }
 
-        formatRelative(date) {
+        getRelativeTime(date) {
             const now = Date.now();
             const diff = date.getTime() - now;
             const seconds = Math.round(diff / 1000);
@@ -406,14 +426,6 @@
             const hours = Math.round(diff / 3600000);
             const days = Math.round(diff / 86400000);
 
-            if (this.relativeFormatter) {
-                if (Math.abs(seconds) < 60) return this.relativeFormatter.format(seconds, 'second');
-                if (Math.abs(minutes) < 60) return this.relativeFormatter.format(minutes, 'minute');
-                if (Math.abs(hours) < 24) return this.relativeFormatter.format(hours, 'hour');
-                return this.relativeFormatter.format(days, 'day');
-            }
-
-            // Fallback for older browsers
             const abs = Math.abs;
             if (abs(seconds) < 60) return seconds >= 0 ? 'in a moment' : 'just now';
             if (abs(minutes) < 60) return minutes >= 0 ? `in ${minutes} min` : `${abs(minutes)} min ago`;

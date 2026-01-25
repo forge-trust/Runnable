@@ -21,8 +21,8 @@ public class RazorWireScriptsTagHelper : TagHelper
         output.Content.SetHtmlContent(
             @"
 <script src=""https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-umd.js"" integrity=""sha256-1evN/OxCRDJtuVCzQ3gklVq8LzN6qhCm7x/sbawknOk="" crossorigin=""anonymous""></script>
-<script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js""></script>
-<script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.islands.js""></script>
+<script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js?v=2""></script>
+<script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.islands.js?v=2""></script>
 ");
     }
 }

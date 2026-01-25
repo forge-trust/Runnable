@@ -374,21 +374,10 @@
         }
 
         formatRelativeOnly() {
-            // Optimized update: only target elements that are relative or require stream state
-            const selector = 'time[data-rw-time][data-rw-time-display="relative"], [data-rw-requires-stream]';
-            document.querySelectorAll(selector).forEach(el => {
-                // For time elements, re-format
-                if (el.hasAttribute('data-rw-time')) {
-                    this.format(el);
-                }
-
-                // For stream-dependent elements, re-evaluate their state
-                // Note: This part assumes `this.syncDependentElements` is available or passed.
-                // As per instruction, only applying the selector and `format` call.
-                // if (el.hasAttribute('data-rw-requires-stream')) {
-                //      this.syncDependentElements(el);
-                // }
-            });
+            // Optimized update: only target elements that are relative
+            // The helper no longer manages stream dependencies (responsibility of ConnectionManager)
+            const selector = 'time[data-rw-time][data-rw-time-display="relative"]';
+            document.querySelectorAll(selector).forEach(el => this.format(el));
         }
 
         format(element) {
@@ -421,11 +410,26 @@
         getRelativeTime(date) {
             const now = Date.now();
             const diff = date.getTime() - now;
+            const absDiff = Math.abs(diff);
             const seconds = Math.round(diff / 1000);
             const minutes = Math.round(diff / 60000);
             const hours = Math.round(diff / 3600000);
             const days = Math.round(diff / 86400000);
 
+            // Use Intl.RelativeTimeFormat if available
+            if (this.formatter) {
+                // Special handling for "just now" / "in a moment" to match user preference
+                // Intl typically returns "in 0 seconds" or "0 seconds ago"
+                if (absDiff < 60000) {
+                    return seconds >= 0 ? 'in a moment' : 'just now';
+                }
+
+                if (Math.abs(minutes) < 60) return this.formatter.format(minutes, 'minute');
+                if (Math.abs(hours) < 24) return this.formatter.format(hours, 'hour');
+                return this.formatter.format(days, 'day');
+            }
+
+            // Fallback for environments without Intl support
             const abs = Math.abs;
             if (abs(seconds) < 60) return seconds >= 0 ? 'in a moment' : 'just now';
             if (abs(minutes) < 60) return minutes >= 0 ? `in ${minutes} min` : `${abs(minutes)} min ago`;
@@ -433,25 +437,7 @@
             return days >= 0 ? `in ${days} days` : `${abs(days)} days ago`;
         }
 
-        formatAbsolute(date, display, style) {
-            const options = {};
 
-            if (display === 'time' || display === 'datetime') {
-                options.timeStyle = style;
-            }
-            if (display === 'date' || display === 'datetime') {
-                options.dateStyle = style;
-            }
-
-            try {
-                return new Intl.DateTimeFormat(undefined, options).format(date);
-            } catch {
-                // Fallback
-                if (display === 'time') return date.toLocaleTimeString();
-                if (display === 'date') return date.toLocaleDateString();
-                return date.toLocaleString();
-            }
-        }
     }
 
     // Initialize

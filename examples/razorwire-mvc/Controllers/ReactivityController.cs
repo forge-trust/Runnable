@@ -120,7 +120,7 @@ public class ReactivityController : Controller
 <li class='p-4 rounded-2xl bg-white border border-slate-100 flex flex-col gap-1 transition-all hover:shadow-sm group animate-in slide-in-from-bottom-2 duration-300'>
     <div class='flex items-center justify-between'>
         <span class='text-xs font-bold text-indigo-600 uppercase tracking-tight'>{encodedDisplayName}</span>
-        <time datetime='{utcTime}' data-rw-local-time class='text-[10px] font-medium text-slate-400 tabular-nums'></time>
+        <time datetime='{utcTime}' data-rw-time class='text-[10px] font-medium text-slate-400 tabular-nums'></time>
     </div>
     <p class='text-sm text-slate-700 leading-relaxed'>{encodedMessage}</p>
 </li>";

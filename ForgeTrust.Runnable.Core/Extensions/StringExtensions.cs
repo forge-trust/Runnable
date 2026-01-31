@@ -17,6 +17,7 @@ public static class StringExtensions
             return Array.Empty<string>();
         }
 
+        // This will split on any whitespace character, including tabs and newlines.
         return input.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
     }
 }

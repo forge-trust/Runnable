@@ -338,7 +338,11 @@
 
             // Re-format on Turbo navigations
             document.addEventListener('turbo:load', () => this.formatAll());
-            document.addEventListener('turbo:render', () => this.formatAll());
+            document.addEventListener('turbo:render', () => {
+                this.observer.disconnect();
+                this.observer.observe(document.body, { childList: true, subtree: true });
+                this.formatAll();
+            });
 
             this.startTimer();
         }

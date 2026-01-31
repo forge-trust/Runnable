@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
@@ -21,12 +22,15 @@ public class AutoAssetVersioningTagHelper : TagHelper
     /// <param name="fileVersionProvider">The file version provider.</param>
     public AutoAssetVersioningTagHelper(IFileVersionProvider fileVersionProvider)
     {
-        _fileVersionProvider = fileVersionProvider;
+        _fileVersionProvider = fileVersionProvider ?? throw new ArgumentNullException(nameof(fileVersionProvider));
     }
 
     /// <summary>
     /// Gets or sets the view context.
     /// </summary>
+    /// <remarks>
+    /// This property is automatically set by the framework when the TagHelper is created.
+    /// </remarks>
     [ViewContext]
     [HtmlAttributeNotBound]
     public ViewContext ViewContext { get; set; } = default!;
@@ -43,30 +47,33 @@ public class AutoAssetVersioningTagHelper : TagHelper
             return;
         }
 
+        // Cache PathBase to avoid repeated access
+        var pathBase = ViewContext.HttpContext.Request.PathBase;
+
         if (string.Equals(output.TagName, "script", StringComparison.OrdinalIgnoreCase))
         {
-            ProcessScript(output);
+            ProcessScript(output, pathBase);
         }
         else if (string.Equals(output.TagName, "link", StringComparison.OrdinalIgnoreCase))
         {
-            ProcessLink(output);
+            ProcessLink(output, pathBase);
         }
     }
 
-    private void ProcessScript(TagHelperOutput output)
+    private void ProcessScript(TagHelperOutput output, PathString pathBase)
     {
         if (output.Attributes.TryGetAttribute("src", out var srcAttribute))
         {
             var src = srcAttribute.Value?.ToString();
             if (IsLocal(src))
             {
-                var newSrc = _fileVersionProvider.AddFileVersionToPath(ViewContext.HttpContext.Request.PathBase, src!);
+                var newSrc = _fileVersionProvider.AddFileVersionToPath(pathBase, src!);
                 output.Attributes.SetAttribute("src", newSrc);
             }
         }
     }
 
-    private void ProcessLink(TagHelperOutput output)
+    private void ProcessLink(TagHelperOutput output, PathString pathBase)
     {
         // Only version stylesheets
         var rel = output.Attributes["rel"]?.Value?.ToString();
@@ -82,7 +89,7 @@ public class AutoAssetVersioningTagHelper : TagHelper
             {
                 output.Attributes.SetAttribute(
                     "href",
-                    _fileVersionProvider.AddFileVersionToPath(ViewContext.HttpContext.Request.PathBase, href));
+                    _fileVersionProvider.AddFileVersionToPath(pathBase, href));
             }
         }
     }
@@ -94,6 +101,6 @@ public class AutoAssetVersioningTagHelper : TagHelper
             return false;
         }
 
-        return path[0] == '/' || path[0] == '~';
+        return (path[0] == '/' || path[0] == '~') && !path.StartsWith("//");
     }
 }

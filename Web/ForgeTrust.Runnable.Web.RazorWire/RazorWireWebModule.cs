@@ -26,6 +26,8 @@ public class RazorWireWebModule : IRunnableWebModule
 
         if (needsRuntimeCompilation || needsMvcUpgrade)
         {
+            // Even if only 'needsRuntimeCompilation' is true, we recreate the options record
+            // to pass both flags. This simplifies the logic by handling all upgrades in one place.
             options.Mvc = options.Mvc with
             {
                 MvcSupportLevel = needsMvcUpgrade ? MvcSupport.ControllersWithViews : options.Mvc.MvcSupportLevel,

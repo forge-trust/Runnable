@@ -364,23 +364,23 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node instanceof Element) {
-                        if (node.hasAttribute('data-rw-time')) {
+                        if (node.tagName === 'TIME' && node.hasAttribute('data-rw-time')) {
                             this.format(node);
                         }
-                        node.querySelectorAll('[data-rw-time]').forEach(el => this.format(el));
+                        node.querySelectorAll('time[data-rw-time]').forEach(el => this.format(el));
                     }
                 }
             }
         }
 
         formatAll() {
-            document.querySelectorAll('[data-rw-time]').forEach(el => this.format(el));
+            document.querySelectorAll('time[data-rw-time]').forEach(el => this.format(el));
         }
 
         formatRelativeOnly() {
             // Optimized update: only target elements that are relative
             // The helper no longer manages stream dependencies (responsibility of ConnectionManager)
-            const selector = '[data-rw-time][data-rw-time-display="relative"]';
+            const selector = 'time[data-rw-time][data-rw-time-display="relative"]';
             document.querySelectorAll(selector).forEach(el => this.format(el));
         }
 

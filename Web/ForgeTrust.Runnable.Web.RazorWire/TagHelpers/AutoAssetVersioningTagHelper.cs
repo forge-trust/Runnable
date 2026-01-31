@@ -110,6 +110,11 @@ public class AutoAssetVersioningTagHelper : TagHelper
             return false;
         }
 
-        return (path[0] == '/' || path[0] == '~') && !path.StartsWith("//");
+        if (path.StartsWith("//"))
+        {
+            return false;
+        }
+
+        return path[0] == '/' || path[0] == '~';
     }
 }

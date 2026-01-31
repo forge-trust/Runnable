@@ -56,7 +56,6 @@ return this.RazorWireStream()
     .BuildResult();
 ```
 
-```
 
 ## Development Experience
 

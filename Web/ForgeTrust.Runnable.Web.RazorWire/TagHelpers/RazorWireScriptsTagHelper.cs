@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Razor.TagHelpers;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
@@ -21,6 +22,13 @@ public class RazorWireScriptsTagHelper : TagHelper
     }
 
     /// <summary>
+    /// Gets or sets the view context.
+    /// </summary>
+    [ViewContext]
+    [HtmlAttributeNotBound]
+    public ViewContext ViewContext { get; set; } = default!;
+
+    /// <summary>
     /// Renders the client-side script tags required by RazorWire and removes the wrapper element so no enclosing tag is emitted.
     /// </summary>
     /// <param name="context">The current tag helper context.</param>
@@ -29,11 +37,13 @@ public class RazorWireScriptsTagHelper : TagHelper
     {
         output.TagName = null; // No wrapper tag
 
+        var pathBase = ViewContext.HttpContext.Request.PathBase;
+
         var razorwireJs = _fileVersionProvider.AddFileVersionToPath(
-            "/",
+            pathBase,
             "/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js");
         var islandsJs = _fileVersionProvider.AddFileVersionToPath(
-            "/",
+            pathBase,
             "/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.islands.js");
 
         // This includes Turbo.js and the custom RazorWire island loader.

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Razor.TagHelpers;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 
@@ -8,6 +9,17 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement("rw:scripts")]
 public class RazorWireScriptsTagHelper : TagHelper
 {
+    private readonly IFileVersionProvider _fileVersionProvider;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RazorWireScriptsTagHelper"/> class.
+    /// </summary>
+    /// <param name="fileVersionProvider">The file version provider used to append version hashes to script paths.</param>
+    public RazorWireScriptsTagHelper(IFileVersionProvider fileVersionProvider)
+    {
+        _fileVersionProvider = fileVersionProvider;
+    }
+
     /// <summary>
     /// Renders the client-side script tags required by RazorWire and removes the wrapper element so no enclosing tag is emitted.
     /// </summary>
@@ -17,12 +29,19 @@ public class RazorWireScriptsTagHelper : TagHelper
     {
         output.TagName = null; // No wrapper tag
 
+        var razorwireJs = _fileVersionProvider.AddFileVersionToPath(
+            "/",
+            "/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js");
+        var islandsJs = _fileVersionProvider.AddFileVersionToPath(
+            "/",
+            "/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.islands.js");
+
         // This includes Turbo.js and the custom RazorWire island loader.
         output.Content.SetHtmlContent(
-            @"
+            $@"
 <script src=""https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-umd.js"" integrity=""sha256-1evN/OxCRDJtuVCzQ3gklVq8LzN6qhCm7x/sbawknOk="" crossorigin=""anonymous""></script>
-<script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js""></script>
-<script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.islands.js""></script>
+<script src=""{razorwireJs}""></script>
+<script src=""{islandsJs}""></script>
 ");
     }
 }

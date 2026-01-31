@@ -330,9 +330,13 @@
                 ? new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
                 : null;
             this.updateInterval = null;
+            this.isStarted = false;
         }
 
         start() {
+            if (this.isStarted) return;
+            this.isStarted = true;
+
             this.formatAll();
             this.observer.observe(document.body, { childList: true, subtree: true });
 

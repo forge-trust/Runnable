@@ -126,6 +126,34 @@ public class LocalTimeTagHelperTests
     }
 
     [Fact]
+    public void Process_WithInvalidDisplay_ThrowsArgumentException()
+    {
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "local",
+            Display = "invalid"
+        };
+        var output = CreateOutput();
+
+        Assert.Throws<ArgumentException>(() => helper.Process(CreateContext(), output));
+    }
+
+    [Fact]
+    public void Process_WithInvalidFormat_ThrowsArgumentException()
+    {
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "local",
+            Format = "invalid"
+        };
+        var output = CreateOutput();
+
+        Assert.Throws<ArgumentException>(() => helper.Process(CreateContext(), output));
+    }
+
+    [Fact]
     public void Process_ConvertsLocalTimeToUtc()
     {
         // Create a timestamp with a non-UTC offset

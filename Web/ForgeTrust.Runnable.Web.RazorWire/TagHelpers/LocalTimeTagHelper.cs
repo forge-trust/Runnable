@@ -18,6 +18,22 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 [HtmlTargetElement("time", Attributes = "rw-type")]
 public class LocalTimeTagHelper : TagHelper
 {
+    private static readonly HashSet<string> ValidDisplayModes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "time",
+        "date",
+        "datetime",
+        "relative"
+    };
+
+    private static readonly HashSet<string> ValidFormatStyles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "short",
+        "medium",
+        "long",
+        "full"
+    };
+
     /// <summary>
     /// Gets or sets the trigger type for RazorWire time formatting.
     /// Must be set to <c>local</c> for this helper to process the element.
@@ -51,7 +67,7 @@ public class LocalTimeTagHelper : TagHelper
     /// </summary>
     /// <param name="context">Contains information associated with the current HTML tag.</param>
     /// <param name="output">A stateful HTML element used to generate an HTML tag.</param>
-    /// <exception cref="ArgumentException">Thrown when <see cref="Value"/> is the default value.</exception>
+    /// <exception cref="ArgumentException">Thrown when <see cref="Value"/> is the default value or if <see cref="Display"/> or <see cref="Format"/> have invalid values.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
         if (!string.Equals(RwType, "local", StringComparison.OrdinalIgnoreCase))
@@ -64,6 +80,20 @@ public class LocalTimeTagHelper : TagHelper
             throw new ArgumentException(
                 "The 'datetime' attribute is required for the local time tag helper.",
                 nameof(Value));
+        }
+
+        if (!ValidDisplayModes.Contains(Display))
+        {
+            throw new ArgumentException(
+                $"Invalid display mode '{Display}'. Valid values are: {string.Join(", ", ValidDisplayModes)}",
+                nameof(Display));
+        }
+
+        if (!string.IsNullOrWhiteSpace(Format) && !ValidFormatStyles.Contains(Format))
+        {
+            throw new ArgumentException(
+                $"Invalid format style '{Format}'. Valid values are: {string.Join(", ", ValidFormatStyles)}",
+                nameof(Format));
         }
 
         output.TagMode = TagMode.StartTagAndEndTag;

@@ -2,6 +2,48 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "Microsoft.AspNetCore.Mvc.Razor.Extensions": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "M0h+ChPgydX2xY17agiphnAVa/Qh05RAP8eeuqGGhQKT10claRBlLNO6d2/oSV8zy0RLHzwLnNZm5xuC/gckGA==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Razor.Language": "6.0.0",
+          "Microsoft.CodeAnalysis.Razor": "6.0.0"
+        }
+      },
+      "Microsoft.AspNetCore.Razor.Language": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "yCtBr1GSGzJrrp1NJUb4ltwFYMKHw/tJLnIDvg9g/FnkGIEzmE19tbCQqXARIJv5kdtBgsoVIdGLL+zmjxvM/A=="
+      },
+      "Microsoft.CodeAnalysis.Analyzers": {
+        "type": "Transitive",
+        "resolved": "3.11.0",
+        "contentHash": "v/EW3UE8/lbEYHoC2Qq7AR/DnmvpgdtAMndfQNmpuIMx/Mto8L5JnuCfdBYtgvalQOtfNCnxFejxuRrryvUTsg=="
+      },
+      "Microsoft.CodeAnalysis.Common": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "ZXRAdvH6GiDeHRyd3q/km8Z44RoM6FBWHd+gen/la81mVnAdHTEsEkO5J0TCNXBymAcx5UYKt5TvgKBhaLJEow==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "3.11.0"
+        }
+      },
+      "Microsoft.CodeAnalysis.Razor": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "uqdzuQXxD7XrJCbIbbwpI/LOv0PBJ9VIR0gdvANTHOfK5pjTaCir+XcwvYvBZ5BIzd0KGzyiamzlEWw1cK1q0w==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Razor.Language": "6.0.0",
+          "Microsoft.CodeAnalysis.CSharp": "4.0.0",
+          "Microsoft.CodeAnalysis.Common": "4.0.0"
+        }
+      },
+      "Microsoft.Extensions.DependencyModel": {
+        "type": "Transitive",
+        "resolved": "9.0.5",
+        "contentHash": "+jdJ9Vz+5Ia21l3KjahtmeHCIgQ7urfkdcJPxSfeqB40Jqryi27Lt4fKBmKyvc0YrfTUJ0cEB7QmoQRlU8FH0g=="
+      },
       "forgetrust.runnable.core": {
         "type": "Project"
       },
@@ -14,7 +56,29 @@
       "forgetrust.runnable.web.razorwire": {
         "type": "Project",
         "dependencies": {
-          "ForgeTrust.Runnable.Web": "[1.0.0, )"
+          "ForgeTrust.Runnable.Web": "[1.0.0, )",
+          "Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation": "[9.0.5, )"
+        }
+      },
+      "Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation": {
+        "type": "CentralTransitive",
+        "requested": "[9.0.5, )",
+        "resolved": "9.0.5",
+        "contentHash": "KoJ3J4SAVjUDcvJlcPhBnZoWOXDiVTlQ/kKtaMGhsjkp6AYe6Nlu1pxmVLjvQey8aPxGmnT4rqzKsAB5AvHjeA==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Mvc.Razor.Extensions": "6.0.0",
+          "Microsoft.CodeAnalysis.Razor": "6.0.0",
+          "Microsoft.Extensions.DependencyModel": "9.0.5"
+        }
+      },
+      "Microsoft.CodeAnalysis.CSharp": {
+        "type": "CentralTransitive",
+        "requested": "[5.0.0, )",
+        "resolved": "5.0.0",
+        "contentHash": "5DSyJ9bk+ATuDy7fp2Zt0mJStDVKbBoiz1DyfAwSa+k4H4IwykAUcV3URelw5b8/iVbfSaOwkwmPUZH6opZKCw==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "3.11.0",
+          "Microsoft.CodeAnalysis.Common": "[5.0.0]"
         }
       }
     }

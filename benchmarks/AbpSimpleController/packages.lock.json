@@ -81,16 +81,6 @@
           "Microsoft.CodeAnalysis.Razor": "6.0.0"
         }
       },
-      "Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation": {
-        "type": "Transitive",
-        "resolved": "9.0.5",
-        "contentHash": "KoJ3J4SAVjUDcvJlcPhBnZoWOXDiVTlQ/kKtaMGhsjkp6AYe6Nlu1pxmVLjvQey8aPxGmnT4rqzKsAB5AvHjeA==",
-        "dependencies": {
-          "Microsoft.AspNetCore.Mvc.Razor.Extensions": "6.0.0",
-          "Microsoft.CodeAnalysis.Razor": "6.0.0",
-          "Microsoft.Extensions.DependencyModel": "9.0.5"
-        }
-      },
       "Microsoft.AspNetCore.Razor.Language": {
         "type": "Transitive",
         "resolved": "6.0.0",
@@ -667,6 +657,17 @@
         "dependencies": {
           "Microsoft.Extensions.FileProviders.Embedded": "9.0.5",
           "Volo.Abp.Core": "9.3.1"
+        }
+      },
+      "Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation": {
+        "type": "CentralTransitive",
+        "requested": "[9.0.5, )",
+        "resolved": "9.0.5",
+        "contentHash": "KoJ3J4SAVjUDcvJlcPhBnZoWOXDiVTlQ/kKtaMGhsjkp6AYe6Nlu1pxmVLjvQey8aPxGmnT4rqzKsAB5AvHjeA==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Mvc.Razor.Extensions": "6.0.0",
+          "Microsoft.CodeAnalysis.Razor": "6.0.0",
+          "Microsoft.Extensions.DependencyModel": "9.0.5"
         }
       },
       "Microsoft.CodeAnalysis.CSharp": {

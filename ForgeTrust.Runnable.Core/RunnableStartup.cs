@@ -102,18 +102,40 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
     /// <returns>A host builder configured with the context's application name, registered modules, and service registrations.</returns>
     private IHostBuilder CreateHostBuilderCore(StartupContext context)
     {
-        var builder = Host.CreateDefaultBuilder();
+        var builder = Host.CreateDefaultBuilder(context.Args);
+
+        // Support --port flag as a shortcut for --urls (e.g. --port 5001).
+        // We parse once here and reuse in both Host and App configuration stages.
+        var argConfig = new ConfigurationBuilder().AddCommandLine(context.Args).Build();
+        var portOverlay = !string.IsNullOrEmpty(argConfig["port"])
+            ? new Dictionary<string, string?>
+            {
+                ["urls"] = $"http://localhost:{argConfig["port"]};http://*:{argConfig["port"]}"
+            }
+            : null;
 
         // Ensure the host environment correctly reflects the application name from the context.
         // This is critical for features like Static Web Assets that rely on the application name to find manifests.
-        builder.ConfigureAppConfiguration((hostingContext, _) =>
+        builder.ConfigureAppConfiguration((hostingContext, config) =>
         {
             hostingContext.HostingEnvironment.ApplicationName = context.ApplicationName;
+
+            if (portOverlay != null)
+            {
+                config.AddInMemoryCollection(portOverlay);
+            }
         });
 
         builder.ConfigureHostConfiguration(config =>
+        {
             config.AddInMemoryCollection(
-                new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName }));
+                new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName });
+
+            if (portOverlay != null)
+            {
+                config.AddInMemoryCollection(portOverlay);
+            }
+        });
 
         // Ensure internal services (like Default IEnvironmentProvider) are included first so external modules can override them.
         context.Dependencies.AddModule<Defaults.InternalServicesModule>();

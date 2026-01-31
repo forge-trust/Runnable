@@ -378,11 +378,13 @@
         }
 
         handleMutations(mutations) {
+            // Helper to check if element is relative
+            const isRelative = (el) => el.tagName === 'TIME' && el.getAttribute('data-rw-time-display') === 'relative';
+
             for (const mutation of mutations) {
+                // Handle added nodes
                 for (const node of mutation.addedNodes) {
                     if (node instanceof Element) {
-                        const isRelative = (el) => el.tagName === 'TIME' && el.getAttribute('data-rw-time-display') === 'relative';
-
                         if (node.tagName === 'TIME' && node.hasAttribute('data-rw-time')) {
                             this.format(node);
                             if (isRelative(node) && this.intersectionObserver) this.intersectionObserver.observe(node);
@@ -391,6 +393,22 @@
                             this.format(el);
                             if (isRelative(el) && this.intersectionObserver) this.intersectionObserver.observe(el);
                         });
+                    }
+                }
+
+                // Handle removed nodes to prevent memory leaks
+                if (this.intersectionObserver) {
+                    for (const node of mutation.removedNodes) {
+                        if (node instanceof Element) {
+                            if (node.tagName === 'TIME' && node.hasAttribute('data-rw-time')) {
+                                this.intersectionObserver.unobserve(node);
+                                this.visibleElements.delete(node);
+                            }
+                            node.querySelectorAll('time[data-rw-time]').forEach(el => {
+                                this.intersectionObserver.unobserve(el);
+                                this.visibleElements.delete(el);
+                            });
+                        }
                     }
                 }
             }
@@ -433,7 +451,13 @@
             if (isNaN(date.getTime())) return;
 
             const display = element.getAttribute('data-rw-time-display') || 'time';
-            const formatStyle = element.getAttribute('data-rw-time-format') || 'medium';
+            let formatStyle = element.getAttribute('data-rw-time-format');
+
+            // Validate format style
+            const validFormats = ['short', 'medium', 'long', 'full'];
+            if (!validFormats.includes(formatStyle)) {
+                formatStyle = 'medium';
+            }
 
             let text = '';
             if (display === 'relative') {

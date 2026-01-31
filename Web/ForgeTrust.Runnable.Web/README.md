@@ -78,7 +78,7 @@ You can override the application's listening port using several methods:
     ```
 
 > [!NOTE]
-> The `--port` flag is a convenience shortcut that maps to `http://+:{port}`. If both `--port` and `--urls` are provided, `--port` takes precedence.
+> The `--port` flag is a convenience shortcut that maps to `http://localhost:{port};http://*:{port}`. This ensures the application is accessible on all interfaces while logging a clickable `localhost` URL in the console. If both `--port` and `--urls` are provided, `--port` takes precedence.
 
 ---
 [📂 Back to Web List](../README.md) | [🏠 Back to Root](../../README.md)

@@ -67,13 +67,18 @@ public class LocalTimeTagHelper : TagHelper
         }
 
         output.TagMode = TagMode.StartTagAndEndTag;
-        output.Content.SetContent(Value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC"));
 
-        // Ensure datetime attribute is in ISO 8601 format
-        output.Attributes.SetAttribute("datetime", Value.ToUniversalTime().ToString("o"));
+        var utcTime = Value.ToUniversalTime();
+        var fallbackContent = utcTime.ToString("yyyy-MM-dd HH:mm:ss UTC");
+        var isoTimestamp = utcTime.ToString("o");
+
+        // TagHelperOutput handles HTML encoding for both attributes and content automatically.
+        // We use local variables here for clarity and defense-in-depth.
+        output.Content.SetContent(fallbackContent);
+        output.Attributes.SetAttribute("datetime", isoTimestamp);
 
         // Add data attribute to signal JavaScript formatting
-        output.Attributes.SetAttribute("data-rw-time", "");
+        output.Attributes.SetAttribute("data-rw-time", string.Empty);
 
         // Add display mode if not default
         if (!string.Equals(Display, "time", StringComparison.OrdinalIgnoreCase))

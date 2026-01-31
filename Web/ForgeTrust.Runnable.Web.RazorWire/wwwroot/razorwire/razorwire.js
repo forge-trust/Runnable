@@ -401,7 +401,7 @@
             const formatStyle = element.getAttribute('data-rw-time-format') || 'medium';
 
             let text = '';
-            if (display === 'relative' && this.formatter) {
+            if (display === 'relative') {
                 text = this.getRelativeTime(date);
             } else if (display === 'date') {
                 text = date.toLocaleDateString(undefined, { dateStyle: formatStyle });

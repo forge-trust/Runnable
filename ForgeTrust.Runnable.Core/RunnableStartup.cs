@@ -102,18 +102,37 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
     /// <returns>A host builder configured with the context's application name, registered modules, and service registrations.</returns>
     private IHostBuilder CreateHostBuilderCore(StartupContext context)
     {
-        var builder = Host.CreateDefaultBuilder();
+        var builder = Host.CreateDefaultBuilder(context.Args);
 
         // Ensure the host environment correctly reflects the application name from the context.
         // This is critical for features like Static Web Assets that rely on the application name to find manifests.
-        builder.ConfigureAppConfiguration((hostingContext, _) =>
+        builder.ConfigureAppConfiguration((hostingContext, config) =>
         {
             hostingContext.HostingEnvironment.ApplicationName = context.ApplicationName;
+
+            // Support --port flag as a shortcut for --urls (e.g. --port 5001) in App Configuration
+            var port = config.Build()["port"];
+            if (!string.IsNullOrEmpty(port))
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?> { ["urls"] = $"http://+:{port}" });
+            }
         });
 
         builder.ConfigureHostConfiguration(config =>
+        {
             config.AddInMemoryCollection(
-                new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName }));
+                new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName });
+
+            // Support --port flag as a shortcut for --urls (e.g. --port 5001)
+            // We parse the args directly because CreateDefaultBuilder's command-line provider 
+            // might not be built into the config yet during this callback.
+            var argConfig = new ConfigurationBuilder().AddCommandLine(context.Args).Build();
+            var port = argConfig["port"];
+            if (!string.IsNullOrEmpty(port))
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?> { ["urls"] = $"http://+:{port}" });
+            }
+        });
 
         // Ensure internal services (like Default IEnvironmentProvider) are included first so external modules can override them.
         context.Dependencies.AddModule<Defaults.InternalServicesModule>();

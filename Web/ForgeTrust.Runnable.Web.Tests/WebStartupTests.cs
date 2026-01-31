@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -64,7 +67,7 @@ public class WebStartupTests
         {
             Assert.NotNull(
                 host.Services
-                    .GetService<Microsoft.AspNetCore.Mvc.Infrastructure.IActionDescriptorCollectionProvider>());
+                    .GetService<IActionDescriptorCollectionProvider>());
         }
     }
 
@@ -83,7 +86,7 @@ public class WebStartupTests
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
         using var host = builder.Build();
 
-        Assert.NotNull(host.Services.GetService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsService>());
+        Assert.NotNull(host.Services.GetService<ICorsService>());
     }
 
     [Fact]
@@ -102,7 +105,7 @@ public class WebStartupTests
             var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
             using var host = builder.Build();
 
-            Assert.NotNull(host.Services.GetService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsService>());
+            Assert.NotNull(host.Services.GetService<ICorsService>());
         }
         finally
         {
@@ -132,9 +135,9 @@ public class WebStartupTests
             using var host = builder.Build();
 
             var corsService = host.Services
-                .GetRequiredService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider>();
+                .GetRequiredService<ICorsPolicyProvider>();
             var policy = await corsService.GetPolicyAsync(
-                new Microsoft.AspNetCore.Http.DefaultHttpContext(),
+                new DefaultHttpContext(),
                 "DefaultCorsPolicy");
 
             Assert.NotNull(policy);
@@ -158,6 +161,36 @@ public class WebStartupTests
 
         // Simply building the host confirms web host defaults were configured
         Assert.NotNull(host.Services.GetService<IWebHostEnvironment>());
+    }
+
+    [Fact]
+    public void CreateHostBuilder_UsesArgsForUrlsOverride()
+    {
+        var root = new TestWebModule();
+        var startup = new TestWebStartup(root);
+        // We pass --urls to override the default
+        var context = new StartupContext(["--urls", "http://127.0.0.1:5005"], root);
+
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = builder.Build();
+
+        var config = host.Services.GetRequiredService<IConfiguration>();
+        Assert.Equal("http://127.0.0.1:5005", config["urls"]);
+    }
+
+    [Fact]
+    public void CreateHostBuilder_UsesPortArgOverride()
+    {
+        var root = new TestWebModule();
+        var startup = new TestWebStartup(root);
+        // We pass --port to override with the shortcut
+        var context = new StartupContext(["--port", "5005"], root);
+
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = builder.Build();
+
+        var config = host.Services.GetRequiredService<IConfiguration>();
+        Assert.Equal("http://+:5005", config["urls"]);
     }
 
     [Fact]
@@ -256,13 +289,13 @@ public class WebStartupTests
             using var host = builder.Build();
 
             // Verify CORS service is registered
-            Assert.NotNull(host.Services.GetService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsService>());
+            Assert.NotNull(host.Services.GetService<ICorsService>());
 
             // Verify policy allows any origin
             var corsService = host.Services
-                .GetRequiredService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider>();
+                .GetRequiredService<ICorsPolicyProvider>();
             var policy = await corsService.GetPolicyAsync(
-                new Microsoft.AspNetCore.Http.DefaultHttpContext(),
+                new DefaultHttpContext(),
                 "DefaultCorsPolicy");
 
             Assert.NotNull(policy);
@@ -295,7 +328,7 @@ public class WebStartupTests
             using var host = builder.Build();
 
             // Verify CORS service is registered
-            Assert.NotNull(host.Services.GetService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsService>());
+            Assert.NotNull(host.Services.GetService<ICorsService>());
         }
         finally
         {
@@ -508,7 +541,7 @@ public class WebStartupTests
         using var host = builder.Build();
 
         Assert.Null(
-            host.Services.GetService<Microsoft.AspNetCore.Mvc.Infrastructure.IActionDescriptorCollectionProvider>());
+            host.Services.GetService<IActionDescriptorCollectionProvider>());
     }
 
     [Fact]
@@ -568,9 +601,9 @@ public class WebStartupTests
             using var host = builder.Build();
 
             var corsService = host.Services
-                .GetRequiredService<Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider>();
+                .GetRequiredService<ICorsPolicyProvider>();
             var policy = await corsService.GetPolicyAsync(
-                new Microsoft.AspNetCore.Http.DefaultHttpContext(),
+                new DefaultHttpContext(),
                 "DefaultCorsPolicy");
 
             Assert.NotNull(policy);

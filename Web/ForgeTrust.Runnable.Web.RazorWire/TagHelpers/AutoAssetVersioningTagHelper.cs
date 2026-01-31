@@ -106,6 +106,19 @@ public class AutoAssetVersioningTagHelper : TagHelper
         }
     }
 
+    /// <summary>
+    /// Determines if the provided path is a local path suitable for versioning.
+    /// </summary>
+    /// <param name="path">The path to check.</param>
+    /// <returns>
+    /// <c>true</c> if the path is local (starts with '/' or '~') and is not protocol-relative;
+    /// otherwise, <c>false</c>.
+    /// </returns>
+    /// <remarks>
+    /// Relative paths (e.g. "css/site.css") are excluded because they are ambiguous
+    /// without knowing the current request path context, which complicates server-side resolution.
+    /// Use root-relative ('/') or app-relative ('~') paths for automatic versioning.
+    /// </remarks>
     private static bool IsLocal(string? path)
     {
         if (string.IsNullOrEmpty(path))

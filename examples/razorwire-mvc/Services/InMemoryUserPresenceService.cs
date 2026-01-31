@@ -11,9 +11,24 @@ public class InMemoryUserPresenceService : IUserPresenceService
     private readonly ConcurrentDictionary<string, DateTimeOffset> _userActivity = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Gets or sets the time window within which a user is considered active since their last recorded activity.
+    /// Gets or sets the time window within which a user is considered active since their last recorded activity. Must be a positive duration.
     /// </summary>
-    public TimeSpan ActiveWindow { get; set; } = TimeSpan.FromMinutes(5);
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is less than or equal to <see cref="TimeSpan.Zero"/>.</exception>
+    public TimeSpan ActiveWindow
+    {
+        get;
+        set
+        {
+            if (value <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(ActiveWindow),
+                    "Active window must be a positive duration.");
+            }
+
+            field = value;
+        }
+    } = TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Records the current UTC time as the specified user's last activity in the in-memory store.

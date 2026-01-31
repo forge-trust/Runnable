@@ -20,6 +20,7 @@ public class LocalTimeTagHelperTests
 
         Assert.Equal("time", output.TagName);
         Assert.Equal("2026-01-24T12:30:00.0000000+00:00", output.Attributes["datetime"].Value);
+        Assert.Equal("2026-01-24 12:30:00 UTC", output.Content.GetContent());
     }
 
     [Fact]

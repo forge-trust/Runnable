@@ -10,9 +10,9 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 /// </remarks>
 /// <example>
 /// <code>
-/// &lt;time rw-type="local" datetime="@Model.Timestamp" /&gt;
-/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="relative" /&gt;
-/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="datetime" rw-format="short" /&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp"&gt;@Model.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC")&lt;/time&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="relative"&gt;@Model.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC")&lt;/time&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="datetime" rw-format="short"&gt;@Model.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC")&lt;/time&gt;
 /// </code>
 /// </example>
 [HtmlTargetElement("time", Attributes = "rw-type")]
@@ -67,6 +67,7 @@ public class LocalTimeTagHelper : TagHelper
         }
 
         output.TagMode = TagMode.StartTagAndEndTag;
+        output.Content.SetContent(Value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC"));
 
         // Ensure datetime attribute is in ISO 8601 format
         output.Attributes.SetAttribute("datetime", Value.ToUniversalTime().ToString("o"));

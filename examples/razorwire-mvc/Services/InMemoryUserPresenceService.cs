@@ -10,6 +10,9 @@ public class InMemoryUserPresenceService : IUserPresenceService
 {
     private readonly ConcurrentDictionary<string, DateTimeOffset> _userActivity = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Gets or sets the time window within which a user is considered active since their last recorded activity.
+    /// </summary>
     public TimeSpan ActiveWindow { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>

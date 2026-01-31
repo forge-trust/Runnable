@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace RazorWireWebExample.Controllers;
 
+/// <summary>
+/// A controller that demonstrates stateful navigation and island persistence in RazorWire.
+/// </summary>
 public class NavigationController : Controller
 {
     /// <summary>

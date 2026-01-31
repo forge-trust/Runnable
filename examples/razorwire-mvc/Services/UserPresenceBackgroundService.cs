@@ -4,6 +4,9 @@ using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 namespace RazorWireWebExample.Services;
 
+/// <summary>
+/// A background service that periodically pulses the user presence service and publishes updates to connected clients.
+/// </summary>
 public class UserPresenceBackgroundService : CriticalService
 {
     private readonly IUserPresenceService _presence;
@@ -12,21 +15,12 @@ public class UserPresenceBackgroundService : CriticalService
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(2.5);
 
     /// <summary>
-    /// Initializes a UserPresenceBackgroundService with the services required to poll user presence and publish presence streams.
-    /// </summary>
-    /// <param name="presence">Service that provides user presence pulse data.</param>
-    /// <param name="hub">Hub used to publish RazorWire streams to connected clients.</param>
-    /// <param name="logger">Logger for service diagnostics.</param>
-    /// <summary>
-    /// Initializes a UserPresenceBackgroundService that polls user presence and publishes updates to a RazorWire stream hub.
-    /// </summary>
-    /// <param name="presence">Service that provides presence pulse data (removed users and active count).</param>
-    /// <param name="hub">RazorWire stream hub used to publish built streams to connected clients.</param>
-    /// <summary>
     /// Initializes a background service that monitors user presence and publishes stream updates to connected clients.
     /// </summary>
     /// <param name="presence">Service that pulses presence and provides removed users and the current active user count.</param>
     /// <param name="hub">Hub used to publish RazorWire streams to connected clients.</param>
+    /// <param name="logger">Logger for service diagnostics.</param>
+    /// <param name="applicationLifetime">Lifetime of the host application.</param>
     public UserPresenceBackgroundService(
         IUserPresenceService presence,
         IRazorWireStreamHub hub,
@@ -39,13 +33,6 @@ public class UserPresenceBackgroundService : CriticalService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Continuously pulses the user presence service, removes departed users from the reactive stream, and publishes updates until cancellation is requested.
-    /// </summary>
-    /// <param name="stoppingToken">Token that signals the background loop to stop; when signaled the method exits promptly.</param>
-    /// <summary>
-    /// Periodically polls user presence, removes departed users from the reactive stream, and publishes updates to connected clients via the RazorWire stream hub.
-    /// </summary>
     /// <summary>
     /// Periodically pulses user presence, removes departed users from the reactive stream, and publishes updates to connected clients.
     /// </summary>

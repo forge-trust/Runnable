@@ -7,6 +7,9 @@ using RazorWireWebExample.ViewComponents;
 
 namespace RazorWireWebExample.Controllers;
 
+/// <summary>
+/// A controller that facilitates real-time reactivity, including user registration, chat messaging, and counter synchronization.
+/// </summary>
 public class ReactivityController : Controller
 {
     private readonly IRazorWireStreamHub _hub;

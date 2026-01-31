@@ -1,11 +1,12 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
 using ForgeTrust.Runnable.Web.RazorWire;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Routing;
 
 namespace RazorWireWebExample;
 
+/// <summary>
+/// A module that demonstrates the usage of RazorWire in an ASP.NET Core MVC application.
+/// </summary>
 public class RazorWireExampleModule : IRunnableWebModule
 {
     /// <summary>
@@ -33,7 +34,7 @@ public class RazorWireExampleModule : IRunnableWebModule
     /// </summary>
     /// <param name="context">Contextual information for startup (environment, configuration, module metadata).</param>
     /// <param name="builder">The host builder to modify (e.g., to add configuration sources, logging, or host-level services).</param>
-    public void ConfigureHostBeforeServices(StartupContext context, Microsoft.Extensions.Hosting.IHostBuilder builder)
+    public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
     {
     }
 
@@ -42,7 +43,7 @@ public class RazorWireExampleModule : IRunnableWebModule
     /// </summary>
     /// <param name="context">Contextual information about the startup environment.</param>
     /// <param name="builder">The host builder to modify (e.g., configure hosting, logging, or lifetime) after service registration.</param>
-    public void ConfigureHostAfterServices(StartupContext context, Microsoft.Extensions.Hosting.IHostBuilder builder)
+    public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
     {
     }
 

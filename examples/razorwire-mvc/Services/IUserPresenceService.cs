@@ -8,6 +8,9 @@ namespace RazorWireWebExample.Services;
 /// <param name="LastSeen">The timestamp of the user's last recorded activity.</param>
 public record UserPresenceInfo(string Username, string SafeUsername, DateTimeOffset LastSeen);
 
+/// <summary>
+/// Defines a service for tracking and managing user presence.
+/// </summary>
 public interface IUserPresenceService
 {
     /// <summary>

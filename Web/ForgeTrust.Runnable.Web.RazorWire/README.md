@@ -115,6 +115,22 @@ Enhances a standard form to return Turbo Stream updates.
 </rw:form>
 ```
 
+### `<time>` (Local Time)
+
+Extends the standard HTML5 `<time>` tag to automatically format UTC timestamps to the user's local time.
+- **`rw-type="local"`**: Opt-in attribute to enable RazorWire local time formatting.
+- **`rw-display`**: Display mode. Valid values: `time` (default), `date`, `datetime`, or `relative` (auto-updating).
+- **`rw-format`**: Format style for absolute modes. Valid values: `short`, `medium` (default), `long`, or `full`.
+
+```html
+<!-- Relative auto-updating time (e.g., "5 minutes ago") -->
+<time datetime="@Model.Timestamp" rw-type="local" rw-display="relative" />
+
+<!-- Short local date/time -->
+<time datetime="@Model.Timestamp" rw-type="local" rw-display="datetime" rw-format="short" />
+```
+
+
 ### `rw:scripts`
 
 Injects necessary RazorWire and Turbo client scripts.

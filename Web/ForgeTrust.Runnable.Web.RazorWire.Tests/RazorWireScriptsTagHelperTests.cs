@@ -37,6 +37,12 @@ public class RazorWireScriptsTagHelperTests
     }
 
     [Fact]
+    public void Constructor_WithNullProvider_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new RazorWireScriptsTagHelper(null!));
+    }
+
+    [Fact]
     public void Process_GeneratesScriptTagsWithVersionAndPathBase()
     {
         // Arrange

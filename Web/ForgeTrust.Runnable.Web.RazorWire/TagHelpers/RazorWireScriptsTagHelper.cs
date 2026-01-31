@@ -18,7 +18,7 @@ public class RazorWireScriptsTagHelper : TagHelper
     /// <param name="fileVersionProvider">The file version provider used to append version hashes to script paths.</param>
     public RazorWireScriptsTagHelper(IFileVersionProvider fileVersionProvider)
     {
-        _fileVersionProvider = fileVersionProvider;
+        _fileVersionProvider = fileVersionProvider ?? throw new ArgumentNullException(nameof(fileVersionProvider));
     }
 
     /// <summary>

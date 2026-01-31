@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using ForgeTrust.Runnable.Core.Extensions;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;

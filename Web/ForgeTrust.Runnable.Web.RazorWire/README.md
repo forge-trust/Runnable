@@ -117,7 +117,7 @@ Enhances a standard form to return Turbo Stream updates.
 
 ### `<time>` (Local Time)
 
-Extends the standard HTML5 `<time>` tag to automatically format UTC timestamps to the user's local time.
+The `<time>` TagHelper provides a semantic way to render UTC timestamps that are automatically localized on the client side using the browser's **Intl formatting APIs**. This ensures that users see times in their own timezone and preferred format, with support for relative times (e.g., "5 minutes ago") that update automatically.
 - **`rw-type="local"`**: Opt-in attribute to enable RazorWire local time formatting.
 - **`rw-display`**: Display mode. Valid values: `time` (default), `date`, `datetime`, or `relative` (auto-updating).
 - **`rw-format`**: Format style for absolute modes. Valid values: `short`, `medium` (default), `long`, or `full`.

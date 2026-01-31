@@ -6,7 +6,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 /// Tag helper that renders a <c>&lt;time&gt;</c> element with a UTC timestamp for client-side local time formatting.
 /// </summary>
 /// <remarks>
-/// The JavaScript runtime formats the timestamp to the user's local timezone using the browser's <c>Intl.DateTimeFormat</c> API.
+/// The JavaScript runtime formats the timestamp to the user's local timezone using the browser's Intl formatting APIs.
 /// </remarks>
 /// <example>
 /// <code>

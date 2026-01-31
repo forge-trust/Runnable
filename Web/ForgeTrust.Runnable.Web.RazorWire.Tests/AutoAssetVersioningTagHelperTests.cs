@@ -97,6 +97,23 @@ public class AutoAssetVersioningTagHelperTests
     }
 
     [Fact]
+    public void Process_WithNoOrEmptyRel_DoesNothing()
+    {
+        _output.TagName = "link";
+        // Case 1: No rel attribute
+        _helper.Process(_context, _output);
+        A.CallTo(() => _fileVersionProvider.AddFileVersionToPath(A<PathString>._, A<string>._))
+            .MustNotHaveHappened();
+
+        // Case 2: Empty rel attribute
+        _output.Attributes.SetAttribute("rel", "");
+        _helper.Process(_context, _output);
+
+        A.CallTo(() => _fileVersionProvider.AddFileVersionToPath(A<PathString>._, A<string>._))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
     public void Process_WithMultiTokenRel_AppendsVersion()
     {
         _output.TagName = "link";

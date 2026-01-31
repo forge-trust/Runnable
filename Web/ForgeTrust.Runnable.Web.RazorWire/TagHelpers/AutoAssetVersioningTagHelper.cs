@@ -14,7 +14,11 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 public class AutoAssetVersioningTagHelper : TagHelper
 {
     private const string AspAppendVersionAttributeName = "asp-append-version";
+
     private readonly IFileVersionProvider _fileVersionProvider;
+
+    /// <inheritdoc />
+    public override int Order => 1000; // Run after standard TagHelpers (Order: 0) to avoid double processing
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AutoAssetVersioningTagHelper"/> class.
@@ -38,10 +42,8 @@ public class AutoAssetVersioningTagHelper : TagHelper
     /// <inheritdoc />
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
-        // If the developer explicitly used asp-append-version (true OR false), we verify if it exists in the *HTML* attributes?
-        // No, 'asp-append-version' is processed by standard TagHelpers and removed from output attributes if they run.
-        // However, if standard TagHelpers ran, they would have handled it.
-        // If we want to detect if it was present in the *source*, we check 'context.AllAttributes'.
+        // If 'asp-append-version' is present in the source, standard TagHelpers may handle it.
+        // We check 'context.AllAttributes' because 'output.Attributes' might have it removed by then.
         if (context.AllAttributes.ContainsName(AspAppendVersionAttributeName))
         {
             return;
@@ -110,7 +112,7 @@ public class AutoAssetVersioningTagHelper : TagHelper
             return false;
         }
 
-        if (path.StartsWith("//"))
+        if (path.StartsWith("//") || path.Contains("://"))
         {
             return false;
         }

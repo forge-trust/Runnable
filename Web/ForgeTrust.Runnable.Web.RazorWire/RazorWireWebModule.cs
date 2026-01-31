@@ -1,9 +1,11 @@
 using ForgeTrust.Runnable.Core;
+using ForgeTrust.Runnable.Web.RazorWire.Caching;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using ForgeTrust.Runnable.Web.RazorWire.Caching;
+using Microsoft.Extensions.FileProviders;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
@@ -89,7 +91,31 @@ public class RazorWireWebModule : IRunnableWebModule
     /// <param name="app">Application builder used to configure the HTTP request pipeline.</param>
     public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
     {
+#if DEBUG
+        ConfigureDevelopmentStaticFiles(context, app);
+#endif
+
         app.UseOutputCache();
+    }
+
+    private static void ConfigureDevelopmentStaticFiles(StartupContext context, IApplicationBuilder app)
+    {
+        if (context.IsDevelopment)
+        {
+            var env = app.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
+            var libraryWebRoot = Path.GetFullPath(
+                Path.Combine(env.ContentRootPath, "..", "..", "Web", "ForgeTrust.Runnable.Web.RazorWire", "wwwroot"));
+
+            if (Directory.Exists(libraryWebRoot))
+            {
+                app.UseStaticFiles(
+                    new StaticFileOptions
+                    {
+                        FileProvider = new PhysicalFileProvider(libraryWebRoot),
+                        RequestPath = "/_content/ForgeTrust.Runnable.Web.RazorWire"
+                    });
+            }
+        }
     }
 
     /// <summary>

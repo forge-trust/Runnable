@@ -104,17 +104,22 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
     {
         var builder = Host.CreateDefaultBuilder(context.Args);
 
+        // Support --port flag as a shortcut for --urls (e.g. --port 5001).
+        // We parse once here and reuse in both Host and App configuration stages.
+        var argConfig = new ConfigurationBuilder().AddCommandLine(context.Args).Build();
+        var portOverlay = !string.IsNullOrEmpty(argConfig["port"])
+            ? new Dictionary<string, string?> { ["urls"] = $"http://+:{argConfig["port"]}" }
+            : null;
+
         // Ensure the host environment correctly reflects the application name from the context.
         // This is critical for features like Static Web Assets that rely on the application name to find manifests.
         builder.ConfigureAppConfiguration((hostingContext, config) =>
         {
             hostingContext.HostingEnvironment.ApplicationName = context.ApplicationName;
 
-            // Support --port flag as a shortcut for --urls (e.g. --port 5001) in App Configuration
-            var port = config.Build()["port"];
-            if (!string.IsNullOrEmpty(port))
+            if (portOverlay != null)
             {
-                config.AddInMemoryCollection(new Dictionary<string, string?> { ["urls"] = $"http://+:{port}" });
+                config.AddInMemoryCollection(portOverlay);
             }
         });
 
@@ -123,14 +128,9 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
             config.AddInMemoryCollection(
                 new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName });
 
-            // Support --port flag as a shortcut for --urls (e.g. --port 5001)
-            // We parse the args directly because CreateDefaultBuilder's command-line provider 
-            // might not be built into the config yet during this callback.
-            var argConfig = new ConfigurationBuilder().AddCommandLine(context.Args).Build();
-            var port = argConfig["port"];
-            if (!string.IsNullOrEmpty(port))
+            if (portOverlay != null)
             {
-                config.AddInMemoryCollection(new Dictionary<string, string?> { ["urls"] = $"http://+:{port}" });
+                config.AddInMemoryCollection(portOverlay);
             }
         });
 

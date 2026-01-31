@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using Xunit;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Tests;
 
@@ -29,7 +28,7 @@ public class RazorWireScriptsTagHelperTests
         _output = new TagHelperOutput(
             "rw:scripts",
             new TagHelperAttributeList(),
-            (useCachedResult, encoder) => Task.FromResult<TagHelperContent>(new DefaultTagHelperContent()));
+            (_, _) => Task.FromResult<TagHelperContent>(new DefaultTagHelperContent()));
 
         var httpContext = new DefaultHttpContext();
         httpContext.Request.PathBase = "/my-app";

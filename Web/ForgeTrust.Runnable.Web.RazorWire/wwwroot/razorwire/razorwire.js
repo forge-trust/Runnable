@@ -332,15 +332,17 @@
             this.updateInterval = null;
             this.isStarted = false;
             this.visibleElements = new Set();
-            this.intersectionObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        this.visibleElements.add(entry.target);
-                    } else {
-                        this.visibleElements.delete(entry.target);
-                    }
-                });
-            });
+            this.intersectionObserver = typeof IntersectionObserver !== 'undefined'
+                ? new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            this.visibleElements.add(entry.target);
+                        } else {
+                            this.visibleElements.delete(entry.target);
+                        }
+                    });
+                })
+                : null;
         }
 
         start() {
@@ -383,11 +385,11 @@
 
                         if (node.tagName === 'TIME' && node.hasAttribute('data-rw-time')) {
                             this.format(node);
-                            if (isRelative(node)) this.intersectionObserver.observe(node);
+                            if (isRelative(node) && this.intersectionObserver) this.intersectionObserver.observe(node);
                         }
                         node.querySelectorAll('time[data-rw-time]').forEach(el => {
                             this.format(el);
-                            if (isRelative(el)) this.intersectionObserver.observe(el);
+                            if (isRelative(el) && this.intersectionObserver) this.intersectionObserver.observe(el);
                         });
                     }
                 }
@@ -396,21 +398,31 @@
 
         formatAll() {
             this.visibleElements.clear();
-            this.intersectionObserver.disconnect();
+            if (this.intersectionObserver) {
+                this.intersectionObserver.disconnect();
+            }
 
             document.querySelectorAll('time[data-rw-time]').forEach(el => {
                 this.format(el);
-                if (el.getAttribute('data-rw-time-display') === 'relative') {
+                if (el.getAttribute('data-rw-time-display') === 'relative' && this.intersectionObserver) {
                     this.intersectionObserver.observe(el);
                 }
             });
         }
 
         formatRelativeOnly() {
-            // Optimized update: only target elements that are relative AND visible in viewport
-            this.visibleElements.forEach(el => {
-                this.format(el);
-            });
+            if (this.intersectionObserver) {
+                // Optimized update: only target elements that are relative AND visible in viewport
+                this.visibleElements.forEach(el => {
+                    this.format(el);
+                });
+            } else {
+                // Fallback for environments without IntersectionObserver support: update all relative elements
+                const selector = 'time[data-rw-time][data-rw-time-display="relative"]';
+                document.querySelectorAll(selector).forEach(el => {
+                    this.format(el);
+                });
+            }
         }
 
         format(element) {

@@ -108,7 +108,10 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
         // We parse once here and reuse in both Host and App configuration stages.
         var argConfig = new ConfigurationBuilder().AddCommandLine(context.Args).Build();
         var portOverlay = !string.IsNullOrEmpty(argConfig["port"])
-            ? new Dictionary<string, string?> { ["urls"] = $"http://+:{argConfig["port"]}" }
+            ? new Dictionary<string, string?>
+            {
+                ["urls"] = $"http://localhost:{argConfig["port"]};http://*:{argConfig["port"]}"
+            }
             : null;
 
         // Ensure the host environment correctly reflects the application name from the context.

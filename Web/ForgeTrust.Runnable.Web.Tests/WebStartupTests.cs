@@ -190,7 +190,7 @@ public class WebStartupTests
         using var host = builder.Build();
 
         var config = host.Services.GetRequiredService<IConfiguration>();
-        Assert.Equal("http://+:5005", config["urls"]);
+        Assert.Equal("http://localhost:5005;http://*:5005", config["urls"]);
     }
 
     [Fact]

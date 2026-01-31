@@ -44,6 +44,10 @@ Forms are enhanced to perform partial page updates without full reloads.
 
 2.  **Open the demo**:
     Navigate to `http://localhost:5233` (or the port indicated in the console).
+    
+    > **Note**: To enable Razor Runtime Compilation and live static asset updates (e.g. for `razorwire.js`), ensure the application is running in the `Development` environment (e.g. `ASPNETCORE_ENVIRONMENT=Development`). This allows you to edit views and internal scripts and see changes on refresh without rebuilding.
+    >
+    > **Tip**: Local assets (like `site.js` and `site.css`) automatically receive version hashes for cache busting. You can still use `asp-append-version="true"` explicitly if desired.
 3.  **Test Reactivity**:
     *   Open the app in multiple browser tabs.
     *   Join with a username in one tab.

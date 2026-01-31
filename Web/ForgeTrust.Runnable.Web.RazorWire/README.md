@@ -56,7 +56,16 @@ return this.RazorWireStream()
     .BuildResult();
 ```
 
+
+## Development Experience
+
+RazorWire is designed for a fast feedback loop during development. When running in the `Development` environment:
+
+*   **Live Razor Views**: Razor Runtime Compilation is automatically enabled, so you can edit `.cshtml` files and see changes on refresh without rebuilding.
+*   **Versioned Assets**: Scripts and stylesheets referenced with local paths (e.g., `~/js/site.js`) automatically receive version hashes for reliable cache busting, without needing `asp-append-version="true"`.
+
 ## API Reference
+
 
 ### `RazorWireBridge`
 

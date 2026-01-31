@@ -1,9 +1,12 @@
 using ForgeTrust.Runnable.Core;
+using ForgeTrust.Runnable.Web.RazorWire.Caching;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using ForgeTrust.Runnable.Web.RazorWire.Caching;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
@@ -19,9 +22,20 @@ public class RazorWireWebModule : IRunnableWebModule
     /// <param name="options">Web options to configure; may be modified to raise Mvc.MvcSupportLevel to ControllersWithViews if it is lower.</param>
     public void ConfigureWebOptions(StartupContext context, WebOptions options)
     {
-        if (options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews)
+        var needsRuntimeCompilation = context.IsDevelopment;
+        var needsMvcUpgrade = options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews;
+
+        if (needsRuntimeCompilation || needsMvcUpgrade)
         {
-            options.Mvc = options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews };
+            // Even if only 'needsRuntimeCompilation' is true, we recreate the options record
+            // to pass both flags. This simplifies the logic by handling all upgrades in one place.
+            options.Mvc = options.Mvc with
+            {
+                MvcSupportLevel = needsMvcUpgrade ? MvcSupport.ControllersWithViews : options.Mvc.MvcSupportLevel,
+                ConfigureMvc = needsRuntimeCompilation
+                    ? options.Mvc.ConfigureMvc + (builder => builder.AddRazorRuntimeCompilation())
+                    : options.Mvc.ConfigureMvc
+            };
         }
     }
 
@@ -80,7 +94,40 @@ public class RazorWireWebModule : IRunnableWebModule
     /// <param name="app">Application builder used to configure the HTTP request pipeline.</param>
     public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
     {
+#if DEBUG
+        // Only map source files for hot reload when the library itself is compiled in DEBUG mode.
+        // This prevents Release builds from attempting to serve source files even if the consuming app is in Development.
+        ConfigureDevelopmentStaticFiles(context, app);
+#endif
+
         app.UseOutputCache();
+    }
+
+    private static void ConfigureDevelopmentStaticFiles(StartupContext context, IApplicationBuilder app)
+    {
+        if (context.IsDevelopment)
+        {
+            var env = app.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
+            var libraryWebRoot = Path.GetFullPath(
+                Path.Combine(env.ContentRootPath, "..", "..", "Web", "ForgeTrust.Runnable.Web.RazorWire", "wwwroot"));
+
+            if (Directory.Exists(libraryWebRoot))
+            {
+                app.UseStaticFiles(
+                    new StaticFileOptions
+                    {
+                        FileProvider = new PhysicalFileProvider(libraryWebRoot),
+                        RequestPath = "/_content/ForgeTrust.Runnable.Web.RazorWire"
+                    });
+            }
+            else
+            {
+                var logger = app.ApplicationServices.GetService<ILogger<RazorWireWebModule>>();
+                logger?.LogDebug(
+                    "RazorWire development static assets directory not found at: {LibraryWebRoot}",
+                    libraryWebRoot);
+            }
+        }
     }
 
     /// <summary>

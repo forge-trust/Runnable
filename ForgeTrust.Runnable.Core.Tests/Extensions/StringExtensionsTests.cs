@@ -9,7 +9,7 @@ public class StringExtensionsTests
     {
         var input = "preload  stylesheet   alternate";
         var result = input.SplitOnWhiteSpace();
-        
+
         Assert.Equal(new[] { "preload", "stylesheet", "alternate" }, result);
     }
 
@@ -18,7 +18,7 @@ public class StringExtensionsTests
     {
         var input = "preload\tstylesheet\talternate";
         var result = input.SplitOnWhiteSpace();
-        
+
         Assert.Equal(new[] { "preload", "stylesheet", "alternate" }, result);
     }
 
@@ -27,14 +27,15 @@ public class StringExtensionsTests
     {
         var input = "preload \t stylesheet \n alternate \r\n icon";
         var result = input.SplitOnWhiteSpace();
-        
+
         Assert.Equal(new[] { "preload", "stylesheet", "alternate", "icon" }, result);
     }
 
     [Fact]
     public void SplitOnWhiteSpace_WithNullOrEmpty_ReturnsEmptyArray()
     {
-        Assert.Empty(((string?)null)!.SplitOnWhiteSpace());
+        string? input = null;
+        Assert.Empty(input.SplitOnWhiteSpace());
         Assert.Empty(string.Empty.SplitOnWhiteSpace());
         Assert.Empty("   ".SplitOnWhiteSpace());
     }
@@ -44,7 +45,7 @@ public class StringExtensionsTests
     {
         var input = "stylesheet";
         var result = input.SplitOnWhiteSpace();
-        
+
         Assert.Single(result);
         Assert.Equal("stylesheet", result[0]);
     }

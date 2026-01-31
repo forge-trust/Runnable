@@ -95,6 +95,8 @@ public class RazorWireWebModule : IRunnableWebModule
     public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
     {
 #if DEBUG
+        // Only map source files for hot reload when the library itself is compiled in DEBUG mode.
+        // This prevents Release builds from attempting to serve source files even if the consuming app is in Development.
         ConfigureDevelopmentStaticFiles(context, app);
 #endif
 

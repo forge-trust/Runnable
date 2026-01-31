@@ -85,7 +85,7 @@ public class AutoAssetVersioningTagHelper : TagHelper
         }
 
         var isStylesheet = relValue
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .SplitOnWhiteSpace()
             .Any(t => string.Equals(t, "stylesheet", StringComparison.OrdinalIgnoreCase));
 
         if (!isStylesheet)

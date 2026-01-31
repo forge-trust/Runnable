@@ -155,4 +155,19 @@ public class AutoAssetVersioningTagHelperTests
         A.CallTo(() => _fileVersionProvider.AddFileVersionToPath(A<PathString>._, A<string>._))
             .MustNotHaveHappened();
     }
+
+    [Fact]
+    public void Process_WithTabSeparatedRel_AppendsVersion()
+    {
+        _output.TagName = "link";
+        _output.Attributes.SetAttribute("rel", "stylesheet\tpreload");
+        _output.Attributes.SetAttribute("href", "/css/site.css");
+
+        A.CallTo(() => _fileVersionProvider.AddFileVersionToPath("/app", "/css/site.css"))
+            .Returns("/css/site.css?v=tab");
+
+        _helper.Process(_context, _output);
+
+        Assert.Equal("/css/site.css?v=tab", _output.Attributes["href"].Value);
+    }
 }

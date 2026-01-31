@@ -76,8 +76,17 @@ public class AutoAssetVersioningTagHelper : TagHelper
     private void ProcessLink(TagHelperOutput output, PathString pathBase)
     {
         // Only version stylesheets
-        var rel = output.Attributes["rel"]?.Value?.ToString();
-        if (!string.Equals(rel, "stylesheet", StringComparison.OrdinalIgnoreCase))
+        var relAttribute = output.Attributes["rel"];
+        if (relAttribute?.Value is not string relValue)
+        {
+            return;
+        }
+
+        var isStylesheet = relValue
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Any(t => string.Equals(t, "stylesheet", StringComparison.OrdinalIgnoreCase));
+
+        if (!isStylesheet)
         {
             return;
         }

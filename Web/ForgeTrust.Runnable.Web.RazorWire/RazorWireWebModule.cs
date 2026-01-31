@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
@@ -116,6 +117,13 @@ public class RazorWireWebModule : IRunnableWebModule
                         FileProvider = new PhysicalFileProvider(libraryWebRoot),
                         RequestPath = "/_content/ForgeTrust.Runnable.Web.RazorWire"
                     });
+            }
+            else
+            {
+                var logger = app.ApplicationServices.GetService<ILogger<RazorWireWebModule>>();
+                logger?.LogDebug(
+                    "RazorWire development static assets directory not found at: {LibraryWebRoot}",
+                    libraryWebRoot);
             }
         }
     }

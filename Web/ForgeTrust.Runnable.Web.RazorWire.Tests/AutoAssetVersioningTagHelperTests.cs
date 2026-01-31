@@ -97,6 +97,21 @@ public class AutoAssetVersioningTagHelperTests
     }
 
     [Fact]
+    public void Process_WithMultiTokenRel_AppendsVersion()
+    {
+        _output.TagName = "link";
+        _output.Attributes.SetAttribute("rel", "preload stylesheet");
+        _output.Attributes.SetAttribute("href", "~/css/site.css");
+
+        A.CallTo(() => _fileVersionProvider.AddFileVersionToPath("/app", "~/css/site.css"))
+            .Returns("~/css/site.css?v=hashed");
+
+        _helper.Process(_context, _output);
+
+        Assert.Equal("~/css/site.css?v=hashed", _output.Attributes["href"].Value);
+    }
+
+    [Fact]
     public void Process_WithLocalLinkStylesheet_AppendsVersion()
     {
         _output.TagName = "link";

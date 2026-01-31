@@ -10,9 +10,9 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 /// </remarks>
 /// <example>
 /// <code>
-/// &lt;time rw-type="local" datetime="@Model.Timestamp"&gt;@Model.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC")&lt;/time&gt;
-/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="relative"&gt;@Model.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC")&lt;/time&gt;
-/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="datetime" rw-format="short"&gt;@Model.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC")&lt;/time&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp"&gt;&lt;/time&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="relative"&gt;&lt;/time&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="datetime" rw-format="short"&gt;&lt;/time&gt;
 /// </code>
 /// </example>
 [HtmlTargetElement("time", Attributes = "rw-type")]

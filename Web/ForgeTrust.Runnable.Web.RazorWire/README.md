@@ -124,14 +124,10 @@ Extends the standard HTML5 `<time>` tag to automatically format UTC timestamps t
 
 ```html
 <!-- Relative auto-updating time (e.g., "5 minutes ago") -->
-<time datetime="@Model.Timestamp" rw-type="local" rw-display="relative">
-    @Model.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC")
-</time>
+<time datetime="@Model.Timestamp" rw-type="local" rw-display="relative"></time>
 
 <!-- Short local date/time -->
-<time datetime="@Model.Timestamp" rw-type="local" rw-display="datetime" rw-format="short">
-    @Model.Timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss UTC")
-</time>
+<time datetime="@Model.Timestamp" rw-type="local" rw-display="datetime" rw-format="short"></time>
 ```
 
 

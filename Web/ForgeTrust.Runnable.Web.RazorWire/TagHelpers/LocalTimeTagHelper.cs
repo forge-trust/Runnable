@@ -10,9 +10,9 @@ namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 /// </remarks>
 /// <example>
 /// <code>
-/// &lt;rw:local-time value="@Model.Timestamp" /&gt;
-/// &lt;rw:local-time value="@Model.Timestamp" display="relative" /&gt;
-/// &lt;rw:local-time value="@Model.Timestamp" display="datetime" format="short" /&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp" /&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="relative" /&gt;
+/// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="datetime" rw-format="short" /&gt;
 /// </code>
 /// </example>
 [HtmlTargetElement("time", Attributes = "rw-type")]

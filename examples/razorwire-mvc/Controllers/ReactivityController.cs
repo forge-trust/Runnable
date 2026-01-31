@@ -175,12 +175,6 @@ public class ReactivityController : Controller
     }
 
     /// <summary>
-    /// Broadcasts an updated user-presence stream to connected clients.
-    /// </summary>
-    /// <summary>
-    /// Broadcasts that a user is active to connected clients by recording activity, rendering a RazorWire stream that updates the user list and online count, and publishing it to the "reactivity" channel.
-    /// </summary>
-    /// <summary>
     /// Broadcasts a user's presence to connected clients and updates the rendered user list and count.
     /// </summary>
     /// <param name="username">The display name to mark as active and include in the rendered user list.</param>

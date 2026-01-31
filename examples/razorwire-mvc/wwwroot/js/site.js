@@ -27,6 +27,6 @@
         console.log('✨ View Transition API Supported');
     }
 
-    console.log('✅ RazorWire Diagnostics Initialized');
+    console.log('✅ RazorWire Diagnostics Initialized (RazorWireWebExample)');
 
 })();

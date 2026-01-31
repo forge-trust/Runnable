@@ -6,9 +6,9 @@
     <title>@ViewData["Title"] - RazorWire</title>
     <meta name="view-transition" content="same-origin"/>
     <script src="https://unpkg.com/@@tailwindcss/browser@4.1.18" integrity="sha384-y0axVOJIfo0bJOmTOnyRyUjrqjUotl7L/k6mzSwu2SSrB3r7P+b0cSFkiod+js0X" crossorigin="anonymous"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
     <style type="text/tailwindcss">
         @@theme {
             --font-outfit: "Outfit", ui-sans-serif, system-ui;
@@ -54,7 +54,8 @@
         }
     </style>
     <rw:scripts/>
-    <script src="~/js/site.js" asp-append-version="true" data-turbo-eval="false"></script>
+    <link rel="stylesheet" href="~/css/site.css"/>
+    <script src="~/js/site.js" data-turbo-eval="false"></script>
 </head>
 <body class="h-full flex flex-col font-outfit text-slate-900 overflow-x-hidden">
 <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200">

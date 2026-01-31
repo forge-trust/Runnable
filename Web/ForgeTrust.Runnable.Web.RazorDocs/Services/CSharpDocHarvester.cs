@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Xml.Linq;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -17,7 +18,7 @@ public class CSharpDocHarvester : IDocHarvester
     private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj", "Tests" };
 
     /// <summary>
-    /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the specified logger.
+    /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the provided logger.
     /// </summary>
     public CSharpDocHarvester(ILogger<CSharpDocHarvester> logger)
     {
@@ -25,9 +26,9 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Harvests XML documentation comments from C# source files under the specified root directory into DocNode entries.
+    /// Collects XML documentation from C# source files under the specified root and produces DocNode entries containing titles, relative file paths with anchors, and HTML-formatted content.
     /// </summary>
-    /// <param name="rootPath">The root directory to recursively scan for .cs files; returned DocNode paths are relative to this directory.</param>
+    /// <param name="rootPath">The root directory to recursively scan for .cs files.</param>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>A collection of DocNode objects; each contains a title, a relative file path including a fragment anchor, and the extracted HTML documentation.</returns>
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
@@ -50,75 +51,134 @@ public class CSharpDocHarvester : IDocHarvester
                 var code = await File.ReadAllTextAsync(file, cancellationToken);
                 var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
                 var root = await tree.GetRootAsync(cancellationToken);
+                var relativePath = Path.GetRelativePath(rootPath, file)
+                    .Replace('\\', '/'); // Normalize to forward slashes for URLs
+
+                var fileContent = new StringBuilder();
+                var hasAnyDoc = false;
+                var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
+
+                // Collect stub nodes during content generation to avoid duplicate computation
+                var stubNodes = new List<DocNode>();
 
                 // Capture Classes, Structs, Interfaces, Records
-                var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>();
+                var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>().ToList();
                 foreach (var typeDecl in typeDeclarations)
                 {
-                    var qualifiedName = GetQualifiedName(typeDecl);
                     var doc = ExtractDoc(typeDecl);
                     if (doc != null)
                     {
-                        var safeAnchor = StringUtils.ToSafeId(qualifiedName);
+                        hasAnyDoc = true;
+                        var qualifiedName = GetQualifiedName(typeDecl);
+                        var typeId = StringUtils.ToSafeId(qualifiedName);
 
-                        nodes.Add(
-                            new DocNode(
+                        fileContent.Append(
+                            $@"<section id=""{typeId}"" class=""mb-12 scroll-mt-24"">
+                            <div class=""flex items-center gap-2 mb-4"">
+                                <span class=""px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold uppercase tracking-wider"">Type</span>
+                                <h2 class=""text-2xl font-bold text-white"">{WebUtility.HtmlEncode(typeDecl.Identifier.Text)}</h2>
+                            </div>
+                            <div class=""pl-4 border-l-2 border-slate-800"">
+                                {doc}
+                            </div>
+                        </section>");
+
+                        // Add type stub if name doesn't match filename
+                        if (!string.Equals(
                                 typeDecl.Identifier.Text,
-                                Path.GetRelativePath(rootPath, file) + "#" + safeAnchor,
-                                doc
-                            ));
+                                fileNameWithoutExt,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            stubNodes.Add(
+                                new DocNode(
+                                    typeDecl.Identifier.Text,
+                                    relativePath + "#" + typeId,
+                                    string.Empty,
+                                    relativePath));
+                        }
                     }
 
-                    var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>();
+                    var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>().ToList();
                     foreach (var method in methods)
                     {
                         var methodDoc = ExtractDoc(method);
                         if (methodDoc != null)
                         {
-                            var paramList = string.Join(
-                                ", ",
-                                method.ParameterList.Parameters.Select(p =>
-                                    $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
+                            hasAnyDoc = true;
+                            var qualifiedTypeName = GetQualifiedName(typeDecl);
+                            var (signature, id) = GetMethodSignatureAndId(method, qualifiedTypeName);
 
-                            // Include type parameters (e.g. <T>) and explicit interface (e.g. IMyInterface.) in the signature
-                            var typeParams = method.TypeParameterList?.ToString().Trim() ?? "";
-                            var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? "";
-                            var methodName = explicitInterface + method.Identifier.Text + typeParams;
+                            fileContent.Append(
+                                $@"<section id=""{id}"" class=""mb-8 ml-6 scroll-mt-24"">
+                                <div class=""flex items-center gap-2 mb-2"">
+                                    <span class=""px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider"">Method</span>
+                                    <h3 class=""text-lg font-semibold text-slate-200"">{WebUtility.HtmlEncode(signature)}</h3>
+                                </div>
+                                <div class=""pl-4 border-l-2 border-slate-800/50"">
+                                    {methodDoc}
+                                </div>
+                            </section>");
 
-                            // Readable signature for the UI Title: e.g. "MyMethod<T>(int, string)" or "IMyInterface.MyMethod(int)"
-                            var readableSignature = $"{methodName}({paramList})";
-                            var methodId = $"{qualifiedName}.{readableSignature}";
-
-                            // Sanitized signature for the Anchor/ID: e.g. "MyNamespace-MyClass-MyMethod-T-int-string-"
-                            var anchor = StringUtils.ToSafeId(methodId);
-
-                            nodes.Add(
+                            // Add method stub
+                            stubNodes.Add(
                                 new DocNode(
-                                    methodId, // Title is now readable
-                                    Path.GetRelativePath(rootPath, file) + "#" + anchor, // Path anchor is safe
-                                    methodDoc
-                                ));
+                                    signature,
+                                    relativePath + "#" + id,
+                                    string.Empty,
+                                    relativePath));
                         }
                     }
                 }
 
                 // Capture Enums
-                var enums = root.DescendantNodes().OfType<EnumDeclarationSyntax>();
-                foreach (var @enum in enums)
+                var enumDeclarations = root.DescendantNodes().OfType<EnumDeclarationSyntax>().ToList();
+                foreach (var enumDecl in enumDeclarations)
                 {
-                    var doc = ExtractDoc(@enum);
+                    var doc = ExtractDoc(enumDecl);
                     if (doc != null)
                     {
-                        var qualifiedName = GetQualifiedName(@enum);
-                        var safeAnchor = StringUtils.ToSafeId(qualifiedName);
+                        hasAnyDoc = true;
+                        var qualifiedName = GetQualifiedName(enumDecl);
+                        var enumId = StringUtils.ToSafeId(qualifiedName);
 
-                        nodes.Add(
-                            new DocNode(
-                                @enum.Identifier.Text,
-                                Path.GetRelativePath(rootPath, file) + "#" + safeAnchor,
-                                doc
-                            ));
+                        fileContent.Append(
+                            $@"<section id=""{enumId}"" class=""mb-12 scroll-mt-24"">
+                            <div class=""flex items-center gap-2 mb-4"">
+                                <span class=""px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider"">Enum</span>
+                                <h2 class=""text-2xl font-bold text-white"">{WebUtility.HtmlEncode(enumDecl.Identifier.Text)}</h2>
+                            </div>
+                            <div class=""pl-4 border-l-2 border-slate-800"">
+                                {doc}
+                            </div>
+                        </section>");
+
+                        // Add enum stub if name doesn't match filename
+                        if (!string.Equals(
+                                enumDecl.Identifier.Text,
+                                fileNameWithoutExt,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            stubNodes.Add(
+                                new DocNode(
+                                    enumDecl.Identifier.Text,
+                                    relativePath + "#" + enumId,
+                                    string.Empty,
+                                    relativePath));
+                        }
                     }
+                }
+
+                if (hasAnyDoc)
+                {
+                    // Add the main file node
+                    nodes.Add(
+                        new DocNode(
+                            fileNameWithoutExt,
+                            relativePath,
+                            fileContent.ToString()));
+
+                    // Add all collected stubs
+                    nodes.AddRange(stubNodes);
                 }
             }
             catch (Exception ex)
@@ -131,9 +191,34 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Extracts XML documentation from the given syntax node's leading trivia and produces an HTML fragment containing the encoded <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> content.
+    /// Computes the method signature and safe ID for use in HTML content and stub nodes.
     /// </summary>
-    /// <param name="node">The syntax node whose leading XML documentation trivia will be parsed.</param>
+    /// <param name="method">The method declaration syntax.</param>
+    /// <param name="qualifiedTypeName">The qualified name of the containing type.</param>
+    /// <returns>A tuple containing the method signature and the safe ID.</returns>
+    private static (string Signature, string Id) GetMethodSignatureAndId(
+        MethodDeclarationSyntax method,
+        string qualifiedTypeName)
+    {
+        var paramList = string.Join(
+            ", ",
+            method.ParameterList.Parameters.Select(p =>
+                $"{p.Modifiers.ToString().Trim()} {p.Type?.ToString() ?? "object"}".Trim()));
+
+        var typeParams = method.TypeParameterList?.ToString().Trim() ?? "";
+        var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? "";
+        var methodName = explicitInterface + method.Identifier.Text + typeParams;
+        var signature = $"{methodName}({paramList})";
+
+        var id = StringUtils.ToSafeId($"{qualifiedTypeName}.{signature}");
+
+        return (signature, id);
+    }
+
+    /// <summary>
+    /// Extracts XML documentation from the leading trivia of a syntax node and converts the <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> elements into HTML fragments.
+    /// </summary>
+    /// <param name="node">The syntax node whose leading XML documentation comments will be parsed.</param>
     /// <returns>The HTML string containing encoded summary and remarks, or <c>null</c> if no documentation is present or parsing fails.</returns>
     private string? ExtractDoc(SyntaxNode node)
     {

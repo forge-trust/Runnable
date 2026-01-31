@@ -36,8 +36,9 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
+        // Now returns: 1 File Node. The Type Node "Included" is suppressed because it matches the filename "Included".
         Assert.Single(results);
-        Assert.Contains(results, n => n.Title == "Included");
+        Assert.Contains(results, n => n.Title == "Included" && string.IsNullOrEmpty(n.ParentPath));
         Assert.DoesNotContain(results, n => n.Title == "Ignored");
     }
 
@@ -69,11 +70,22 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        Assert.Contains(results, n => n.Title == "MyClass" && n.Content.Contains("Class Summary"));
-        Assert.Contains(results, n => n.Title == "MyRecord" && n.Content.Contains("Record Summary"));
-        Assert.Contains(results, n => n.Title == "MyStruct" && n.Content.Contains("Struct Summary"));
-        Assert.Contains(results, n => n.Title == "IMyInterface" && n.Content.Contains("Interface Summary"));
-        Assert.Contains(results, n => n.Title == "MyEnum" && n.Content.Contains("Enum Summary"));
+        // 1 File Node + 5 Type Nodes = 6 nodes
+        Assert.Equal(6, results.Count);
+
+        var fileNode = results.First(n => n.Title == "Types");
+        Assert.Contains("Class Summary", fileNode.Content);
+        Assert.Contains("Record Summary", fileNode.Content);
+        Assert.Contains("Struct Summary", fileNode.Content);
+        Assert.Contains("Interface Summary", fileNode.Content);
+        Assert.Contains("Enum Summary", fileNode.Content);
+
+        // Sub-nodes should exist but have empty content (navigation stubs)
+        // With correct parent path (Types.cs)
+        // Note: ID generation now includes namespace, so we don't assert exact path suffix here, just parent/title.
+        Assert.Contains(
+            results,
+            n => n.Title == "MyClass" && string.IsNullOrEmpty(n.Content) && n.ParentPath == "Types.cs");
     }
 
     [Fact]
@@ -112,13 +124,13 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        var methodNode = results.FirstOrDefault(n => n.Title.StartsWith("Test.SignatureTest.MyMethod"));
+        // Sub-node title for method is just the signature
+        var methodNode = results.FirstOrDefault(n => n.Title == "MyMethod(int, string, ref bool)");
         Assert.NotNull(methodNode);
+        Assert.Equal("MyMethod(int, string, ref bool)", methodNode.Title);
 
-        // Check readable Title: "Test.SignatureTest.MyMethod(int, string, ref bool)"
-        Assert.Equal("Test.SignatureTest.MyMethod(int, string, ref bool)", methodNode.Title);
-
-        // Expect sanitized ID from ToSafeId
+        // Expect sanitized ID including namespace (Test.SignatureTest.MyMethod...)
+        // ToSafeId replaces dots with hyphens: Test-SignatureTest-MyMethod-int-string-ref-bool
         Assert.EndsWith("#Test-SignatureTest-MyMethod-int-string-ref-bool", methodNode.Path);
     }
 
@@ -144,6 +156,9 @@ public class Calculator
 
         // Act
         var results = await _harvester.HarvestAsync(_testRoot);
+        // Look for method nodes (Calculator is file, Calculator is type (suppressed matching file?), Methods are nodes)
+        // Wait, if Calculator matches filename Calculator.cs (without ext), type node is suppressed.
+        // So we only see File node + 2 Method nodes.
         var processNodes = results.Where(n => n.Title.Contains("Process")).ToList();
 
         // Assert: Should have two distinct Process methods
@@ -177,16 +192,29 @@ namespace NamespaceB
 ");
 
         // Act
-        var results = await _harvester.HarvestAsync(_testRoot);
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // We expect ONE file node (Collision)
+        // AND TWO type nodes (SharedName). 
+        // Note: Filename "Collision" does NOT match "SharedName", so both are kept.
         var types = results.Where(n => n.Title == "SharedName").ToList();
 
         // Assert
         Assert.Equal(2, types.Count);
         Assert.NotEqual(types[0].Path, types[1].Path);
 
-        // Verify qualified anchors
-        Assert.Contains("#NamespaceA-SharedName", types.Single(t => t.Content.Contains("Summary A")).Path);
-        Assert.Contains("#NamespaceB-SharedName", types.Single(t => t.Content.Contains("Summary B")).Path);
+        // Verify qualified anchors in their PATHs (stubs)
+        // One should be #NamespaceA-SharedName, other #NamespaceB-SharedName
+        var pathA = types.Any(t => t.Path.EndsWith("#NamespaceA-SharedName"));
+        var pathB = types.Any(t => t.Path.EndsWith("#NamespaceB-SharedName"));
+
+        Assert.True(pathA, "Should contain anchor for NamespaceA.SharedName");
+        Assert.True(pathB, "Should contain anchor for NamespaceB.SharedName");
+
+        // Also verify the CONTENT in the file node has the correct IDs
+        var fileNode = results.Single(n => n.Title == "Collision");
+        Assert.Contains("id=\"NamespaceA-SharedName\"", fileNode.Content);
+        Assert.Contains("id=\"NamespaceB-SharedName\"", fileNode.Content);
     }
 
     [Fact]
@@ -203,13 +231,19 @@ namespace NamespaceB
 
         // Act
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
-        var node = results.Single(n => n.Title == "RemarksTest");
+
+        // Type name "RemarksTest" != Filename "Remarks" -> Type node exists
+        var node = results.Last(n => n.Title == "RemarksTest");
+        // Note: The STUB node has empty content. The FILE node has the content.
+        // In consolidated architecture, the type node is a stub pointing to the file.
+
+        var fileNode = results.Single(n => n.Title == "Remarks");
 
         // Assert
-        Assert.Contains("<div class='doc-summary", node.Content);
-        Assert.Contains("Summary", node.Content);
-        Assert.Contains("<div class='doc-remarks", node.Content);
-        Assert.Contains("Remarks here", node.Content);
+        Assert.Contains("<div class='doc-summary", fileNode.Content);
+        Assert.Contains("Summary", fileNode.Content);
+        Assert.Contains("<div class='doc-remarks", fileNode.Content);
+        Assert.Contains("Remarks here", fileNode.Content);
     }
 
     [Fact]
@@ -227,26 +261,28 @@ namespace NamespaceB
 
         // Act
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var fileNode = results.Single(n => n.Title == "Nested");
 
         // Assert
-        // We expect "Outer.Inner" in Title (if logic supports it) or check Path which contains nesting
-        Assert.Contains(results, n => n.Path.Contains("Outer-Inner") && n.Content.Contains("Inner Summary"));
+        // Check content for inner summary
+        Assert.Contains("Inner Summary", fileNode.Content);
+
+        // Check for nested ID: Test.Outer.Inner -> Test-Outer-Inner
+        Assert.Contains("id=\"Test-Outer-Inner\"", fileNode.Content);
     }
 
     [Fact]
     public async Task HarvestAsync_ShouldHandleExceptionDuringFileProcessing()
     {
         // Arrange
-        // I'll try to create a file and then make it unreadable
         var filePath = Path.Combine(_testRoot, "Exception.cs");
         await File.WriteAllTextAsync(filePath, "docs");
 
+        // Skip on Windows - this test requires Unix file permissions
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+
         // On macOS/Linux, we can use chmod 000
-        // File.SetUnixFileMode is available in .NET 7+, but throws on Windows.
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            File.SetUnixFileMode(filePath, UnixFileMode.None);
-        }
+        File.SetUnixFileMode(filePath, UnixFileMode.None);
 
         // Act
         try
@@ -254,12 +290,10 @@ namespace NamespaceB
             var results = await _harvester.HarvestAsync(_testRoot);
 
             // Assert
-            // Should not throw, should just log and continue (empty in this case)
             Assert.Empty(results);
         }
         finally
         {
-            // Restore permissions so it can be deleted during Dispose
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 File.SetUnixFileMode(filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);

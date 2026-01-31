@@ -331,6 +331,16 @@
                 : null;
             this.updateInterval = null;
             this.isStarted = false;
+            this.visibleElements = new Set();
+            this.intersectionObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        this.visibleElements.add(entry.target);
+                    } else {
+                        this.visibleElements.delete(entry.target);
+                    }
+                });
+            });
         }
 
         start() {
@@ -354,6 +364,7 @@
         startTimer() {
             if (this.updateInterval) return;
             // Update every 30 seconds to keep relative times (like "just now") fresh
+            // Only updates elements currently visible in the viewport
             this.updateInterval = setInterval(() => this.formatRelativeOnly(), 30000);
         }
 
@@ -368,11 +379,15 @@
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node instanceof Element) {
+                        const isRelative = (el) => el.tagName === 'TIME' && el.getAttribute('data-rw-time-display') === 'relative';
+
                         if (node.tagName === 'TIME' && node.hasAttribute('data-rw-time')) {
                             this.format(node);
+                            if (isRelative(node)) this.intersectionObserver.observe(node);
                         }
                         node.querySelectorAll('time[data-rw-time]').forEach(el => {
                             this.format(el);
+                            if (isRelative(el)) this.intersectionObserver.observe(el);
                         });
                     }
                 }
@@ -380,16 +395,20 @@
         }
 
         formatAll() {
+            this.visibleElements.clear();
+            this.intersectionObserver.disconnect();
+
             document.querySelectorAll('time[data-rw-time]').forEach(el => {
                 this.format(el);
+                if (el.getAttribute('data-rw-time-display') === 'relative') {
+                    this.intersectionObserver.observe(el);
+                }
             });
         }
 
         formatRelativeOnly() {
-            // Optimized update: only target elements that are relative
-            // The helper no longer manages stream dependencies (responsibility of ConnectionManager)
-            const selector = 'time[data-rw-time][data-rw-time-display="relative"]';
-            document.querySelectorAll(selector).forEach(el => {
+            // Optimized update: only target elements that are relative AND visible in viewport
+            this.visibleElements.forEach(el => {
                 this.format(el);
             });
         }

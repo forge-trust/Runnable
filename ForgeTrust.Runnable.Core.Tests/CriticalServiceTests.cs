@@ -1,6 +1,7 @@
-using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+namespace ForgeTrust.Runnable.Core.Tests;
 
 [Collection("NoParallel")]
 public class CriticalServiceTests
@@ -13,13 +14,18 @@ public class CriticalServiceTests
         var svc = new TestCriticalService(_ => Task.CompletedTask, logger, lifetime);
         var previous = Environment.ExitCode;
 
-        await svc.InvokeExecuteAsync(CancellationToken.None);
+        try
+        {
+            await svc.InvokeExecuteAsync(CancellationToken.None);
 
-        Assert.Equal(1, lifetime.StopCalled);
-        Assert.Equal(previous, Environment.ExitCode);
-        Assert.DoesNotContain(logger.Entries, e => e.Level == LogLevel.Critical);
-
-        Environment.ExitCode = previous;
+            Assert.Equal(1, lifetime.StopCalled);
+            Assert.Equal(previous, Environment.ExitCode);
+            Assert.DoesNotContain(logger.Entries, e => e.Level == LogLevel.Critical);
+        }
+        finally
+        {
+            Environment.ExitCode = previous;
+        }
     }
 
     [Fact]
@@ -30,13 +36,97 @@ public class CriticalServiceTests
         var svc = new TestCriticalService(_ => throw new InvalidOperationException("fail"), logger, lifetime);
         var previous = Environment.ExitCode;
 
-        await svc.InvokeExecuteAsync(CancellationToken.None);
+        try
+        {
+            await svc.InvokeExecuteAsync(CancellationToken.None);
 
-        Assert.Equal(1, lifetime.StopCalled);
-        Assert.Equal(-1, Environment.ExitCode);
-        Assert.Contains(logger.Entries, e => e.Level == LogLevel.Critical && e.Exception is InvalidOperationException);
+            Assert.Equal(1, lifetime.StopCalled);
+            Assert.Equal(-1, Environment.ExitCode);
+            Assert.Contains(
+                logger.Entries,
+                e => e.Level == LogLevel.Critical && e.Exception is InvalidOperationException);
+        }
+        finally
+        {
+            Environment.ExitCode = previous;
+        }
+    }
 
-        Environment.ExitCode = previous;
+    [Fact]
+    public async Task ExecuteAsync_OperationCanceledException_Requested_GracefulShutdown()
+    {
+        var logger = new TestLogger<TestCriticalService>();
+        var lifetime = new TestLifetime();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel(); // Simulate shutdown requested
+
+        var svc = new TestCriticalService(_ => throw new OperationCanceledException(cts.Token), logger, lifetime);
+        var previous = Environment.ExitCode;
+
+        try
+        {
+            await svc.InvokeExecuteAsync(cts.Token);
+
+            Assert.Equal(1, lifetime.StopCalled);
+            Assert.Equal(previous, Environment.ExitCode);
+            Assert.DoesNotContain(logger.Entries, e => e.Level == LogLevel.Critical);
+        }
+        finally
+        {
+            Environment.ExitCode = previous;
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_TaskCanceledException_Requested_GracefulShutdown()
+    {
+        var logger = new TestLogger<TestCriticalService>();
+        var lifetime = new TestLifetime();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel(); // Simulate shutdown requested
+
+        var svc = new TestCriticalService(
+            _ => throw new TaskCanceledException(null, null, cts.Token),
+            logger,
+            lifetime);
+        var previous = Environment.ExitCode;
+
+        try
+        {
+            await svc.InvokeExecuteAsync(cts.Token);
+
+            Assert.Equal(1, lifetime.StopCalled);
+            Assert.Equal(previous, Environment.ExitCode);
+            Assert.DoesNotContain(logger.Entries, e => e.Level == LogLevel.Critical);
+        }
+        finally
+        {
+            Environment.ExitCode = previous;
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_OperationCanceledException_NotRequested_CriticalFailure()
+    {
+        var logger = new TestLogger<TestCriticalService>();
+        var lifetime = new TestLifetime();
+        var svc = new TestCriticalService(_ => throw new OperationCanceledException("unexpected"), logger, lifetime);
+        var previous = Environment.ExitCode;
+
+        try
+        {
+            await svc.InvokeExecuteAsync(CancellationToken.None);
+
+            Assert.Equal(1, lifetime.StopCalled);
+            Assert.Equal(-1, Environment.ExitCode);
+            Assert.Contains(
+                logger.Entries,
+                e => e.Level == LogLevel.Critical && e.Exception is OperationCanceledException);
+        }
+        finally
+        {
+            Environment.ExitCode = previous;
+        }
     }
 
     private class TestLogger<T> : ILogger<T>

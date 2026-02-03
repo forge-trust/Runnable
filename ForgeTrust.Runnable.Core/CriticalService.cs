@@ -35,13 +35,14 @@ public abstract partial class CriticalService : BackgroundService
             LogInitialize(_serviceType);
             await RunAsync(stoppingToken);
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Expected during shutdown
+        }
         catch (Exception ex)
         {
-            if (!stoppingToken.IsCancellationRequested || !(ex is TaskCanceledException))
-            {
-                LogException(ex, _serviceType);
-                Environment.ExitCode = -1;
-            }
+            LogException(ex, _serviceType);
+            Environment.ExitCode = -1;
         }
         finally
         {

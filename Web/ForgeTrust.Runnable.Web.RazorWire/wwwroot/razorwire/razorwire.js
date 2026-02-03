@@ -299,8 +299,10 @@
 
                 if (state === 'connected' || (state === 'connecting' && el.tagName === 'TURBO-FRAME')) {
                     el.removeAttribute('disabled');
+                    el.removeAttribute('aria-disabled');
                 } else {
                     el.setAttribute('disabled', 'disabled');
+                    el.setAttribute('aria-disabled', 'true');
                 }
             });
         }
@@ -315,15 +317,213 @@
         }
     }
 
-    // Initialize
-    const connectionManager = new ConnectionManager();
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => connectionManager.start());
-    } else {
-        connectionManager.start();
+    /**
+     * LocalTimeFormatter - Formats UTC timestamps to user's local timezone
+     * Handles <time data-rw-time> elements with support for:
+     * - display: time (default), date, datetime, relative
+     * - format: short, medium (default), long, full
+     */
+    class LocalTimeFormatter {
+        constructor() {
+            this.observer = new MutationObserver(mutations => this.handleMutations(mutations));
+            this.formatter = typeof Intl !== 'undefined' && Intl.RelativeTimeFormat
+                ? new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+                : null;
+            this.updateInterval = null;
+            this.isStarted = false;
+            this.visibleElements = new Set();
+            this.intersectionObserver = typeof IntersectionObserver !== 'undefined'
+                ? new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            this.visibleElements.add(entry.target);
+                        } else {
+                            this.visibleElements.delete(entry.target);
+                        }
+                    });
+                })
+                : null;
+        }
+
+        start() {
+            if (this.isStarted) return;
+            this.isStarted = true;
+
+            this.formatAll();
+            this.observer.observe(document.body, { childList: true, subtree: true });
+
+            // Re-format on Turbo navigations
+            document.addEventListener('turbo:load', () => this.formatAll());
+            document.addEventListener('turbo:render', () => {
+                this.observer.disconnect();
+                this.observer.observe(document.body, { childList: true, subtree: true });
+                this.formatAll();
+            });
+
+            this.startTimer();
+        }
+
+        startTimer() {
+            if (this.updateInterval) return;
+            // Update every 30 seconds to keep relative times (like "just now") fresh
+            // Only updates elements currently visible in the viewport
+            this.updateInterval = setInterval(() => this.formatRelativeOnly(), 30000);
+        }
+
+        stopTimer() {
+            if (this.updateInterval) {
+                clearInterval(this.updateInterval);
+                this.updateInterval = null;
+            }
+        }
+
+        handleMutations(mutations) {
+            // Helper to check if element is relative
+            const isRelative = (el) => el.tagName === 'TIME' && el.getAttribute('data-rw-time-display') === 'relative';
+
+            for (const mutation of mutations) {
+                // Handle added nodes
+                for (const node of mutation.addedNodes) {
+                    if (node instanceof Element) {
+                        if (node.tagName === 'TIME' && node.hasAttribute('data-rw-time')) {
+                            this.format(node);
+                            if (isRelative(node) && this.intersectionObserver) this.intersectionObserver.observe(node);
+                        }
+                        node.querySelectorAll('time[data-rw-time]').forEach(el => {
+                            this.format(el);
+                            if (isRelative(el) && this.intersectionObserver) this.intersectionObserver.observe(el);
+                        });
+                    }
+                }
+
+                // Handle removed nodes to prevent memory leaks
+                if (this.intersectionObserver) {
+                    for (const node of mutation.removedNodes) {
+                        if (node instanceof Element) {
+                            if (node.tagName === 'TIME' && node.hasAttribute('data-rw-time')) {
+                                this.intersectionObserver.unobserve(node);
+                                this.visibleElements.delete(node);
+                            }
+                            node.querySelectorAll('time[data-rw-time]').forEach(el => {
+                                this.intersectionObserver.unobserve(el);
+                                this.visibleElements.delete(el);
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        formatAll() {
+            this.visibleElements.clear();
+            if (this.intersectionObserver) {
+                this.intersectionObserver.disconnect();
+            }
+
+            document.querySelectorAll('time[data-rw-time]').forEach(el => {
+                this.format(el);
+                if (el.getAttribute('data-rw-time-display') === 'relative' && this.intersectionObserver) {
+                    this.intersectionObserver.observe(el);
+                }
+            });
+        }
+
+        formatRelativeOnly() {
+            if (this.intersectionObserver) {
+                // Optimized update: only target elements that are relative AND visible in viewport
+                this.visibleElements.forEach(el => {
+                    this.format(el);
+                });
+            } else {
+                // Fallback for environments without IntersectionObserver support: update all relative elements
+                const selector = 'time[data-rw-time][data-rw-time-display="relative"]';
+                document.querySelectorAll(selector).forEach(el => {
+                    this.format(el);
+                });
+            }
+        }
+
+        format(element) {
+            const dateStr = element.getAttribute('datetime');
+            if (!dateStr) return;
+
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return;
+
+            const display = element.getAttribute('data-rw-time-display') || 'time';
+            let formatStyle = element.getAttribute('data-rw-time-format');
+
+            // Validate format style
+            const validFormats = ['short', 'medium', 'long', 'full'];
+            if (!validFormats.includes(formatStyle)) {
+                formatStyle = 'medium';
+            }
+
+            let text = '';
+            if (display === 'relative') {
+                text = this.getRelativeTime(date);
+            } else if (display === 'date') {
+                text = date.toLocaleDateString(undefined, { dateStyle: formatStyle });
+            } else if (display === 'datetime') {
+                text = date.toLocaleString(undefined, { dateStyle: formatStyle, timeStyle: formatStyle });
+            } else {
+                // Default to time
+                text = date.toLocaleTimeString(undefined, { timeStyle: formatStyle });
+            }
+
+            if (text) {
+                element.textContent = text;
+            }
+        }
+
+        getRelativeTime(date) {
+            const now = Date.now();
+            const diff = date.getTime() - now;
+            const absDiff = Math.abs(diff);
+            const seconds = Math.round(diff / 1000);
+            const minutes = Math.round(diff / 60000);
+            const hours = Math.round(diff / 3600000);
+            const days = Math.round(diff / 86400000);
+
+            // Use Intl.RelativeTimeFormat if available
+            if (this.formatter) {
+                // Special handling for "just now" / "in a moment" to match user preference
+                // Intl typically returns "in 0 seconds" or "0 seconds ago"
+                if (absDiff < 60000) {
+                    return diff >= 0 ? 'in a moment' : 'just now';
+                }
+
+                if (Math.abs(minutes) < 60) return this.formatter.format(minutes, 'minute');
+                if (Math.abs(hours) < 24) return this.formatter.format(hours, 'hour');
+                return this.formatter.format(days, 'day');
+            }
+
+            // Fallback for environments without Intl support
+            const abs = Math.abs;
+            if (abs(seconds) < 60) return diff >= 0 ? 'in a moment' : 'just now';
+            if (abs(minutes) < 60) return minutes >= 0 ? `in ${minutes} min` : `${abs(minutes)} min ago`;
+            if (abs(hours) < 24) return hours >= 0 ? `in ${hours} hr` : `${abs(hours)} hr ago`;
+            return days >= 0 ? `in ${days} days` : `${abs(days)} days ago`;
+        }
+
+
     }
 
-    window.RazorWire = { connectionManager };
+    // Initialize
+    const connectionManager = new ConnectionManager();
+    const localTimeFormatter = new LocalTimeFormatter();
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            connectionManager.start();
+            localTimeFormatter.start();
+        });
+    } else {
+        connectionManager.start();
+        localTimeFormatter.start();
+    }
+
+    window.RazorWire = { connectionManager, localTimeFormatter };
     // Global safeguard: Block clicks on disabled elements or their children even if pointer-events are enabled
     document.addEventListener('click', (e) => {
         const selector = '[disabled], [aria-disabled="true"], [data-rw-requires-stream][disabled]';

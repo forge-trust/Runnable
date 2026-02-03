@@ -3,6 +3,9 @@ using RazorWireWebExample.Services;
 
 namespace RazorWireWebExample.ViewComponents;
 
+/// <summary>
+/// A view component that renders a list of active users, optionally recording the current user's activity.
+/// </summary>
 public class UserListViewComponent : ViewComponent
 {
     private readonly IUserPresenceService _presence;

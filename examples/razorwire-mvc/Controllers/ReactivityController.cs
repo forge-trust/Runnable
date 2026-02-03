@@ -7,6 +7,9 @@ using RazorWireWebExample.ViewComponents;
 
 namespace RazorWireWebExample.Controllers;
 
+/// <summary>
+/// A controller that facilitates real-time reactivity, including user registration, chat messaging, and counter synchronization.
+/// </summary>
 public class ReactivityController : Controller
 {
     private readonly IRazorWireStreamHub _hub;
@@ -109,7 +112,8 @@ public class ReactivityController : Controller
         }
 
         // 1. Publish message to SSE
-        var time = DateTimeOffset.UtcNow.ToString("T");
+        // Use ISO 8601 format for client-side local time conversion
+        var utcTime = DateTimeOffset.UtcNow.ToString("o");
 
         // HTML-encode user input to prevent XSS attacks
         var encodedDisplayName = System.Net.WebUtility.HtmlEncode(displayName);
@@ -119,7 +123,7 @@ public class ReactivityController : Controller
 <li class='p-4 rounded-2xl bg-white border border-slate-100 flex flex-col gap-1 transition-all hover:shadow-sm group animate-in slide-in-from-bottom-2 duration-300'>
     <div class='flex items-center justify-between'>
         <span class='text-xs font-bold text-indigo-600 uppercase tracking-tight'>{encodedDisplayName}</span>
-        <span class='text-[10px] font-medium text-slate-400 tabular-nums'>{time}</span>
+        <time datetime='{utcTime}' data-rw-time class='text-[10px] font-medium text-slate-400 tabular-nums'></time>
     </div>
     <p class='text-sm text-slate-700 leading-relaxed'>{encodedMessage}</p>
 </li>";

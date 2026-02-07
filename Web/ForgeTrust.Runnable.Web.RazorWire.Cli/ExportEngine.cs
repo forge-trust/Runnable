@@ -104,7 +104,7 @@ public class ExportEngine : IDisposable
     }
 
     /// <summary>
-    /// Fetches the HTML for the specified route from the base URL, writes the rendered page to the output directory, and enqueues any discovered internal links and turbo-frame sources for further export.
+    /// Fetches the HTML or asset for the specified route from the base URL, writes the file to the output directory, and enqueues any discovered internal links for further export.
     /// </summary>
     private async Task ExportRouteAsync(string route, ExportContext context, CancellationToken cancellationToken)
     {
@@ -120,17 +120,38 @@ public class ExportEngine : IDisposable
                 return;
             }
 
-            var html = await response.Content.ReadAsStringAsync(cancellationToken);
-
             // Save file
             var filePath = MapRouteToFilePath(route, context.OutputPath);
             var dirPath = Path.GetDirectoryName(filePath);
-            if (dirPath != null && !Directory.Exists(dirPath)) Directory.CreateDirectory(dirPath);
-            await File.WriteAllTextAsync(filePath, html, cancellationToken);
+            if (dirPath != null && !Directory.Exists(dirPath))
+            {
+                Directory.CreateDirectory(dirPath);
+            }
 
-            // Extract links and frames
-            ExtractLinks(html, context);
-            ExtractFrames(html, context);
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+            var isHtml = contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase);
+
+            if (isHtml)
+            {
+                var html = await response.Content.ReadAsStringAsync(cancellationToken);
+                await File.WriteAllTextAsync(filePath, html, cancellationToken);
+
+                // Extract links, frames, and assets only from HTML
+                ExtractLinks(html, context);
+                ExtractFrames(html, context);
+                ExtractAssets(html, context);
+            }
+            else
+            {
+                // Binary export for assets (images, css, js, fonts)
+                await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                await using var fileStream = new FileStream(
+                    filePath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None);
+                await contentStream.CopyToAsync(fileStream, cancellationToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -229,6 +250,36 @@ public class ExportEngine : IDisposable
         foreach (var src in targets)
         {
             if (TryGetNormalizedRoute(src, out var normalized) && !context.Visited.Contains(normalized))
+            {
+                context.Queue.Enqueue(normalized);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts root-relative asset references (scripts, styles, images) from the provided HTML and enqueues each unvisited path for export.
+    /// </summary>
+    /// <param name="html">HTML content to scan.</param>
+    /// <param name="context">The export context.</param>
+    private void ExtractAssets(string html, ExportContext context)
+    {
+        // <script src="...">
+        var scripts = Regex.Matches(html, @"<script[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value.Trim());
+
+        // <link href="..."> (mostly for stylesheets, but also icons etc)
+        var links = Regex.Matches(html, @"<link[^>]*\shref\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value.Trim());
+
+        // <img src="...">
+        var images = Regex.Matches(html, @"<img[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value.Trim());
+
+        var allAssets = scripts.Concat(links).Concat(images);
+
+        foreach (var asset in allAssets)
+        {
+            if (TryGetNormalizedRoute(asset, out var normalized) && !context.Visited.Contains(normalized))
             {
                 context.Queue.Enqueue(normalized);
             }

@@ -102,7 +102,11 @@ public class ExportEngine : IDisposable
             var route = context.Queue.Dequeue();
             _logger.LogDebug("Processing route: {Route}", route);
 
-            if (context.Visited.Contains(route)) continue;
+            if (context.Visited.Contains(route))
+            {
+                continue;
+            }
+
             context.Visited.Add(route);
 
             await ExportRouteAsync(route, context, cancellationToken);

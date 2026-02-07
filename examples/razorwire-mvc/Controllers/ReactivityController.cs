@@ -62,7 +62,7 @@ public class ReactivityController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RegisterUser([FromForm] string username)
     {
-        string trimmedUsername = "";
+        var trimmedUsername = string.Empty;
 
         if (!string.IsNullOrWhiteSpace(username))
         {

@@ -12,7 +12,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 /// <summary>
 /// Implements <see cref="IRazorPartialRenderer"/> using the Razor view engine.
 /// </summary>
-internal class RazorPartialRenderer : IRazorPartialRenderer
+public class RazorPartialRenderer : IRazorPartialRenderer
 {
     private readonly IRazorViewEngine _viewEngine;
     private readonly ITempDataDictionaryFactory _tempDataFactory;

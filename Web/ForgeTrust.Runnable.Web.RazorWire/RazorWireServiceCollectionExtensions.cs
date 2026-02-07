@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
+using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
@@ -11,7 +12,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire;
 public static class RazorWireServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers RazorWire options and default RazorWire services into the provided <see cref="IServiceCollection"/>.
+    /// Registers RazorWire options and default RazorWire services, including <see cref="IRazorPartialRenderer"/>, into the provided <see cref="IServiceCollection"/>.
     /// </summary>
     /// <param name="services">The service collection to register RazorWire services into.</param>
     /// <param name="configure">Optional action to configure <see cref="RazorWireOptions"/>; if null, default options are used.</param>
@@ -29,6 +30,7 @@ public static class RazorWireServiceCollectionExtensions
 
         services.TryAddSingleton<IRazorWireStreamHub, InMemoryRazorWireStreamHub>();
         services.TryAddSingleton<IRazorWireChannelAuthorizer, DefaultRazorWireChannelAuthorizer>();
+        services.TryAddSingleton<IRazorPartialRenderer, RazorPartialRenderer>();
 
         return services;
     }

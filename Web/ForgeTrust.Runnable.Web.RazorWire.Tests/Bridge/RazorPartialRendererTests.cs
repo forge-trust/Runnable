@@ -12,40 +12,20 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Tests.Bridge;
 public class RazorPartialRendererTests
 {
     private readonly IRazorViewEngine _viewEngine;
-    private readonly ITempDataDictionaryFactory _tempDataFactory;
-    private readonly IServiceScopeFactory _serviceScopeFactory;
-    private readonly IServiceScope _serviceScope;
-    private readonly IServiceProvider _serviceProvider;
     private readonly RazorPartialRenderer _sut;
 
     public RazorPartialRendererTests()
     {
         _viewEngine = A.Fake<IRazorViewEngine>();
-        _tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
-        _serviceScopeFactory = A.Fake<IServiceScopeFactory>();
-        _serviceScope = A.Fake<IServiceScope>();
-        _serviceProvider = A.Fake<IServiceProvider>();
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        var serviceScopeFactory = A.Fake<IServiceScopeFactory>();
+        var serviceScope = A.Fake<IServiceScope>();
+        var serviceProvider = A.Fake<IServiceProvider>();
 
-        A.CallTo(() => _serviceScopeFactory.CreateScope()).Returns(_serviceScope);
-        A.CallTo(() => _serviceScope.ServiceProvider).Returns(_serviceProvider);
+        A.CallTo(() => serviceScopeFactory.CreateScope()).Returns(serviceScope);
+        A.CallTo(() => serviceScope.ServiceProvider).Returns(serviceProvider);
 
-        // FakeItEasy for IServiceScopeFactory extension method CreateAsyncScope
-        // Since CreateAsyncScope is an extension method, we mock CreateScope which it calls internally or sets up the factory to return a scope that implements IAsyncDisposable
-        // However, CreateAsyncScope returns an AsyncServiceScope structure which wraps the scope. 
-        // We need to ensure the mock returns a scope that can be disposed asynchronously.
-
-        // Simpler approach: Mock CreateScope and ensure the returned IServiceScope works. 
-        // But wait, CreateAsyncScope is what is called. 
-        // Let's assume standard mocking of CreateScope is sufficient if CreateAsyncScope relies on it, 
-        // but typically extension methods can't be mocked directly. 
-        // We might need to ensure the mocked IServiceScope also implements IAsyncDisposable if we use 'await using'.
-        // Standard IServiceScope inherits IDisposable. 
-        // Let's rely on FakeItEasy to handle the interface.
-
-        // Actually, CreateAsyncScope creates an AsyncServiceScope struct. It calls CreateScope on the factory.
-        // So mocking CreateScope should be enough.
-
-        _sut = new RazorPartialRenderer(_viewEngine, _tempDataFactory, _serviceScopeFactory);
+        _sut = new RazorPartialRenderer(_viewEngine, tempDataFactory, serviceScopeFactory);
     }
 
     [Fact]
@@ -81,8 +61,14 @@ public class RazorPartialRendererTests
         A.CallTo(() => _viewEngine.FindView(A<ActionContext>._, viewName, false))
             .Returns(viewEngineResult);
 
-        // Act & Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _sut.RenderPartialToStringAsync(viewName));
+        // Act
+        var exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(() => _sut.RenderPartialToStringAsync(viewName));
+
+        // Assert
+        Assert.Contains(viewName, exception.Message);
+        Assert.Contains("Location1", exception.Message);
+        Assert.Contains("Location2", exception.Message);
     }
 
     [Fact]

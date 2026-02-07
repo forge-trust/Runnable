@@ -4,6 +4,7 @@ using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
 using RazorWireWebExample.Services;
 using RazorWireWebExample.ViewComponents;
+using RazorWireWebExample.Models;
 
 namespace RazorWireWebExample.Controllers;
 
@@ -115,7 +116,7 @@ public class ReactivityController : Controller
         var viewContext = this.CreateViewContext();
         var streamHtml = await RazorWireBridge.CreateStream()
             .Remove("messages-empty")
-            .PrependPartial("messages", "_MessageItem", (displayName, utcTime, message))
+            .PrependPartial("messages", "_MessageItem", new MessageItemModel(displayName, utcTime, message))
             .RenderAsync(viewContext);
 
         await _hub.PublishAsync("reactivity", streamHtml);

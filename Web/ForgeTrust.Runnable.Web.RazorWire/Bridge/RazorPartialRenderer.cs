@@ -35,9 +35,25 @@ internal class RazorPartialRenderer : IRazorPartialRenderer
     }
 
     /// <inheritdoc />
-    public async Task<string> RenderPartialToStringAsync(string viewName, object? model = null)
+    /// <remarks>
+    /// <para>
+    /// Because this method executes outside of an HTTP request context, it uses a blank <see cref="ActionContext"/>
+    /// (with empty <see cref="RouteData"/> and <see cref="ActionDescriptor"/>). As a result, the
+    /// <see cref="IRazorViewEngine"/> may not be able to locate views that are scoped to a specific controller
+    /// (e.g., <c>Views/ControllerName/ViewName.cshtml</c>) unless the full path is provided (e.g., <c>~/Views/Reactivity/_MyPartial.cshtml</c>).
+    /// Shared views (e.g., <c>Views/Shared/_MyPartial.cshtml</c>) are generally resolvable by name.
+    /// </para>
+    /// </remarks>
+    public async Task<string> RenderPartialToStringAsync(
+        string viewName,
+        object? model = null,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var httpContext = new DefaultHttpContext { RequestServices = _serviceProvider };
+        httpContext.RequestAborted = cancellationToken;
+
         var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
 
         await using var sw = new StringWriter();

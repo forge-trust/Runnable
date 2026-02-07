@@ -1,18 +1,10 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using Microsoft.AspNetCore.Routing;
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using Xunit;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Tests.Bridge;
 
@@ -91,5 +83,43 @@ public class RazorPartialRendererTests
         // Assert
         Assert.NotNull(capturedContext);
         Assert.Same(model, capturedContext!.ViewData.Model);
+    }
+
+    [Fact]
+    public async Task RenderPartialToStringAsync_ShouldThrowOperationCanceledException_WhenCancelled()
+    {
+        // Arrange
+        var viewName = "CancelledView";
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            _sut.RenderPartialToStringAsync(viewName, cancellationToken: cts.Token));
+    }
+
+    [Fact]
+    public async Task RenderPartialToStringAsync_ShouldPropagateCancellationTokenToHttpContext_WhenProvided()
+    {
+        // Arrange
+        var viewName = "ViewWithToken";
+        var view = A.Fake<IView>();
+        ViewContext? capturedContext = null;
+        using var cts = new CancellationTokenSource();
+
+        var viewEngineResult = ViewEngineResult.Found(viewName, view);
+        A.CallTo(() => _viewEngine.FindView(A<ActionContext>._, viewName, false))
+            .Returns(viewEngineResult);
+
+        A.CallTo(() => view.RenderAsync(A<ViewContext>._))
+            .Invokes((ViewContext context) => capturedContext = context)
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _sut.RenderPartialToStringAsync(viewName, cancellationToken: cts.Token);
+
+        // Assert
+        Assert.NotNull(capturedContext);
+        Assert.Equal(cts.Token, capturedContext!.HttpContext.RequestAborted);
     }
 }

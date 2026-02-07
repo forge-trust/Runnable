@@ -66,7 +66,9 @@ public class UserPresenceBackgroundService : CriticalService
 
                     if (activeCount == 0)
                     {
-                        var emptyHtml = await _renderer.RenderPartialToStringAsync("_UserListEmpty");
+                        var emptyHtml = await _renderer.RenderPartialToStringAsync(
+                            "_UserListEmpty",
+                            cancellationToken: stoppingToken);
 
                         stream.Append("active-user-list", emptyHtml);
                     }

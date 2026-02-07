@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -16,22 +17,22 @@ internal class RazorPartialRenderer : IRazorPartialRenderer
 {
     private readonly IRazorViewEngine _viewEngine;
     private readonly ITempDataDictionaryFactory _tempDataFactory;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RazorPartialRenderer"/> class.
     /// </summary>
     /// <param name="viewEngine">The Razor view engine used to locate partials.</param>
     /// <param name="tempDataFactory">The factory used to create temporary data dictionaries for rendering.</param>
-    /// <param name="serviceProvider">The service provider used to resolve dependencies for the rendering context.</param>
+    /// <param name="serviceScopeFactory">The factory used to create service scopes for the rendering context.</param>
     public RazorPartialRenderer(
         IRazorViewEngine viewEngine,
         ITempDataDictionaryFactory tempDataFactory,
-        IServiceProvider serviceProvider)
+        IServiceScopeFactory serviceScopeFactory)
     {
         _viewEngine = viewEngine;
         _tempDataFactory = tempDataFactory;
-        _serviceProvider = serviceProvider;
+        _serviceScopeFactory = serviceScopeFactory;
     }
 
     /// <inheritdoc />
@@ -51,7 +52,8 @@ internal class RazorPartialRenderer : IRazorPartialRenderer
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var httpContext = new DefaultHttpContext { RequestServices = _serviceProvider };
+        await using var scope = _serviceScopeFactory.CreateAsyncScope();
+        var httpContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
         httpContext.RequestAborted = cancellationToken;
 
         var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
@@ -61,7 +63,10 @@ internal class RazorPartialRenderer : IRazorPartialRenderer
 
         if (!viewResult.Success)
         {
-            throw new InvalidOperationException($"Could not find view with name '{viewName}'.");
+            var searchedLocations = string.Join(Environment.NewLine, viewResult.SearchedLocations);
+
+            throw new InvalidOperationException(
+                $"Could not find view with name '{viewName}'. Searched locations:{Environment.NewLine}{searchedLocations}");
         }
 
         var viewDictionary =

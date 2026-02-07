@@ -93,6 +93,8 @@ public class ExportEngine : IDisposable
             "Crawl starting from {BaseUrl} with {Count} seed routes.",
             context.BaseUrl,
             context.Queue.Count);
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         while (context.Queue.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -105,6 +107,9 @@ public class ExportEngine : IDisposable
 
             await ExportRouteAsync(route, context, cancellationToken);
         }
+
+        sw.Stop();
+        _logger.LogInformation("Export completed in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
     }
 
     /// <summary>

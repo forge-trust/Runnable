@@ -12,10 +12,6 @@ public class ExportEngine : IDisposable
     private readonly ILogger<ExportEngine> _logger;
     private readonly HttpClient _client = new();
 
-    /// <summary>
-    /// Initializes a new instance of <see cref="ExportEngine"/> using the specified logger.
-    /// </summary>
-    /// <param name="logger">Logger used for informational and error messages produced by the export engine.</param>
     public ExportEngine(ILogger<ExportEngine> logger)
     {
         _logger = logger;
@@ -33,6 +29,11 @@ public class ExportEngine : IDisposable
     /// <exception cref="FileNotFoundException">Thrown when <see cref="ExportContext.SeedRoutesPath"/> is specified but the file does not exist.</exception>
     public async Task RunAsync(ExportContext context, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation(
+            "RunAsync started. BaseUrl: {BaseUrl}, OutputPath: {OutputPath}",
+            context.BaseUrl,
+            context.OutputPath);
+
         // 1. Seed routes
         if (!string.IsNullOrEmpty(context.SeedRoutesPath))
         {
@@ -84,12 +85,16 @@ public class ExportEngine : IDisposable
             context.Queue.Enqueue("/");
         }
 
-        context.Console.Output.WriteLine($"Crawling from {context.BaseUrl}...");
+        _logger.LogInformation(
+            "Crawl starting from {BaseUrl} with {Count} seed routes.",
+            context.BaseUrl,
+            context.Queue.Count);
         while (context.Queue.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var route = context.Queue.Dequeue();
+            _logger.LogInformation("Processing route: {Route}", route);
 
             if (context.Visited.Contains(route)) continue;
             context.Visited.Add(route);
@@ -103,14 +108,14 @@ public class ExportEngine : IDisposable
     /// </summary>
     private async Task ExportRouteAsync(string route, ExportContext context, CancellationToken cancellationToken)
     {
-        context.Console.Output.WriteLine($"  -> {route}");
+        _logger.LogInformation("Exporting route: {Route}", route);
 
         try
         {
             using var response = await _client.GetAsync($"{context.BaseUrl}{route}", cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                context.Console.Error.WriteLine($"  !! Failed to fetch {route}: {response.StatusCode}");
+                _logger.LogWarning("Failed to fetch {Route}: {StatusCode}", route, response.StatusCode);
 
                 return;
             }
@@ -133,7 +138,7 @@ public class ExportEngine : IDisposable
         }
         catch (Exception ex)
         {
-            context.Console.Error.WriteLine($"  !! Error exporting {route}: {ex.Message}");
+            _logger.LogError(ex, "Error exporting {Route}", route);
         }
     }
 

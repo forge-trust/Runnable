@@ -12,6 +12,10 @@ public class ExportEngine : IDisposable
     private readonly ILogger<ExportEngine> _logger;
     private readonly HttpClient _client = new();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExportEngine"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance.</param>
     public ExportEngine(ILogger<ExportEngine> logger)
     {
         _logger = logger;
@@ -94,7 +98,7 @@ public class ExportEngine : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
 
             var route = context.Queue.Dequeue();
-            _logger.LogInformation("Processing route: {Route}", route);
+            _logger.LogDebug("Processing route: {Route}", route);
 
             if (context.Visited.Contains(route)) continue;
             context.Visited.Add(route);
@@ -112,7 +116,10 @@ public class ExportEngine : IDisposable
 
         try
         {
-            using var response = await _client.GetAsync($"{context.BaseUrl}{route}", cancellationToken);
+            using var response = await _client.GetAsync(
+                $"{context.BaseUrl}{route}",
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Failed to fetch {Route}: {StatusCode}", route, response.StatusCode);
@@ -128,8 +135,8 @@ public class ExportEngine : IDisposable
                 Directory.CreateDirectory(dirPath);
             }
 
-            var contentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
-            var isHtml = contentType.Contains("text/html", StringComparison.OrdinalIgnoreCase);
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            var isHtml = string.Equals(contentType, "text/html", StringComparison.OrdinalIgnoreCase);
 
             if (isHtml)
             {
@@ -149,7 +156,9 @@ public class ExportEngine : IDisposable
                     filePath,
                     FileMode.Create,
                     FileAccess.Write,
-                    FileShare.None);
+                    FileShare.None,
+                    bufferSize: 4096,
+                    useAsync: true);
                 await contentStream.CopyToAsync(fileStream, cancellationToken);
             }
         }
@@ -225,7 +234,8 @@ public class ExportEngine : IDisposable
     /// <param name="context">The export context.</param>
     private void ExtractLinks(string html, ExportContext context)
     {
-        var targets = Regex.Matches(html, @"href\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        // Only match <a href="..."> not <link href="..."> which is handled by ExtractAssets
+        var targets = Regex.Matches(html, @"<a[^>]*\shref\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
             .Select(m => m.Groups[2].Value.Trim());
 
         foreach (var href in targets)
@@ -267,7 +277,7 @@ public class ExportEngine : IDisposable
         var scripts = Regex.Matches(html, @"<script[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
             .Select(m => m.Groups[2].Value.Trim());
 
-        // <link href="..."> (mostly for stylesheets, but also icons etc)
+        // <link href="..."> (stylesheets, icons, etc)
         var links = Regex.Matches(html, @"<link[^>]*\shref\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
             .Select(m => m.Groups[2].Value.Trim());
 
@@ -275,13 +285,57 @@ public class ExportEngine : IDisposable
         var images = Regex.Matches(html, @"<img[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
             .Select(m => m.Groups[2].Value.Trim());
 
-        var allAssets = scripts.Concat(links).Concat(images);
+        // <img srcset="...">
+        // Matches "srcset=" then captures content in quotes.
+        var srcsets = Regex.Matches(html, @"<img[^>]*\ssrcset\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .SelectMany(m => ParseSrcSet(m.Groups[2].Value));
 
-        foreach (var asset in allAssets)
+        // CSS url(...) in <style> blocks
+        // 1. Extract style block content
+        var styleBlocks = Regex.Matches(
+                html,
+                @"<style[^>]*>(.*?)</style>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline)
+            .Select(m => m.Groups[1].Value);
+
+        // 2. Extract style="" attributes
+        var styleAttrs = Regex.Matches(html, @"\sstyle\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value);
+
+        // 3. Find url(...) in both
+        var cssUrls = styleBlocks.Concat(styleAttrs)
+            .SelectMany(css => Regex.Matches(css, @"url\(\s*(['""]?)(.*?)\1\s*\)", RegexOptions.IgnoreCase))
+            .Select(m => m.Groups[2].Value.Trim());
+
+        var allAssets = scripts
+            .Concat(links)
+            .Concat(images)
+            .Concat(srcsets)
+            .Concat(cssUrls);
+
+        var normalizedAssets = allAssets
+            .Select(asset => TryGetNormalizedRoute(asset, out var normalized) ? normalized : null)
+            .Where(normalized => !string.IsNullOrEmpty(normalized) && !context.Visited.Contains(normalized));
+
+        foreach (var normalized in normalizedAssets)
         {
-            if (TryGetNormalizedRoute(asset, out var normalized) && !context.Visited.Contains(normalized))
+            context.Queue.Enqueue(normalized!);
+        }
+    }
+
+    private IEnumerable<string> ParseSrcSet(string srcSet)
+    {
+        // srcset format: "url [descriptor], url [descriptor]"
+        // Split by comma, then take the first part of the whitespace-split segment
+        if (string.IsNullOrWhiteSpace(srcSet)) yield break;
+
+        var candidates = srcSet.Split(',');
+        foreach (var candidate in candidates)
+        {
+            var parts = candidate.Trim().Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 0)
             {
-                context.Queue.Enqueue(normalized);
+                yield return parts[0];
             }
         }
     }

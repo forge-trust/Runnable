@@ -66,5 +66,5 @@ BenchmarkDotNet.Artifacts/
 # Coverage
 *.cobertura.xml
 
-#OSX Randoms
+# macOS System Files
 .DS_Store

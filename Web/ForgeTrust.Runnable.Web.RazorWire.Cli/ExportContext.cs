@@ -36,7 +36,6 @@ public class ExportContext
     /// <param name="outputPath">The target directory for export.</param>
     /// <param name="seedRoutesPath">The path to initial seed routes, if any.</param>
     /// <param name="baseUrl">The base URL of the site to export.</param>
-    /// <param name="console">The console for output reporting.</param>
     public ExportContext(
         string outputPath,
         string? seedRoutesPath,

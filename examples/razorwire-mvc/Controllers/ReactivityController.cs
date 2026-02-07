@@ -111,27 +111,12 @@ public class ReactivityController : Controller
             await BroadcastUserPresenceAsync(displayName);
         }
 
-        // 1. Publish message to SSE
-        // Use ISO 8601 format for client-side local time conversion
         var utcTime = DateTimeOffset.UtcNow.ToString("o");
-
-        // HTML-encode user input to prevent XSS attacks
-        var encodedDisplayName = System.Net.WebUtility.HtmlEncode(displayName);
-        var encodedMessage = System.Net.WebUtility.HtmlEncode(message);
-
-        var messageItemHtml = $@"
-<li class='p-4 rounded-2xl bg-white border border-slate-100 flex flex-col gap-1 transition-all hover:shadow-sm group animate-in slide-in-from-bottom-2 duration-300'>
-    <div class='flex items-center justify-between'>
-        <span class='text-xs font-bold text-indigo-600 uppercase tracking-tight'>{encodedDisplayName}</span>
-        <time datetime='{utcTime}' data-rw-time class='text-[10px] font-medium text-slate-400 tabular-nums'></time>
-    </div>
-    <p class='text-sm text-slate-700 leading-relaxed'>{encodedMessage}</p>
-</li>";
-
-        var streamHtml = RazorWireBridge.CreateStream()
+        var viewContext = this.CreateViewContext();
+        var streamHtml = await RazorWireBridge.CreateStream()
             .Remove("messages-empty")
-            .Prepend("messages", messageItemHtml)
-            .Build();
+            .PrependPartial("messages", "_MessageItem", (displayName, utcTime, message))
+            .RenderAsync(viewContext);
 
         await _hub.PublishAsync("reactivity", streamHtml);
 
@@ -165,9 +150,10 @@ public class ReactivityController : Controller
                     "instance-score-value",
                     CounterViewComponent.Count.ToString())
                 .Update("session-score-value", clientCount.ToString())
-                .Replace(
+                .ReplacePartial(
                     "client-count-input",
-                    $"<input type='hidden' name='clientCount' id='client-count-input' value='{clientCount}' />")
+                    "_CounterInput",
+                    clientCount)
                 .BuildResult();
         }
 

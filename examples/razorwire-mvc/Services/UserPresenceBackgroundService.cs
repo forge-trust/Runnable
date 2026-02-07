@@ -12,6 +12,7 @@ public class UserPresenceBackgroundService : CriticalService
     private readonly IUserPresenceService _presence;
     private readonly IRazorWireStreamHub _hub;
     private readonly ILogger<UserPresenceBackgroundService> _logger;
+    private readonly IRazorPartialRenderer _renderer;
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(2.5);
 
     /// <summary>
@@ -20,17 +21,20 @@ public class UserPresenceBackgroundService : CriticalService
     /// <param name="presence">Service that pulses presence and provides removed users and the current active user count.</param>
     /// <param name="hub">Hub used to publish RazorWire streams to connected clients.</param>
     /// <param name="logger">Logger for service diagnostics.</param>
+    /// <param name="renderer">Renderer used to produce Razor partials as strings.</param>
     /// <param name="applicationLifetime">Lifetime of the host application.</param>
     public UserPresenceBackgroundService(
         IUserPresenceService presence,
         IRazorWireStreamHub hub,
         ILogger<UserPresenceBackgroundService> logger,
+        IRazorPartialRenderer renderer,
         IHostApplicationLifetime applicationLifetime)
         : base(logger, applicationLifetime)
     {
         _presence = presence;
         _hub = hub;
         _logger = logger;
+        _renderer = renderer;
     }
 
     /// <summary>
@@ -62,8 +66,8 @@ public class UserPresenceBackgroundService : CriticalService
 
                     if (activeCount == 0)
                     {
-                        var emptyHtml =
-                            "<div id=\"user-list-empty\" class=\"py-4 text-center border-2 border-dashed border-slate-100 rounded-xl\"><p class=\"text-[11px] font-medium text-slate-400 italic\">No companions nearby...</p></div>";
+                        var emptyHtml = await _renderer.RenderPartialToStringAsync("_UserListEmpty");
+
                         stream.Append("active-user-list", emptyHtml);
                     }
 

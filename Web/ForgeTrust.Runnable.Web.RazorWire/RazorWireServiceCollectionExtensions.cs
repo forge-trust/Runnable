@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
+using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 
@@ -29,6 +30,7 @@ public static class RazorWireServiceCollectionExtensions
 
         services.TryAddSingleton<IRazorWireStreamHub, InMemoryRazorWireStreamHub>();
         services.TryAddSingleton<IRazorWireChannelAuthorizer, DefaultRazorWireChannelAuthorizer>();
+        services.TryAddSingleton<IRazorPartialRenderer, RazorPartialRenderer>();
 
         return services;
     }

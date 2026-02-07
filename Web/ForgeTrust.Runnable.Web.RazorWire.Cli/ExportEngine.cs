@@ -13,9 +13,9 @@ public class ExportEngine : IDisposable
     private readonly HttpClient _client = new();
 
     /// <summary>
-    /// Initializes a new instance of <see cref="ExportEngine"/> using the specified logger.
+    /// Initializes a new instance of the <see cref="ExportEngine"/> class.
     /// </summary>
-    /// <param name="logger">Logger used for informational and error messages produced by the export engine.</param>
+    /// <param name="logger">The logger instance.</param>
     public ExportEngine(ILogger<ExportEngine> logger)
     {
         _logger = logger;
@@ -33,6 +33,11 @@ public class ExportEngine : IDisposable
     /// <exception cref="FileNotFoundException">Thrown when <see cref="ExportContext.SeedRoutesPath"/> is specified but the file does not exist.</exception>
     public async Task RunAsync(ExportContext context, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation(
+            "RunAsync started. BaseUrl: {BaseUrl}, OutputPath: {OutputPath}",
+            context.BaseUrl,
+            context.OutputPath);
+
         // 1. Seed routes
         if (!string.IsNullOrEmpty(context.SeedRoutesPath))
         {
@@ -84,48 +89,87 @@ public class ExportEngine : IDisposable
             context.Queue.Enqueue("/");
         }
 
-        context.Console.Output.WriteLine($"Crawling from {context.BaseUrl}...");
+        _logger.LogInformation(
+            "Crawl starting from {BaseUrl} with {Count} seed routes.",
+            context.BaseUrl,
+            context.Queue.Count);
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         while (context.Queue.Count > 0)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var route = context.Queue.Dequeue();
+            _logger.LogDebug("Processing route: {Route}", route);
 
-            if (context.Visited.Contains(route)) continue;
+            if (context.Visited.Contains(route))
+            {
+                continue;
+            }
+
             context.Visited.Add(route);
 
             await ExportRouteAsync(route, context, cancellationToken);
         }
+
+        sw.Stop();
+        _logger.LogInformation("Export completed in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
     }
 
     /// <summary>
-    /// Fetches the HTML for the specified route from the base URL, writes the rendered page to the output directory, and enqueues any discovered internal links and turbo-frame sources for further export.
+    /// Fetches the HTML or asset for the specified route from the base URL, writes the file to the output directory, and enqueues any discovered internal links for further export.
     /// </summary>
     private async Task ExportRouteAsync(string route, ExportContext context, CancellationToken cancellationToken)
     {
-        context.Console.Output.WriteLine($"  -> {route}");
+        _logger.LogInformation("Exporting route: {Route}", route);
 
         try
         {
-            using var response = await _client.GetAsync($"{context.BaseUrl}{route}", cancellationToken);
+            using var response = await _client.GetAsync(
+                $"{context.BaseUrl}{route}",
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                context.Console.Error.WriteLine($"  !! Failed to fetch {route}: {response.StatusCode}");
+                _logger.LogWarning("Failed to fetch {Route}: {StatusCode}", route, response.StatusCode);
 
                 return;
             }
 
-            var html = await response.Content.ReadAsStringAsync(cancellationToken);
-
             // Save file
             var filePath = MapRouteToFilePath(route, context.OutputPath);
             var dirPath = Path.GetDirectoryName(filePath);
-            if (dirPath != null && !Directory.Exists(dirPath)) Directory.CreateDirectory(dirPath);
-            await File.WriteAllTextAsync(filePath, html, cancellationToken);
+            if (dirPath != null && !Directory.Exists(dirPath))
+            {
+                Directory.CreateDirectory(dirPath);
+            }
 
-            // Extract links and frames
-            ExtractLinks(html, context);
-            ExtractFrames(html, context);
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            var isHtml = string.Equals(contentType, "text/html", StringComparison.OrdinalIgnoreCase);
+
+            if (isHtml)
+            {
+                var html = await response.Content.ReadAsStringAsync(cancellationToken);
+                await File.WriteAllTextAsync(filePath, html, cancellationToken);
+
+                // Extract links, frames, and assets only from HTML
+                ExtractLinks(html, context);
+                ExtractFrames(html, context);
+                ExtractAssets(html, context);
+            }
+            else
+            {
+                // Binary export for assets (images, css, js, fonts)
+                await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                await using var fileStream = new FileStream(
+                    filePath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 4096,
+                    useAsync: true);
+                await contentStream.CopyToAsync(fileStream, cancellationToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -133,7 +177,7 @@ public class ExportEngine : IDisposable
         }
         catch (Exception ex)
         {
-            context.Console.Error.WriteLine($"  !! Error exporting {route}: {ex.Message}");
+            _logger.LogError(ex, "Error exporting {Route}", route);
         }
     }
 
@@ -199,7 +243,8 @@ public class ExportEngine : IDisposable
     /// <param name="context">The export context.</param>
     private void ExtractLinks(string html, ExportContext context)
     {
-        var targets = Regex.Matches(html, @"href\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        // Only match <a href="..."> not <link href="..."> which is handled by ExtractAssets
+        var targets = Regex.Matches(html, @"<a[^>]*\shref\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
             .Select(m => m.Groups[2].Value.Trim());
 
         foreach (var href in targets)
@@ -226,6 +271,80 @@ public class ExportEngine : IDisposable
             if (TryGetNormalizedRoute(src, out var normalized) && !context.Visited.Contains(normalized))
             {
                 context.Queue.Enqueue(normalized);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts root-relative asset references (scripts, styles, images) from the provided HTML and enqueues each unvisited path for export.
+    /// </summary>
+    /// <param name="html">HTML content to scan.</param>
+    /// <param name="context">The export context.</param>
+    private void ExtractAssets(string html, ExportContext context)
+    {
+        // <script src="...">
+        var scripts = Regex.Matches(html, @"<script[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value.Trim());
+
+        // <link href="..."> (stylesheets, icons, etc)
+        var links = Regex.Matches(html, @"<link[^>]*\shref\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value.Trim());
+
+        // <img src="...">
+        var images = Regex.Matches(html, @"<img[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value.Trim());
+
+        // <img srcset="...">
+        // Matches "srcset=" then captures content in quotes.
+        var srcsets = Regex.Matches(html, @"<img[^>]*\ssrcset\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .SelectMany(m => ParseSrcSet(m.Groups[2].Value));
+
+        // CSS url(...) in <style> blocks
+        // 1. Extract style block content
+        var styleBlocks = Regex.Matches(
+                html,
+                @"<style[^>]*>(.*?)</style>",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline)
+            .Select(m => m.Groups[1].Value);
+
+        // 2. Extract style="" attributes
+        var styleAttrs = Regex.Matches(html, @"\sstyle\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+            .Select(m => m.Groups[2].Value);
+
+        // 3. Find url(...) in both
+        var cssUrls = styleBlocks.Concat(styleAttrs)
+            .SelectMany(css => Regex.Matches(css, @"url\(\s*(['""]?)(.*?)\1\s*\)", RegexOptions.IgnoreCase))
+            .Select(m => m.Groups[2].Value.Trim());
+
+        var allAssets = scripts
+            .Concat(links)
+            .Concat(images)
+            .Concat(srcsets)
+            .Concat(cssUrls);
+
+        var normalizedAssets = allAssets
+            .Select(asset => TryGetNormalizedRoute(asset, out var normalized) ? normalized : null)
+            .Where(normalized => !string.IsNullOrEmpty(normalized) && !context.Visited.Contains(normalized));
+
+        foreach (var normalized in normalizedAssets)
+        {
+            context.Queue.Enqueue(normalized!);
+        }
+    }
+
+    private IEnumerable<string> ParseSrcSet(string srcSet)
+    {
+        // srcset format: "url [descriptor], url [descriptor]"
+        // Split by comma, then take the first part of the whitespace-split segment
+        if (string.IsNullOrWhiteSpace(srcSet)) yield break;
+
+        var candidates = srcSet.Split(',');
+        foreach (var candidate in candidates)
+        {
+            var parts = candidate.Trim().Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 0)
+            {
+                yield return parts[0];
             }
         }
     }

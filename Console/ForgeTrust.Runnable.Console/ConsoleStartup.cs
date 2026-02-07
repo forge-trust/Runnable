@@ -46,8 +46,10 @@ public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
     // This will ensure that we register all command types from the assembly of TModule
     private IReadOnlyList<Type> GetCommandTypes(Assembly searchAssembly)
     {
-        return searchAssembly.GetTypes()
+        var commands = searchAssembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && typeof(ICommand).IsAssignableFrom(t))
             .ToList();
+
+        return commands;
     }
 }

@@ -1,5 +1,3 @@
-using CliFx.Infrastructure;
-
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
 /// <summary>
@@ -23,11 +21,6 @@ public class ExportContext
     public string BaseUrl { get; }
 
     /// <summary>
-    /// Gets the console instance used for real-time output during the export.
-    /// </summary>
-    public IConsole Console { get; }
-
-    /// <summary>
     /// Gets the set of URLs that have already been visited during the crawl.
     /// </summary>
     public HashSet<string> Visited { get; } = new();
@@ -43,16 +36,13 @@ public class ExportContext
     /// <param name="outputPath">The target directory for export.</param>
     /// <param name="seedRoutesPath">The path to initial seed routes, if any.</param>
     /// <param name="baseUrl">The base URL of the site to export.</param>
-    /// <param name="console">The console for output reporting.</param>
     public ExportContext(
         string outputPath,
         string? seedRoutesPath,
-        string baseUrl,
-        IConsole console)
+        string baseUrl)
     {
         OutputPath = outputPath;
         SeedRoutesPath = seedRoutesPath;
         BaseUrl = baseUrl.TrimEnd('/');
-        Console = console;
     }
 }

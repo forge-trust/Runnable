@@ -18,6 +18,8 @@ public class RazorWireCliModule : IRunnableHostModule
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddSingleton<ExportEngine>();
+        services.AddHttpClient();
+
 
         // Configure logging
         services.AddLogging(builder =>

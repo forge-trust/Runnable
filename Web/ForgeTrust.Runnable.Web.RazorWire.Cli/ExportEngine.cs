@@ -10,15 +10,54 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 public class ExportEngine : IDisposable
 {
     private readonly ILogger<ExportEngine> _logger;
-    private readonly HttpClient _client = new();
+    private readonly IHttpClientFactory _httpClientFactory;
+
+    // Compiled Regexes for performance
+    private static readonly Regex AnchorHrefRegex = new(
+        @"<a[^>]*\shref\s*=\s*(['""])(.*?)\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex TurboFrameSrcRegex = new(
+        @"<turbo-frame[^>]*\ssrc\s*=\s*(['""])(.*?)\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex ScriptSrcRegex = new(
+        @"<script[^>]*\ssrc\s*=\s*(['""])(.*?)\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex LinkHrefRegex = new(
+        @"<link[^>]*\shref\s*=\s*(['""])(.*?)\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex ImgSrcRegex = new(
+        @"<img[^>]*\ssrc\s*=\s*(['""])(.*?)\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex ImgSrcSetRegex = new(
+        @"<img[^>]*\ssrcset\s*=\s*(['""])(.*?)\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex StyleBlockRegex = new(
+        @"<style[^>]*>(.*?)</style>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+
+    private static readonly Regex StyleAttrRegex = new(
+        @"\sstyle\s*=\s*(['""])(.*?)\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex CssUrlRegex = new(
+        @"url\(\s*(['""]?)(.*?)\1\s*\)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ExportEngine"/> class.
     /// </summary>
     /// <param name="logger">The logger instance.</param>
-    public ExportEngine(ILogger<ExportEngine> logger)
+    /// <param name="httpClientFactory">The HTTP client factory.</param>
+    public ExportEngine(ILogger<ExportEngine> logger, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -94,6 +133,8 @@ public class ExportEngine : IDisposable
             context.BaseUrl,
             context.Queue.Count);
 
+        using var client = _httpClientFactory.CreateClient();
+
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (context.Queue.Count > 0)
         {
@@ -109,7 +150,7 @@ public class ExportEngine : IDisposable
 
             context.Visited.Add(route);
 
-            await ExportRouteAsync(route, context, cancellationToken);
+            await ExportRouteAsync(client, route, context, cancellationToken);
         }
 
         sw.Stop();
@@ -119,16 +160,21 @@ public class ExportEngine : IDisposable
     /// <summary>
     /// Fetches the HTML or asset for the specified route from the base URL, writes the file to the output directory, and enqueues any discovered internal links for further export.
     /// </summary>
-    private async Task ExportRouteAsync(string route, ExportContext context, CancellationToken cancellationToken)
+    private async Task ExportRouteAsync(
+        HttpClient client,
+        string route,
+        ExportContext context,
+        CancellationToken cancellationToken)
     {
         _logger.LogInformation("Exporting route: {Route}", route);
 
         try
         {
-            using var response = await _client.GetAsync(
+            using var response = await client.GetAsync(
                 $"{context.BaseUrl}{route}",
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
+
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Failed to fetch {Route}: {StatusCode}", route, response.StatusCode);
@@ -136,16 +182,18 @@ public class ExportEngine : IDisposable
                 return;
             }
 
-            // Save file
-            var filePath = MapRouteToFilePath(route, context.OutputPath);
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            var isHtml = string.Equals(contentType, "text/html", StringComparison.OrdinalIgnoreCase);
+            var isCss = string.Equals(contentType, "text/css", StringComparison.OrdinalIgnoreCase);
+
+            // Save file - verify content type to determine if we should force .html extension
+            // Only append .html if it's actually an HTML document and the path doesn't look like one
+            var filePath = MapRouteToFilePath(route, context.OutputPath, isHtml);
             var dirPath = Path.GetDirectoryName(filePath);
             if (dirPath != null && !Directory.Exists(dirPath))
             {
                 Directory.CreateDirectory(dirPath);
             }
-
-            var contentType = response.Content.Headers.ContentType?.MediaType;
-            var isHtml = string.Equals(contentType, "text/html", StringComparison.OrdinalIgnoreCase);
 
             if (isHtml)
             {
@@ -157,9 +205,27 @@ public class ExportEngine : IDisposable
                 ExtractFrames(html, context);
                 ExtractAssets(html, context);
             }
+            else if (isCss)
+            {
+                // For CSS, we need to read as text to parse url() refs, but write as binary/text
+                var css = await response.Content.ReadAsStringAsync(cancellationToken);
+                await File.WriteAllTextAsync(filePath, css, cancellationToken);
+
+                // Extract assets from CSS
+                var cssUrls = CssUrlRegex.Matches(css)
+                    .Select(m => m.Groups[2].Value.Trim());
+
+                foreach (var asset in cssUrls)
+                {
+                    if (TryGetNormalizedRoute(asset, out var normalized) && !context.Visited.Contains(normalized))
+                    {
+                        context.Queue.Enqueue(normalized);
+                    }
+                }
+            }
             else
             {
-                // Binary export for assets (images, css, js, fonts)
+                // Binary export for assets (images, fonts, etc)
                 await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
                 await using var fileStream = new FileStream(
                     filePath,
@@ -182,9 +248,9 @@ public class ExportEngine : IDisposable
     }
 
     /// <summary>
-    /// Maps a root-relative route to an absolute HTML file path inside the configured output directory, normalizing routes to index files as needed.
+    /// Maps a root-relative route to an absolute file path inside the configured output directory.
     /// </summary>
-    private string MapRouteToFilePath(string route, string outputPath)
+    private string MapRouteToFilePath(string route, string outputPath, bool isHtml)
     {
         var normalized = route;
 
@@ -203,13 +269,20 @@ public class ExportEngine : IDisposable
 
         // Detect extension on the last segment
         var fileName = Path.GetFileName(relativePath);
-        if (!Path.HasExtension(fileName) && !relativePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
-        {
-            relativePath += ".html";
-        }
-        else if (string.IsNullOrEmpty(fileName)) // Ends in slash
+        var hasExtension = Path.HasExtension(fileName);
+
+        // Only append .html if:
+        // 1. It is explicitly an HTML content type
+        // 2. AND it doesn't already have an extension (or ends in slash which is handled by fileName check)
+        // 3. OR it's a directory-style index request (empty filename)
+
+        if (string.IsNullOrEmpty(fileName)) // Ends in slash -> index.html
         {
             relativePath = Path.Combine(relativePath, "index.html");
+        }
+        else if (!hasExtension && isHtml)
+        {
+            relativePath += ".html";
         }
 
         var fullPath = Path.GetFullPath(Path.Combine(outputPath, relativePath));
@@ -244,7 +317,7 @@ public class ExportEngine : IDisposable
     private void ExtractLinks(string html, ExportContext context)
     {
         // Only match <a href="..."> not <link href="..."> which is handled by ExtractAssets
-        var targets = Regex.Matches(html, @"<a[^>]*\shref\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        var targets = AnchorHrefRegex.Matches(html)
             .Select(m => m.Groups[2].Value.Trim());
 
         foreach (var href in targets)
@@ -263,7 +336,7 @@ public class ExportEngine : IDisposable
     /// <param name="context">The export context.</param>
     private void ExtractFrames(string html, ExportContext context)
     {
-        var targets = Regex.Matches(html, @"<turbo-frame[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        var targets = TurboFrameSrcRegex.Matches(html)
             .Select(m => m.Groups[2].Value.Trim());
 
         foreach (var src in targets)
@@ -283,44 +356,41 @@ public class ExportEngine : IDisposable
     private void ExtractAssets(string html, ExportContext context)
     {
         // <script src="...">
-        var scripts = Regex.Matches(html, @"<script[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        var scripts = ScriptSrcRegex.Matches(html)
             .Select(m => m.Groups[2].Value.Trim());
 
         // <link href="..."> (stylesheets, icons, etc)
-        var links = Regex.Matches(html, @"<link[^>]*\shref\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        var links = LinkHrefRegex.Matches(html)
             .Select(m => m.Groups[2].Value.Trim());
 
         // <img src="...">
-        var images = Regex.Matches(html, @"<img[^>]*\ssrc\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        var images = ImgSrcRegex.Matches(html)
             .Select(m => m.Groups[2].Value.Trim());
 
         // <img srcset="...">
-        // Matches "srcset=" then captures content in quotes.
-        var srcsets = Regex.Matches(html, @"<img[^>]*\ssrcset\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        var srcsets = ImgSrcSetRegex.Matches(html)
             .SelectMany(m => ParseSrcSet(m.Groups[2].Value));
 
         // CSS url(...) in <style> blocks
         // 1. Extract style block content
-        var styleBlocks = Regex.Matches(
-                html,
-                @"<style[^>]*>(.*?)</style>",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline)
+        var styleBlocks = StyleBlockRegex.Matches(html)
             .Select(m => m.Groups[1].Value);
 
         // 2. Extract style="" attributes
-        var styleAttrs = Regex.Matches(html, @"\sstyle\s*=\s*(['""])(.*?)\1", RegexOptions.IgnoreCase)
+        var styleAttrs = StyleAttrRegex.Matches(html)
             .Select(m => m.Groups[2].Value);
 
         // 3. Find url(...) in both
         var cssUrls = styleBlocks.Concat(styleAttrs)
-            .SelectMany(css => Regex.Matches(css, @"url\(\s*(['""]?)(.*?)\1\s*\)", RegexOptions.IgnoreCase))
+            .SelectMany(css => CssUrlRegex.Matches(css))
             .Select(m => m.Groups[2].Value.Trim());
 
         var allAssets = scripts
             .Concat(links)
             .Concat(images)
             .Concat(srcsets)
-            .Concat(cssUrls);
+            .Concat(cssUrls)
+            .Distinct(); // Deduplicate before processing
 
         var normalizedAssets = allAssets
             .Select(asset => TryGetNormalizedRoute(asset, out var normalized) ? normalized : null)
@@ -358,6 +428,14 @@ public class ExportEngine : IDisposable
         // Must start with /, not //
         if (!rawRef.StartsWith('/') || rawRef.StartsWith("//"))
         {
+            // Log external/relative skips at debug level per user request
+            if (!rawRef.StartsWith('#')
+                && !rawRef.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
+                && !rawRef.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug("Skipping external/relative URL: {Url}", rawRef);
+            }
+
             return false;
         }
 
@@ -369,11 +447,11 @@ public class ExportEngine : IDisposable
     }
 
     /// <summary>
-    /// Releases the resources used by the <see cref="ExportEngine"/>, including the internal <see cref="HttpClient"/>.
+    /// Releases the resources used by the <see cref="ExportEngine"/>.
     /// </summary>
     public void Dispose()
     {
-        _client.Dispose();
+        // HttpClient from Factory doesn't need disposal, but we keep Dispose for IDisposable contract if needed later
         GC.SuppressFinalize(this);
     }
 }

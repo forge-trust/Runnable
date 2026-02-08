@@ -56,10 +56,14 @@ public class RazorPartialRendererTests
     {
         // Arrange
         var viewName = "MissingView";
-        var viewEngineResult = ViewEngineResult.NotFound(viewName, new[] { "Location1", "Location2" });
+        var findViewResult = ViewEngineResult.NotFound(viewName, new[] { "FindLocation1" });
+        var getViewResult = ViewEngineResult.NotFound(viewName, new[] { "GetLocation1" });
 
         A.CallTo(() => _viewEngine.FindView(A<ActionContext>._, viewName, false))
-            .Returns(viewEngineResult);
+            .Returns(findViewResult);
+
+        A.CallTo(() => _viewEngine.GetView(A<string?>._, viewName, false))
+            .Returns(getViewResult);
 
         // Act
         var exception =
@@ -67,8 +71,8 @@ public class RazorPartialRendererTests
 
         // Assert
         Assert.Contains(viewName, exception.Message);
-        Assert.Contains("Location1", exception.Message);
-        Assert.Contains("Location2", exception.Message);
+        Assert.Contains("FindLocation1", exception.Message);
+        Assert.Contains("GetLocation1", exception.Message);
     }
 
     [Fact]
@@ -133,5 +137,33 @@ public class RazorPartialRendererTests
         // Assert
         Assert.NotNull(capturedContext);
         Assert.Equal(cts.Token, capturedContext!.HttpContext.RequestAborted);
+    }
+
+    [Fact]
+    public async Task RenderPartialToStringAsync_ShouldFallbackToGetView_WhenFindViewFails()
+    {
+        // Arrange
+        var viewName = "~/Views/Shared/AccessibleView.cshtml"; // Path-like name
+        var expectedOutput = "<div>By Path</div>";
+        var view = A.Fake<IView>();
+
+        var findViewResult = ViewEngineResult.NotFound(viewName, new[] { "StandardLocation" });
+        var getViewResult = ViewEngineResult.Found(viewName, view);
+
+        A.CallTo(() => _viewEngine.FindView(A<ActionContext>._, viewName, false))
+            .Returns(findViewResult);
+
+        A.CallTo(() => _viewEngine.GetView(A<string?>._, viewName, false))
+            .Returns(getViewResult);
+
+        A.CallTo(() => view.RenderAsync(A<ViewContext>._))
+            .Invokes((ViewContext context) => { context.Writer.Write(expectedOutput); })
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _sut.RenderPartialToStringAsync(viewName);
+
+        // Assert
+        Assert.Equal(expectedOutput, result);
     }
 }

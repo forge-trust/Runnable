@@ -63,10 +63,17 @@ internal class RazorPartialRenderer : IRazorPartialRenderer
 
         if (!viewResult.Success)
         {
-            var searchedLocations = string.Join(Environment.NewLine, viewResult.SearchedLocations);
+            var findViewLocations = viewResult.SearchedLocations;
+            viewResult = _viewEngine.GetView(executingFilePath: null, viewPath: viewName, isMainPage: false);
 
-            throw new InvalidOperationException(
-                $"Could not find view with name '{viewName}'. Searched locations:{Environment.NewLine}{searchedLocations}");
+            if (!viewResult.Success)
+            {
+                var searchedLocations = findViewLocations.Concat(viewResult.SearchedLocations);
+                var locationsMessage = string.Join(Environment.NewLine, searchedLocations);
+
+                throw new InvalidOperationException(
+                    $"Could not find view with name '{viewName}'. Searched locations:{Environment.NewLine}{locationsMessage}");
+            }
         }
 
         var viewDictionary =

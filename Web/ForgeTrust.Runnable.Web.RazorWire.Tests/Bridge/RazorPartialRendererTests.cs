@@ -49,6 +49,7 @@ public class RazorPartialRendererTests
 
         // Assert
         Assert.Equal(expectedOutput, result);
+        A.CallTo(() => _viewEngine.GetView(A<string?>._, A<string>._, A<bool>._)).MustNotHaveHappened();
     }
 
     [Fact]

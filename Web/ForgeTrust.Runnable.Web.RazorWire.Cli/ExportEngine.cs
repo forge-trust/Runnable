@@ -7,7 +7,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 /// <summary>
 /// A static generation engine that crawls a RazorWire application and exports its routes to static HTML files.
 /// </summary>
-public class ExportEngine : IDisposable
+public class ExportEngine
 {
     private readonly ILogger<ExportEngine> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -133,7 +133,7 @@ public class ExportEngine : IDisposable
             context.BaseUrl,
             context.Queue.Count);
 
-        using var client = _httpClientFactory.CreateClient();
+        using var client = _httpClientFactory.CreateClient("ExportEngine");
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (context.Queue.Count > 0)
@@ -203,7 +203,7 @@ public class ExportEngine : IDisposable
                 // Extract links, frames, and assets only from HTML
                 ExtractLinks(html, context);
                 ExtractFrames(html, context);
-                ExtractAssets(html, context);
+                ExtractAssets(html, route, context);
             }
             else if (isCss)
             {
@@ -217,7 +217,10 @@ public class ExportEngine : IDisposable
 
                 foreach (var asset in cssUrls)
                 {
-                    if (TryGetNormalizedRoute(asset, out var normalized) && !context.Visited.Contains(normalized))
+                    // Resolve relative asset path against the CSS file route
+                    var resolvedAsset = ResolveRelativeUrl(route, asset);
+                    if (TryGetNormalizedRoute(resolvedAsset, out var normalized)
+                        && !context.Visited.Contains(normalized))
                     {
                         context.Queue.Enqueue(normalized);
                     }
@@ -352,8 +355,9 @@ public class ExportEngine : IDisposable
     /// Extracts root-relative asset references (scripts, styles, images) from the provided HTML and enqueues each unvisited path for export.
     /// </summary>
     /// <param name="html">HTML content to scan.</param>
+    /// <param name="currentRoute">The route of the page being scanned, used for resolving relative URLs.</param>
     /// <param name="context">The export context.</param>
-    private void ExtractAssets(string html, ExportContext context)
+    private void ExtractAssets(string html, string currentRoute, ExportContext context)
     {
         // <script src="...">
         var scripts = ScriptSrcRegex.Matches(html)
@@ -392,13 +396,15 @@ public class ExportEngine : IDisposable
             .Concat(cssUrls)
             .Distinct(); // Deduplicate before processing
 
-        var normalizedAssets = allAssets
-            .Select(asset => TryGetNormalizedRoute(asset, out var normalized) ? normalized : null)
-            .Where(normalized => !string.IsNullOrEmpty(normalized) && !context.Visited.Contains(normalized));
-
-        foreach (var normalized in normalizedAssets)
+        foreach (var asset in allAssets)
         {
-            context.Queue.Enqueue(normalized!);
+            // Resolve relative URLs (e.g. "style.css" -> "/path/to/style.css") against current page
+            var resolved = ResolveRelativeUrl(currentRoute, asset);
+
+            if (TryGetNormalizedRoute(resolved, out var normalized) && !context.Visited.Contains(normalized))
+            {
+                context.Queue.Enqueue(normalized);
+            }
         }
     }
 
@@ -416,6 +422,33 @@ public class ExportEngine : IDisposable
             {
                 yield return parts[0];
             }
+        }
+    }
+
+    /// <summary>
+    /// Resolves a potentially relative URL against a base route.
+    /// </summary>
+    private string ResolveRelativeUrl(string baseRoute, string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return url;
+
+        // If it's already an absolute URL (http, https, data, mailto, javascript, or starts with /), return it or handle in normalization
+        if (url.StartsWith('/') || url.Contains(':'))
+        {
+            return url;
+        }
+
+        try
+        {
+            // Use generic dummy host to resolve paths
+            var baseUri = new Uri(new Uri("http://dummy"), baseRoute);
+            var resolvedUri = new Uri(baseUri, url);
+
+            return resolvedUri.AbsolutePath + resolvedUri.Query + resolvedUri.Fragment;
+        }
+        catch
+        {
+            return url;
         }
     }
 
@@ -444,14 +477,5 @@ public class ExportEngine : IDisposable
         normalized = split[0];
 
         return !string.IsNullOrEmpty(normalized);
-    }
-
-    /// <summary>
-    /// Releases the resources used by the <see cref="ExportEngine"/>.
-    /// </summary>
-    public void Dispose()
-    {
-        // HttpClient from Factory doesn't need disposal, but we keep Dispose for IDisposable contract if needed later
-        GC.SuppressFinalize(this);
     }
 }

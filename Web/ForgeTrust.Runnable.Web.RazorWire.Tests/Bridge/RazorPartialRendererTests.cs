@@ -1,11 +1,11 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Tests.Bridge;
 

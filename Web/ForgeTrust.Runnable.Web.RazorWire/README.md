@@ -16,6 +16,10 @@ RazorWire uses Server-Sent Events (SSE) to push updates from the server to one o
 
 Standard HTML forms are enhanced to perform partial-page updates. Instead of a full page reload or redirect, forms can return Turbo Stream actions to update only the necessary parts of the UI.
 
+## Security & Anti-Forgery
+
+Handling Anti-Forgery tokens correctly is critical when updating forms via Turbo Streams. See [Security & Anti-Forgery](Docs/antiforgery.md) for detailed patterns and recommendations.
+
 ## Getting Started
 
 ### 1. Add the Module

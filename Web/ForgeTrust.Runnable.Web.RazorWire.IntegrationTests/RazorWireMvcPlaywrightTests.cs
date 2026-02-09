@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
+using System.Text.RegularExpressions;
+using ForgeTrust.Runnable.Core;
 using Microsoft.Playwright;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.IntegrationTests;
@@ -76,7 +77,7 @@ public sealed class RazorWireMvcPlaywrightTests : IClassFixture<RazorWireMvcPlay
         await WaitForStreamConnectedAsync(actorPage);
         await WaitForStreamConnectedAsync(observerPage);
 
-        var actorInitialNavCount = await GetNavigationCountAsync(actorPage);
+        await PlantNoRefreshMarkerAsync(actorPage);
 
         await actorPage.FillAsync("#register-username", userOne);
         var registerOneResponse = await SubmitAndWaitForPostAsync(
@@ -94,7 +95,7 @@ public sealed class RazorWireMvcPlaywrightTests : IClassFixture<RazorWireMvcPlay
         Assert.True(registerTwoResponse.Ok, $"Second RegisterUser POST failed with status {(int)registerTwoResponse.Status}.");
         await observerPage.WaitForSelectorAsync($"#user-list-items li:has-text('{userTwo}')", new PageWaitForSelectorOptions { Timeout = 15_000 });
 
-        await AssertNoPageRefreshAsync(actorPage, actorInitialNavCount, _fixture.ReactivityUrl);
+        await AssertNoPageRefreshAsync(actorPage, _fixture.ReactivityUrl);
     }
 
     [Fact]
@@ -130,7 +131,7 @@ public sealed class RazorWireMvcPlaywrightTests : IClassFixture<RazorWireMvcPlay
         await WaitForStreamConnectedAsync(page);
         await WaitForCounterReadyAsync(page);
 
-        var initialNavigationCount = await GetNavigationCountAsync(page);
+        await PlantNoRefreshMarkerAsync(page);
         var initialInstance = await GetIntTextAsync(page, "#instance-score-value");
         var initialSession = await GetIntTextAsync(page, "#session-score-value");
         var initialClientCount = await GetIntInputValueAsync(page, "#client-count-input");
@@ -151,7 +152,7 @@ public sealed class RazorWireMvcPlaywrightTests : IClassFixture<RazorWireMvcPlay
             expectedSession: initialSession + 2,
             expectedClientCount: initialClientCount + 2);
 
-        await AssertNoPageRefreshAsync(page, initialNavigationCount, _fixture.ReactivityUrl);
+        await AssertNoPageRefreshAsync(page, _fixture.ReactivityUrl);
     }
 
     [Fact]
@@ -221,14 +222,13 @@ public sealed class RazorWireMvcPlaywrightTests : IClassFixture<RazorWireMvcPlay
 
     private static async Task WaitForCounterReadyAsync(IPage page)
     {
-        await page.WaitForSelectorAsync("[data-counter-form]", new PageWaitForSelectorOptions
-        {
-            Timeout = 30_000
-        });
-        await page.WaitForSelectorAsync("#instance-score-value");
-        await page.WaitForSelectorAsync("#session-score-value");
+        var selectorOptions = new PageWaitForSelectorOptions { Timeout = 30_000 };
+        await page.WaitForSelectorAsync("[data-counter-form]", selectorOptions);
+        await page.WaitForSelectorAsync("#instance-score-value", selectorOptions);
+        await page.WaitForSelectorAsync("#session-score-value", selectorOptions);
         await page.WaitForSelectorAsync("#client-count-input", new PageWaitForSelectorOptions
         {
+            Timeout = 30_000,
             State = WaitForSelectorState.Attached
         });
     }
@@ -244,13 +244,25 @@ public sealed class RazorWireMvcPlaywrightTests : IClassFixture<RazorWireMvcPlay
     private static async Task<int> GetIntTextAsync(IPage page, string selector)
     {
         var text = await page.Locator(selector).InnerTextAsync();
-        return int.Parse(text.Trim());
+        var trimmed = text.Trim();
+        if (int.TryParse(trimmed, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new FormatException($"GetIntTextAsync could not parse an integer from selector '{selector}'. Raw value: '{trimmed}'.");
     }
 
     private static async Task<int> GetIntInputValueAsync(IPage page, string selector)
     {
         var value = await page.EvaluateAsync<string>("selector => document.querySelector(selector)?.getAttribute('value') ?? ''", selector);
-        return int.Parse(value.Trim());
+        var trimmed = value.Trim();
+        if (int.TryParse(trimmed, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new FormatException($"GetIntInputValueAsync could not parse an integer from selector '{selector}'. Raw value: '{trimmed}'.");
     }
 
     private static async Task ExpectCounterValuesAsync(IPage page, int expectedInstance, int expectedSession, int expectedClientCount)
@@ -287,15 +299,15 @@ public sealed class RazorWireMvcPlaywrightTests : IClassFixture<RazorWireMvcPlay
         await ExpectCounterValuesAsync(page, expectedSessionScore);
     }
 
-    private static async Task<int> GetNavigationCountAsync(IPage page)
+    private static async Task PlantNoRefreshMarkerAsync(IPage page)
     {
-        return await page.EvaluateAsync<int>("() => performance.getEntriesByType('navigation').length");
+        await page.EvaluateAsync("() => { window.__noRefreshMarker = Date.now().toString(); }");
     }
 
-    private static async Task AssertNoPageRefreshAsync(IPage page, int initialNavigationCount, string expectedUrl)
+    private static async Task AssertNoPageRefreshAsync(IPage page, string expectedUrl)
     {
-        var finalNavigationCount = await GetNavigationCountAsync(page);
-        Assert.Equal(initialNavigationCount, finalNavigationCount);
+        var markerExists = await page.EvaluateAsync<bool>("() => !!window.__noRefreshMarker");
+        Assert.True(markerExists, "Expected window.__noRefreshMarker to persist, but it was missing (likely full page refresh).");
         Assert.Equal(expectedUrl.TrimEnd('/'), page.Url.TrimEnd('/'));
     }
 }
@@ -304,8 +316,10 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
 {
     private static readonly SemaphoreSlim PlaywrightInstallLock = new(1, 1);
     private static bool _playwrightInstalled;
+    private static readonly Regex ListeningUrlRegex = new(@"Now listening on:\s*(https?://\S+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly ConcurrentQueue<string> _appLogs = new();
+    private readonly TaskCompletionSource<string> _boundBaseUrlSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private Process? _appProcess;
     private IPlaywright? _playwright;
@@ -323,11 +337,10 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
             Headless = true
         });
 
-        var port = GetFreeTcpPort();
-        var baseUrl = $"http://127.0.0.1:{port}";
+        _appProcess = StartExampleApp("http://127.0.0.1:0");
+        var baseUrl = await WaitForBoundBaseUrlAsync(TimeSpan.FromSeconds(60));
         ReactivityUrl = $"{baseUrl}/Reactivity";
 
-        _appProcess = StartExampleApp(baseUrl);
         await WaitForAppReadyAsync(baseUrl, TimeSpan.FromSeconds(60));
     }
 
@@ -349,7 +362,7 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         _appProcess?.Dispose();
     }
 
-    private async Task EnsurePlaywrightInstalledAsync()
+    private static async Task EnsurePlaywrightInstalledAsync()
     {
         if (_playwrightInstalled)
         {
@@ -380,7 +393,7 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
 
     private Process StartExampleApp(string baseUrl)
     {
-        var repoRoot = FindRepoRoot();
+        var repoRoot = PathUtils.FindRepositoryRoot(AppContext.BaseDirectory);
         var projectPath = Path.Combine(repoRoot, "examples", "razorwire-mvc", "RazorWireWebExample.csproj");
 
         if (!File.Exists(projectPath))
@@ -406,12 +419,27 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         process.OutputDataReceived += (_, args) => CaptureAppLog(args.Data);
         process.ErrorDataReceived += (_, args) => CaptureAppLog(args.Data);
+        process.Exited += (_, _) =>
+        {
+            _boundBaseUrlSource.TrySetException(
+                new InvalidOperationException($"RazorWire MVC example exited before publishing a listening URL.{Environment.NewLine}{GetRecentLogs()}"));
+        };
 
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
         return process;
+    }
+
+    private async Task<string> WaitForBoundBaseUrlAsync(TimeSpan timeout)
+    {
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var registration = timeoutCts.Token.Register(
+            () => _boundBaseUrlSource.TrySetException(
+                new TimeoutException($"RazorWire MVC example did not publish a listening URL within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}")));
+
+        return await _boundBaseUrlSource.Task;
     }
 
     private async Task WaitForAppReadyAsync(string baseUrl, TimeSpan timeout)
@@ -443,7 +471,14 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
                 // Retry until global timeout.
             }
 
-            await Task.Delay(250, timeoutCts.Token);
+            try
+            {
+                await Task.Delay(250, timeoutCts.Token);
+            }
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+            {
+                throw new TimeoutException($"RazorWire MVC example did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
+            }
         }
 
         throw new TimeoutException($"RazorWire MVC example did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
@@ -454,6 +489,13 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         if (string.IsNullOrWhiteSpace(message))
         {
             return;
+        }
+
+        var match = ListeningUrlRegex.Match(message);
+        if (match.Success && Uri.TryCreate(match.Groups[1].Value, UriKind.Absolute, out var uri))
+        {
+            var normalizedBaseUrl = $"{uri.Scheme}://{uri.Host}:{uri.Port}";
+            _boundBaseUrlSource.TrySetResult(normalizedBaseUrl);
         }
 
         _appLogs.Enqueue(message);
@@ -468,29 +510,4 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         return string.Join(Environment.NewLine, _appLogs);
     }
 
-    private static int GetFreeTcpPort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
-    private static string FindRepoRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (current is not null)
-        {
-            if (File.Exists(Path.Combine(current.FullName, "ForgeTrust.Runnable.slnx")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate repository root from test execution directory.");
-    }
 }

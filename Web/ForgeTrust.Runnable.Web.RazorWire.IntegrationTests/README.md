@@ -7,6 +7,14 @@ This project contains browser-level integration tests for the RazorWire MVC samp
 - The sample app boots successfully.
 - RazorWire stream connection is established.
 - A message published from one browser session is received in another session via SSE.
+- Antiforgery behavior:
+  - valid form submissions are accepted,
+  - submissions without antiforgery token are rejected with `400`,
+  - repeated registration from one instance without refresh is covered.
+- Increment counter behavior:
+  - single-session increment updates instance/session/client-count values without refresh,
+  - multi-session flow keeps session score independent while instance score is global,
+  - session score persists while navigating across Home, Navigation, and Reactivity pages.
 
 ## Run
 

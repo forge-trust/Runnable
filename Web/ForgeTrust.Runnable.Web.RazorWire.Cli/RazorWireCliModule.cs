@@ -18,6 +18,8 @@ public class RazorWireCliModule : IRunnableHostModule
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddSingleton<ExportEngine>();
+        services.AddHttpClient("ExportEngine", client => { client.Timeout = TimeSpan.FromSeconds(60); });
+
 
         // Configure logging
         services.AddLogging(builder =>

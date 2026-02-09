@@ -227,9 +227,8 @@ public class ExportEngine
                 var normalizedAssets = cssUrls
                     .Select(asset => ResolveRelativeUrl(route, asset))
                     .Select(resolved => TryGetNormalizedRoute(resolved, out var n) ? n : null)
-                    .Where(n => n != null)
-                    .Distinct()
-                    .Where(n => !context.Visited.Contains(n!));
+                    .Where(n => n != null && !context.Visited.Contains(n))
+                    .Distinct();
 
                 foreach (var normalized in normalizedAssets)
                 {
@@ -438,9 +437,8 @@ public class ExportEngine
         var normalizedAssets = allAssets
             .Select(asset => ResolveRelativeUrl(currentRoute, asset))
             .Select(resolved => TryGetNormalizedRoute(resolved, out var n) ? n : null)
-            .Where(n => n != null)
-            .Distinct()
-            .Where(n => !context.Visited.Contains(n!));
+            .Where(n => n != null && !context.Visited.Contains(n))
+            .Distinct();
 
         foreach (var normalized in normalizedAssets)
         {

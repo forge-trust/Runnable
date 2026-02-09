@@ -28,9 +28,9 @@
       },
       "HtmlSanitizer": {
         "type": "Direct",
-        "requested": "[9.0.889, )",
-        "resolved": "9.0.889",
-        "contentHash": "gYEkdYFozRH28YvwekP2Ha5NONbpullgsrruBmJvtlAVDIP4NPvD7ma1P90J24c9nPXMaDxOTWJX8c6Jd6IdjQ==",
+        "requested": "[9.0.892, )",
+        "resolved": "9.0.892",
+        "contentHash": "zdkMmpNCjTkxna8Y+jmPIFm2st+HjHrf32yNElFYwe7L4GmDm+mdKR6TzDyf6ewJ0RUUz84D4IkHNgrwGi4VbQ==",
         "dependencies": {
           "AngleSharp": "[0.17.1]",
           "AngleSharp.Css": "[0.17.0]"
@@ -426,7 +426,7 @@
         "type": "Project",
         "dependencies": {
           "ForgeTrust.Runnable.Web.RazorWire": "[1.0.0, )",
-          "HtmlSanitizer": "[9.0.889, )",
+          "HtmlSanitizer": "[9.0.892, )",
           "Markdig": "[0.44.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.0.0, )"
         }

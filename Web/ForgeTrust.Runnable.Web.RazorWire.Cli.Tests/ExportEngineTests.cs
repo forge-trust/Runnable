@@ -223,7 +223,6 @@ public class ExportEngineTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri?.AbsolutePath ?? "/";
-            var content = new StringContent("", Encoding.UTF8, "text/plain");
 
             if (path == "/" || path == "/index")
             {
@@ -234,25 +233,25 @@ public class ExportEngineTests
                         <img src=""image.png"">
                     </body>
                 </html>";
-                content = new StringContent(html, Encoding.UTF8, "text/html");
+                var content = new StringContent(html, Encoding.UTF8, "text/html");
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
             }
-            else if (path == "/style.css")
+
+            if (path == "/style.css")
             {
-                content = new StringContent("body { background: white; }", Encoding.UTF8, "text/css");
+                var content = new StringContent("body { background: white; }", Encoding.UTF8, "text/css");
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
             }
-            else if (path == "/image.png")
+
+            if (path == "/image.png")
             {
                 var bytes = new byte[] { 0x01, 0x02, 0x03, 0x04 };
                 var byteContent = new ByteArrayContent(bytes);
                 byteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = byteContent });
             }
-            else
-            {
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-            }
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
         }
     }
 }

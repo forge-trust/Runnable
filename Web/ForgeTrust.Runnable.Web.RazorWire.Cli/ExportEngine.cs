@@ -222,13 +222,14 @@ public class ExportEngine
                     .Select(m => m.Groups[2].Value.Trim())
                     .Where(url => !string.IsNullOrEmpty(url)
                                   && !url.StartsWith('#')
-                                  && !url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
-                    .Distinct();
+                                  && !url.StartsWith("data:", StringComparison.OrdinalIgnoreCase));
 
                 var normalizedAssets = cssUrls
                     .Select(asset => ResolveRelativeUrl(route, asset))
                     .Select(resolved => TryGetNormalizedRoute(resolved, out var n) ? n : null)
-                    .Where(n => n != null && !context.Visited.Contains(n));
+                    .Where(n => n != null)
+                    .Distinct()
+                    .Where(n => !context.Visited.Contains(n!));
 
                 foreach (var normalized in normalizedAssets)
                 {
@@ -432,13 +433,14 @@ public class ExportEngine
             .Concat(links)
             .Concat(images)
             .Concat(srcsets)
-            .Concat(cssUrls)
-            .Distinct(); // Deduplicate before processing
+            .Concat(cssUrls);
 
         var normalizedAssets = allAssets
             .Select(asset => ResolveRelativeUrl(currentRoute, asset))
             .Select(resolved => TryGetNormalizedRoute(resolved, out var n) ? n : null)
-            .Where(n => n != null && !context.Visited.Contains(n));
+            .Where(n => n != null)
+            .Distinct()
+            .Where(n => !context.Visited.Contains(n!));
 
         foreach (var normalized in normalizedAssets)
         {

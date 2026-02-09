@@ -227,18 +227,14 @@ public class ExportEngine
                                   && !url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
                     .Distinct();
 
-                foreach (var normalized in cssUrls
-                             .Select(asset => ResolveRelativeUrl(route, asset))
-                             .Where(resolved => TryGetNormalizedRoute(resolved, out var norm)
-                                                && !context.Visited.Contains(norm))
-                             .Select(resolved =>
-                             {
-                                 TryGetNormalizedRoute(resolved, out var norm);
+                var normalizedAssets = cssUrls
+                    .Select(asset => ResolveRelativeUrl(route, asset))
+                    .Select(resolved => TryGetNormalizedRoute(resolved, out var n) ? n : null)
+                    .Where(n => n != null && !context.Visited.Contains(n));
 
-                                 return norm;
-                             }))
+                foreach (var normalized in normalizedAssets)
                 {
-                    context.Queue.Enqueue(normalized);
+                    context.Queue.Enqueue(normalized!);
                 }
             }
             else
@@ -432,18 +428,14 @@ public class ExportEngine
             .Concat(cssUrls)
             .Distinct(); // Deduplicate before processing
 
-        foreach (var normalized in allAssets
-                     .Select(asset => ResolveRelativeUrl(currentRoute, asset))
-                     .Where(resolved => TryGetNormalizedRoute(resolved, out var norm)
-                                        && !context.Visited.Contains(norm))
-                     .Select(resolved =>
-                     {
-                         TryGetNormalizedRoute(resolved, out var norm);
+        var normalizedAssets = allAssets
+            .Select(asset => ResolveRelativeUrl(currentRoute, asset))
+            .Select(resolved => TryGetNormalizedRoute(resolved, out var n) ? n : null)
+            .Where(n => n != null && !context.Visited.Contains(n));
 
-                         return norm;
-                     }))
+        foreach (var normalized in normalizedAssets)
         {
-            context.Queue.Enqueue(normalized);
+            context.Queue.Enqueue(normalized!);
         }
     }
 

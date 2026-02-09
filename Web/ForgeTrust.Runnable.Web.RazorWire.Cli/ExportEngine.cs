@@ -56,8 +56,8 @@ public class ExportEngine
     /// <param name="httpClientFactory">The HTTP client factory.</param>
     public ExportEngine(ILogger<ExportEngine> logger, IHttpClientFactory httpClientFactory)
     {
-        _logger = logger;
-        _httpClientFactory = httpClientFactory;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
     }
 
     /// <summary>
@@ -317,7 +317,7 @@ public class ExportEngine
     /// </summary>
     /// <param name="html">HTML source to scan.</param>
     /// <param name="context">The export context.</param>
-    private void ExtractLinks(string html, ExportContext context)
+    internal void ExtractLinks(string html, ExportContext context)
     {
         // Only match <a href="..."> not <link href="..."> which is handled by ExtractAssets
         var targets = AnchorHrefRegex.Matches(html)
@@ -357,7 +357,7 @@ public class ExportEngine
     /// <param name="html">HTML content to scan.</param>
     /// <param name="currentRoute">The route of the page being scanned, used for resolving relative URLs.</param>
     /// <param name="context">The export context.</param>
-    private void ExtractAssets(string html, string currentRoute, ExportContext context)
+    internal void ExtractAssets(string html, string currentRoute, ExportContext context)
     {
         // <script src="...">
         var scripts = ScriptSrcRegex.Matches(html)
@@ -428,7 +428,7 @@ public class ExportEngine
     /// <summary>
     /// Resolves a potentially relative URL against a base route.
     /// </summary>
-    private string ResolveRelativeUrl(string baseRoute, string url)
+    internal string ResolveRelativeUrl(string baseRoute, string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return url;
 
@@ -452,7 +452,7 @@ public class ExportEngine
         }
     }
 
-    private bool TryGetNormalizedRoute(string rawRef, out string normalized)
+    internal bool TryGetNormalizedRoute(string rawRef, out string normalized)
     {
         normalized = string.Empty;
 

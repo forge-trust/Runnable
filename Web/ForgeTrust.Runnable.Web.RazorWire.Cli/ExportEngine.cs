@@ -222,17 +222,23 @@ public class ExportEngine
                 // Extract assets from CSS
                 var cssUrls = CssUrlRegex.Matches(css)
                     .Select(m => m.Groups[2].Value.Trim())
+                    .Where(url => !string.IsNullOrEmpty(url)
+                                  && !url.StartsWith('#')
+                                  && !url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
                     .Distinct();
 
-                foreach (var asset in cssUrls)
+                foreach (var normalized in cssUrls
+                             .Select(asset => ResolveRelativeUrl(route, asset))
+                             .Where(resolved => TryGetNormalizedRoute(resolved, out var norm)
+                                                && !context.Visited.Contains(norm))
+                             .Select(resolved =>
+                             {
+                                 TryGetNormalizedRoute(resolved, out var norm);
+
+                                 return norm;
+                             }))
                 {
-                    // Resolve relative asset path against the CSS file route
-                    var resolvedAsset = ResolveRelativeUrl(route, asset);
-                    if (TryGetNormalizedRoute(resolvedAsset, out var normalized)
-                        && !context.Visited.Contains(normalized))
-                    {
-                        context.Queue.Enqueue(normalized);
-                    }
+                    context.Queue.Enqueue(normalized);
                 }
             }
             else
@@ -414,7 +420,10 @@ public class ExportEngine
         // 3. Find url(...) in both
         var cssUrls = styleBlocks.Concat(styleAttrs)
             .SelectMany(css => CssUrlRegex.Matches(css))
-            .Select(m => m.Groups[2].Value.Trim());
+            .Select(m => m.Groups[2].Value.Trim())
+            .Where(url => !string.IsNullOrEmpty(url)
+                          && !url.StartsWith('#')
+                          && !url.StartsWith("data:", StringComparison.OrdinalIgnoreCase));
 
         var allAssets = scripts
             .Concat(links)
@@ -423,15 +432,18 @@ public class ExportEngine
             .Concat(cssUrls)
             .Distinct(); // Deduplicate before processing
 
-        foreach (var asset in allAssets)
-        {
-            // Resolve relative URLs (e.g. "style.css" -> "/path/to/style.css") against current page
-            var resolved = ResolveRelativeUrl(currentRoute, asset);
+        foreach (var normalized in allAssets
+                     .Select(asset => ResolveRelativeUrl(currentRoute, asset))
+                     .Where(resolved => TryGetNormalizedRoute(resolved, out var norm)
+                                        && !context.Visited.Contains(norm))
+                     .Select(resolved =>
+                     {
+                         TryGetNormalizedRoute(resolved, out var norm);
 
-            if (TryGetNormalizedRoute(resolved, out var normalized) && !context.Visited.Contains(normalized))
-            {
-                context.Queue.Enqueue(normalized);
-            }
+                         return norm;
+                     }))
+        {
+            context.Queue.Enqueue(normalized);
         }
     }
 
@@ -439,17 +451,13 @@ public class ExportEngine
     {
         // srcset format: "url [descriptor], url [descriptor]"
         // Split by comma, then take the first part of the whitespace-split segment
-        if (string.IsNullOrWhiteSpace(srcSet)) yield break;
+        if (string.IsNullOrWhiteSpace(srcSet)) return Enumerable.Empty<string>();
 
-        var candidates = srcSet.Split(',');
-        foreach (var candidate in candidates)
-        {
-            var parts = candidate.Trim().Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 0)
-            {
-                yield return parts[0];
-            }
-        }
+        return srcSet.Split(',')
+            .Select(candidate =>
+                candidate.Trim().Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
+            .Where(parts => parts.Length > 0)
+            .Select(parts => parts[0]);
     }
 
     /// <summary>
@@ -475,7 +483,7 @@ public class ExportEngine
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to resolve relative URL: {Url} against {BaseRoute}", url, baseRoute);
+            _logger.LogWarning(ex, "Failed to resolve relative URL: {Url} against {BaseRoute}", url, baseRoute);
 
             return url;
         }

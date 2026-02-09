@@ -1,4 +1,5 @@
-using System.Reflection;
+using System.Net;
+using System.Text;
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -83,6 +84,27 @@ public class ExportEngineTests
     }
 
     [Fact]
+    public void ExtractAssets_Should_Filter_Data_And_Hash_Urls()
+    {
+        // Arrange
+        var html = @"<style>
+            .icon { background: url('data:image/png;base64,...'); }
+            .filter { filter: url('#svg-filter'); }
+            .valid { background: url('valid.png'); }
+        </style>";
+        var context = new ExportContext("dist", null, "http://localhost:5000");
+
+        // Act
+        _sut.ExtractAssets(html, "/", context);
+
+        // Assert
+        Assert.Contains("/valid.png", context.Queue);
+        Assert.DoesNotContain("data:image/png;base64,...", context.Queue);
+        Assert.DoesNotContain("#svg-filter", context.Queue);
+        Assert.Single(context.Queue); // Should only have one valid asset
+    }
+
+    [Fact]
     public void ExtractAssets_Should_Find_Img_Src_And_SrcSet()
     {
         // Arrange
@@ -111,6 +133,7 @@ public class ExportEngineTests
         // Assert
         Assert.Contains("/app.js", context.Queue);
     }
+
     [Fact]
     public void ExtractAssets_Should_Find_Link_Href_For_Stylesheets_Only()
     {
@@ -131,6 +154,7 @@ public class ExportEngineTests
         Assert.DoesNotContain("http://example.com/page", context.Queue);
         Assert.DoesNotContain("/fr/page", context.Queue);
     }
+
     [Fact]
     public void ExtractLinks_Should_Find_Anchor_Href()
     {
@@ -144,5 +168,91 @@ public class ExportEngineTests
         // Assert
         Assert.Contains("/about", context.Queue);
         Assert.Contains("/contact", context.Queue);
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Export_Different_Content_Types_Correctly()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var baseUrl = "http://localhost:5000";
+
+        try
+        {
+            var handler = new TestHttpMessageHandler();
+            var client = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, null, baseUrl);
+            context.Queue.Enqueue("/"); // Start at root
+
+            // Act
+            await _sut.RunAsync(context);
+
+            // Assert
+            // 1. Check HTML index
+            var indexHtmlPath = Path.Combine(tempDir, "index.html");
+            Assert.True(File.Exists(indexHtmlPath), "index.html should exist");
+            var indexContent = await File.ReadAllTextAsync(indexHtmlPath);
+            Assert.Contains("<h1>Home</h1>", indexContent);
+
+            // 2. Check CSS file
+            var cssPath = Path.Combine(tempDir, "style.css");
+            Assert.True(File.Exists(cssPath), "style.css should exist");
+            var cssContent = await File.ReadAllTextAsync(cssPath);
+            Assert.Contains("body { background: white; }", cssContent);
+
+            // 3. Check Binary Image
+            var imgPath = Path.Combine(tempDir, "image.png");
+            Assert.True(File.Exists(imgPath), "image.png should exist");
+            var imgBytes = await File.ReadAllBytesAsync(imgPath);
+            Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x04 }, imgBytes);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    private class TestHttpMessageHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? "/";
+            var content = new StringContent("", Encoding.UTF8, "text/plain");
+
+            if (path == "/" || path == "/index")
+            {
+                var html = @"<html>
+                    <body>
+                        <h1>Home</h1>
+                        <link rel=""stylesheet"" href=""style.css"">
+                        <img src=""image.png"">
+                    </body>
+                </html>";
+                content = new StringContent(html, Encoding.UTF8, "text/html");
+            }
+            else if (path == "/style.css")
+            {
+                content = new StringContent("body { background: white; }", Encoding.UTF8, "text/css");
+            }
+            else if (path == "/image.png")
+            {
+                var bytes = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+                var byteContent = new ByteArrayContent(bytes);
+                byteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = byteContent });
+            }
+            else
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
     }
 }

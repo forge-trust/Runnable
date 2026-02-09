@@ -25,8 +25,16 @@ public class ExportEngine
         @"<script[^>]*\ssrc\s*=\s*(['""])(.*?)\1",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex LinkTagRegex = new(
+        @"<link[^>]+>",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static readonly Regex LinkHrefRegex = new(
-        @"<link[^>]*\shref\s*=\s*(['""])(.*?)\1",
+        @"\shref\s*=\s*(['""])(.*?)\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex LinkRelRegex = new(
+        @"\srel\s*=\s*(['""])(.*?)\1",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex ImgSrcRegex = new(
@@ -133,7 +141,7 @@ public class ExportEngine
             context.BaseUrl,
             context.Queue.Count);
 
-        using var client = _httpClientFactory.CreateClient("ExportEngine");
+        var client = _httpClientFactory.CreateClient("ExportEngine");
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (context.Queue.Count > 0)
@@ -213,7 +221,8 @@ public class ExportEngine
 
                 // Extract assets from CSS
                 var cssUrls = CssUrlRegex.Matches(css)
-                    .Select(m => m.Groups[2].Value.Trim());
+                    .Select(m => m.Groups[2].Value.Trim())
+                    .Distinct();
 
                 foreach (var asset in cssUrls)
                 {
@@ -364,7 +373,25 @@ public class ExportEngine
             .Select(m => m.Groups[2].Value.Trim());
 
         // <link href="..."> (stylesheets, icons, etc)
-        var links = LinkHrefRegex.Matches(html)
+        // <link href="..."> (stylesheets, icons, etc) - FILTERED by rel
+        var links = LinkTagRegex.Matches(html)
+            .Select(m => m.Value)
+            .Where(tag =>
+            {
+                var relMatch = LinkRelRegex.Match(tag);
+
+                if (!relMatch.Success) return false;
+                var rel = relMatch.Groups[2].Value;
+
+                // Allow stylesheets, icons, preloads, etc.
+                return rel.Contains("stylesheet", StringComparison.OrdinalIgnoreCase)
+                       || rel.Contains("icon", StringComparison.OrdinalIgnoreCase)
+                       || rel.Contains("preload", StringComparison.OrdinalIgnoreCase)
+                       || rel.Contains("prefetch", StringComparison.OrdinalIgnoreCase)
+                       || rel.Contains("dns-prefetch", StringComparison.OrdinalIgnoreCase);
+            })
+            .Select(tag => LinkHrefRegex.Match(tag))
+            .Where(m => m.Success)
             .Select(m => m.Groups[2].Value.Trim());
 
         // <img src="...">
@@ -433,7 +460,7 @@ public class ExportEngine
         if (string.IsNullOrWhiteSpace(url)) return url;
 
         // If it's already an absolute URL (http, https, data, mailto, javascript, or starts with /), return it or handle in normalization
-        if (url.StartsWith('/') || url.Contains(':'))
+        if (url.StartsWith('/') || Uri.TryCreate(url, UriKind.Absolute, out _))
         {
             return url;
         }
@@ -446,8 +473,10 @@ public class ExportEngine
 
             return resolvedUri.AbsolutePath + resolvedUri.Query + resolvedUri.Fragment;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogDebug(ex, "Failed to resolve relative URL: {Url} against {BaseRoute}", url, baseRoute);
+
             return url;
         }
     }

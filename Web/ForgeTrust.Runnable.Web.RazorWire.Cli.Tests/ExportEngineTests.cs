@@ -26,11 +26,11 @@ public class ExportEngineTests
     }
 
     [Theory]
-    [InlineData("http://localhost:5000/css/style.css", "background.png", "/css/background.png")]
-    [InlineData("http://localhost:5000/css/style.css", "../images/bg.png", "/images/bg.png")]
-    [InlineData("http://localhost:5000/index.html", "script.js", "/script.js")]
-    [InlineData("http://localhost:5000/blog/post", "assets/image.jpg", "/blog/assets/image.jpg")]
-    [InlineData("http://localhost:5000/", "style.css", "/style.css")]
+    [InlineData("/css/style.css", "background.png", "/css/background.png")]
+    [InlineData("/css/style.css", "../images/bg.png", "/images/bg.png")]
+    [InlineData("/index.html", "script.js", "/script.js")]
+    [InlineData("/blog/post", "assets/image.jpg", "/blog/assets/image.jpg")]
+    [InlineData("/", "style.css", "/style.css")]
     public void ResolveRelativeUrl_Should_Resolve_Correctly(string baseRoute, string assetUrl, string expected)
     {
         // Act
@@ -75,7 +75,7 @@ public class ExportEngineTests
         var context = new ExportContext("dist", null, "http://localhost:5000");
         
         // Act
-        _sut.ExtractAssets(html, "http://localhost:5000/page", context);
+        _sut.ExtractAssets(html, "/page", context);
 
         // Assert
         Assert.Contains("/bg.png", context.Queue);
@@ -90,7 +90,7 @@ public class ExportEngineTests
         var context = new ExportContext("dist", null, "http://localhost:5000");
 
         // Act
-        _sut.ExtractAssets(html, "http://localhost:5000/", context);
+        _sut.ExtractAssets(html, "/", context);
 
         // Assert
         Assert.Contains("/logo.png", context.Queue);
@@ -98,7 +98,7 @@ public class ExportEngineTests
         Assert.Contains("/logo-sm.png", context.Queue);
     }
 
-     [Fact]
+    [Fact]
     public void ExtractAssets_Should_Find_Script_Src()
     {
         // Arrange
@@ -106,12 +106,31 @@ public class ExportEngineTests
         var context = new ExportContext("dist", null, "http://localhost:5000");
 
         // Act
-        _sut.ExtractAssets(html, "http://localhost:5000/", context);
+        _sut.ExtractAssets(html, "/", context);
 
         // Assert
         Assert.Contains("/app.js", context.Queue);
     }
+    [Fact]
+    public void ExtractAssets_Should_Find_Link_Href_For_Stylesheets_Only()
+    {
+        // Arrange
+        var html = @"
+            <link rel=""stylesheet"" href=""style.css"">
+            <link rel=""icon"" href=""favicon.ico"">
+            <link rel=""canonical"" href=""http://example.com/page"">
+            <link rel=""alternate"" href=""/fr/page"">";
+        var context = new ExportContext("dist", null, "http://localhost:5000");
 
+        // Act
+        _sut.ExtractAssets(html, "/", context);
+
+        // Assert
+        Assert.Contains("/style.css", context.Queue);
+        Assert.Contains("/favicon.ico", context.Queue);
+        Assert.DoesNotContain("http://example.com/page", context.Queue);
+        Assert.DoesNotContain("/fr/page", context.Queue);
+    }
     [Fact]
     public void ExtractLinks_Should_Find_Anchor_Href()
     {

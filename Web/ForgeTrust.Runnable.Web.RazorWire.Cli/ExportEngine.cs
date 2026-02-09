@@ -26,7 +26,7 @@ public class ExportEngine
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex LinkTagRegex = new(
-        @"<link[^>]+>",
+        "<link[^>]+>",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex LinkHrefRegex = new(
@@ -46,7 +46,7 @@ public class ExportEngine
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex StyleBlockRegex = new(
-        @"<style[^>]*>(.*?)</style>",
+        "<style[^>]*>(.*?)</style>",
         RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
     private static readonly Regex StyleAttrRegex = new(
@@ -151,12 +151,10 @@ public class ExportEngine
             var route = context.Queue.Dequeue();
             _logger.LogDebug("Processing route: {Route}", route);
 
-            if (context.Visited.Contains(route))
+            if (!context.Visited.Add(route))
             {
                 continue;
             }
-
-            context.Visited.Add(route);
 
             await ExportRouteAsync(client, route, context, cancellationToken);
         }
@@ -274,9 +272,14 @@ public class ExportEngine
             || normalized == "/")
         {
             // Make sure it goes to /index.html logic below
-            if (normalized == "/") normalized = "/index";
+            if (normalized == "/")
+            {
+                normalized = "/index";
+            }
             else if (normalized.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+            {
                 normalized = normalized[..^5]; // strip .html for consistent handling
+            }
         }
 
         var relativePath = normalized.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
@@ -382,7 +385,11 @@ public class ExportEngine
             {
                 var relMatch = LinkRelRegex.Match(tag);
 
-                if (!relMatch.Success) return false;
+                if (!relMatch.Success)
+                {
+                    return false;
+                }
+
                 var rel = relMatch.Groups[2].Value;
 
                 // Allow stylesheets, icons, preloads, etc.
@@ -443,11 +450,14 @@ public class ExportEngine
     {
         // srcset format: "url [descriptor], url [descriptor]"
         // Split by comma, then take the first part of the whitespace-split segment
-        if (string.IsNullOrWhiteSpace(srcSet)) return Enumerable.Empty<string>();
+        if (string.IsNullOrWhiteSpace(srcSet))
+        {
+            return Enumerable.Empty<string>();
+        }
 
         return srcSet.Split(',')
             .Select(candidate =>
-                candidate.Trim().Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
+                candidate.Trim().Split([' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries))
             .Where(parts => parts.Length > 0)
             .Select(parts => parts[0]);
     }
@@ -457,7 +467,10 @@ public class ExportEngine
     /// </summary>
     internal string ResolveRelativeUrl(string baseRoute, string url)
     {
-        if (string.IsNullOrWhiteSpace(url)) return url;
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return url;
+        }
 
         // If it's already an absolute URL (http, https, data, mailto, javascript, or starts with /), return it or handle in normalization
         if (url.StartsWith('/') || Uri.TryCreate(url, UriKind.Absolute, out _))
@@ -485,7 +498,10 @@ public class ExportEngine
     {
         normalized = string.Empty;
 
-        if (string.IsNullOrWhiteSpace(rawRef)) return false;
+        if (string.IsNullOrWhiteSpace(rawRef))
+        {
+            return false;
+        }
 
         // Must start with /, not //
         if (!rawRef.StartsWith('/') || rawRef.StartsWith("//"))
@@ -502,7 +518,7 @@ public class ExportEngine
         }
 
         // Strip query and fragment
-        var split = rawRef.Split(new[] { '?', '#' }, 2);
+        var split = rawRef.Split(['?', '#'], 2);
         normalized = split[0];
 
         return !string.IsNullOrEmpty(normalized);

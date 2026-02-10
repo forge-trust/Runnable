@@ -61,6 +61,55 @@ public sealed class RazorWireMvcPlaywrightTests
     }
 
     [Fact]
+    public async Task PublishMessage_PersistsAfterNavigatingAwayAndBack()
+    {
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var message = $"persist after nav {unique}";
+
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.ReactivityUrl);
+        await WaitForStreamConnectedAsync(page);
+
+        await page.FillAsync("#message-form input[name='message']", message);
+        var publishResponse = await SubmitAndWaitForPostAsync(page, "#message-form", "/Reactivity/PublishMessage");
+        Assert.True(publishResponse.Ok, $"PublishMessage POST failed with status {(int)publishResponse.Status}.");
+        await WaitForMessageAsync(page, unique);
+
+        await page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Home", Exact = true }).First.ClickAsync();
+        await WaitForPathAsync(page, "/");
+
+        await page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Reactivity", Exact = true }).First.ClickAsync();
+        await WaitForPathAsync(page, "/Reactivity");
+        await WaitForStreamConnectedAsync(page);
+        await WaitForMessageAsync(page, unique);
+    }
+
+    [Fact]
+    public async Task PublishMessage_PersistsAfterFullReload()
+    {
+        var unique = Guid.NewGuid().ToString("N")[..8];
+        var message = $"persist after reload {unique}";
+
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.ReactivityUrl);
+        await WaitForStreamConnectedAsync(page);
+
+        await page.FillAsync("#message-form input[name='message']", message);
+        var publishResponse = await SubmitAndWaitForPostAsync(page, "#message-form", "/Reactivity/PublishMessage");
+        Assert.True(publishResponse.Ok, $"PublishMessage POST failed with status {(int)publishResponse.Status}.");
+        await WaitForMessageAsync(page, unique);
+
+        await page.ReloadAsync();
+        await WaitForPathAsync(page, "/Reactivity");
+        await WaitForStreamConnectedAsync(page);
+        await WaitForMessageAsync(page, unique);
+    }
+
+    [Fact]
     public async Task RegisterTwoUsers_FromSingleSession_WithoutRefresh_AntiforgeryAllowsBothPosts()
     {
         var unique = Guid.NewGuid().ToString("N")[..8];
@@ -293,12 +342,17 @@ public sealed class RazorWireMvcPlaywrightTests
     private static async Task NavigateViaHeaderAndAssertSessionScoreAsync(IPage page, string linkText, string expectedPath, int expectedSessionScore)
     {
         await page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = linkText, Exact = true }).First.ClickAsync();
+        await WaitForPathAsync(page, expectedPath);
+        await WaitForCounterReadyAsync(page);
+        await ExpectCounterValuesAsync(page, expectedSessionScore);
+    }
+
+    private static async Task WaitForPathAsync(IPage page, string expectedPath)
+    {
         await page.WaitForFunctionAsync(
             "path => window.location.pathname === path",
             expectedPath,
             new PageWaitForFunctionOptions { Timeout = 15_000 });
-        await WaitForCounterReadyAsync(page);
-        await ExpectCounterValuesAsync(page, expectedSessionScore);
     }
 
     private static async Task PlantNoRefreshMarkerAsync(IPage page)

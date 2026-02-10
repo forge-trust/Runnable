@@ -7,6 +7,7 @@ This project contains browser-level integration tests for the RazorWire MVC samp
 - The sample app boots successfully.
 - RazorWire stream connection is established.
 - A message published from one browser session is received in another session via SSE.
+- Reactivity message history persists when navigating away and back, and after full page reload.
 - Antiforgery behavior:
   - valid form submissions are accepted,
   - submissions without antiforgery token are rejected with `400`,

@@ -346,20 +346,25 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (Browser is not null)
+        try
         {
-            await Browser.DisposeAsync();
+            if (Browser is not null)
+            {
+                await Browser.DisposeAsync();
+            }
+
+            _playwright?.Dispose();
         }
-
-        _playwright?.Dispose();
-
-        if (_appProcess is not null && !_appProcess.HasExited)
+        finally
         {
-            _appProcess.Kill(entireProcessTree: true);
-            await _appProcess.WaitForExitAsync();
-        }
+            if (_appProcess is not null && !_appProcess.HasExited)
+            {
+                _appProcess.Kill(entireProcessTree: true);
+                await _appProcess.WaitForExitAsync();
+            }
 
-        _appProcess?.Dispose();
+            _appProcess?.Dispose();
+        }
     }
 
     private static async Task EnsurePlaywrightInstalledAsync()

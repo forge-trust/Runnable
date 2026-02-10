@@ -10,21 +10,18 @@ public class InMemoryMessageStore : IMessageStore
 {
     private const int MaxMessages = 100;
     private readonly ConcurrentQueue<MessageItemModel> _messages = new();
-    private int _count;
 
     public void Add(MessageItemModel message)
     {
         ArgumentNullException.ThrowIfNull(message);
         _messages.Enqueue(message);
-        var count = Interlocked.Increment(ref _count);
-        if (count > MaxMessages)
+
+        while (_messages.Count > MaxMessages)
         {
             if (!_messages.TryDequeue(out _))
             {
                 return;
             }
-
-            Interlocked.Decrement(ref _count);
         }
     }
 

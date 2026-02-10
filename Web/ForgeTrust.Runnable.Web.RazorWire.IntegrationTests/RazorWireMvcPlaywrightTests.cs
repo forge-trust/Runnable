@@ -8,6 +8,7 @@ using Microsoft.Playwright;
 namespace ForgeTrust.Runnable.Web.RazorWire.IntegrationTests;
 
 [Collection(RazorWireIntegrationCollection.Name)]
+[Trait("Category", "Integration")]
 public sealed class RazorWireMvcPlaywrightTests
 {
     private readonly RazorWireMvcPlaywrightFixture _fixture;

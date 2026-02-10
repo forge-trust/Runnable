@@ -29,6 +29,7 @@
     <Project Path="examples/razorwire-mvc/RazorWireWebExample.csproj" />
   </Folder>
   <Folder Name="/Web/">
+    <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire.IntegrationTests/ForgeTrust.Runnable.Web.RazorWire.IntegrationTests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire.Tests/ForgeTrust.Runnable.Web.RazorWire.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorWire/ForgeTrust.Runnable.Web.RazorWire.csproj" />

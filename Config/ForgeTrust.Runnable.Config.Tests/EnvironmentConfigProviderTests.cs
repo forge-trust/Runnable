@@ -128,4 +128,66 @@ public class EnvironmentConfigProviderTests
 
         Assert.Equal(default(System.UriKind), provider.GetValue<System.UriKind>("Production", "Value"));
     }
+
+    [Fact]
+    public void GetValue_BindsTopLevelListFromJsonValue()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP_ITEMS", A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("ITEMS", A<string?>._)).Returns("""["a","b"]""");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        var value = provider.GetValue<List<string>>("MyApp", "Items");
+
+        Assert.NotNull(value);
+        Assert.Equal(["a", "b"], value);
+    }
+
+    [Fact]
+    public void GetValue_BindsTopLevelDictionaryFromJsonValue()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION_SETTINGS", A<string?>._))
+            .Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("SETTINGS", A<string?>._))
+            .Returns("""{"Retries":3,"Timeout":30}""");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        var value = provider.GetValue<Dictionary<string, int>>("Production", "Settings");
+
+        Assert.NotNull(value);
+        Assert.Equal(3, value["Retries"]);
+        Assert.Equal(30, value["Timeout"]);
+    }
+
+    [Fact]
+    public void GetValue_BindsIndexedListFromDoubleUnderscoreVariables()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION_MYAPP_ITEMS", A<string?>._))
+            .Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP_ITEMS", A<string?>._))
+            .Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION__MYAPP__ITEMS", A<string?>._))
+            .Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__ITEMS", A<string?>._))
+            .Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION__MYAPP__ITEMS__0", A<string?>._))
+            .Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__ITEMS__0", A<string?>._))
+            .Returns("First");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__ITEMS__1", A<string?>._))
+            .Returns("Second");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__ITEMS__2", A<string?>._))
+            .Returns(null);
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        var value = provider.GetValue<List<string>>("Production", "MyApp.Items");
+
+        Assert.NotNull(value);
+        Assert.Equal(["First", "Second"], value);
+    }
 }

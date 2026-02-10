@@ -15,14 +15,16 @@ public class ReactivityController : Controller
 {
     private readonly IRazorWireStreamHub _hub;
     private readonly IUserPresenceService _presence;
+    private readonly IMessageStore _messages;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="ReactivityController"/> with the specified stream hub and user presence service.
+    /// Initializes a new instance of <see cref="ReactivityController"/> with the specified stream hub, user presence service, and message store.
     /// </summary>
-    public ReactivityController(IRazorWireStreamHub hub, IUserPresenceService presence)
+    public ReactivityController(IRazorWireStreamHub hub, IUserPresenceService presence, IMessageStore messages)
     {
         _hub = hub;
         _presence = presence;
+        _messages = messages;
     }
 
     /// <summary>
@@ -31,7 +33,7 @@ public class ReactivityController : Controller
     /// <returns>An <see cref="IActionResult"/> that renders the default view.</returns>
     public IActionResult Index()
     {
-        return View();
+        return View(_messages.GetAll());
     }
 
     /// <summary>
@@ -113,10 +115,12 @@ public class ReactivityController : Controller
         }
 
         var utcTime = DateTimeOffset.UtcNow.ToString("o");
+        var item = new MessageItemModel(displayName, utcTime, message);
+        _messages.Add(item);
         var viewContext = this.CreateViewContext();
         var streamHtml = await RazorWireBridge.CreateStream()
             .Remove("messages-empty")
-            .PrependPartial("messages", "_MessageItem", new MessageItemModel(displayName, utcTime, message))
+            .PrependPartial("messages", "_MessageItem", item)
             .RenderAsync(viewContext);
 
         await _hub.PublishAsync("reactivity", streamHtml);

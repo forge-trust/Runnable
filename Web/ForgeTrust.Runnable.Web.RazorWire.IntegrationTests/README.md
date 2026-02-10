@@ -10,7 +10,7 @@ This project contains browser-level integration tests for the RazorWire MVC samp
 - Antiforgery behavior:
   - valid form submissions are accepted,
   - submissions without antiforgery token are rejected with `400`,
-  - repeated registration from one instance without refresh is covered.
+  - `RegisterTwoUsers_FromSingleSession_WithoutRefresh_AntiforgeryAllowsBothPosts` verifies antiforgery accepts both registration POSTs from a single session without refreshing the token.
 - Increment counter behavior:
   - single-session increment updates instance/session/client-count values without refresh,
   - multi-session flow keeps session score independent while instance score is global,
@@ -23,3 +23,13 @@ dotnet test Web/ForgeTrust.Runnable.Web.RazorWire.IntegrationTests/ForgeTrust.Ru
 ```
 
 The fixture installs Playwright Chromium automatically on first run.
+
+### Run specific subsets
+
+```bash
+dotnet test Web/ForgeTrust.Runnable.Web.RazorWire.IntegrationTests/ForgeTrust.Runnable.Web.RazorWire.IntegrationTests.csproj --filter "FullyQualifiedName~IncrementCounter"
+```
+
+```bash
+dotnet test Web/ForgeTrust.Runnable.Web.RazorWire.IntegrationTests/ForgeTrust.Runnable.Web.RazorWire.IntegrationTests.csproj --filter "Category=Integration"
+```

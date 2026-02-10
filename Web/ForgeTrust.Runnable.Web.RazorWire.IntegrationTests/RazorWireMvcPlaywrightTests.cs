@@ -466,6 +466,10 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
             {
                 // Application is still starting.
             }
+            catch (TaskCanceledException) when (timeoutCts.IsCancellationRequested)
+            {
+                throw new TimeoutException($"RazorWire MVC example did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
+            }
             catch (TaskCanceledException) when (!timeoutCts.IsCancellationRequested)
             {
                 // Retry until global timeout.

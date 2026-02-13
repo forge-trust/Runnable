@@ -318,10 +318,11 @@
     }
 
     /**
-     * LocalTimeFormatter - Formats UTC timestamps to user's local timezone
+     * LocalTimeFormatter - Formats UTC timestamps for display
      * Handles <time data-rw-time> elements with support for:
-     * - display: time (default), date, datetime, relative, utc
-     * - format: short, medium (default), long, full
+     * - data-rw-time-display: time (default), date, datetime, relative
+     * - data-rw-time-format: short, medium (default), long, full
+     * - data-rw-time-tz: "utc" to display in UTC (default: user's local timezone)
      */
     class LocalTimeFormatter {
         constructor() {

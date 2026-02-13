@@ -1,6 +1,5 @@
 using CliFx;
 using CliFx.Attributes;
-using CliFx.Exceptions;
 using CliFx.Infrastructure;
 using Microsoft.Extensions.Logging;
 
@@ -26,26 +25,52 @@ public class ExportCommand : ICommand
     public string? SeedRoutesPath { get; init; }
 
     /// <summary>
-    /// Gets or sets the base URL of the running application to crawl.
-    /// Defaults to <c>"http://localhost:5000"</c>.
+    /// Gets or sets the base URL of a running application to crawl.
     /// </summary>
-    [CommandOption("url", 'u', Description = "Base URL of the running application (default: http://localhost:5000).")]
-    public string BaseUrl { get; init; } = "http://localhost:5000";
+    [CommandOption("url", 'u', Description = "Base URL of a running application to crawl.")]
+    public string? BaseUrl { get; init; }
+
+    /// <summary>
+    /// Gets or sets a path to a .csproj file to run and export.
+    /// </summary>
+    [CommandOption("project", 'p', Description = "Path to a .csproj to run and export.")]
+    public string? ProjectPath { get; init; }
+
+    /// <summary>
+    /// Gets or sets a path to a .dll file to run and export.
+    /// </summary>
+    [CommandOption("dll", 'd', Description = "Path to a .dll to run and export.")]
+    public string? DllPath { get; init; }
+
+    /// <summary>
+    /// Gets or sets app arguments forwarded to the launched target app.
+    /// Repeat this option for each token.
+    /// </summary>
+    [CommandOption("app-args", Description = "Repeatable app argument token to pass through to the launched target app.")]
+    public string[] AppArgs { get; init; } = [];
 
     private readonly ILogger<ExportCommand> _logger;
     private readonly ExportEngine _engine;
+    private readonly ExportSourceRequestFactory _requestFactory;
+    private readonly ExportSourceResolver _sourceResolver;
 
     /// <summary>
     /// Initializes a new instance of <see cref="ExportCommand"/> with the required logger and export engine.
     /// </summary>
     /// <param name="logger">The logger for reporting command status.</param>
     /// <param name="engine">The engine that performs the export operation.</param>
+    /// <param name="requestFactory">The factory that validates and creates an export source request.</param>
+    /// <param name="sourceResolver">The resolver that turns a source request into a crawlable base URL.</param>
     public ExportCommand(
         ILogger<ExportCommand> logger,
-        ExportEngine engine)
+        ExportEngine engine,
+        ExportSourceRequestFactory requestFactory,
+        ExportSourceResolver sourceResolver)
     {
         _logger = logger;
         _engine = engine;
+        _requestFactory = requestFactory;
+        _sourceResolver = sourceResolver;
     }
 
     /// <summary>
@@ -53,18 +78,14 @@ public class ExportCommand : ICommand
     /// </summary>
     /// <param name="console">The console used to write progress and completion messages.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
-    /// <exception cref="CommandException">Thrown when <c>BaseUrl</c> is not an absolute HTTP or HTTPS URL.</exception>
     public async ValueTask ExecuteAsync(IConsole console)
     {
-        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-        {
-            throw new CommandException("BaseUrl must be a valid HTTP or HTTPS URL.");
-        }
+        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs);
+        await using var resolvedSource = await _sourceResolver.ResolveAsync(request);
 
         _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);
 
-        var context = new ExportContext(OutputPath, SeedRoutesPath, BaseUrl);
+        var context = new ExportContext(OutputPath, SeedRoutesPath, resolvedSource.BaseUrl);
         await _engine.RunAsync(context);
 
         _logger.LogInformation("Export complete!");

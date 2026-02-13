@@ -175,6 +175,8 @@ public class FileBasedConfigProvider : IConfigProvider
                 }
                 else
                 {
+                    // Arrays and scalar values use replace semantics: later files
+                    // override earlier values for the same key.
                     target[kvp.Key] = kvp.Value.DeepClone();
                 }
             }

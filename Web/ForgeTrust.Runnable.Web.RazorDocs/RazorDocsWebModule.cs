@@ -82,6 +82,24 @@ public class RazorDocsWebModule : IRunnableWebModule
             });
 
         endpoints.MapControllerRoute(
+            name: "razordocs_search",
+            pattern: "docs/search",
+            defaults: new
+            {
+                controller = "Docs",
+                action = "Search"
+            });
+
+        endpoints.MapControllerRoute(
+            name: "razordocs_search_index",
+            pattern: "docs/search-index.json",
+            defaults: new
+            {
+                controller = "Docs",
+                action = "SearchIndex"
+            });
+
+        endpoints.MapControllerRoute(
             name: "razordocs_doc",
             pattern: "docs/{*path}",
             defaults: new

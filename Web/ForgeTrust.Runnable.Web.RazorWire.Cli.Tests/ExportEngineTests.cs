@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using FakeItEasy;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
@@ -10,20 +12,23 @@ public class ExportEngineTests
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ExportEngine> _logger;
+    private readonly DocsSearchIndexBuilder _docsSearchIndexBuilder;
     private readonly ExportEngine _sut;
 
     public ExportEngineTests()
     {
         _httpClientFactory = A.Fake<IHttpClientFactory>();
         _logger = A.Fake<ILogger<ExportEngine>>();
-        _sut = new ExportEngine(_logger, _httpClientFactory);
+        _docsSearchIndexBuilder = new DocsSearchIndexBuilder(NullLogger<DocsSearchIndexBuilder>.Instance);
+        _sut = new ExportEngine(_logger, _httpClientFactory, _docsSearchIndexBuilder);
     }
 
     [Fact]
     public void Constructor_Should_Throw_If_Null_Dependencies()
     {
-        Assert.Throws<ArgumentNullException>(() => new ExportEngine(null!, _httpClientFactory));
-        Assert.Throws<ArgumentNullException>(() => new ExportEngine(_logger, null!));
+        Assert.Throws<ArgumentNullException>(() => new ExportEngine(null!, _httpClientFactory, _docsSearchIndexBuilder));
+        Assert.Throws<ArgumentNullException>(() => new ExportEngine(_logger, null!, _docsSearchIndexBuilder));
+        Assert.Throws<ArgumentNullException>(() => new ExportEngine(_logger, _httpClientFactory, null!));
     }
 
     [Theory]
@@ -208,6 +213,121 @@ public class ExportEngineTests
             Assert.True(File.Exists(imgPath), "image.png should exist");
             var imgBytes = await File.ReadAllBytesAsync(imgPath);
             Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x04 }, imgBytes);
+
+            // 4. Docs search artifacts should exist by default
+            var searchIndexPath = Path.Combine(tempDir, "docs", "search-index.json");
+            Assert.True(File.Exists(searchIndexPath), "docs/search-index.json should exist");
+
+            var localRuntimePath = Path.Combine(tempDir, "docs", "minisearch.min.js");
+            Assert.True(File.Exists(localRuntimePath), "docs/minisearch.min.js should exist by default");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Respect_Docs_Search_Disabled()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var baseUrl = "http://localhost:5000";
+
+        try
+        {
+            var handler = new TestHttpMessageHandler();
+            var client = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, null, baseUrl, docsSearchEnabled: false);
+            await _sut.RunAsync(context);
+
+            Assert.False(File.Exists(Path.Combine(tempDir, "docs", "search-index.json")));
+            Assert.False(File.Exists(Path.Combine(tempDir, "docs", "search-client.js")));
+            Assert.False(File.Exists(Path.Combine(tempDir, "docs", "search.css")));
+            Assert.False(File.Exists(Path.Combine(tempDir, "docs", "minisearch.min.js")));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Write_Cdn_Search_Runtime_When_Requested()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var baseUrl = "http://localhost:5000";
+        const string customCdn = "https://cdn.example.com/minisearch.min.js";
+
+        try
+        {
+            var handler = new TestHttpMessageHandler();
+            var client = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(
+                tempDir,
+                null,
+                baseUrl,
+                docsSearchEnabled: true,
+                searchRuntime: "cdn",
+                searchCdnUrl: customCdn);
+
+            await _sut.RunAsync(context);
+
+            var searchClientPath = Path.Combine(tempDir, "docs", "search-client.js");
+            Assert.True(File.Exists(searchClientPath));
+            var searchClientContent = await File.ReadAllTextAsync(searchClientPath);
+            Assert.Contains(customCdn, searchClientContent);
+            Assert.False(File.Exists(Path.Combine(tempDir, "docs", "minisearch.min.js")));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Build_Docs_Search_Index_From_Docs_Routes()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var baseUrl = "http://localhost:5000";
+
+        try
+        {
+            var handler = new TestHttpMessageHandler();
+            var client = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, null, baseUrl);
+            await _sut.RunAsync(context);
+
+            var indexPath = Path.Combine(tempDir, "docs", "search-index.json");
+            Assert.True(File.Exists(indexPath));
+
+            var json = await File.ReadAllTextAsync(indexPath);
+            using var doc = JsonDocument.Parse(json);
+            var documents = doc.RootElement.GetProperty("documents");
+            var paths = documents.EnumerateArray()
+                .Select(d => d.GetProperty("path").GetString())
+                .Where(p => p != null)
+                .ToList();
+
+            Assert.Contains("/docs/getting-started", paths);
+            Assert.DoesNotContain("/about", paths);
         }
         finally
         {
@@ -229,8 +349,36 @@ public class ExportEngineTests
                 var html = @"<html>
                     <body>
                         <h1>Home</h1>
+                        <a href=""/docs/getting-started"">Docs</a>
+                        <a href=""/about"">About</a>
                         <link rel=""stylesheet"" href=""style.css"">
                         <img src=""image.png"">
+                    </body>
+                </html>";
+                var content = new StringContent(html, Encoding.UTF8, "text/html");
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+            }
+
+            if (path == "/docs/getting-started")
+            {
+                var html = @"<html>
+                    <head><title>Getting Started - RazorDocs</title></head>
+                    <body>
+                        <h1>Getting Started</h1>
+                        <h2>Install</h2>
+                        <p>Use the CLI export command to generate static output.</p>
+                    </body>
+                </html>";
+                var content = new StringContent(html, Encoding.UTF8, "text/html");
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+            }
+
+            if (path == "/about")
+            {
+                var html = @"<html>
+                    <body>
+                        <h1>About</h1>
+                        <p>General non-doc page.</p>
                     </body>
                 </html>";
                 var content = new StringContent(html, Encoding.UTF8, "text/html");

@@ -17,6 +17,7 @@ public class RazorWireCliModule : IRunnableHostModule
     /// <param name="services">The service collection to populate.</param>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
+        services.AddSingleton<DocsSearchIndexBuilder>();
         services.AddSingleton<ExportEngine>();
         services.AddHttpClient("ExportEngine", client => { client.Timeout = TimeSpan.FromSeconds(60); });
 

@@ -9,6 +9,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using System.Text.Json;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -93,6 +94,31 @@ public class DocsControllerTests : IDisposable
 
         // Assert
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public void Search_ShouldReturnView()
+    {
+        var result = _controller.Search();
+        Assert.IsType<ViewResult>(result);
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldReturnJsonPayload()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<h2>Install</h2><p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.SearchIndex();
+        var json = Assert.IsType<JsonResult>(result);
+
+        var payload = JsonSerializer.Serialize(json.Value);
+        using var doc = JsonDocument.Parse(payload);
+        var documents = doc.RootElement.GetProperty("documents");
+        Assert.Single(documents.EnumerateArray());
     }
 
     public void Dispose()

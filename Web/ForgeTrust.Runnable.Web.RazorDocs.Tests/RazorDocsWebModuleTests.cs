@@ -91,4 +91,35 @@ public class RazorDocsWebModuleTests
                 "Smoke test passed: MapControllerRoute was invoked (detected via framework dependency exception).");
         }
     }
+
+    [Fact]
+    public void ConfigureEndpoints_Source_ShouldDeclareSearchRouteBeforeCatchAll()
+    {
+        var repoRoot = FindRepoRoot(AppContext.BaseDirectory);
+        var sourcePath = Path.Combine(repoRoot, "Web", "ForgeTrust.Runnable.Web.RazorDocs", "RazorDocsWebModule.cs");
+        var source = File.ReadAllText(sourcePath);
+
+        var searchRoutePos = source.IndexOf("pattern: \"docs/search\"", StringComparison.Ordinal);
+        var catchAllPos = source.IndexOf("pattern: \"docs/{*path}\"", StringComparison.Ordinal);
+
+        Assert.True(searchRoutePos >= 0, "Expected docs/search route declaration in source.");
+        Assert.True(catchAllPos >= 0, "Expected docs catch-all route declaration in source.");
+        Assert.True(searchRoutePos < catchAllPos, "docs/search must be declared before docs/{*path} catch-all.");
+    }
+
+    private static string FindRepoRoot(string startPath)
+    {
+        var current = new DirectoryInfo(startPath);
+        while (current != null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "ForgeTrust.Runnable.slnx")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate repository root.");
+    }
 }

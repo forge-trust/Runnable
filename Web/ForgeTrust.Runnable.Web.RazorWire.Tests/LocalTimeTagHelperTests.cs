@@ -204,7 +204,52 @@ public class LocalTimeTagHelperTests
     }
 
     [Fact]
-    public void Process_WithNonLocalType_DoesNotProcess()
+    public void Process_WithUtcType_RendersDataRwTimeAttribute()
+    {
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "utc"
+        };
+        var output = CreateOutput();
+
+        helper.Process(CreateContext(), output);
+
+        Assert.True(output.Attributes.ContainsName("data-rw-time"));
+    }
+
+    [Fact]
+    public void Process_WithUtcType_EmitsTzAttribute()
+    {
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "utc"
+        };
+        var output = CreateOutput();
+
+        helper.Process(CreateContext(), output);
+
+        Assert.Equal("utc", output.Attributes["data-rw-time-tz"].Value);
+    }
+
+    [Fact]
+    public void Process_WithLocalType_DoesNotEmitTzAttribute()
+    {
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "local"
+        };
+        var output = CreateOutput();
+
+        helper.Process(CreateContext(), output);
+
+        Assert.False(output.Attributes.ContainsName("data-rw-time-tz"));
+    }
+
+    [Fact]
+    public void Process_WithUtcType_RemovesRwTypeAttribute()
     {
         var helper = new LocalTimeTagHelper
         {
@@ -216,9 +261,40 @@ public class LocalTimeTagHelperTests
 
         helper.Process(CreateContext(), output);
 
-        // Should not have added data-rw-time
+        Assert.False(output.Attributes.ContainsName("rw-type"));
+    }
+
+    [Fact]
+    public void Process_WithUtcTypeAndDisplay_EmitsBothAttributes()
+    {
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "utc",
+            Display = "datetime"
+        };
+        var output = CreateOutput();
+
+        helper.Process(CreateContext(), output);
+
+        Assert.Equal("utc", output.Attributes["data-rw-time-tz"].Value);
+        Assert.Equal("datetime", output.Attributes["data-rw-time-display"].Value);
+    }
+
+    [Fact]
+    public void Process_WithUnknownType_DoesNotProcess()
+    {
+        var helper = new LocalTimeTagHelper
+        {
+            Value = DateTimeOffset.UtcNow,
+            RwType = "invalid"
+        };
+        var output = CreateOutput();
+        output.Attributes.Add("rw-type", "invalid");
+
+        helper.Process(CreateContext(), output);
+
         Assert.False(output.Attributes.ContainsName("data-rw-time"));
-        // Should STILL have rw-type attribute (since we didn't process it)
         Assert.True(output.Attributes.ContainsName("rw-type"));
     }
 

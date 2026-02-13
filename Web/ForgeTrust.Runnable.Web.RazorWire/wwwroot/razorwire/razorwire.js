@@ -320,7 +320,7 @@
     /**
      * LocalTimeFormatter - Formats UTC timestamps to user's local timezone
      * Handles <time data-rw-time> elements with support for:
-     * - display: time (default), date, datetime, relative
+     * - display: time (default), date, datetime, relative, utc
      * - format: short, medium (default), long, full
      */
     class LocalTimeFormatter {
@@ -451,6 +451,7 @@
             if (isNaN(date.getTime())) return;
 
             const display = element.getAttribute('data-rw-time-display') || 'time';
+            const tz = element.getAttribute('data-rw-time-tz');
             let formatStyle = element.getAttribute('data-rw-time-format');
 
             // Validate format style
@@ -459,16 +460,18 @@
                 formatStyle = 'medium';
             }
 
+            const tzOption = tz === 'utc' ? { timeZone: 'UTC' } : {};
+
             let text = '';
             if (display === 'relative') {
                 text = this.getRelativeTime(date);
             } else if (display === 'date') {
-                text = date.toLocaleDateString(undefined, { dateStyle: formatStyle });
+                text = date.toLocaleDateString(undefined, { dateStyle: formatStyle, ...tzOption });
             } else if (display === 'datetime') {
-                text = date.toLocaleString(undefined, { dateStyle: formatStyle, timeStyle: formatStyle });
+                text = date.toLocaleString(undefined, { dateStyle: formatStyle, timeStyle: formatStyle, ...tzOption });
             } else {
                 // Default to time
-                text = date.toLocaleTimeString(undefined, { timeStyle: formatStyle });
+                text = date.toLocaleTimeString(undefined, { timeStyle: formatStyle, ...tzOption });
             }
 
             if (text) {

@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text;
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
 
@@ -45,11 +43,24 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public void TryParseListeningBaseUrl_Should_Return_False_For_NonListening_Line()
+    {
+        var ok = ExportSourceResolver.TryParseListeningBaseUrl(
+            "Starting application on port 5000",
+            out var baseUrl);
+
+        Assert.False(ok);
+        Assert.True(string.IsNullOrEmpty(baseUrl));
+    }
+
+    [Fact]
     public async Task ResolveAsync_Should_Start_Process_And_Return_Resolved_Url()
     {
         var fakeProcess = new FakeTargetAppProcess();
         var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
-        var resolver = CreateResolver(factory, new OkHttpClientFactory());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
         resolver.AppReadyTimeout = TimeSpan.FromSeconds(1);
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(10);
@@ -81,7 +92,9 @@ public class ExportSourceResolverTests
             createCallCount++;
             return fakeProcess;
         });
-        var resolver = CreateResolver(factory, new OkHttpClientFactory());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         var request = new ExportSourceRequest(
             ExportSourceKind.Url,
             "http://localhost:5233",
@@ -100,7 +113,9 @@ public class ExportSourceResolverTests
         var fakeProcess = new FakeTargetAppProcess();
         fakeProcess.OnStart = () => fakeProcess.EmitOutput("boot log line");
         var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
-        var resolver = CreateResolver(factory, new OkHttpClientFactory());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         resolver.ListeningUrlTimeout = TimeSpan.FromMilliseconds(100);
 
         var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/app.csproj", []);
@@ -116,7 +131,9 @@ public class ExportSourceResolverTests
     {
         var fakeProcess = new FakeTargetAppProcess();
         var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
-        var resolver = CreateResolver(factory, new OkHttpClientFactory());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
 
         var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", []);
@@ -137,7 +154,9 @@ public class ExportSourceResolverTests
     {
         var fakeProcess = new FakeTargetAppProcess();
         var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
-        var resolver = CreateResolver(factory, new NotReadyHttpClientFactory());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.ServiceUnavailable)));
         resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
         resolver.AppReadyTimeout = TimeSpan.FromMilliseconds(120);
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
@@ -154,7 +173,9 @@ public class ExportSourceResolverTests
     {
         var fakeProcess = new FakeTargetAppProcess();
         var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
-        var resolver = CreateResolver(factory, new NotReadyHttpClientFactory());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.ServiceUnavailable)));
         resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
         resolver.AppReadyTimeout = TimeSpan.FromSeconds(10);
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
@@ -172,15 +193,20 @@ public class ExportSourceResolverTests
     public void BuildProcessLaunchSpec_Should_Use_Release_And_Production_For_Project_Mode()
     {
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
-        var resolver = CreateResolver(factory, new OkHttpClientFactory());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/site.csproj", ["--flag"]);
 
         var spec = resolver.BuildProcessLaunchSpec(request);
 
         Assert.Equal("dotnet", spec.FileName);
         Assert.Contains("run", spec.Arguments);
+        Assert.Contains("--project", spec.Arguments);
         Assert.Contains("-c", spec.Arguments);
         Assert.Contains("Release", spec.Arguments);
+        Assert.Contains("--no-launch-profile", spec.Arguments);
+        Assert.Contains("--flag", spec.Arguments);
         Assert.Equal("Production", spec.EnvironmentOverrides["DOTNET_ENVIRONMENT"]);
         Assert.Equal("Production", spec.EnvironmentOverrides["ASPNETCORE_ENVIRONMENT"]);
     }
@@ -189,7 +215,9 @@ public class ExportSourceResolverTests
     public void BuildProcessLaunchSpec_Should_Use_Dll_Path_For_Dll_Mode()
     {
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
-        var resolver = CreateResolver(factory, new OkHttpClientFactory());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/site.dll", ["--flag"]);
 
         var spec = resolver.BuildProcessLaunchSpec(request);
@@ -257,37 +285,4 @@ public class ExportSourceResolverTests
         }
     }
 
-    private sealed class OkHttpClientFactory : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name)
-        {
-            return new HttpClient(new StaticHandler(HttpStatusCode.OK));
-        }
-    }
-
-    private sealed class NotReadyHttpClientFactory : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name)
-        {
-            return new HttpClient(new StaticHandler(HttpStatusCode.ServiceUnavailable));
-        }
-    }
-
-    private sealed class StaticHandler : HttpMessageHandler
-    {
-        private readonly HttpStatusCode _statusCode;
-
-        public StaticHandler(HttpStatusCode statusCode)
-        {
-            _statusCode = statusCode;
-        }
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            var content = new StringContent("x", Encoding.UTF8, "text/plain");
-            return Task.FromResult(new HttpResponseMessage(_statusCode) { Content = content });
-        }
-    }
 }

@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text;
 using CliFx.Exceptions;
 using CliFx.Infrastructure;
 using FakeItEasy;
@@ -24,8 +22,10 @@ public class ExportCommandTests
             var sourceResolver = new ExportSourceResolver(
                 resolverLogger,
                 processFactory,
-                new OkHttpClientFactory("http://localhost:5001"));
-            var engine = new ExportEngine(engineLogger, new OkHttpClientFactory("http://localhost:5001"));
+                new TestHttpHelpers.Factory(TestHttpHelpers.UrlAwareHtmlRoot("http://localhost:5001")));
+            var engine = new ExportEngine(
+                engineLogger,
+                new TestHttpHelpers.Factory(TestHttpHelpers.UrlAwareHtmlRoot("http://localhost:5001")));
             var command = new ExportCommand(logger, engine, requestFactory, sourceResolver)
             {
                 OutputPath = tempDir,
@@ -72,8 +72,10 @@ public class ExportCommandTests
         var sourceResolver = new ExportSourceResolver(
             resolverLogger,
             processFactory,
-            new OkHttpClientFactory("http://localhost:5001"));
-        var engine = new ExportEngine(engineLogger, new OkHttpClientFactory("http://localhost:5001"));
+            new TestHttpHelpers.Factory(TestHttpHelpers.UrlAwareHtmlRoot("http://localhost:5001")));
+        var engine = new ExportEngine(
+            engineLogger,
+            new TestHttpHelpers.Factory(TestHttpHelpers.UrlAwareHtmlRoot("http://localhost:5001")));
 
         return new ExportCommand(logger, engine, requestFactory, sourceResolver)
         {
@@ -83,49 +85,15 @@ public class ExportCommandTests
         };
     }
 
-    private sealed class OkHttpClientFactory : IHttpClientFactory
-    {
-        private readonly string _baseUrl;
-
-        public OkHttpClientFactory(string baseUrl)
-        {
-            _baseUrl = baseUrl;
-        }
-
-        public HttpClient CreateClient(string name)
-        {
-            return new HttpClient(new StaticHandler(_baseUrl));
-        }
-    }
-
-    private sealed class StaticHandler : HttpMessageHandler
-    {
-        private readonly string _baseUrl;
-
-        public StaticHandler(string baseUrl)
-        {
-            _baseUrl = baseUrl.TrimEnd('/');
-        }
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            if (request.RequestUri?.ToString() == $"{_baseUrl}/")
-            {
-                var content = new StringContent("<html><body><h1>ok</h1></body></html>", Encoding.UTF8, "text/html");
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
-            }
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-        }
-    }
-
     private sealed class NoopProcessFactory : ITargetAppProcessFactory
     {
         public ITargetAppProcess Create(ProcessLaunchSpec spec) => new NoopProcess();
     }
 
+    /// <summary>
+    /// URL-mode-only test helper process. Its <see cref="HasExited"/> intentionally always returns true.
+    /// Do not reuse this for project/dll mode tests because readiness polling expects a running process.
+    /// </summary>
     private sealed class NoopProcess : ITargetAppProcess
     {
         public event Action<string>? OutputLineReceived { add { } remove { } }

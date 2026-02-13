@@ -1,12 +1,10 @@
 using CliFx.Exceptions;
-using System.Diagnostics.CodeAnalysis;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
 /// <summary>
 /// Creates validated export source requests from CLI options.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class ExportSourceRequestFactory
 {
     internal ExportSourceRequest Create(

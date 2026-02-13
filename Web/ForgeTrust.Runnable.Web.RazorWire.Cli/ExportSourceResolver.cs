@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -9,7 +8,6 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 /// <summary>
 /// Resolves export sources and, when needed, orchestrates launching a target application for crawling.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public sealed class ExportSourceResolver
 {
     private readonly ILogger<ExportSourceResolver> _logger;
@@ -49,6 +47,10 @@ public sealed class ExportSourceResolver
         ITargetAppProcessFactory processFactory,
         IHttpClientFactory httpClientFactory)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(processFactory);
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+
         _logger = logger;
         _processFactory = processFactory;
         _httpClientFactory = httpClientFactory;

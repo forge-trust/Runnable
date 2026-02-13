@@ -49,7 +49,7 @@ public class TargetAppProcessTests
 
         await process.DisposeAsync();
 
-        Assert.True(exited || process.HasExited);
+        Assert.True(exited);
         Assert.Empty(errorLines);
         Assert.NotEmpty(outputLines);
     }

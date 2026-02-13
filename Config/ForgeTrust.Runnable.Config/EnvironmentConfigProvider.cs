@@ -9,6 +9,10 @@ namespace ForgeTrust.Runnable.Config;
 /// </summary>
 internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
 {
+    // Safety limit for indexed env-var collections (KEY__0, KEY__1, ...).
+    // Prevents unbounded probing while still supporting large lists.
+    private const int MaxIndexedCollectionEntries = 1024;
+
     private readonly IEnvironmentProvider _environmentProvider;
 
     // Priority is technically ignored because DefaultConfigManager special-cases this provider
@@ -35,13 +39,7 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
         var legacyKey = NormalizeSegment(key);
         var hierarchicalKey = NormalizeHierarchicalKey(key);
 
-        string[] directCandidates =
-        [
-            $"{envPrefix}_{legacyKey}",
-            legacyKey,
-            $"{envPrefix}__{hierarchicalKey}",
-            hierarchicalKey
-        ];
+        var directCandidates = BuildDirectCandidates(envPrefix, legacyKey, hierarchicalKey);
 
         foreach (var candidate in directCandidates)
         {
@@ -56,7 +54,9 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
                 return parsed;
             }
 
-            return default;
+            // Prefer the first parseable candidate while still allowing
+            // lower-priority key formats as fallback.
+            continue;
         }
 
         if (TryReadIndexedCollection<T>($"{envPrefix}__{hierarchicalKey}", out var envScopedCollection))
@@ -93,52 +93,44 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
         return string.Join("__", segments.Select(s => s.ToUpperInvariant()));
     }
 
+    private static IReadOnlyList<string> BuildDirectCandidates(string envPrefix, string legacyKey, string hierarchicalKey)
+    {
+        var ordered = new[]
+        {
+            $"{envPrefix}_{legacyKey}",
+            legacyKey,
+            $"{envPrefix}__{hierarchicalKey}",
+            hierarchicalKey
+        };
+
+        var distinct = new List<string>(ordered.Length);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var candidate in ordered)
+        {
+            if (seen.Add(candidate))
+            {
+                distinct.Add(candidate);
+            }
+        }
+
+        return distinct;
+    }
+
     private static bool TryConvertStringValue<T>(string value, out T? parsed)
     {
-        var targetType = typeof(T);
-        var nullableUnderlying = Nullable.GetUnderlyingType(targetType);
-        if (nullableUnderlying != null)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                parsed = default;
-                return true;
-            }
-
-            targetType = nullableUnderlying;
-        }
-
-        if (targetType == typeof(string))
-        {
-            parsed = (T)(object)value;
-            return true;
-        }
-
-        if (targetType.IsEnum)
-        {
-            if (Enum.TryParse(targetType, value, true, out var enumValue))
-            {
-                parsed = (T)enumValue;
-                return true;
-            }
-
-            parsed = default;
-            return false;
-        }
-
         try
         {
-            if (IsSimpleType(targetType))
+            if (!TryConvertStringToType(value, typeof(T), out var obj))
             {
-                parsed = (T?)Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
-                return true;
+                parsed = default;
+                return false;
             }
 
-            parsed = JsonSerializer.Deserialize<T>(value);
-            return parsed != null;
+            parsed = (T?)obj;
+            return true;
         }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException
-                                       or ArgumentException or JsonException)
+                                       or ArgumentException or JsonException or NotSupportedException)
         {
             parsed = default;
             return false;
@@ -156,7 +148,7 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
         }
 
         var values = new List<string>();
-        for (var index = 0; index < 1024; index++)
+        for (var index = 0; index < MaxIndexedCollectionEntries; index++)
         {
             var value = _environmentProvider.GetEnvironmentVariable($"{keyPrefix}__{index}");
             if (value == null)
@@ -238,12 +230,6 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
 
     private static bool TryConvertStringToType(string value, Type targetType, out object? parsed)
     {
-        if (targetType == typeof(string))
-        {
-            parsed = value;
-            return true;
-        }
-
         var nullableUnderlying = Nullable.GetUnderlyingType(targetType);
         if (nullableUnderlying != null)
         {
@@ -256,11 +242,53 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
             targetType = nullableUnderlying;
         }
 
+        if (targetType == typeof(string))
+        {
+            parsed = value;
+            return true;
+        }
+
         if (targetType.IsEnum)
         {
             if (Enum.TryParse(targetType, value, true, out var enumValue))
             {
                 parsed = enumValue;
+                return true;
+            }
+
+            parsed = null;
+            return false;
+        }
+
+        if (targetType == typeof(Guid))
+        {
+            if (Guid.TryParse(value, out var guid))
+            {
+                parsed = guid;
+                return true;
+            }
+
+            parsed = null;
+            return false;
+        }
+
+        if (targetType == typeof(DateTimeOffset))
+        {
+            if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dto))
+            {
+                parsed = dto;
+                return true;
+            }
+
+            parsed = null;
+            return false;
+        }
+
+        if (targetType == typeof(TimeSpan))
+        {
+            if (TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out var ts))
+            {
+                parsed = ts;
                 return true;
             }
 
@@ -280,7 +308,7 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
             return parsed != null;
         }
         catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException
-                                       or ArgumentException or JsonException)
+                                       or ArgumentException or JsonException or NotSupportedException)
         {
             parsed = null;
             return false;
@@ -290,7 +318,6 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
     private static bool IsSimpleType(Type targetType) =>
         targetType.IsPrimitive
         || targetType == typeof(decimal)
-        || targetType == typeof(Guid)
         || targetType == typeof(DateTime)
         || targetType == typeof(DateTimeOffset)
         || targetType == typeof(TimeSpan);

@@ -26,6 +26,14 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public void BuildEffectiveAppArgs_Should_Not_Inject_When_Urls_Uses_Equals_Syntax()
+    {
+        var result = ExportSourceResolver.BuildEffectiveAppArgs(["--urls=http://127.0.0.1:1234"]);
+
+        Assert.Equal(["--urls=http://127.0.0.1:1234"], result);
+    }
+
+    [Fact]
     public void TryParseListeningBaseUrl_Should_Parse_Normalized_BaseUrl()
     {
         var ok = ExportSourceResolver.TryParseListeningBaseUrl(
@@ -61,6 +69,29 @@ public class ExportSourceResolverTests
         Assert.Equal("http://127.0.0.1:5010", result.BaseUrl);
         Assert.True(fakeProcess.Started);
         Assert.False(fakeProcess.Disposed);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Return_Url_Source_Without_Starting_Process()
+    {
+        var createCallCount = 0;
+        var fakeProcess = new FakeTargetAppProcess();
+        var factory = new FakeTargetAppProcessFactory(_ =>
+        {
+            createCallCount++;
+            return fakeProcess;
+        });
+        var resolver = CreateResolver(factory, new OkHttpClientFactory());
+        var request = new ExportSourceRequest(
+            ExportSourceKind.Url,
+            "http://localhost:5233",
+            []);
+
+        await using var result = await resolver.ResolveAsync(request);
+
+        Assert.Equal("http://localhost:5233", result.BaseUrl);
+        Assert.Equal(0, createCallCount);
+        Assert.False(fakeProcess.Started);
     }
 
     [Fact]
@@ -119,6 +150,25 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_Should_Propagate_External_Cancellation()
+    {
+        var fakeProcess = new FakeTargetAppProcess();
+        var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
+        var resolver = CreateResolver(factory, new NotReadyHttpClientFactory());
+        resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
+        resolver.AppReadyTimeout = TimeSpan.FromSeconds(10);
+        resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(80));
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", []);
+        fakeProcess.OnStart = () => fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await resolver.ResolveAsync(request, cts.Token));
+        Assert.True(fakeProcess.Disposed);
+    }
+
+    [Fact]
     public void BuildProcessLaunchSpec_Should_Use_Release_And_Production_For_Project_Mode()
     {
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
@@ -131,6 +181,25 @@ public class ExportSourceResolverTests
         Assert.Contains("run", spec.Arguments);
         Assert.Contains("-c", spec.Arguments);
         Assert.Contains("Release", spec.Arguments);
+        Assert.Equal("Production", spec.EnvironmentOverrides["DOTNET_ENVIRONMENT"]);
+        Assert.Equal("Production", spec.EnvironmentOverrides["ASPNETCORE_ENVIRONMENT"]);
+    }
+
+    [Fact]
+    public void BuildProcessLaunchSpec_Should_Use_Dll_Path_For_Dll_Mode()
+    {
+        var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var resolver = CreateResolver(factory, new OkHttpClientFactory());
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/site.dll", ["--flag"]);
+
+        var spec = resolver.BuildProcessLaunchSpec(request);
+
+        Assert.Equal("dotnet", spec.FileName);
+        Assert.Equal("/tmp/site.dll", spec.Arguments[0]);
+        Assert.DoesNotContain("run", spec.Arguments);
+        Assert.DoesNotContain("Release", spec.Arguments);
+        Assert.DoesNotContain("--no-launch-profile", spec.Arguments);
+        Assert.Contains("--flag", spec.Arguments);
         Assert.Equal("Production", spec.EnvironmentOverrides["DOTNET_ENVIRONMENT"]);
         Assert.Equal("Production", spec.EnvironmentOverrides["ASPNETCORE_ENVIRONMENT"]);
     }

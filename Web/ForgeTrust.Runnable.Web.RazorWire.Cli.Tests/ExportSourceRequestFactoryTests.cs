@@ -58,4 +58,27 @@ public class ExportSourceRequestFactoryTests
             }
         }
     }
+
+    [Fact]
+    public void Create_Should_Create_Dll_Request_When_Dll_Path_Exists()
+    {
+        var tempPath = Path.GetTempFileName();
+        var dllPath = Path.ChangeExtension(tempPath, ".dll");
+        File.Move(tempPath, dllPath);
+        try
+        {
+            var request = _sut.Create(null, null, dllPath, ["--foo", "bar"]);
+
+            Assert.Equal(ExportSourceKind.Dll, request.SourceKind);
+            Assert.Equal(Path.GetFullPath(dllPath), request.SourceValue);
+            Assert.Equal(["--foo", "bar"], request.AppArgs);
+        }
+        finally
+        {
+            if (File.Exists(dllPath))
+            {
+                File.Delete(dllPath);
+            }
+        }
+    }
 }

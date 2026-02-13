@@ -58,12 +58,13 @@ public sealed class TargetAppProcessFactory : ITargetAppProcessFactory
 internal sealed class TargetAppProcess : ITargetAppProcess
 {
     private readonly Process _process;
+    private bool _started;
 
     public event Action<string>? OutputLineReceived;
     public event Action<string>? ErrorLineReceived;
     public event Action? Exited;
 
-    public bool HasExited => _process.HasExited;
+    public bool HasExited => !_started || _process.HasExited;
 
     public TargetAppProcess(ProcessLaunchSpec spec)
     {
@@ -110,6 +111,7 @@ internal sealed class TargetAppProcess : ITargetAppProcess
     public void Start()
     {
         _process.Start();
+        _started = true;
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
     }
@@ -118,10 +120,17 @@ internal sealed class TargetAppProcess : ITargetAppProcess
     {
         try
         {
-            if (!_process.HasExited)
+            if (_started && !_process.HasExited)
             {
-                _process.Kill(entireProcessTree: true);
-                await _process.WaitForExitAsync();
+                try
+                {
+                    _process.Kill(entireProcessTree: true);
+                    await _process.WaitForExitAsync();
+                }
+                catch (InvalidOperationException)
+                {
+                    // The process exited between the HasExited check and Kill/Wait calls.
+                }
             }
         }
         finally

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -64,13 +65,13 @@ public sealed class ExportSourceResolver
         var boundBaseUrlSource = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var spec = BuildProcessLaunchSpec(request);
         var process = _processFactory.Create(spec);
-        var processExited = false;
+        var processExited = 0;
 
         process.OutputLineReceived += line => CaptureLog(line, logs, boundBaseUrlSource);
         process.ErrorLineReceived += line => CaptureLog(line, logs, boundBaseUrlSource);
         process.Exited += () =>
         {
-            processExited = true;
+            Interlocked.Exchange(ref processExited, 1);
             boundBaseUrlSource.TrySetException(new InvalidOperationException(
                 $"Target application exited before publishing a listening URL.{Environment.NewLine}{GetRecentLogs(logs)}"));
         };
@@ -81,7 +82,7 @@ public sealed class ExportSourceResolver
         try
         {
             var baseUrl = await WaitForBoundBaseUrlAsync(boundBaseUrlSource, logs, cancellationToken);
-            await WaitForAppReadyAsync(baseUrl, process, () => processExited, logs, cancellationToken);
+            await WaitForAppReadyAsync(baseUrl, process, () => Volatile.Read(ref processExited) == 1, logs, cancellationToken);
 
             _logger.LogInformation("Resolved export source URL: {BaseUrl}", baseUrl);
             return new ResolvedExportSource(baseUrl, process);
@@ -208,15 +209,28 @@ public sealed class ExportSourceResolver
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(ListeningUrlTimeout);
+        var delayTask = Task.Delay(Timeout.InfiniteTimeSpan, timeoutCts.Token);
 
         var completedTask = await Task.WhenAny(
             boundBaseUrlSource.Task,
-            Task.Delay(Timeout.InfiniteTimeSpan, timeoutCts.Token));
+            delayTask);
 
         if (completedTask == boundBaseUrlSource.Task)
         {
+            timeoutCts.Cancel();
+            try
+            {
+                await delayTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // The delay is expected to be canceled when boundBaseUrlSource completes first.
+            }
+
             return await boundBaseUrlSource.Task;
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         throw new TimeoutException(
             $"Target application did not publish a listening URL within {ListeningUrlTimeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs(logs)}");
@@ -253,6 +267,10 @@ public sealed class ExportSourceResolver
             {
                 // The app may still be booting.
             }
+            catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
             catch (TaskCanceledException) when (!timeoutCts.IsCancellationRequested)
             {
                 // Retry until global timeout.
@@ -261,6 +279,10 @@ public sealed class ExportSourceResolver
             try
             {
                 await Task.Delay(AppReadyPollInterval, timeoutCts.Token);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
             }
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {

@@ -4,6 +4,8 @@ using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -93,18 +95,37 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
-    public void ConfigureEndpoints_Source_ShouldDeclareSearchRouteBeforeCatchAll()
+    public void ConfigureEndpoints_ShouldRegisterSearchBeforeCatchAll()
     {
         var repoRoot = FindRepoRoot(AppContext.BaseDirectory);
         var sourcePath = Path.Combine(repoRoot, "Web", "ForgeTrust.Runnable.Web.RazorDocs", "RazorDocsWebModule.cs");
-        var source = File.ReadAllText(sourcePath);
+        var sourceText = File.ReadAllText(sourcePath);
+        var tree = CSharpSyntaxTree.ParseText(sourceText);
+        var root = tree.GetRoot();
 
-        var searchRoutePos = source.IndexOf("pattern: \"docs/search\"", StringComparison.Ordinal);
-        var catchAllPos = source.IndexOf("pattern: \"docs/{*path}\"", StringComparison.Ordinal);
+        var method = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .FirstOrDefault(m => m.Identifier.Text == "ConfigureEndpoints");
 
-        Assert.True(searchRoutePos >= 0, "Expected docs/search route declaration in source.");
-        Assert.True(catchAllPos >= 0, "Expected docs catch-all route declaration in source.");
-        Assert.True(searchRoutePos < catchAllPos, "docs/search must be declared before docs/{*path} catch-all.");
+        Assert.NotNull(method);
+
+        var routePatterns = method!
+            .DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Where(inv => inv.Expression.ToString().EndsWith(".MapControllerRoute", StringComparison.Ordinal))
+            .Select(inv => inv.ArgumentList.Arguments)
+            .Select(args => args
+                .Select(a => (Name: a.NameColon?.Name.Identifier.Text, Value: a.Expression.ToString()))
+                .ToList())
+            .Select(namedArgs => namedArgs.FirstOrDefault(x => x.Name == "pattern").Value)
+            .ToList();
+
+        var searchIndex = routePatterns.IndexOf("\"docs/search\"");
+        var catchAllIndex = routePatterns.IndexOf("\"docs/{*path}\"");
+
+        Assert.True(searchIndex >= 0, "Expected docs/search route declaration.");
+        Assert.True(catchAllIndex >= 0, "Expected docs/{*path} route declaration.");
+        Assert.True(searchIndex < catchAllIndex, "docs/search must be registered before docs/{*path}.");
     }
 
     private static string FindRepoRoot(string startPath)

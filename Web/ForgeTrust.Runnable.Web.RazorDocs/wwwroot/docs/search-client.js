@@ -44,9 +44,23 @@
       bindSearchPage();
     } catch (err) {
       console.error(err);
-      setStatus(sidebarStatus, 'Search is temporarily unavailable.');
-      setStatus(pageStatus, 'Search is temporarily unavailable.');
+      const message = getErrorMessage(err);
+      setStatus(sidebarStatus, message);
+      setStatus(pageStatus, message);
     }
+  }
+
+  function getErrorMessage(err) {
+    const message = String(err?.message ?? '');
+    if (message.includes('MiniSearch runtime is not available')) {
+      return 'Search is unavailable: runtime failed to load.';
+    }
+
+    if (message.includes('Failed to load search index')) {
+      return 'Search index could not be loaded. Please retry.';
+    }
+
+    return 'Search is temporarily unavailable.';
   }
 
   async function loadIndex() {
@@ -102,10 +116,10 @@
 
     let activeIndex = -1;
     const runSearch = debounce(() => {
-      activeIndex = -1;
       const q = sidebarInput.value;
       const results = query(q, topResults);
-      renderSidebarResults(results, q);
+      activeIndex = results.length > 0 ? 0 : -1;
+      renderSidebarResults(results, q, activeIndex);
     }, 120);
 
     sidebarInput.addEventListener('input', runSearch);
@@ -119,10 +133,12 @@
         event.preventDefault();
         activeIndex = Math.min(activeIndex + 1, items.length - 1);
         setActiveSidebarOption(items, activeIndex);
+        focusSidebarOption(items, activeIndex);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         activeIndex = Math.max(activeIndex - 1, 0);
         setActiveSidebarOption(items, activeIndex);
+        focusSidebarOption(items, activeIndex);
       } else if (event.key === 'Enter') {
         if (activeIndex >= 0 && items[activeIndex]) {
           event.preventDefault();
@@ -168,7 +184,7 @@
     pageInput.addEventListener('input', onInput);
   }
 
-  function renderSidebarResults(results, q) {
+  function renderSidebarResults(results, q, activeIndex = -1) {
     if (!sidebarResults) {
       return;
     }
@@ -189,7 +205,7 @@
 
     sidebarResults.classList.remove('hidden');
     sidebarResults.innerHTML = results.map((item, index) => {
-      const selected = index === 0 ? 'true' : 'false';
+      const selected = index === activeIndex ? 'true' : 'false';
       return `<li role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
         <a href="${escapeHtml(item.path)}" data-turbo-frame="doc-content" data-turbo-action="advance">
           <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
@@ -207,6 +223,13 @@
       item.setAttribute('aria-selected', selected ? 'true' : 'false');
       item.classList.toggle('active', selected);
     });
+  }
+
+  function focusSidebarOption(items, activeIndex) {
+    const activeItem = items[activeIndex];
+    if (activeItem && typeof activeItem.focus === 'function') {
+      activeItem.focus();
+    }
   }
 
   function renderSearchPageResults(q) {

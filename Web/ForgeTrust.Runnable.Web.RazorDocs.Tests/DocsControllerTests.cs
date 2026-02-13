@@ -143,6 +143,54 @@ public class DocsControllerTests : IDisposable
         var secondGenerated = secondDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
 
         Assert.Equal(firstGenerated, secondGenerated);
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldEncodeDocPathInUrl()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Special Path", "guides/space path#member name", "<p>content</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var doc = JsonDocument.Parse(payload);
+
+        var firstPath = doc.RootElement
+            .GetProperty("documents")
+            .EnumerateArray()
+            .First()
+            .GetProperty("path")
+            .GetString();
+
+        Assert.Equal("/docs/guides/space%20path#member%20name", firstPath);
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldTruncateSnippetAtWordBoundary()
+    {
+        var longWordyContent = "<p>" + string.Join(" ", Enumerable.Repeat("word", 80)) + "</p>";
+        var docs = new List<DocNode> { new("Long", "guides/long", longWordyContent) };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var doc = JsonDocument.Parse(payload);
+
+        var snippet = doc.RootElement
+            .GetProperty("documents")
+            .EnumerateArray()
+            .First()
+            .GetProperty("snippet")
+            .GetString();
+
+        Assert.NotNull(snippet);
+        Assert.EndsWith("...", snippet);
+        Assert.DoesNotContain(" ...", snippet);
     }
 
     public void Dispose()

@@ -106,7 +106,7 @@ public class DocsController : Controller
             {
                 var content = d.Content ?? string.Empty;
                 var bodyText = NormalizeText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content, string.Empty), " "));
-                var snippet = bodyText.Length > 220 ? bodyText[..220].TrimEnd() + "..." : bodyText;
+                var snippet = TruncateAtWordBoundary(bodyText, 220);
 
                 var headings = H2H3Regex.Matches(content)
                     .Select(m => NormalizeText(TagRegex.Replace(m.Groups[1].Value, " ")))
@@ -118,7 +118,7 @@ public class DocsController : Controller
                 return new
                 {
                     id = d.Path,
-                    path = $"/docs/{d.Path}",
+                    path = BuildDocUrl(d.Path),
                     title = d.Title,
                     headings,
                     bodyText,
@@ -151,5 +151,47 @@ public class DocsController : Controller
     {
         var decoded = WebUtility.HtmlDecode(text ?? string.Empty);
         return MultiSpaceRegex.Replace(decoded, " ").Trim();
+    }
+
+    private static string BuildDocUrl(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "/docs";
+        }
+
+        var fragmentSeparator = path.IndexOf('#');
+        var pathPart = fragmentSeparator >= 0 ? path[..fragmentSeparator] : path;
+        var fragmentPart = fragmentSeparator >= 0 ? path[(fragmentSeparator + 1)..] : string.Empty;
+
+        var encodedPath = string.Join(
+            "/",
+            pathPart
+                .Split('/', StringSplitOptions.RemoveEmptyEntries)
+                .Select(Uri.EscapeDataString));
+
+        var url = string.IsNullOrEmpty(encodedPath) ? "/docs" : $"/docs/{encodedPath}";
+        if (!string.IsNullOrWhiteSpace(fragmentPart))
+        {
+            url += $"#{Uri.EscapeDataString(fragmentPart)}";
+        }
+
+        return url;
+    }
+
+    private static string TruncateAtWordBoundary(string text, int maxLength)
+    {
+        if (text.Length <= maxLength)
+        {
+            return text;
+        }
+
+        var boundary = text.LastIndexOf(' ', maxLength, maxLength);
+        if (boundary <= maxLength / 2)
+        {
+            boundary = maxLength;
+        }
+
+        return text[..boundary].TrimEnd() + "...";
     }
 }

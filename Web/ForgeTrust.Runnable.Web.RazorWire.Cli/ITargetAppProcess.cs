@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
@@ -55,10 +56,12 @@ public sealed class TargetAppProcessFactory : ITargetAppProcessFactory
     public ITargetAppProcess Create(ProcessLaunchSpec spec) => new TargetAppProcess(spec);
 }
 
+[ExcludeFromCodeCoverage]
 internal sealed class TargetAppProcess : ITargetAppProcess
 {
     private readonly Process _process;
     private bool _started;
+    private bool _disposed;
 
     public event Action<string>? OutputLineReceived;
     public event Action<string>? ErrorLineReceived;
@@ -118,23 +121,43 @@ internal sealed class TargetAppProcess : ITargetAppProcess
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         try
         {
-            if (_started && !_process.HasExited)
+            if (_started)
             {
+                var hasExited = false;
                 try
                 {
-                    _process.Kill(entireProcessTree: true);
-                    await _process.WaitForExitAsync();
+                    hasExited = _process.HasExited;
                 }
                 catch (InvalidOperationException)
                 {
-                    // The process exited between the HasExited check and Kill/Wait calls.
+                    // The process is no longer associated with a running process.
+                    hasExited = true;
+                }
+
+                if (!hasExited)
+                {
+                    try
+                    {
+                        _process.Kill(entireProcessTree: true);
+                        await _process.WaitForExitAsync();
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // The process exited between the HasExited check and Kill/Wait calls.
+                    }
                 }
             }
         }
         finally
         {
+            _disposed = true;
             _process.Dispose();
         }
     }

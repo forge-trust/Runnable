@@ -18,6 +18,7 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-input\"", layout);
         Assert.Contains("id=\"docs-search-results\"", layout);
         Assert.Contains("href=\"~/docs/search.css\"", layout);
+        Assert.Contains("href=\"/docs/search-index.json\"", layout);
         Assert.Contains("src=\"~/docs/search-client.js\"", layout);
     }
 

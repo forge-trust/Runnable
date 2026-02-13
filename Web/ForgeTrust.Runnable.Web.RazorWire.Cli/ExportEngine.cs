@@ -11,7 +11,6 @@ public class ExportEngine
 {
     private readonly ILogger<ExportEngine> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly DocsSearchIndexBuilder _docsSearchIndexBuilder;
 
     // Compiled Regexes for performance
     private static readonly Regex AnchorHrefRegex = new(
@@ -63,15 +62,10 @@ public class ExportEngine
     /// </summary>
     /// <param name="logger">The logger instance.</param>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
-    /// <param name="docsSearchIndexBuilder">Builder that generates docs search artifacts.</param>
-    public ExportEngine(
-        ILogger<ExportEngine> logger,
-        IHttpClientFactory httpClientFactory,
-        DocsSearchIndexBuilder docsSearchIndexBuilder)
+    public ExportEngine(ILogger<ExportEngine> logger, IHttpClientFactory httpClientFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
-        _docsSearchIndexBuilder = docsSearchIndexBuilder ?? throw new ArgumentNullException(nameof(docsSearchIndexBuilder));
     }
 
     /// <summary>
@@ -148,7 +142,6 @@ public class ExportEngine
             context.Queue.Count);
 
         var client = _httpClientFactory.CreateClient("ExportEngine");
-        var docsHtmlByRoute = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (context.Queue.Count > 0)
@@ -163,10 +156,8 @@ public class ExportEngine
                 continue;
             }
 
-            await ExportRouteAsync(client, route, context, docsHtmlByRoute, cancellationToken);
+            await ExportRouteAsync(client, route, context, cancellationToken);
         }
-
-        await _docsSearchIndexBuilder.GenerateArtifactsAsync(context, docsHtmlByRoute, cancellationToken);
 
         sw.Stop();
         _logger.LogInformation("Export completed in {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
@@ -179,7 +170,6 @@ public class ExportEngine
         HttpClient client,
         string route,
         ExportContext context,
-        IDictionary<string, string> docsHtmlByRoute,
         CancellationToken cancellationToken)
     {
         _logger.LogInformation("Exporting route: {Route}", route);
@@ -215,13 +205,6 @@ public class ExportEngine
             {
                 var html = await response.Content.ReadAsStringAsync(cancellationToken);
                 await File.WriteAllTextAsync(filePath, html, cancellationToken);
-
-                if (context.DocsSearchEnabled
-                    && route.StartsWith("/docs", StringComparison.OrdinalIgnoreCase)
-                    && !Path.HasExtension(route))
-                {
-                    docsHtmlByRoute[route] = html;
-                }
 
                 // Extract links, frames, and assets only from HTML
                 ExtractLinks(html, context);

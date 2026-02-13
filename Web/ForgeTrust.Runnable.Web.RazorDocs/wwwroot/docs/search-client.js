@@ -1,5 +1,6 @@
 (() => {
   const indexUrl = '/docs/search-index.json';
+  const maxQueryLength = 500;
   const topResults = 8;
   let searchIndex = null;
 
@@ -26,6 +27,14 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+  }
+
+  function normalizeQuery(value) {
+    return String(value ?? '').trim().slice(0, maxQueryLength);
+  }
+
+  function formatQueryForStatus(value) {
+    return normalizeQuery(value).replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ');
   }
 
   async function init() {
@@ -135,12 +144,16 @@
     }
 
     const params = new URLSearchParams(window.location.search);
-    const initialQuery = params.get('q') ?? '';
+    const initialQuery = normalizeQuery(params.get('q'));
     pageInput.value = initialQuery;
     renderSearchPageResults(initialQuery);
 
     const onInput = debounce(() => {
-      const q = pageInput.value.trim();
+      const q = normalizeQuery(pageInput.value);
+      if (q !== pageInput.value) {
+        pageInput.value = q;
+      }
+
       const url = new URL(window.location.href);
       if (q) {
         url.searchParams.set('q', q);
@@ -208,7 +221,8 @@
     }
 
     const results = query(q, 100);
-    setStatus(pageStatus, `${results.length} result(s) for "${q}".`);
+    const safeQuery = formatQueryForStatus(q);
+    setStatus(pageStatus, `${results.length} result(s) for "${safeQuery}".`);
 
     if (!results.length) {
       pageResults.innerHTML = '<p class="docs-search-empty">No results found.</p>';

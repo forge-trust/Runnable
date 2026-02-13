@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using Microsoft.Extensions.Caching.Memory;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -10,9 +11,14 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 /// </summary>
 public class DocsController : Controller
 {
+    // Bound per-document heading volume so search-index size stays predictable for large docs sets.
+    private const int MaxHeadingsPerDocument = 24;
+    private const string SearchIndexCacheKey = "RazorDocs:SearchIndexPayload";
+    private static readonly TimeSpan SearchIndexCacheDuration = TimeSpan.FromMinutes(5);
+
     private static readonly Regex ScriptOrStyleRegex = new(
-        "<(script|style)[^>]*>.*?</\\1>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        "<script[^>]*>[\\s\\S]*?</script>|<style[^>]*>[\\s\\S]*?</style>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled | RegexOptions.NonBacktracking);
 
     private static readonly Regex TagRegex = new(
         "<[^>]+>",
@@ -20,21 +26,24 @@ public class DocsController : Controller
 
     private static readonly Regex H2H3Regex = new(
         "<h[23][^>]*>(.*?)</h[23]>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled | RegexOptions.NonBacktracking);
 
     private static readonly Regex MultiSpaceRegex = new(
         "\\s+",
         RegexOptions.Compiled);
 
     private readonly DocAggregator _aggregator;
+    private readonly IMemoryCache _cache;
 
     /// <summary>
     /// Initializes a new instance of <see cref="DocsController"/> with the specified documentation aggregator.
     /// </summary>
     /// <param name="aggregator">Service used to retrieve documentation items.</param>
-    public DocsController(DocAggregator aggregator)
+    /// <param name="cache">Memory cache used for search index payload reuse.</param>
+    public DocsController(DocAggregator aggregator, IMemoryCache cache)
     {
         _aggregator = aggregator ?? throw new ArgumentNullException(nameof(aggregator));
+        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
     }
 
     /// <summary>
@@ -72,6 +81,7 @@ public class DocsController : Controller
     /// <summary>
     /// Displays the dedicated docs search page.
     /// </summary>
+    /// <returns>A view result displaying the search page interface.</returns>
     public IActionResult Search()
     {
         return View();
@@ -80,9 +90,16 @@ public class DocsController : Controller
     /// <summary>
     /// Returns docs search index data for live-hosted docs.
     /// </summary>
+    /// <returns>A JSON result containing searchable document metadata and content fields.</returns>
     [HttpGet]
     public async Task<IActionResult> SearchIndex()
     {
+        if (_cache.TryGetValue(SearchIndexCacheKey, out object? cachedPayload)
+            && cachedPayload != null)
+        {
+            return Json(cachedPayload);
+        }
+
         var docs = await _aggregator.GetDocsAsync(HttpContext.RequestAborted);
         var records = docs
             .Select(d =>
@@ -95,7 +112,7 @@ public class DocsController : Controller
                     .Select(m => NormalizeText(TagRegex.Replace(m.Groups[1].Value, " ")))
                     .Where(h => !string.IsNullOrWhiteSpace(h))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(24)
+                    .Take(MaxHeadingsPerDocument)
                     .ToList();
 
                 return new
@@ -114,7 +131,7 @@ public class DocsController : Controller
             .OrderBy(r => r.path, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return Json(new
+        var payload = new
         {
             metadata = new
             {
@@ -123,7 +140,11 @@ public class DocsController : Controller
                 engine = "minisearch"
             },
             documents = records
-        });
+        };
+
+        _cache.Set(SearchIndexCacheKey, payload, SearchIndexCacheDuration);
+
+        return Json(payload);
     }
 
     private static string NormalizeText(string text)

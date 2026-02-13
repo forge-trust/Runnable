@@ -44,7 +44,7 @@ public class DocsControllerTests : IDisposable
             loggerFake
         );
 
-        _controller = new DocsController(_aggregator)
+        _controller = new DocsController(_aggregator, _cache)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -119,6 +119,30 @@ public class DocsControllerTests : IDisposable
         using var doc = JsonDocument.Parse(payload);
         var documents = doc.RootElement.GetProperty("documents");
         Assert.Single(documents.EnumerateArray());
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldReuseCachedPayload()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<h2>Install</h2><p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var first = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var second = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+
+        var firstPayload = JsonSerializer.Serialize(first.Value);
+        var secondPayload = JsonSerializer.Serialize(second.Value);
+
+        using var firstDoc = JsonDocument.Parse(firstPayload);
+        using var secondDoc = JsonDocument.Parse(secondPayload);
+
+        var firstGenerated = firstDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+        var secondGenerated = secondDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        Assert.Equal(firstGenerated, secondGenerated);
     }
 
     public void Dispose()

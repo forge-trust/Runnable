@@ -452,7 +452,7 @@
             if (isNaN(date.getTime())) return;
 
             const display = element.getAttribute('data-rw-time-display') || 'time';
-            const tz = element.getAttribute('data-rw-time-tz');
+            const tz = element.getAttribute('data-rw-time-tz')?.toLowerCase();
             let formatStyle = element.getAttribute('data-rw-time-format');
 
             // Validate format style

@@ -55,8 +55,7 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
             }
 
             // Prefer the first parseable candidate while still allowing
-            // lower-priority key formats as fallback.
-            continue;
+            // lower-priority key formats as fallback when parsing fails.
         }
 
         if (TryReadIndexedCollection<T>($"{envPrefix}__{hierarchicalKey}", out var envScopedCollection))
@@ -82,11 +81,21 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
     public string? GetEnvironmentVariable(string name, string? defaultValue = null) =>
         _environmentProvider.GetEnvironmentVariable(name, defaultValue);
 
+    /// <summary>
+    /// Converts a key/environment segment to uppercase (via <see cref="string.ToUpperInvariant"/>)
+    /// and flattens separators by replacing '.' and '-' with a single '_'.
+    /// Used for legacy flat environment-variable lookup.
+    /// </summary>
     private static string NormalizeSegment(string value) =>
         value.ToUpperInvariant()
             .Replace('.', '_')
             .Replace('-', '_');
 
+    /// <summary>
+    /// Converts a key to uppercase (via <see cref="string.ToUpperInvariant"/>), splits on '.' and '-'
+    /// as hierarchical delimiters, removes empty segments, and joins segments using "__".
+    /// Used for hierarchical environment-variable lookup while preserving path boundaries.
+    /// </summary>
     private static string NormalizeHierarchicalKey(string value)
     {
         var segments = value.Split(['.', '-'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -118,23 +127,14 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
 
     private static bool TryConvertStringValue<T>(string value, out T? parsed)
     {
-        try
-        {
-            if (!TryConvertStringToType(value, typeof(T), out var obj))
-            {
-                parsed = default;
-                return false;
-            }
-
-            parsed = (T?)obj;
-            return true;
-        }
-        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException
-                                       or ArgumentException or JsonException or NotSupportedException)
+        if (!TryConvertStringToType(value, typeof(T), out var obj))
         {
             parsed = default;
             return false;
         }
+
+        parsed = (T?)obj;
+        return true;
     }
 
     private bool TryReadIndexedCollection<T>(string keyPrefix, out T? parsed)
@@ -164,11 +164,6 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
             values.Add(value);
         }
 
-        if (values.Count == 0)
-        {
-            return false;
-        }
-
         var typedList = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
         foreach (var value in values)
         {
@@ -188,21 +183,8 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
             return true;
         }
 
-        if (targetType.IsAssignableFrom(typedList.GetType()))
-        {
-            parsed = (T)typedList;
-            return true;
-        }
-
-        try
-        {
-            parsed = (T?)Activator.CreateInstance(targetType, typedList);
-            return parsed != null;
-        }
-        catch
-        {
-            return false;
-        }
+        parsed = (T)typedList;
+        return true;
     }
 
     private static Type? GetCollectionElementType(Type targetType)
@@ -318,7 +300,5 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
     private static bool IsSimpleType(Type targetType) =>
         targetType.IsPrimitive
         || targetType == typeof(decimal)
-        || targetType == typeof(DateTime)
-        || targetType == typeof(DateTimeOffset)
-        || targetType == typeof(TimeSpan);
+        || targetType == typeof(DateTime);
 }

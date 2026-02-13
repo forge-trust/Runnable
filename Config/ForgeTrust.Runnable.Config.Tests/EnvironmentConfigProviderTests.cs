@@ -406,4 +406,48 @@ public class EnvironmentConfigProviderTests
 
         Assert.Null(provider.GetValue<Type>("Production", "Value"));
     }
+
+    [Fact]
+    public void GetValue_ReturnsDefaultOnInvalidDateTimeOffset()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION_WHEN_OFFSET", A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("WHEN_OFFSET", A<string?>._))
+            .Returns("not-a-datetimeoffset");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        Assert.Equal(default(DateTimeOffset), provider.GetValue<DateTimeOffset>("Production", "When.Offset"));
+    }
+
+    [Fact]
+    public void GetValue_ReturnsDefaultOnInvalidTimeSpan()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION_DURATION", A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("DURATION", A<string?>._))
+            .Returns("not-a-timespan");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        Assert.Equal(default(TimeSpan), provider.GetValue<TimeSpan>("Production", "Duration"));
+    }
+
+    [Fact]
+    public void GetValue_ReturnsDefaultWhenIndexedCollectionContainsInvalidElement()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION_MYAPP_VALUES", A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP_VALUES", A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION__MYAPP__VALUES", A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__VALUES", A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION__MYAPP__VALUES__0", A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__VALUES__0", A<string?>._)).Returns("1");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__VALUES__1", A<string?>._)).Returns("not-an-int");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__VALUES__2", A<string?>._)).Returns(null);
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        Assert.Null(provider.GetValue<List<int>>("Production", "MyApp.Values"));
+    }
 }

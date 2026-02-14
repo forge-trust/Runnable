@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml;
@@ -25,6 +26,9 @@ public sealed class ExportSourceResolver
 
     private static readonly Regex ListeningUrlRegex = new(
         @"Now listening on:\s*(https?://\S+)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex FrameworkSegmentRegex = new(
+        @"^(net(?<major>\d+)(\.(?<minor>\d+))?|netcoreapp(?<major>\d+)(\.(?<minor>\d+))?|netstandard(?<major>\d+)(\.(?<minor>\d+))?)$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -290,6 +294,12 @@ public sealed class ExportSourceResolver
         var candidates = candidatePaths
             .Select(path => new FileInfo(path))
             .OrderByDescending(info => info.LastWriteTimeUtc)
+            // When framework + timestamp tie, use path as a deterministic final tie-breaker.
+            .ThenBy(
+                info => info.FullName,
+                RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? StringComparer.OrdinalIgnoreCase
+                    : StringComparer.Ordinal)
             .ToList();
 
         return candidates[0].FullName;
@@ -319,6 +329,14 @@ public sealed class ExportSourceResolver
         {
             return fallbackName;
         }
+        catch (ArgumentException)
+        {
+            return fallbackName;
+        }
+        catch (NotSupportedException)
+        {
+            return fallbackName;
+        }
     }
 
     internal static bool IsRefAssemblyPath(string path)
@@ -332,15 +350,10 @@ public sealed class ExportSourceResolver
         return normalized.Contains("/ref/", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? TryGetFrameworkSegment(string releaseDir, string path)
+    internal static string? TryGetFrameworkSegment(string releaseDir, string path)
     {
         var releaseFull = Path.GetFullPath(releaseDir);
         var pathFull = Path.GetFullPath(path);
-
-        if (!pathFull.StartsWith(releaseFull, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
 
         var relative = Path.GetRelativePath(releaseFull, pathFull);
         if (string.IsNullOrWhiteSpace(relative))
@@ -348,19 +361,27 @@ public sealed class ExportSourceResolver
             return null;
         }
 
-        var firstSegment = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+        if (relative == ".."
+            || relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+            || relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal)
+            || Path.IsPathRooted(relative))
+        {
+            return null;
+        }
+
+        var firstSegment = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault();
         if (string.IsNullOrWhiteSpace(firstSegment))
         {
             return null;
         }
 
-        return Regex.IsMatch(firstSegment, @"^net\d+(\.\d+)?$", RegexOptions.IgnoreCase)
+        return FrameworkSegmentRegex.IsMatch(firstSegment)
             ? firstSegment
             : null;
     }
 
-    private static string? ResolvePreferredFramework(IReadOnlyList<string> candidatePaths, string releaseDir)
+    internal static string? ResolvePreferredFramework(IReadOnlyList<string> candidatePaths, string releaseDir)
     {
         var frameworks = candidatePaths
             .Select(path => TryGetFrameworkSegment(releaseDir, path))
@@ -380,18 +401,30 @@ public sealed class ExportSourceResolver
             .First();
     }
 
-    private static Version ParseFrameworkVersion(string framework)
+    internal static Version ParseFrameworkVersion(string framework)
     {
-        var match = Regex.Match(framework, @"^net(?<major>\d+)(\.(?<minor>\d+))?$", RegexOptions.IgnoreCase);
+        var match = FrameworkSegmentRegex.Match(framework);
         if (!match.Success)
         {
             return new Version(0, 0);
         }
 
-        var major = int.Parse(match.Groups["major"].Value, CultureInfo.InvariantCulture);
-        var minor = match.Groups["minor"].Success
-            ? int.Parse(match.Groups["minor"].Value, CultureInfo.InvariantCulture)
-            : 0;
+        if (!int.TryParse(match.Groups["major"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var major)
+            || major < 0
+            || major > ushort.MaxValue)
+        {
+            return new Version(0, 0);
+        }
+
+        var minor = 0;
+        if (match.Groups["minor"].Success
+            && (!int.TryParse(match.Groups["minor"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out minor)
+                || minor < 0
+                || minor > ushort.MaxValue))
+        {
+            return new Version(0, 0);
+        }
+
         return new Version(major, minor);
     }
 

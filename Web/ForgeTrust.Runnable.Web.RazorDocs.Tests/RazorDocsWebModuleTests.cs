@@ -118,6 +118,7 @@ public class RazorDocsWebModuleTests
                 .Select(a => (Name: a.NameColon?.Name.Identifier.Text, Value: a.Expression.ToString()))
                 .ToList())
             .Select(namedArgs => namedArgs.FirstOrDefault(x => x.Name == "pattern").Value)
+            .Where(pattern => pattern != null)
             .ToList();
 
         var searchIndex = routePatterns.IndexOf("\"docs/search\"");

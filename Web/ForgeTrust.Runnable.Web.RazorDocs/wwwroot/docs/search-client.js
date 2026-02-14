@@ -2,6 +2,12 @@
   const indexUrl = '/docs/search-index.json';
   const maxQueryLength = 500;
   const topResults = 8;
+  const fetchTimeoutMs = 10000;
+  const defaultSearchOptions = {
+    prefix: true,
+    fuzzy: 0.1,
+    boost: { title: 6, headings: 3, bodyText: 1 }
+  };
   let searchIndex = null;
 
   const sidebarInput = document.getElementById('docs-search-input');
@@ -52,6 +58,10 @@
 
   function getErrorMessage(err) {
     const message = String(err?.message ?? '');
+    if (message.includes('timed out')) {
+      return 'Search index request timed out. Please retry.';
+    }
+
     if (message.includes('MiniSearch runtime is not available')) {
       return 'Search is unavailable: runtime failed to load.';
     }
@@ -68,7 +78,22 @@
       throw new Error('MiniSearch runtime is not available.');
     }
 
-    const response = await fetch(indexUrl, { credentials: 'same-origin' });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), fetchTimeoutMs);
+    let response;
+
+    try {
+      response = await fetch(indexUrl, { credentials: 'omit', signal: controller.signal });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new Error('Search index request timed out.');
+      }
+
+      throw err;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+
     if (!response.ok) {
       throw new Error(`Failed to load search index: ${response.status}`);
     }
@@ -80,11 +105,7 @@
     searchIndex = new MiniSearch({
       fields: ['title', 'headings', 'bodyText'],
       storeFields: ['id', 'path', 'title', 'snippet'],
-      searchOptions: {
-        prefix: true,
-        fuzzy: 0.1,
-        boost: { title: 6, headings: 3, bodyText: 1 }
-      }
+      searchOptions: defaultSearchOptions
     });
 
     searchIndex.addAll(docs.map((d) => ({
@@ -102,11 +123,7 @@
       return [];
     }
 
-    return searchIndex.search(q.trim(), {
-      prefix: true,
-      fuzzy: 0.1,
-      boost: { title: 6, headings: 3, bodyText: 1 }
-    }).slice(0, max);
+    return searchIndex.search(q.trim(), defaultSearchOptions).slice(0, max);
   }
 
   function bindSidebar() {
@@ -144,8 +161,6 @@
       if (!items.length) {
         return;
       }
-
-      activeIndex = getActiveSidebarIndex(items);
 
       if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -248,11 +263,6 @@
     if (activeItem && typeof activeItem.focus === 'function') {
       activeItem.focus();
     }
-  }
-
-  function getActiveSidebarIndex(items) {
-    const selectedIndex = items.findIndex((item) => item.getAttribute('aria-selected') === 'true');
-    return selectedIndex >= 0 ? selectedIndex : -1;
   }
 
   function renderSearchPageResults(q) {

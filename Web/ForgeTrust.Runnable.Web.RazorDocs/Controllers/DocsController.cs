@@ -101,8 +101,15 @@ public class DocsController : Controller
         // Manual invalidation hook for operators: /docs/search-index.json?refresh=1
         if (ShouldRefreshCache(Request.Query))
         {
-            _cache.Remove(SearchIndexCacheKey);
-            _logger.LogInformation("Search index cache manually refreshed via query parameter.");
+            if (CanRefreshCache())
+            {
+                _cache.Remove(SearchIndexCacheKey);
+                _logger.LogInformation("Search index cache manually refreshed by an authenticated user.");
+            }
+            else
+            {
+                _logger.LogWarning("Ignoring unauthenticated search index refresh attempt.");
+            }
         }
 
         if (_cache.TryGetValue(SearchIndexCacheKey, out object? cachedPayload)
@@ -224,5 +231,10 @@ public class DocsController : Controller
         var refresh = refreshValues.ToString();
         return string.Equals(refresh, "1", StringComparison.OrdinalIgnoreCase)
                || string.Equals(refresh, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool CanRefreshCache()
+    {
+        return User?.Identity?.IsAuthenticated == true;
     }
 }

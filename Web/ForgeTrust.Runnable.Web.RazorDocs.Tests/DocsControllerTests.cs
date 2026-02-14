@@ -193,6 +193,7 @@ public class DocsControllerTests : IDisposable
         Assert.EndsWith("...", snippet);
         Assert.DoesNotContain(" ...", snippet);
         Assert.Equal(snippet.TrimEnd(), snippet);
+        Assert.True(snippet.Length <= 223, $"Snippet length {snippet.Length} exceeds 220 + ellipsis.");
     }
 
     public void Dispose()

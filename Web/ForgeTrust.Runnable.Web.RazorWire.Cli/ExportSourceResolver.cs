@@ -23,6 +23,7 @@ public sealed class ExportSourceResolver
 
     private const string EphemeralUrlsValue = "http://127.0.0.1:0";
     private const int MaxLogLines = 200;
+    private const string ExportPublishFolder = "runnable-export";
 
     private static readonly Regex ListeningUrlRegex = new(
         @"Now listening on:\s*(https?://\S+)",
@@ -133,23 +134,35 @@ public sealed class ExportSourceResolver
         var projectDirectory = Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory();
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
         var assemblyName = TryResolveAssemblyName(projectPath, projectName);
+        var publishOutputDirectory = Path.Combine(projectDirectory, "bin", ExportPublishFolder);
 
         if (!request.NoBuild)
         {
-            _logger.LogInformation("Building project for export: {ProjectPath}", projectPath);
+            if (Directory.Exists(publishOutputDirectory))
+            {
+                Directory.Delete(publishOutputDirectory, true);
+            }
+            Directory.CreateDirectory(publishOutputDirectory);
+            _logger.LogInformation(
+                "Publishing project for export: {ProjectPath} -> {OutputPath}",
+                projectPath,
+                publishOutputDirectory);
             await RunCommandOrThrowAsync(
                 "dotnet",
-                ["build", projectPath, "-c", "Release"],
+                ["publish", projectPath, "-c", "Release", "-o", publishOutputDirectory],
                 projectDirectory,
                 cancellationToken);
         }
         else
         {
-            _logger.LogInformation("Skipping project build (--no-build): {ProjectPath}", projectPath);
+            _logger.LogInformation("Skipping project publish (--no-build): {ProjectPath}", projectPath);
         }
 
-        var dllPath = ResolveBuiltDllPath(projectDirectory, assemblyName);
-        _logger.LogInformation("Launching built DLL for export: {DllPath}", dllPath);
+        var dllPath = ResolveBuiltDllPath(
+            projectDirectory,
+            assemblyName,
+            request.NoBuild ? null : publishOutputDirectory);
+        _logger.LogInformation("Launching published DLL for export: {DllPath}", dllPath);
 
         return request with
         {
@@ -256,32 +269,77 @@ public sealed class ExportSourceResolver
 
     internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)
     {
-        var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
-        if (!Directory.Exists(releaseDir))
+        return ResolveBuiltDllPath(projectDirectory, assemblyName, null);
+    }
+
+    internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName, string? explicitPublishDirectory)
+    {
+        var searchRoots = new List<(string Path, bool RequirePublishSegment)>();
+        var explicitPublishPath = string.IsNullOrWhiteSpace(explicitPublishDirectory)
+            ? null
+            : Path.GetFullPath(explicitPublishDirectory);
+        if (!string.IsNullOrWhiteSpace(explicitPublishPath))
         {
-            throw new FileNotFoundException(
-                $"Could not find release build output folder. Expected: {releaseDir}");
+            if (!Directory.Exists(explicitPublishPath))
+            {
+                throw new FileNotFoundException(
+                    $"Could not find published output folder. Expected: {explicitPublishPath}");
+            }
+
+            searchRoots.Add((explicitPublishPath, false));
+        }
+        else
+        {
+            var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
+            if (Directory.Exists(releaseDir))
+            {
+                searchRoots.Add((releaseDir, true));
+            }
         }
 
-        var candidatePaths = Directory.EnumerateFiles(
-                releaseDir,
+        if (searchRoots.Count == 0)
+        {
+            throw new FileNotFoundException(
+                $"Could not find any publish output. Expected either explicit publish directory or '{Path.Combine(projectDirectory, "bin", "Release")}'.");
+        }
+
+        var candidatePaths = searchRoots
+            .SelectMany(tuple => Directory.EnumerateFiles(
+                tuple.Path,
                 $"{assemblyName}.dll",
                 SearchOption.AllDirectories)
-            .Where(path => !IsRefAssemblyPath(path))
+                .Where(path => !IsRefAssemblyPath(path))
+                .Where(path => IsPublishedArtifact(tuple.Path, path, tuple.RequirePublishSegment))
+                .ToList())
             .ToList();
+
+        if (candidatePaths.Count == 0 && string.IsNullOrWhiteSpace(explicitPublishPath))
+        {
+            var binDirectory = Path.Combine(projectDirectory, "bin");
+            if (Directory.Exists(binDirectory))
+            {
+                candidatePaths = Directory.EnumerateFiles(
+                        binDirectory,
+                        $"{assemblyName}.dll",
+                        SearchOption.AllDirectories)
+                    .Where(path => !IsRefAssemblyPath(path))
+                    .Where(path => IsPublishedArtifact(binDirectory, path, true))
+                    .ToList();
+            }
+        }
 
         if (candidatePaths.Count == 0)
         {
             throw new FileNotFoundException(
-                $"Could not locate built DLL for assembly '{assemblyName}' under '{releaseDir}'.");
+                $"Could not locate published DLL for assembly '{assemblyName}' under '{projectDirectory}'.");
         }
 
-        var preferredFramework = ResolvePreferredFramework(candidatePaths, releaseDir);
+        var preferredFramework = ResolvePreferredFramework(candidatePaths, projectDirectory);
         if (!string.IsNullOrWhiteSpace(preferredFramework))
         {
             candidatePaths = candidatePaths
                 .Where(path => string.Equals(
-                    TryGetFrameworkSegment(releaseDir, path),
+                    TryGetFrameworkSegment(projectDirectory, path),
                     preferredFramework,
                     StringComparison.OrdinalIgnoreCase))
                 .ToList();
@@ -289,7 +347,7 @@ public sealed class ExportSourceResolver
             if (candidatePaths.Count == 0)
             {
                 throw new InvalidOperationException(
-                    $"No candidate DLLs remained after selecting preferred framework '{preferredFramework}' under '{releaseDir}'.");
+                    $"No published candidate DLLs remained after selecting preferred framework '{preferredFramework}' under '{projectDirectory}'.");
             }
         }
 
@@ -352,9 +410,38 @@ public sealed class ExportSourceResolver
         return normalized.Contains("/ref/", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static string? TryGetFrameworkSegment(string releaseDir, string path)
+    private static bool IsPublishedArtifact(string publishSearchRoot, string path, bool requirePublishSegment)
     {
-        var releaseFull = Path.GetFullPath(releaseDir);
+        var publishSearchRootFull = Path.GetFullPath(publishSearchRoot);
+        var pathFull = Path.GetFullPath(path);
+
+        var relative = Path.GetRelativePath(publishSearchRootFull, pathFull);
+        if (string.IsNullOrWhiteSpace(relative)
+            || relative.StartsWith("..", StringComparison.Ordinal)
+            || Path.IsPathRooted(relative))
+        {
+            return false;
+        }
+
+        var segments = relative.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries);
+
+        if (!requirePublishSegment)
+        {
+            return true;
+        }
+
+        var segmentComparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
+        return segments.Contains("publish", segmentComparer);
+    }
+
+    internal static string? TryGetFrameworkSegment(string rootDirectory, string path)
+    {
+        var releaseFull = Path.GetFullPath(rootDirectory);
         var pathFull = Path.GetFullPath(path);
 
         var relative = Path.GetRelativePath(releaseFull, pathFull);
@@ -371,16 +458,15 @@ public sealed class ExportSourceResolver
             return null;
         }
 
-        var firstSegment = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
-            .FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(firstSegment))
+        var frameworkSegment = relative
+            .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(segment => FrameworkSegmentRegex.IsMatch(segment));
+        if (string.IsNullOrWhiteSpace(frameworkSegment))
         {
             return null;
         }
 
-        return FrameworkSegmentRegex.IsMatch(firstSegment)
-            ? firstSegment
-            : null;
+        return frameworkSegment;
     }
 
     internal static string? ResolvePreferredFramework(IReadOnlyList<string> candidatePaths, string releaseDir)

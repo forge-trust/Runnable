@@ -171,6 +171,8 @@ public sealed class ExportSourceResolver
             ?? Directory.GetCurrentDirectory();
         var dllArgs = new List<string> { request.SourceValue };
         dllArgs.AddRange(effectiveAppArgs);
+        // Deliberately force production hosting for launched export targets so middleware/static-asset
+        // behavior matches deployed runtime semantics. Keep both keys in dllEnvironmentOverrides.
         var dllEnvironmentOverrides = new Dictionary<string, string>
         {
             ["ASPNETCORE_ENVIRONMENT"] = "Production",
@@ -410,7 +412,6 @@ public sealed class ExportSourceResolver
         }
 
         if (!int.TryParse(match.Groups["major"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var major)
-            || major < 0
             || major > ushort.MaxValue)
         {
             return new Version(0, 0);
@@ -419,7 +420,6 @@ public sealed class ExportSourceResolver
         var minor = 0;
         if (match.Groups["minor"].Success
             && (!int.TryParse(match.Groups["minor"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out minor)
-                || minor < 0
                 || minor > ushort.MaxValue))
         {
             return new Version(0, 0);

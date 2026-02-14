@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using FakeItEasy;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace ForgeTrust.Runnable.Caching.Tests;
@@ -600,6 +602,40 @@ public class MemoTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_ZeroFailureDuration_Throws()
+    {
+        var cache = A.Fake<IMemoryCache>();
+        Assert.Throws<ArgumentOutOfRangeException>(() => { _ = new Memo(cache, TimeSpan.Zero); });
+    }
+
+    [Fact]
+    public void Constructor_NegativeFailureDuration_Throws()
+    {
+        var cache = A.Fake<IMemoryCache>();
+        Assert.Throws<ArgumentOutOfRangeException>(() => { _ = new Memo(cache, TimeSpan.FromSeconds(-1)); });
+    }
+
+    [Fact]
+    public void OnCacheEntryEvicted_InvalidState_DoesNotThrow()
+    {
+        // Accessing private static method via reflection to test edge cases
+        var method = typeof(Memo)
+            .GetMethod(
+                "OnCacheEntryEvicted",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        // State is not a tuple
+        method.Invoke(null, ["key", "value", EvictionReason.Removed, new object()]);
+
+        // Key is not a string
+        var locks = new ConcurrentDictionary<string, SemaphoreSlim>();
+        var sem = new SemaphoreSlim(1);
+        method.Invoke(null, [123, "value", EvictionReason.Removed, (locks, sem)]);
+    }
+
+    [Fact]
     public async Task GetAsync_AbsoluteExpiration_Evicts()
     {
         var memo = CreateMemoWithOptions(
@@ -824,10 +860,318 @@ public class MemoTests : IDisposable
     }
 
     [Fact]
-    public void BuildKey_ContainsArgValues_NotHashes()
+    public void BuildKey_IsValueTuple()
     {
         var key = Memo.BuildKey("Load", "hello");
-        Assert.Contains("hello", key);
-        Assert.Contains("Load", key);
+        Assert.IsType<(string, string)>(key);
+        var tuple = ((string, string))key;
+        Assert.Equal("Load", tuple.Item1);
+        Assert.Equal("hello", tuple.Item2);
+    }
+
+    [Fact]
+    public async Task GetAsync_DoubleCheckLock_CachedFailure_Throws()
+    {
+        var memo = CreateMemo();
+        var key = "double-check-failure";
+        var callCount = 0;
+        var gate = new TaskCompletionSource<bool>();
+
+        async Task<int> Factory()
+        {
+            Interlocked.Increment(ref callCount);
+            if (callCount == 1)
+            {
+                await gate.Task;
+
+                throw new InvalidOperationException("First call failure");
+            }
+
+            return 42;
+        }
+
+        // First call starts and waits at gate
+        var task1 = memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(1)), callerMemberName: key);
+
+        // Second call waits for semaphore
+        var task2 = memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(1)), callerMemberName: key);
+
+        await Task.Delay(100); // Ensure task2 is waiting
+
+        // Release gate
+        gate.SetResult(true);
+
+        // Both should throw original exception
+        await Assert.ThrowsAsync<InvalidOperationException>(() => task1);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => task2);
+
+        Assert.Equal(1, callCount); // Factory only invoked once
+    }
+
+    [Fact]
+    public async Task GetAsync_AllOverloads_WorkCorrectly()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
+
+        // 0 args (already tested extensively, but for completeness)
+        Assert.Equal(42, await memo.GetAsync(() => Task.FromResult(42), policy));
+        Assert.Equal(42, await memo.GetAsync(_ => Task.FromResult(42), policy));
+
+        // 1 arg
+        Assert.Equal("1", await memo.GetAsync(1, (a) => Task.FromResult(a.ToString()), policy));
+        Assert.Equal("1", await memo.GetAsync(1, (a, _) => Task.FromResult(a.ToString()), policy));
+
+        // 2 args
+        Assert.Equal("12", await memo.GetAsync(1, 2, (a, b) => Task.FromResult($"{a}{b}"), policy));
+        Assert.Equal("12", await memo.GetAsync(1, 2, (a, b, _) => Task.FromResult($"{a}{b}"), policy));
+
+        // 3 args
+        Assert.Equal("123", await memo.GetAsync(1, 2, 3, (a, b, c) => Task.FromResult($"{a}{b}{c}"), policy));
+        Assert.Equal(
+            "123",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                (
+                    a,
+                    b,
+                    c,
+                    _) => Task.FromResult($"{a}{b}{c}"),
+                policy));
+
+        // 4 args
+        Assert.Equal(
+            "1234",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                (
+                    a,
+                    b,
+                    c,
+                    d) => Task.FromResult($"{a}{b}{c}{d}"),
+                policy));
+        Assert.Equal(
+            "1234",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    _) => Task.FromResult($"{a}{b}{c}{d}"),
+                policy));
+
+        // 5 args
+        Assert.Equal(
+            "12345",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                5,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    e) => Task.FromResult($"{a}{b}{c}{d}{e}"),
+                policy));
+        Assert.Equal(
+            "12345",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                5,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    e,
+                    _) => Task.FromResult($"{a}{b}{c}{d}{e}"),
+                policy));
+
+        // 6 args
+        Assert.Equal(
+            "123456",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    e,
+                    f) => Task.FromResult($"{a}{b}{c}{d}{e}{f}"),
+                policy));
+        Assert.Equal(
+            "123456",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    e,
+                    f,
+                    _) => Task.FromResult($"{a}{b}{c}{d}{e}{f}"),
+                policy));
+
+        // 7 args
+        Assert.Equal(
+            "1234567",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    e,
+                    f,
+                    g) => Task.FromResult($"{a}{b}{c}{d}{e}{f}{g}"),
+                policy));
+        Assert.Equal(
+            "1234567",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    e,
+                    f,
+                    g,
+                    _) => Task.FromResult($"{a}{b}{c}{d}{e}{f}{g}"),
+                policy));
+
+        // 8 args
+        Assert.Equal(
+            "12345678",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    e,
+                    f,
+                    g,
+                    h) => Task.FromResult($"{a}{b}{c}{d}{e}{f}{g}{h}"),
+                policy));
+        Assert.Equal(
+            "12345678",
+            await memo.GetAsync(
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                (
+                    a,
+                    b,
+                    c,
+                    d,
+                    e,
+                    f,
+                    g,
+                    h,
+                    _) => Task.FromResult($"{a}{b}{c}{d}{e}{f}{g}{h}"),
+                policy));
+    }
+
+    [Fact]
+    public async Task GetAsync_FactoryReturnsNull_CachesAndRetrievesNull()
+    {
+        var memo = CreateMemo();
+        var callCount = 0;
+
+        Task<string?> Factory()
+        {
+            Interlocked.Increment(ref callCount);
+
+            return Task.FromResult<string?>(null);
+        }
+
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
+
+        var result1 = await memo.GetAsync(Factory, policy);
+        var result2 = await memo.GetAsync(Factory, policy);
+
+        Assert.Null(result1);
+        Assert.Null(result2);
+        Assert.Equal(1, callCount);
+    }
+
+    [Fact]
+    public async Task Dispose_DisposesSemaphoresAndClearsLocks()
+    {
+        var memo = CreateMemo();
+        var tcs = new TaskCompletionSource<int>();
+
+        // Start a call that will wait, keeping the lock in the dictionary
+        var task = memo.GetAsync(() => tcs.Task, CachePolicy.Absolute(TimeSpan.FromMinutes(1)));
+
+        // Access internal locks via reflection to verify state
+        var locksField = typeof(Memo).GetField(
+            "_locks",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var locks = (ConcurrentDictionary<object, SemaphoreSlim>)locksField!.GetValue(memo)!;
+
+        Assert.NotEmpty(locks);
+
+        memo.Dispose();
+
+        Assert.Empty(locks);
+
+        tcs.SetResult(42);
+        await task;
     }
 }

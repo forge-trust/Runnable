@@ -9,11 +9,12 @@ namespace ForgeTrust.Runnable.Caching;
 /// Memoizes async factory calls using <see cref="IMemoryCache"/> with automatic key generation
 /// and per-key thundering-herd protection.
 /// </summary>
-public sealed class Memo : IMemo
+public sealed class Memo : IMemo, IDisposable
 {
     private readonly IMemoryCache _cache;
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
+    private readonly ConcurrentDictionary<object, SemaphoreSlim> _locks = new();
     private readonly TimeSpan _failureCacheDuration;
+    private bool _disposed;
 
     /// <summary>
     /// Default duration for which a factory failure is cached to prevent serial thundering herd
@@ -84,7 +85,7 @@ public sealed class Memo : IMemo
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var key = $"{callerFilePath}:{callerMemberName}";
+        var key = (callerFilePath, callerMemberName);
 
         return GetOrCreateCoreAsync(key, factory, static (f, _) => f(), policy, cancellationToken);
     }
@@ -100,7 +101,7 @@ public sealed class Memo : IMemo
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var key = $"{callerFilePath}:{callerMemberName}";
+        var key = (callerFilePath, callerMemberName);
 
         return GetOrCreateCoreAsync(
             key,
@@ -601,9 +602,13 @@ public sealed class Memo : IMemo
     /// Core implementation that handles cache lookup, thundering-herd synchronization,
     /// exception caching, and entry creation with the configured policy.
     /// Uses a state-passing pattern to avoid closure allocations on the hot path.
+    /// <paramref name="key"/> can be a <see cref="ValueTuple"/> for efficiency.
     /// </summary>
+    /// <remarks>
+    /// <c>null</c> results from the factory are treated as valid cached values for reference types.
+    /// </remarks>
     private async Task<TResult> GetOrCreateCoreAsync<TState, TResult>(
-        string key,
+        object key,
         TState state,
         Func<TState, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
@@ -677,7 +682,14 @@ public sealed class Memo : IMemo
         }
         finally
         {
-            keyLock.Release();
+            try
+            {
+                keyLock.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore: the Memo instance or the lock was disposed concurrently.
+            }
         }
     }
 
@@ -711,8 +723,7 @@ public sealed class Memo : IMemo
         EvictionReason reason,
         object? state)
     {
-        if (state is not (ConcurrentDictionary<string, SemaphoreSlim> locks, SemaphoreSlim captured)
-            || key is not string keyStr)
+        if (state is not (ConcurrentDictionary<object, SemaphoreSlim> locks, SemaphoreSlim captured))
         {
             return;
         }
@@ -723,8 +734,27 @@ public sealed class Memo : IMemo
         // maintaining the thundering-herd guarantee.
         // We intentionally do not Dispose the semaphore because a concurrent
         // WaitAsync caller may still hold a reference.
-        ((ICollection<KeyValuePair<string, SemaphoreSlim>>)locks)
-            .Remove(new KeyValuePair<string, SemaphoreSlim>(keyStr, captured));
+        ((ICollection<KeyValuePair<object, SemaphoreSlim>>)locks)
+            .Remove(new KeyValuePair<object, SemaphoreSlim>(key, captured));
+    }
+
+    /// <summary>
+    /// Disposes the underlying locks.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        foreach (var keyLock in _locks.Values)
+        {
+            keyLock.Dispose();
+        }
+
+        _locks.Clear();
+        _disposed = true;
     }
 
     // ── Key building ────────────────────────────────────────────────────
@@ -733,54 +763,36 @@ public sealed class Memo : IMemo
     // (\x1f) as an unambiguous delimiter between prefix and argument values.
     // Nulls are represented as the null character (\0) to distinguish from the string "null".
 
-    private const char Sep = '\x1f';
-    private const string Null = "\0";
 
-    private static string Str<T>(T value) => value?.ToString() ?? Null;
+    internal static object BuildKey<TArg>(string prefix, TArg arg) => (prefix, arg);
 
-    internal static string BuildKey<TArg>(string prefix, TArg arg) =>
-        string.Create(null, stackalloc char[256], $"{prefix}{Sep}{Str(arg)}");
+    internal static object BuildKey<TArg1, TArg2>(string prefix, TArg1 arg1, TArg2 arg2) => (prefix, arg1, arg2);
 
-    internal static string BuildKey<TArg1, TArg2>(string prefix, TArg1 arg1, TArg2 arg2) =>
-        string.Create(
-            null,
-            stackalloc char[256],
-            $"{prefix}{Sep}{Str(arg1)}{Sep}{Str(arg2)}");
-
-    internal static string BuildKey<TArg1, TArg2, TArg3>(
+    internal static object BuildKey<TArg1, TArg2, TArg3>(
         string prefix,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3) =>
-        string.Create(
-            null,
-            stackalloc char[256],
-            $"{prefix}{Sep}{Str(arg1)}{Sep}{Str(arg2)}{Sep}{Str(arg3)}");
+        (prefix, arg1, arg2, arg3);
 
-    internal static string BuildKey<TArg1, TArg2, TArg3, TArg4>(
+    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4>(
         string prefix,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3,
         TArg4 arg4) =>
-        string.Create(
-            null,
-            stackalloc char[256],
-            $"{prefix}{Sep}{Str(arg1)}{Sep}{Str(arg2)}{Sep}{Str(arg3)}{Sep}{Str(arg4)}");
+        (prefix, arg1, arg2, arg3, arg4);
 
-    internal static string BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5>(
+    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5>(
         string prefix,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3,
         TArg4 arg4,
         TArg5 arg5) =>
-        string.Create(
-            null,
-            stackalloc char[512],
-            $"{prefix}{Sep}{Str(arg1)}{Sep}{Str(arg2)}{Sep}{Str(arg3)}{Sep}{Str(arg4)}{Sep}{Str(arg5)}");
+        (prefix, arg1, arg2, arg3, arg4, arg5);
 
-    internal static string BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6>(
+    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6>(
         string prefix,
         TArg1 arg1,
         TArg2 arg2,
@@ -788,12 +800,9 @@ public sealed class Memo : IMemo
         TArg4 arg4,
         TArg5 arg5,
         TArg6 arg6) =>
-        string.Create(
-            null,
-            stackalloc char[512],
-            $"{prefix}{Sep}{Str(arg1)}{Sep}{Str(arg2)}{Sep}{Str(arg3)}{Sep}{Str(arg4)}{Sep}{Str(arg5)}{Sep}{Str(arg6)}");
+        (prefix, arg1, arg2, arg3, arg4, arg5, arg6);
 
-    internal static string BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7>(
+    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7>(
         string prefix,
         TArg1 arg1,
         TArg2 arg2,
@@ -802,12 +811,9 @@ public sealed class Memo : IMemo
         TArg5 arg5,
         TArg6 arg6,
         TArg7 arg7) =>
-        string.Create(
-            null,
-            stackalloc char[512],
-            $"{prefix}{Sep}{Str(arg1)}{Sep}{Str(arg2)}{Sep}{Str(arg3)}{Sep}{Str(arg4)}{Sep}{Str(arg5)}{Sep}{Str(arg6)}{Sep}{Str(arg7)}");
+        (prefix, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 
-    internal static string BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8>(
+    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8>(
         string prefix,
         TArg1 arg1,
         TArg2 arg2,
@@ -817,8 +823,5 @@ public sealed class Memo : IMemo
         TArg6 arg6,
         TArg7 arg7,
         TArg8 arg8) =>
-        string.Create(
-            null,
-            stackalloc char[512],
-            $"{prefix}{Sep}{Str(arg1)}{Sep}{Str(arg2)}{Sep}{Str(arg3)}{Sep}{Str(arg4)}{Sep}{Str(arg5)}{Sep}{Str(arg6)}{Sep}{Str(arg7)}{Sep}{Str(arg8)}");
+        (prefix, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }

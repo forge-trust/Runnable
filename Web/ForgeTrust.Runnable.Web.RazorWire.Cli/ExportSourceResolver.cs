@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -200,25 +201,42 @@ public sealed class ExportSourceResolver
         }
 
         using var process = new Process { StartInfo = startInfo };
-        process.Start();
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
-
-        if (process.ExitCode == 0)
+        try
         {
-            return;
-        }
+            process.Start();
 
-        throw new InvalidOperationException(
-            $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+
+            if (!string.IsNullOrWhiteSpace(stdout))
+            {
+                _logger.LogDebug("Command output ({FileName}):{NewLine}{Output}", fileName, Environment.NewLine, stdout);
+            }
+
+            if (!string.IsNullOrWhiteSpace(stderr))
+            {
+                _logger.LogDebug("Command error output ({FileName}):{NewLine}{Output}", fileName, Environment.NewLine, stderr);
+            }
+
+            if (process.ExitCode == 0)
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+        }
+        finally
+        {
+            TryKillProcess(process);
+        }
     }
 
-    private static string ResolveBuiltDllPath(string projectDirectory, string projectName)
+    internal static string ResolveBuiltDllPath(string projectDirectory, string projectName)
     {
         var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
         if (!Directory.Exists(releaseDir))
@@ -227,22 +245,100 @@ public sealed class ExportSourceResolver
                 $"Could not find release build output folder. Expected: {releaseDir}");
         }
 
-        var candidates = Directory.EnumerateFiles(
+        var candidatePaths = Directory.EnumerateFiles(
                 releaseDir,
                 $"{projectName}.dll",
                 SearchOption.AllDirectories)
-            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}ref{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-            .Select(path => new FileInfo(path))
-            .OrderByDescending(info => info.LastWriteTimeUtc)
+            .Where(path => !IsRefAssemblyPath(path))
             .ToList();
 
-        if (candidates.Count == 0)
+        if (candidatePaths.Count == 0)
         {
             throw new FileNotFoundException(
                 $"Could not locate built DLL for project '{projectName}' under '{releaseDir}'.");
         }
 
+        var frameworks = candidatePaths
+            .Select(path => TryGetFrameworkSegment(releaseDir, path))
+            .Where(segment => !string.IsNullOrEmpty(segment))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (frameworks.Count > 1)
+        {
+            throw new InvalidOperationException(
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Multiple target framework outputs detected under '{0}': {1}. Build a single target framework before exporting.",
+                    releaseDir,
+                    string.Join(", ", frameworks)));
+        }
+
+        var candidates = candidatePaths
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(info => info.LastWriteTimeUtc)
+            .ToList();
+
         return candidates[0].FullName;
+    }
+
+    internal static bool IsRefAssemblyPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var normalized = path.Replace('\\', '/');
+        return normalized.Contains("/ref/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryGetFrameworkSegment(string releaseDir, string path)
+    {
+        var releaseFull = Path.GetFullPath(releaseDir);
+        var pathFull = Path.GetFullPath(path);
+
+        if (!pathFull.StartsWith(releaseFull, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var relative = Path.GetRelativePath(releaseFull, pathFull);
+        if (string.IsNullOrWhiteSpace(relative))
+        {
+            return null;
+        }
+
+        var firstSegment = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(firstSegment))
+        {
+            return null;
+        }
+
+        return Regex.IsMatch(firstSegment, @"^net\d+(\.\d+)?$", RegexOptions.IgnoreCase)
+            ? firstSegment
+            : null;
+    }
+
+    private static void TryKillProcess(Process process)
+    {
+        if (!process.StartInfo.RedirectStandardOutput && !process.StartInfo.RedirectStandardError)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // The process may have exited between the HasExited check and Kill call.
+        }
     }
 
     internal static IReadOnlyList<string> BuildEffectiveAppArgs(IReadOnlyList<string> appArgs)

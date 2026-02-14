@@ -369,7 +369,20 @@ public class ExportSourceResolverTests
 
         var ex = Assert.Throws<FileNotFoundException>(
             () => ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite"));
-        Assert.Contains("release publish output folder", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("could not find any publish output", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveBuiltDllPath_Should_Prefer_Explicit_Publish_Directory_When_Provided()
+    {
+        using var tempDir = new TempDirectory();
+        var explicitPublishDir = Path.Combine(tempDir.FullPath, "custom-output");
+        Directory.CreateDirectory(explicitPublishDir);
+        File.WriteAllBytes(Path.Combine(explicitPublishDir, "MySite.dll"), [1, 2, 3]);
+
+        var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite", explicitPublishDir);
+
+        Assert.Equal(Path.Combine(explicitPublishDir, "MySite.dll"), resolved);
     }
 
     [Fact]

@@ -416,6 +416,9 @@ public class ExportSourceResolverTests
         Assert.Equal(
             "netstandard2.0",
             ExportSourceResolver.TryGetFrameworkSegment(releaseDir, Path.Combine(releaseDir, "netstandard2.0", "MySite.dll")));
+        Assert.Equal(
+            "net10.0-windows",
+            ExportSourceResolver.TryGetFrameworkSegment(releaseDir, Path.Combine(releaseDir, "net10.0-windows", "MySite.dll")));
     }
 
     [Fact]
@@ -473,9 +476,16 @@ public class ExportSourceResolverTests
     {
         Assert.Equal(new Version(10, 0), ExportSourceResolver.ParseFrameworkVersion("net10.0"));
         Assert.Equal(new Version(9, 0), ExportSourceResolver.ParseFrameworkVersion("net9"));
+        Assert.Equal(new Version(10, 0), ExportSourceResolver.ParseFrameworkVersion("net10.0-windows"));
         Assert.Equal(new Version(3, 1), ExportSourceResolver.ParseFrameworkVersion("netcoreapp3.1"));
         Assert.Equal(new Version(2, 0), ExportSourceResolver.ParseFrameworkVersion("netstandard2.0"));
         Assert.Equal(new Version(0, 0), ExportSourceResolver.ParseFrameworkVersion("publish"));
+    }
+
+    [Fact]
+    public void ParseFrameworkVersion_Should_Retain_Major_When_Minor_Overflows()
+    {
+        Assert.Equal(new Version(10, 0), ExportSourceResolver.ParseFrameworkVersion("net10.999999999999999999999999"));
     }
 
     [Fact]

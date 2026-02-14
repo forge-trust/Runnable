@@ -28,7 +28,7 @@ public sealed class ExportSourceResolver
         @"Now listening on:\s*(https?://\S+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex FrameworkSegmentRegex = new(
-        @"^(net(?<major>\d+)(\.(?<minor>\d+))?|netcoreapp(?<major>\d+)(\.(?<minor>\d+))?|netstandard(?<major>\d+)(\.(?<minor>\d+))?)$",
+        @"^(net(?<major>\d+)(\.(?<minor>\d+))?|netcoreapp(?<major>\d+)(\.(?<minor>\d+))?|netstandard(?<major>\d+)(\.(?<minor>\d+))?)(?:-[A-Za-z0-9][A-Za-z0-9\.-]*)?$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -254,7 +254,7 @@ public sealed class ExportSourceResolver
         }
     }
 
-    internal static string ResolveBuiltDllPath(string projectDirectory, string projectName)
+    internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)
     {
         var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
         if (!Directory.Exists(releaseDir))
@@ -265,7 +265,7 @@ public sealed class ExportSourceResolver
 
         var candidatePaths = Directory.EnumerateFiles(
                 releaseDir,
-                $"{projectName}.dll",
+                $"{assemblyName}.dll",
                 SearchOption.AllDirectories)
             .Where(path => !IsRefAssemblyPath(path))
             .ToList();
@@ -273,7 +273,7 @@ public sealed class ExportSourceResolver
         if (candidatePaths.Count == 0)
         {
             throw new FileNotFoundException(
-                $"Could not locate built DLL for project '{projectName}' under '{releaseDir}'.");
+                $"Could not locate built DLL for assembly '{assemblyName}' under '{releaseDir}'.");
         }
 
         var preferredFramework = ResolvePreferredFramework(candidatePaths, releaseDir);
@@ -296,7 +296,7 @@ public sealed class ExportSourceResolver
         var candidates = candidatePaths
             .Select(path => new FileInfo(path))
             .OrderByDescending(info => info.LastWriteTimeUtc)
-            // When framework + timestamp tie, use path as a deterministic final tie-breaker.
+            // When timestamps tie within the selected framework, use path as a deterministic final tie-breaker.
             .ThenBy(
                 info => info.FullName,
                 RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -422,7 +422,7 @@ public sealed class ExportSourceResolver
             && (!int.TryParse(match.Groups["minor"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out minor)
                 || minor > ushort.MaxValue))
         {
-            return new Version(0, 0);
+            return new Version(major, 0);
         }
 
         return new Version(major, minor);

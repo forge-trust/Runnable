@@ -259,11 +259,11 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public async Task ResolveLaunchRequestAsync_Should_Resolve_Project_To_Built_Dll_When_NoBuild()
+    public async Task ResolveLaunchRequestAsync_Should_Resolve_Project_To_Published_Dll_When_NoBuild()
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
-        var dllDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0");
+        var dllDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
         Directory.CreateDirectory(dllDir);
         await File.WriteAllTextAsync(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
         var expectedDllPath = Path.Combine(dllDir, "MySite.dll");
@@ -286,7 +286,7 @@ public class ExportSourceResolverTests
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
-        var dllDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0");
+        var dllDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
         Directory.CreateDirectory(dllDir);
         await File.WriteAllTextAsync(
             projectPath,
@@ -314,7 +314,7 @@ public class ExportSourceResolverTests
 
     [Fact]
     [Trait("Category", "Integration")]
-    public async Task ResolveLaunchRequestAsync_Should_Build_Project_When_NoBuild_Is_False()
+    public async Task ResolveLaunchRequestAsync_Should_Publish_Project_When_NoBuild_Is_False()
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
@@ -359,7 +359,7 @@ public class ExportSourceResolverTests
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => resolver.ResolveLaunchRequestAsync(request));
-        Assert.Contains("dotnet build", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("dotnet publish", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -369,27 +369,27 @@ public class ExportSourceResolverTests
 
         var ex = Assert.Throws<FileNotFoundException>(
             () => ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite"));
-        Assert.Contains("release build output folder", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("release publish output folder", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void ResolveBuiltDllPath_Should_Throw_When_No_Dll_Is_Found()
     {
         using var tempDir = new TempDirectory();
-        var releaseDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0");
+        var releaseDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
         Directory.CreateDirectory(releaseDir);
 
         var ex = Assert.Throws<FileNotFoundException>(
             () => ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite"));
-        Assert.Contains("Could not locate built DLL", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Could not locate published DLL", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void ResolveBuiltDllPath_Should_Select_Highest_Target_Framework_When_Multiple_Are_Detected()
     {
         using var tempDir = new TempDirectory();
-        var net9 = Path.Combine(tempDir.FullPath, "bin", "Release", "net9.0");
-        var net10 = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0");
+        var net9 = Path.Combine(tempDir.FullPath, "bin", "Release", "net9.0", "publish");
+        var net10 = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
         Directory.CreateDirectory(net9);
         Directory.CreateDirectory(net10);
         File.WriteAllBytes(Path.Combine(net9, "MySite.dll"), [1]);

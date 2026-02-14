@@ -2,9 +2,32 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace ForgeTrust.Runnable.Caching.Tests;
 
-public class MemoTests
+public class MemoTests : IDisposable
 {
-    private static Memo CreateMemo() => new(new MemoryCache(new MemoryCacheOptions()));
+    private readonly List<MemoryCache> _caches = [];
+
+    private Memo CreateMemo()
+    {
+        return CreateMemoWithOptions(new MemoryCacheOptions());
+    }
+
+    private Memo CreateMemoWithOptions(MemoryCacheOptions options, TimeSpan? failureCacheDuration = null)
+    {
+        var cache = new MemoryCache(options);
+        _caches.Add(cache);
+
+        return failureCacheDuration.HasValue
+            ? new Memo(cache, failureCacheDuration.Value)
+            : new Memo(cache);
+    }
+
+    public void Dispose()
+    {
+        foreach (var cache in _caches)
+        {
+            cache.Dispose();
+        }
+    }
 
     [Fact]
     public async Task GetAsync_CacheMiss_CallsFactory()
@@ -13,11 +36,11 @@ public class MemoTests
         var callCount = 0;
 
         var result = await memo.GetAsync(
-            async ct =>
+            () =>
             {
                 callCount++;
 
-                return 42;
+                return Task.FromResult(42);
             },
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
@@ -31,7 +54,7 @@ public class MemoTests
         var memo = CreateMemo();
         var callCount = 0;
 
-        Task<int> Factory(CancellationToken ct)
+        Task<int> Factory()
         {
             callCount++;
 
@@ -53,12 +76,12 @@ public class MemoTests
 
         var a = await memo.GetAsync(
             1,
-            (x, ct) => Task.FromResult(x * 10),
+            x => Task.FromResult(x * 10),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         var b = await memo.GetAsync(
             2,
-            (x, ct) => Task.FromResult(x * 10),
+            x => Task.FromResult(x * 10),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal(10, a);
@@ -71,7 +94,7 @@ public class MemoTests
         var memo = CreateMemo();
         var callCount = 0;
 
-        Task<string> Factory(int id, CancellationToken ct)
+        Task<string> Factory(int id)
         {
             callCount++;
 
@@ -87,27 +110,293 @@ public class MemoTests
     }
 
     [Fact]
+    public async Task GetAsync_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            ct =>
+            {
+                received = ct;
+
+                return Task.FromResult(42);
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal(42, result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
+    public async Task GetAsync_OneArg_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            99,
+            (id, ct) =>
+            {
+                received = ct;
+
+                return Task.FromResult($"item-{id}");
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal("item-99", result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
+    public async Task GetAsync_TwoArgs_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            "a",
+            "b",
+            (a, b, ct) =>
+            {
+                received = ct;
+
+                return Task.FromResult($"{a}-{b}");
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal("a-b", result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
+    public async Task GetAsync_ThreeArgs_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            "a",
+            "b",
+            "c",
+            (
+                a,
+                b,
+                c,
+                ct) =>
+            {
+                received = ct;
+
+                return Task.FromResult($"{a}-{b}-{c}");
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal("a-b-c", result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
+    public async Task GetAsync_FourArgs_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            1,
+            2,
+            3,
+            4,
+            (
+                a,
+                b,
+                c,
+                d,
+                ct) =>
+            {
+                received = ct;
+
+                return Task.FromResult(a + b + c + d);
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal(10, result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
+    public async Task GetAsync_FiveArgs_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            1,
+            2,
+            3,
+            4,
+            5,
+            (
+                a,
+                b,
+                c,
+                d,
+                e,
+                ct) =>
+            {
+                received = ct;
+
+                return Task.FromResult(a + b + c + d + e);
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal(15, result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
+    public async Task GetAsync_SixArgs_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            (
+                a,
+                b,
+                c,
+                d,
+                e,
+                f,
+                ct) =>
+            {
+                received = ct;
+
+                return Task.FromResult(a + b + c + d + e + f);
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal(21, result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
+    public async Task GetAsync_SevenArgs_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            (
+                a,
+                b,
+                c,
+                d,
+                e,
+                f,
+                g,
+                ct) =>
+            {
+                received = ct;
+
+                return Task.FromResult(a + b + c + d + e + f + g);
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal(28, result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
+    public async Task GetAsync_EightArgs_WithCancellationTokenFactory_ForwardsCt()
+    {
+        var memo = CreateMemo();
+        CancellationToken received = default;
+
+        var result = await memo.GetAsync(
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            (
+                a,
+                b,
+                c,
+                d,
+                e,
+                f,
+                g,
+                h,
+                ct) =>
+            {
+                received = ct;
+
+                return Task.FromResult(a + b + c + d + e + f + g + h);
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
+            CancellationToken.None);
+
+        Assert.Equal(36, result);
+        Assert.Equal(CancellationToken.None, received);
+    }
+
+    [Fact]
     public async Task GetAsync_ThunderingHerd_FactoryCalledOnce()
     {
         var memo = CreateMemo();
         var callCount = 0;
         var gate = new TaskCompletionSource<bool>();
+        const int callerCount = 10;
+        using var allCallersReady = new CountdownEvent(callerCount);
 
-        async Task<int> SlowFactory(CancellationToken ct)
+        async Task<int> SlowFactory()
         {
             Interlocked.Increment(ref callCount);
+            allCallersReady.Signal();
             await gate.Task;
 
             return 99;
         }
 
-        // Launch multiple concurrent callers for the same key
-        var tasks = Enumerable.Range(0, 10)
+        var tasks = Enumerable.Range(0, callerCount)
             .Select(_ => Task.Run(() => memo.GetAsync(SlowFactory, CachePolicy.Absolute(TimeSpan.FromMinutes(5)))))
             .ToArray();
 
-        // Give all tasks time to hit the lock
-        await Task.Delay(100);
+        // Wait for all tasks to reach the semaphore or factory
+        await Task.Delay(200);
+
+        // Signal the countdown for callers blocked on the semaphore
+        var factoryCalls = callCount;
+        for (var i = 0; i < callerCount - factoryCalls; i++)
+        {
+            allCallersReady.Signal();
+        }
+
+        allCallersReady.Wait(TimeSpan.FromSeconds(5));
 
         // Release the factory
         gate.SetResult(true);
@@ -126,7 +415,7 @@ public class MemoTests
         var result = await memo.GetAsync(
             "tenant-1",
             42,
-            (t, u, ct) => Task.FromResult($"{t}:{u}"),
+            (t, u) => Task.FromResult($"{t}:{u}"),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal("tenant-1:42", result);
@@ -141,11 +430,7 @@ public class MemoTests
             "a",
             "b",
             "c",
-            (
-                a,
-                b,
-                c,
-                ct) => Task.FromResult($"{a}-{b}-{c}"),
+            (a, b, c) => Task.FromResult($"{a}-{b}-{c}"),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal("a-b-c", result);
@@ -165,8 +450,7 @@ public class MemoTests
                 a,
                 b,
                 c,
-                d,
-                ct) => Task.FromResult(a + b + c + d),
+                d) => Task.FromResult(a + b + c + d),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal(10, result);
@@ -188,8 +472,7 @@ public class MemoTests
                 b,
                 c,
                 d,
-                e,
-                ct) => Task.FromResult(a + b + c + d + e),
+                e) => Task.FromResult(a + b + c + d + e),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal(15, result);
@@ -213,8 +496,7 @@ public class MemoTests
                 c,
                 d,
                 e,
-                f,
-                ct) => Task.FromResult(a + b + c + d + e + f),
+                f) => Task.FromResult(a + b + c + d + e + f),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal(21, result);
@@ -240,8 +522,7 @@ public class MemoTests
                 d,
                 e,
                 f,
-                g,
-                ct) => Task.FromResult(a + b + c + d + e + f + g),
+                g) => Task.FromResult(a + b + c + d + e + f + g),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal(28, result);
@@ -269,8 +550,7 @@ public class MemoTests
                 e,
                 f,
                 g,
-                h,
-                ct) => Task.FromResult(a + b + c + d + e + f + g + h),
+                h) => Task.FromResult(a + b + c + d + e + f + g + h),
             CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal(36, result);
@@ -283,14 +563,10 @@ public class MemoTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
+        // CancellationToken cancels the semaphore wait, not the factory
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             memo.GetAsync(
-                async ct =>
-                {
-                    ct.ThrowIfCancellationRequested();
-
-                    return 1;
-                },
+                () => Task.FromResult(1),
                 CachePolicy.Absolute(TimeSpan.FromMinutes(5)),
                 cts.Token));
     }
@@ -302,7 +578,7 @@ public class MemoTests
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
             memo.GetAsync(
-                (Func<CancellationToken, Task<int>>)null!,
+                (Func<Task<int>>)null!,
                 CachePolicy.Absolute(TimeSpan.FromMinutes(5))));
     }
 
@@ -313,7 +589,7 @@ public class MemoTests
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
             memo.GetAsync(
-                ct => Task.FromResult(1),
+                () => Task.FromResult(1),
                 null!));
     }
 
@@ -326,11 +602,11 @@ public class MemoTests
     [Fact]
     public async Task GetAsync_AbsoluteExpiration_Evicts()
     {
-        var cache = new MemoryCache(new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) });
-        var memo = new Memo(cache);
+        var memo = CreateMemoWithOptions(
+            new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) });
         var callCount = 0;
 
-        Task<int> Factory(CancellationToken ct)
+        Task<int> Factory()
         {
             callCount++;
 
@@ -351,11 +627,11 @@ public class MemoTests
     [Fact]
     public async Task GetAsync_SlidingExpiration_KeepsAliveOnAccess()
     {
-        var cache = new MemoryCache(new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) });
-        var memo = new Memo(cache);
+        var memo = CreateMemoWithOptions(
+            new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) });
         var callCount = 0;
 
-        Task<int> Factory(CancellationToken ct)
+        Task<int> Factory()
         {
             callCount++;
 
@@ -380,11 +656,11 @@ public class MemoTests
     [Fact]
     public async Task GetAsync_SlidingExpiration_EvictsAfterIdle()
     {
-        var cache = new MemoryCache(new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) });
-        var memo = new Memo(cache);
+        var memo = CreateMemoWithOptions(
+            new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) });
         var callCount = 0;
 
-        Task<int> Factory(CancellationToken ct)
+        Task<int> Factory()
         {
             callCount++;
 
@@ -405,18 +681,18 @@ public class MemoTests
     [Fact]
     public async Task GetAsync_SlidingWithAbsolute_EnforcesCeiling()
     {
-        var cache = new MemoryCache(new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) });
-        var memo = new Memo(cache);
+        var memo = CreateMemoWithOptions(
+            new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) });
         var callCount = 0;
 
-        Task<int> Factory(CancellationToken ct)
+        Task<int> Factory()
         {
             callCount++;
 
             return Task.FromResult(callCount);
         }
 
-        // Sliding of 200ms but absolute ceiling of 150ms
+        // Sliding of 100ms with absolute ceiling of 200ms
         var policy = CachePolicy.SlidingWithAbsolute(
             TimeSpan.FromMilliseconds(100),
             TimeSpan.FromMilliseconds(200));
@@ -442,17 +718,44 @@ public class MemoTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             memo.GetAsync(
-                ct => Task.FromException<int>(new InvalidOperationException("boom")),
+                () => Task.FromException<int>(new InvalidOperationException("boom")),
                 CachePolicy.Absolute(TimeSpan.FromMinutes(5))));
     }
 
     [Fact]
-    public async Task GetAsync_FactoryException_DoesNotCache()
+    public async Task GetAsync_FactoryException_CachedBriefly()
     {
         var memo = CreateMemo();
         var callCount = 0;
 
-        Task<int> Factory(CancellationToken ct)
+        Task<int> Factory()
+        {
+            callCount++;
+
+            throw new InvalidOperationException("transient");
+        }
+
+        // First call — factory throws
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5))));
+
+        // Second call within failure TTL — should rethrow cached exception without calling factory
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5))));
+
+        Assert.Equal(1, callCount); // Factory was called only once
+    }
+
+    [Fact]
+    public async Task GetAsync_FactoryException_RetryAfterTtlExpires()
+    {
+        var failureTtl = TimeSpan.FromMilliseconds(50);
+        var memo = CreateMemoWithOptions(
+            new MemoryCacheOptions { ExpirationScanFrequency = TimeSpan.FromMilliseconds(10) },
+            failureTtl);
+        var callCount = 0;
+
+        Task<int> Factory()
         {
             callCount++;
             if (callCount == 1)
@@ -465,6 +768,9 @@ public class MemoTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5))));
+
+        // Wait for the failure TTL to expire
+        await Task.Delay(failureTtl + TimeSpan.FromMilliseconds(50));
 
         var result = await memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
@@ -504,5 +810,24 @@ public class MemoTests
         var key1 = Memo.BuildKey("Test", "a", 1);
         var key2 = Memo.BuildKey("Test", "a", 1);
         Assert.Equal(key1, key2);
+    }
+
+    [Fact]
+    public void BuildKey_NullArg_HandledConsistently()
+    {
+        var key1 = Memo.BuildKey("Test", (string?)null);
+        var key2 = Memo.BuildKey("Test", (string?)null);
+        Assert.Equal(key1, key2);
+
+        var key3 = Memo.BuildKey("Test", "actual");
+        Assert.NotEqual(key1, key3);
+    }
+
+    [Fact]
+    public void BuildKey_ContainsArgValues_NotHashes()
+    {
+        var key = Memo.BuildKey("Load", "hello");
+        Assert.Contains("hello", key);
+        Assert.Contains("Load", key);
     }
 }

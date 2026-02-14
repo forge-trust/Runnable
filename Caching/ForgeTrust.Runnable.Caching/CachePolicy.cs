@@ -7,6 +7,15 @@ namespace ForgeTrust.Runnable.Caching;
 public sealed record CachePolicy
 {
     /// <summary>
+    /// Prevents external parameterless construction.
+    /// Use the static factory methods (<see cref="Absolute"/>, <see cref="Sliding"/>,
+    /// <see cref="SlidingWithAbsolute"/>) to create instances.
+    /// </summary>
+    private CachePolicy()
+    {
+    }
+
+    /// <summary>
     /// Gets the absolute expiration duration. The entry is evicted after this duration
     /// regardless of access patterns.
     /// </summary>

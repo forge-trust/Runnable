@@ -19,13 +19,13 @@ public sealed record CachePolicy
     /// Gets the absolute expiration duration. The entry is evicted after this duration
     /// regardless of access patterns.
     /// </summary>
-    public TimeSpan? AbsoluteExpiration { get; init; }
+    public TimeSpan? AbsoluteExpiration { get; internal init; }
 
     /// <summary>
     /// Gets the sliding expiration window. The entry is evicted if not accessed within
     /// this duration. Each access resets the timer.
     /// </summary>
-    public TimeSpan? SlidingExpiration { get; init; }
+    public TimeSpan? SlidingExpiration { get; internal init; }
 
     /// <summary>
     /// Creates a policy that evicts the entry after a fixed duration from creation.

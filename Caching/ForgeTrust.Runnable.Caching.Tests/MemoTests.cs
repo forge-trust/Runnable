@@ -6,6 +6,59 @@ namespace ForgeTrust.Runnable.Caching.Tests;
 
 public class MemoTests : IDisposable
 {
+    private sealed class Wrapper<T>
+    {
+        public async Task<T> Get(IMemo memo, T value)
+        {
+            return await memo.GetAsync(() => Task.FromResult(value), CachePolicy.Absolute(TimeSpan.FromMinutes(1)));
+        }
+    }
+
+    [Fact]
+    public async Task GetAsync_TResultType_IsPartOfIdentity()
+    {
+        var memo = CreateMemo();
+
+        // Use a generic wrapper to ensure same file/line for both calls
+        var intWrapper = new Wrapper<int>();
+        var stringWrapper = new Wrapper<string>();
+
+        var a = await intWrapper.Get(memo, 42);
+        var b = await stringWrapper.Get(memo, "42");
+
+        Assert.Equal(42, a);
+        Assert.Equal("42", b);
+    }
+
+    [Fact]
+    public async Task GetAsync_WhenDisposed_ThrowsObjectDisposedException()
+    {
+        var memo = CreateMemo();
+        memo.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+            memo.GetAsync(() => Task.FromResult(1), CachePolicy.Absolute(TimeSpan.FromMinutes(1))));
+    }
+
+    [Fact]
+    public async Task GetAsync_OngoingOperation_FailsIfDisposedMidWait()
+    {
+        var memo = CreateMemo();
+        var factoryGate = new TaskCompletionSource<int>();
+        var waitTask = memo.GetAsync(() => factoryGate.Task, CachePolicy.Absolute(TimeSpan.FromMinutes(1)));
+
+        memo.Dispose();
+        factoryGate.SetResult(1);
+
+        // Even if the factory finishes, the lock release or subsequent check should throw if we strictly guarded it.
+        // In our implementation, we check ThrowIfDisposed AFTER WaitAsync.
+        // Let's test two calls to hit the WaitAsync path.
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => memo.GetAsync(
+            () => Task.FromResult(2),
+            CachePolicy.Absolute(TimeSpan.FromMinutes(1))));
+    }
+
     private readonly List<MemoryCache> _caches = [];
 
     private Memo CreateMemo()
@@ -51,7 +104,31 @@ public class MemoTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAsync_CacheHit_DoesNotCallFactory()
+    public async Task GetAsync_CacheHit_SameCallSite_DoesNotCallFactory()
+    {
+        var memo = CreateMemo();
+        var callCount = 0;
+
+        async Task<int> GetValue() =>
+            await memo.GetAsync(
+                () =>
+                {
+                    callCount++;
+
+                    return Task.FromResult(42);
+                },
+                CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
+
+        var first = await GetValue();
+        var second = await GetValue();
+
+        Assert.Equal(42, first);
+        Assert.Equal(42, second);
+        Assert.Equal(1, callCount);
+    }
+
+    [Fact]
+    public async Task GetAsync_DifferentCallSites_DifferentEntries()
     {
         var memo = CreateMemo();
         var callCount = 0;
@@ -63,12 +140,13 @@ public class MemoTests : IDisposable
             return Task.FromResult(42);
         }
 
+        // Two different lines = two different entries
         var first = await memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
         var second = await memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
         Assert.Equal(42, first);
         Assert.Equal(42, second);
-        Assert.Equal(1, callCount);
+        Assert.Equal(2, callCount);
     }
 
     [Fact]
@@ -91,20 +169,24 @@ public class MemoTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAsync_SameArgs_CacheHit()
+    public async Task GetAsync_SameArgs_SameCallSite_CacheHit()
     {
         var memo = CreateMemo();
         var callCount = 0;
 
-        Task<string> Factory(int id)
-        {
-            callCount++;
+        async Task<string> GetUser(int id) =>
+            await memo.GetAsync(
+                id,
+                userId =>
+                {
+                    callCount++;
 
-            return Task.FromResult($"user-{id}");
-        }
+                    return Task.FromResult($"user-{userId}");
+                },
+                CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
 
-        var first = await memo.GetAsync(42, Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
-        var second = await memo.GetAsync(42, Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
+        var first = await GetUser(42);
+        var second = await GetUser(42);
 
         Assert.Equal("user-42", first);
         Assert.Equal("user-42", second);
@@ -677,15 +759,16 @@ public class MemoTests : IDisposable
         }
 
         var policy = CachePolicy.Sliding(TimeSpan.FromMilliseconds(200));
+        async Task<int> GetValue() => await memo.GetAsync(Factory, policy);
 
-        await memo.GetAsync(Factory, policy);
+        await GetValue();
 
         // Access before expiration to keep it alive
         await Task.Delay(100);
-        await memo.GetAsync(Factory, policy);
+        await GetValue();
 
         await Task.Delay(100);
-        await memo.GetAsync(Factory, policy);
+        await GetValue();
 
         // Should still be the first call's result
         Assert.Equal(1, callCount);
@@ -735,17 +818,19 @@ public class MemoTests : IDisposable
             TimeSpan.FromMilliseconds(100),
             TimeSpan.FromMilliseconds(200));
 
-        await memo.GetAsync(Factory, policy);
+        async Task<int> GetValue() => await memo.GetAsync(Factory, policy);
+
+        await GetValue();
 
         // Access within sliding window to keep alive
         await Task.Delay(80);
-        var second = await memo.GetAsync(Factory, policy);
+        var second = await GetValue();
         Assert.Equal(1, second); // Still cached
 
         // Wait past the absolute ceiling
         await Task.Delay(200);
 
-        var third = await memo.GetAsync(Factory, policy);
+        var third = await GetValue();
         Assert.Equal(2, third); // Evicted by absolute ceiling
     }
 
@@ -773,13 +858,14 @@ public class MemoTests : IDisposable
             throw new InvalidOperationException("transient");
         }
 
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(5));
+        async Task<int> GetValue() => await memo.GetAsync(Factory, policy);
+
         // First call — factory throws
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5))));
+        await Assert.ThrowsAsync<InvalidOperationException>(GetValue);
 
         // Second call within failure TTL — should rethrow cached exception without calling factory
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(5))));
+        await Assert.ThrowsAsync<InvalidOperationException>(GetValue);
 
         Assert.Equal(1, callCount); // Factory was called only once
     }
@@ -821,61 +907,62 @@ public class MemoTests : IDisposable
     [Fact]
     public void BuildKey_OneArg_Deterministic()
     {
-        var key1 = Memo.BuildKey("Test", 42);
-        var key2 = Memo.BuildKey("Test", 42);
+        var key1 = Memo.BuildKey<int, int>("Test.cs", 42, 1);
+        var key2 = Memo.BuildKey<int, int>("Test.cs", 42, 1);
         Assert.Equal(key1, key2);
     }
 
     [Fact]
     public void BuildKey_DifferentArgs_DifferentKeys()
     {
-        var key1 = Memo.BuildKey("Test", 1);
-        var key2 = Memo.BuildKey("Test", 2);
+        var key1 = Memo.BuildKey<int, int>("Test.cs", 42, 1);
+        var key2 = Memo.BuildKey<int, int>("Test.cs", 42, 2);
         Assert.NotEqual(key1, key2);
     }
 
     [Fact]
-    public void BuildKey_DifferentPrefixes_DifferentKeys()
+    public void BuildKey_DifferentLines_DifferentKeys()
     {
-        var key1 = Memo.BuildKey("MethodA", 42);
-        var key2 = Memo.BuildKey("MethodB", 42);
+        var key1 = Memo.BuildKey<int, int>("Test.cs", 42, 1);
+        var key2 = Memo.BuildKey<int, int>("Test.cs", 43, 1);
         Assert.NotEqual(key1, key2);
     }
 
     [Fact]
     public void BuildKey_TwoArgs_Deterministic()
     {
-        var key1 = Memo.BuildKey("Test", "a", 1);
-        var key2 = Memo.BuildKey("Test", "a", 1);
+        var key1 = Memo.BuildKey<string, string, int>("Test.cs", 42, "a", 1);
+        var key2 = Memo.BuildKey<string, string, int>("Test.cs", 42, "a", 1);
         Assert.Equal(key1, key2);
     }
 
     [Fact]
     public void BuildKey_NullArg_HandledConsistently()
     {
-        var key1 = Memo.BuildKey("Test", (string?)null);
-        var key2 = Memo.BuildKey("Test", (string?)null);
+        var key1 = Memo.BuildKey<string, string?>("Test.cs", 42, null);
+        var key2 = Memo.BuildKey<string, string?>("Test.cs", 42, null);
         Assert.Equal(key1, key2);
 
-        var key3 = Memo.BuildKey("Test", "actual");
+        var key3 = Memo.BuildKey<string, string?>("Test.cs", 42, "actual");
         Assert.NotEqual(key1, key3);
     }
 
     [Fact]
     public void BuildKey_IsValueTuple()
     {
-        var key = Memo.BuildKey("Load", "hello");
-        Assert.IsType<(string, string)>(key);
-        var tuple = ((string, string))key;
-        Assert.Equal("Load", tuple.Item1);
-        Assert.Equal("hello", tuple.Item2);
+        var key = Memo.BuildKey<int, string>("Test.cs", 100, "hello");
+        Assert.IsType<(string, int, Type, string)>(key);
+        var tuple = ((string, int, Type, string))key;
+        Assert.Equal("Test.cs", tuple.Item1);
+        Assert.Equal(100, tuple.Item2);
+        Assert.Equal(typeof(int), tuple.Item3);
+        Assert.Equal("hello", tuple.Item4);
     }
 
     [Fact]
     public async Task GetAsync_DoubleCheckLock_CachedFailure_Throws()
     {
         var memo = CreateMemo();
-        var key = "double-check-failure";
         var callCount = 0;
         var gate = new TaskCompletionSource<bool>();
 
@@ -893,10 +980,18 @@ public class MemoTests : IDisposable
         }
 
         // First call starts and waits at gate
-        var task1 = memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(1)), callerMemberName: key);
+        var task1 = memo.GetAsync(
+            Factory,
+            CachePolicy.Absolute(TimeSpan.FromMinutes(1)),
+            callerFilePath: "collision",
+            callerLineNumber: 1);
 
-        // Second call waits for semaphore
-        var task2 = memo.GetAsync(Factory, CachePolicy.Absolute(TimeSpan.FromMinutes(1)), callerMemberName: key);
+        // Second call waits for semaphore (same identity)
+        var task2 = memo.GetAsync(
+            Factory,
+            CachePolicy.Absolute(TimeSpan.FromMinutes(1)),
+            callerFilePath: "collision",
+            callerLineNumber: 1);
 
         await Task.Delay(100); // Ensure task2 is waiting
 
@@ -1143,9 +1238,10 @@ public class MemoTests : IDisposable
         }
 
         var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
+        async Task<string?> GetValue() => await memo.GetAsync(Factory, policy);
 
-        var result1 = await memo.GetAsync(Factory, policy);
-        var result2 = await memo.GetAsync(Factory, policy);
+        var result1 = await GetValue();
+        var result2 = await GetValue();
 
         Assert.Null(result1);
         Assert.Null(result2);

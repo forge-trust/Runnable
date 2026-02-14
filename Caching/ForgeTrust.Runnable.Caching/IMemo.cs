@@ -12,46 +12,46 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path and member name.
+    /// The cache key is automatically derived from the caller file path and line number.
     /// </summary>
     /// <typeparam name="TResult">The type of the cached value.</typeparam>
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TResult>(
         Func<Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path and member name.
+    /// The cache key is automatically derived from the caller file path and line number.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TResult">The type of the cached value.</typeparam>
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TResult>(
         Func<CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     // ── One argument ────────────────────────────────────────────────────
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and <paramref name="arg"/>.
+    /// The cache key is automatically derived from the caller file path, line number, and <paramref name="arg"/>.
     /// </summary>
     /// <typeparam name="TArg">The type of the argument.</typeparam>
     /// <typeparam name="TResult">The type of the cached value.</typeparam>
@@ -59,20 +59,20 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg, TResult>(
         TArg arg,
         Func<TArg, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and <paramref name="arg"/>.
+    /// The cache key is automatically derived from the caller file path, line number, and <paramref name="arg"/>.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TArg">The type of the argument.</typeparam>
@@ -81,16 +81,16 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg, TResult>(
         TArg arg,
         Func<TArg, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     // ── Two arguments ───────────────────────────────────────────────────
 
@@ -106,8 +106,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TResult>(
         TArg1 arg1,
@@ -115,8 +115,8 @@ public interface IMemo
         Func<TArg1, TArg2, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
@@ -131,8 +131,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TResult>(
         TArg1 arg1,
@@ -140,8 +140,8 @@ public interface IMemo
         Func<TArg1, TArg2, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     // ── Three arguments ─────────────────────────────────────────────────
 
@@ -159,8 +159,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TResult>(
         TArg1 arg1,
@@ -169,8 +169,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
@@ -187,8 +187,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TResult>(
         TArg1 arg1,
@@ -197,8 +197,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     // ── Four arguments ──────────────────────────────────────────────────
 
@@ -218,8 +218,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TResult>(
         TArg1 arg1,
@@ -229,8 +229,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
@@ -249,8 +249,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TResult>(
         TArg1 arg1,
@@ -260,8 +260,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     // ── Five arguments ──────────────────────────────────────────────────
 
@@ -283,8 +283,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TArg5, TResult>(
         TArg1 arg1,
@@ -295,8 +295,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
@@ -317,8 +317,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TArg5, TResult>(
         TArg1 arg1,
@@ -329,8 +329,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     // ── Six arguments ───────────────────────────────────────────────────
 
@@ -354,8 +354,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TResult>(
         TArg1 arg1,
@@ -367,8 +367,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
@@ -391,8 +391,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TResult>(
         TArg1 arg1,
@@ -404,8 +404,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     // ── Seven arguments ─────────────────────────────────────────────────
 
@@ -431,8 +431,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TResult>(
         TArg1 arg1,
@@ -445,8 +445,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
@@ -471,8 +471,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TResult>(
         TArg1 arg1,
@@ -485,8 +485,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     // ── Eight arguments ─────────────────────────────────────────────────
 
@@ -514,8 +514,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel the cache lock acquisition.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8, TResult>(
         TArg1 arg1,
@@ -529,8 +529,8 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
@@ -557,8 +557,8 @@ public interface IMemo
     /// <param name="factory">The async factory to compute the value on a cache miss. Receives a <see cref="CancellationToken"/>.</param>
     /// <param name="policy">The cache expiration policy.</param>
     /// <param name="cancellationToken">A token to cancel both lock acquisition and factory invocation.</param>
-    /// <param name="callerMemberName">Compiler-injected caller member name. Do not supply manually.</param>
     /// <param name="callerFilePath">Compiler-injected caller file path. Do not supply manually.</param>
+    /// <param name="callerLineNumber">Compiler-injected caller line number. Do not supply manually.</param>
     /// <returns>The cached or freshly computed value.</returns>
     Task<TResult> GetAsync<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8, TResult>(
         TArg1 arg1,
@@ -572,6 +572,6 @@ public interface IMemo
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "");
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0);
 }

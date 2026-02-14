@@ -16,6 +16,14 @@ public sealed class Memo : IMemo, IDisposable
     private readonly TimeSpan _failureCacheDuration;
     private bool _disposed;
 
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(Memo));
+        }
+    }
+
     /// <summary>
     /// Default duration for which a factory failure is cached to prevent serial thundering herd
     /// on repeated failures.
@@ -79,13 +87,14 @@ public sealed class Memo : IMemo, IDisposable
         Func<Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var key = (callerFilePath, callerMemberName);
+        var key = (callerFilePath, callerLineNumber, typeof(TResult));
 
         return GetOrCreateCoreAsync(key, factory, static (f, _) => f(), policy, cancellationToken);
     }
@@ -95,13 +104,14 @@ public sealed class Memo : IMemo, IDisposable
         Func<CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var key = (callerFilePath, callerMemberName);
+        var key = (callerFilePath, callerLineNumber, typeof(TResult));
 
         return GetOrCreateCoreAsync(
             key,
@@ -119,14 +129,14 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg);
+        var key = BuildKey<TResult, TArg>(callerFilePath, callerLineNumber, arg);
 
         return GetOrCreateCoreAsync(
             key,
@@ -142,14 +152,14 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg);
+        var key = BuildKey<TResult, TArg>(callerFilePath, callerLineNumber, arg);
 
         return GetOrCreateCoreAsync(
             key,
@@ -168,14 +178,14 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2);
+        var key = BuildKey<TResult, TArg1, TArg2>(callerFilePath, callerLineNumber, arg1, arg2);
 
         return GetOrCreateCoreAsync(
             key,
@@ -192,14 +202,14 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2);
+        var key = BuildKey<TResult, TArg1, TArg2>(callerFilePath, callerLineNumber, arg1, arg2);
 
         return GetOrCreateCoreAsync(
             key,
@@ -219,14 +229,14 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3>(callerFilePath, callerLineNumber, arg1, arg2, arg3);
 
         return GetOrCreateCoreAsync(
             key,
@@ -244,14 +254,14 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3>(callerFilePath, callerLineNumber, arg1, arg2, arg3);
 
         return GetOrCreateCoreAsync(
             key,
@@ -272,14 +282,20 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4);
 
         return GetOrCreateCoreAsync(
             key,
@@ -298,14 +314,20 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4);
 
         return GetOrCreateCoreAsync(
             key,
@@ -327,14 +349,21 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4, arg5);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5);
 
         return GetOrCreateCoreAsync(
             key,
@@ -354,14 +383,21 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4, arg5);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5);
 
         return GetOrCreateCoreAsync(
             key,
@@ -390,14 +426,22 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4, arg5, arg6);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5,
+            arg6);
 
         return GetOrCreateCoreAsync(
             key,
@@ -418,14 +462,22 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4, arg5, arg6);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5,
+            arg6);
 
         return GetOrCreateCoreAsync(
             key,
@@ -456,14 +508,23 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5,
+            arg6,
+            arg7);
 
         return GetOrCreateCoreAsync(
             key,
@@ -492,14 +553,23 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5,
+            arg6,
+            arg7);
 
         return GetOrCreateCoreAsync(
             key,
@@ -532,14 +602,24 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5,
+            arg6,
+            arg7,
+            arg8);
 
         return GetOrCreateCoreAsync(
             key,
@@ -570,14 +650,24 @@ public sealed class Memo : IMemo, IDisposable
         Func<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8, CancellationToken, Task<TResult>> factory,
         CachePolicy policy,
         CancellationToken cancellationToken = default,
-        [CallerMemberName] string callerMemberName = "",
-        [CallerFilePath] string callerFilePath = "")
+        [CallerFilePath] string callerFilePath = "",
+        [CallerLineNumber] int callerLineNumber = 0)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(policy);
 
-        var prefix = $"{callerFilePath}:{callerMemberName}";
-        var key = BuildKey(prefix, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+        var key = BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8>(
+            callerFilePath,
+            callerLineNumber,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5,
+            arg6,
+            arg7,
+            arg8);
 
         return GetOrCreateCoreAsync(
             key,
@@ -614,6 +704,8 @@ public sealed class Memo : IMemo, IDisposable
         CachePolicy policy,
         CancellationToken cancellationToken)
     {
+        ThrowIfDisposed();
+
         // Fast path: check cache without acquiring the lock.
         // The cache may contain either a TResult value or a CachedFailure sentinel.
         if (_cache.TryGetValue(key, out object? cached))
@@ -630,6 +722,7 @@ public sealed class Memo : IMemo, IDisposable
         var keyLock = _locks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
 
         await keyLock.WaitAsync(cancellationToken);
+        ThrowIfDisposed();
         try
         {
             // Double-check after acquiring lock
@@ -763,46 +856,57 @@ public sealed class Memo : IMemo, IDisposable
     // Nulls and empty values in arguments are handled naturally by the tuple's HashCode/Equality.
 
 
-    internal static object BuildKey<TArg>(string prefix, TArg arg) => (prefix, arg);
+    internal static object BuildKey<TResult, TArg>(string path, int line, TArg arg) =>
+        (path, line, typeof(TResult), arg);
 
-    internal static object BuildKey<TArg1, TArg2>(string prefix, TArg1 arg1, TArg2 arg2) => (prefix, arg1, arg2);
+    internal static object BuildKey<TResult, TArg1, TArg2>(
+        string path,
+        int line,
+        TArg1 arg1,
+        TArg2 arg2) =>
+        (path, line, typeof(TResult), arg1, arg2);
 
-    internal static object BuildKey<TArg1, TArg2, TArg3>(
-        string prefix,
+    internal static object BuildKey<TResult, TArg1, TArg2, TArg3>(
+        string path,
+        int line,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3) =>
-        (prefix, arg1, arg2, arg3);
+        (path, line, typeof(TResult), arg1, arg2, arg3);
 
-    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4>(
-        string prefix,
+    internal static object BuildKey<TResult, TArg1, TArg2, TArg3, TArg4>(
+        string path,
+        int line,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3,
         TArg4 arg4) =>
-        (prefix, arg1, arg2, arg3, arg4);
+        (path, line, typeof(TResult), arg1, arg2, arg3, arg4);
 
-    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5>(
-        string prefix,
+    internal static object BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5>(
+        string path,
+        int line,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3,
         TArg4 arg4,
         TArg5 arg5) =>
-        (prefix, arg1, arg2, arg3, arg4, arg5);
+        (path, line, typeof(TResult), arg1, arg2, arg3, arg4, arg5);
 
-    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6>(
-        string prefix,
+    internal static object BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6>(
+        string path,
+        int line,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3,
         TArg4 arg4,
         TArg5 arg5,
         TArg6 arg6) =>
-        (prefix, arg1, arg2, arg3, arg4, arg5, arg6);
+        (path, line, typeof(TResult), arg1, arg2, arg3, arg4, arg5, arg6);
 
-    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7>(
-        string prefix,
+    internal static object BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7>(
+        string path,
+        int line,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3,
@@ -810,10 +914,11 @@ public sealed class Memo : IMemo, IDisposable
         TArg5 arg5,
         TArg6 arg6,
         TArg7 arg7) =>
-        (prefix, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+        (path, line, typeof(TResult), arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 
-    internal static object BuildKey<TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8>(
-        string prefix,
+    internal static object BuildKey<TResult, TArg1, TArg2, TArg3, TArg4, TArg5, TArg6, TArg7, TArg8>(
+        string path,
+        int line,
         TArg1 arg1,
         TArg2 arg2,
         TArg3 arg3,
@@ -822,5 +927,5 @@ public sealed class Memo : IMemo, IDisposable
         TArg6 arg6,
         TArg7 arg7,
         TArg8 arg8) =>
-        (prefix, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+        (path, line, typeof(TResult), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }

@@ -171,6 +171,160 @@ public class ExportEngineTests
     }
 
     [Fact]
+    public void ExtractLinks_Should_Skip_Visited_Routes()
+    {
+        var html = @"<a href=""/about"">About</a> <a href=""/about"">About Again</a>";
+        var context = new ExportContext("dist", null, "http://localhost:5000");
+        context.Visited.Add("/about");
+
+        _sut.ExtractLinks(html, context);
+
+        Assert.DoesNotContain("/about", context.Queue);
+    }
+
+    [Fact]
+    public async Task ExtractAssets_Should_Extract_Turbo_Frame_Dependencies_During_Run()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var handler = new FrameAwareHandler();
+            var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost:5000") };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, null, "http://localhost:5000");
+
+            await _sut.RunAsync(context);
+
+            Assert.True(File.Exists(Path.Combine(tempDir, "frame", "content.html")));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Throw_When_Seed_File_Is_Missing()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var context = new ExportContext(
+                tempDir,
+                Path.Combine(tempDir, "missing-seeds.txt"),
+                "http://localhost:5000");
+
+            await Assert.ThrowsAsync<FileNotFoundException>(() => _sut.RunAsync(context));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Fallback_To_Root_When_Seed_File_Has_No_Valid_Routes()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var seedFile = Path.Combine(tempDir, "seeds.txt");
+        Directory.CreateDirectory(tempDir);
+        await File.WriteAllLinesAsync(seedFile, ["mailto:test@example.com", "javascript:void(0)", ""]);
+
+        try
+        {
+            var handler = new TestHttpMessageHandler();
+            var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost:5000") };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, seedFile, "http://localhost:5000");
+            await _sut.RunAsync(context);
+
+            Assert.True(File.Exists(Path.Combine(tempDir, "index.html")));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Respect_CancellationToken()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var client = new HttpClient(new SlowHandler());
+        A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        try
+        {
+            var context = new ExportContext(tempDir, null, "http://localhost:5000");
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _sut.RunAsync(context, cts.Token));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Continue_When_Route_Throws_During_Export()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var client = new HttpClient(new ThrowingThenSuccessHandler()) { BaseAddress = new Uri("http://localhost:5000") };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, null, "http://localhost:5000");
+            context.Queue.Enqueue("/throws");
+            context.Queue.Enqueue("/");
+
+            await _sut.RunAsync(context);
+
+            Assert.True(File.Exists(Path.Combine(tempDir, "index.html")));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("//cdn.example.com/app.js")]
+    [InlineData("#hash-only")]
+    public void TryGetNormalizedRoute_Should_Return_False_For_Invalid_Refs(string raw)
+    {
+        var ok = _sut.TryGetNormalizedRoute(raw, out var normalized);
+
+        Assert.False(ok);
+        Assert.Equal(string.Empty, normalized);
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Export_Different_Content_Types_Correctly()
     {
         // Arrange
@@ -249,6 +403,67 @@ public class ExportEngineTests
                 var byteContent = new ByteArrayContent(bytes);
                 byteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = byteContent });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class FrameAwareHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? "/";
+            if (path == "/")
+            {
+                var html = @"<html><body><turbo-frame src=""/frame/content""></turbo-frame></body></html>";
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
+                });
+            }
+
+            if (path == "/frame/content")
+            {
+                var html = "<html><body><h2>Frame</h2></body></html>";
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class SlowHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("<html><body>slow</body></html>", Encoding.UTF8, "text/html")
+            };
+        }
+    }
+
+    private sealed class ThrowingThenSuccessHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? "/";
+            if (path == "/throws")
+            {
+                throw new InvalidOperationException("boom");
+            }
+
+            if (path == "/" || path == "/index")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("<html><body><h1>Recovered</h1></body></html>", Encoding.UTF8, "text/html")
+                });
             }
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -7,6 +8,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 /// <summary>
 /// A static generation engine that crawls a RazorWire application and exports its routes to static HTML files.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class ExportEngine
 {
     private readonly ILogger<ExportEngine> _logger;

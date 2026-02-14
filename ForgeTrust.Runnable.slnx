@@ -10,6 +10,10 @@
     <Project Path="benchmarks/RunnableBenchmarks/RunnableBenchmarks.csproj" />
     <Project Path="benchmarks/SimpleApiController/SimpleApiController.csproj" />
   </Folder>
+  <Folder Name="/Caching/">
+    <Project Path="Caching/ForgeTrust.Runnable.Caching/ForgeTrust.Runnable.Caching.csproj" />
+    <Project Path="Caching/ForgeTrust.Runnable.Caching.Tests/ForgeTrust.Runnable.Caching.Tests.csproj" />
+  </Folder>
   <Folder Name="/Config/">
     <Project Path="Config/ForgeTrust.Runnable.Config.Tests/ForgeTrust.Runnable.Config.Tests.csproj" Type="Classic C#" />
     <Project Path="Config/ForgeTrust.Runnable.Config/ForgeTrust.Runnable.Config.csproj" Type="Classic C#" />

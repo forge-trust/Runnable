@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -70,9 +71,11 @@ public sealed class ExportSourceResolver
             return new ResolvedExportSource(request.SourceValue, null);
         }
 
+        var launchRequest = await ResolveLaunchRequestAsync(request, cancellationToken);
+
         var logs = new ConcurrentQueue<string>();
         var boundBaseUrlSource = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var spec = BuildProcessLaunchSpec(request);
+        var spec = BuildProcessLaunchSpec(launchRequest);
         var process = _processFactory.Create(spec);
         var processExited = 0;
 
@@ -110,63 +113,136 @@ public sealed class ExportSourceResolver
         }
     }
 
+    internal async Task<ExportSourceRequest> ResolveLaunchRequestAsync(
+        ExportSourceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.SourceKind != ExportSourceKind.Project)
+        {
+            return request;
+        }
+
+        var projectPath = request.SourceValue;
+        var projectDirectory = Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory();
+        var projectName = Path.GetFileNameWithoutExtension(projectPath);
+
+        if (!request.NoBuild)
+        {
+            _logger.LogInformation("Building project for export: {ProjectPath}", projectPath);
+            await RunCommandOrThrowAsync(
+                "dotnet",
+                ["build", projectPath, "-c", "Release"],
+                projectDirectory,
+                cancellationToken);
+        }
+        else
+        {
+            _logger.LogInformation("Skipping project build (--no-build): {ProjectPath}", projectPath);
+        }
+
+        var dllPath = ResolveBuiltDllPath(projectDirectory, projectName);
+        _logger.LogInformation("Launching built DLL for export: {DllPath}", dllPath);
+
+        return request with
+        {
+            SourceKind = ExportSourceKind.Dll,
+            SourceValue = dllPath
+        };
+    }
+
     internal ProcessLaunchSpec BuildProcessLaunchSpec(ExportSourceRequest request)
     {
         var effectiveAppArgs = BuildEffectiveAppArgs(request.AppArgs);
-        var environmentOverrides = new Dictionary<string, string>
-        {
-            ["ASPNETCORE_ENVIRONMENT"] = "Production",
-            ["DOTNET_ENVIRONMENT"] = "Production"
-        };
 
         if (request.SourceKind == ExportSourceKind.Project)
         {
-            var projectDirectory = Path.GetDirectoryName(request.SourceValue)
-                ?? Directory.GetCurrentDirectory();
-            var args = new List<string>
-            {
-                "run",
-                "--project",
-                request.SourceValue,
-                "-c",
-                "Release",
-                "--no-launch-profile",
-                "--"
-            };
-
-            if (request.NoBuild)
-            {
-                var separatorIndex = args.IndexOf("--");
-                if (separatorIndex < 0)
-                {
-                    separatorIndex = args.Count;
-                }
-
-                args.Insert(separatorIndex, "--no-build");
-            }
-            args.AddRange(effectiveAppArgs);
-
-            return new ProcessLaunchSpec
-            {
-                FileName = "dotnet",
-                Arguments = args,
-                EnvironmentOverrides = environmentOverrides,
-                WorkingDirectory = projectDirectory
-            };
+            throw new InvalidOperationException("Project sources must be resolved to a DLL launch request before building process launch spec.");
         }
 
         var dllDirectory = Path.GetDirectoryName(request.SourceValue)
             ?? Directory.GetCurrentDirectory();
         var dllArgs = new List<string> { request.SourceValue };
         dllArgs.AddRange(effectiveAppArgs);
+        var dllEnvironmentOverrides = new Dictionary<string, string>
+        {
+            ["ASPNETCORE_ENVIRONMENT"] = "Production",
+            ["DOTNET_ENVIRONMENT"] = "Production"
+        };
 
         return new ProcessLaunchSpec
         {
             FileName = "dotnet",
             Arguments = dllArgs,
-            EnvironmentOverrides = environmentOverrides,
+            EnvironmentOverrides = dllEnvironmentOverrides,
             WorkingDirectory = dllDirectory
         };
+    }
+
+    private async Task RunCommandOrThrowAsync(
+        string fileName,
+        IReadOnlyList<string> args,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        foreach (var arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+
+        if (process.ExitCode == 0)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+    }
+
+    private static string ResolveBuiltDllPath(string projectDirectory, string projectName)
+    {
+        var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
+        if (!Directory.Exists(releaseDir))
+        {
+            throw new FileNotFoundException(
+                $"Could not find release build output folder. Expected: {releaseDir}");
+        }
+
+        var candidates = Directory.EnumerateFiles(
+                releaseDir,
+                $"{projectName}.dll",
+                SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}ref{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(info => info.LastWriteTimeUtc)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            throw new FileNotFoundException(
+                $"Could not locate built DLL for project '{projectName}' under '{releaseDir}'.");
+        }
+
+        return candidates[0].FullName;
     }
 
     internal static IReadOnlyList<string> BuildEffectiveAppArgs(IReadOnlyList<string> appArgs)

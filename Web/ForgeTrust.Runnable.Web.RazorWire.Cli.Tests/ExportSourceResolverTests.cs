@@ -88,8 +88,8 @@ public class ExportSourceResolverTests
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(10);
 
         var request = new ExportSourceRequest(
-            ExportSourceKind.Project,
-            "/tmp/app.csproj",
+            ExportSourceKind.Dll,
+            "/tmp/app.dll",
             ["--foo", "bar"],
             false);
 
@@ -142,7 +142,7 @@ public class ExportSourceResolverTests
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         resolver.ListeningUrlTimeout = TimeSpan.FromMilliseconds(100);
 
-        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/app.csproj", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
 
         var ex = await Assert.ThrowsAsync<TimeoutException>(async () => await resolver.ResolveAsync(request));
 
@@ -202,7 +202,7 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/app.csproj", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await resolver.ResolveAsync(request));
 
@@ -246,7 +246,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public void BuildProcessLaunchSpec_Should_Use_Release_And_Production_For_Project_Mode()
+    public void BuildProcessLaunchSpec_Should_Throw_For_Project_Mode()
     {
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
         var resolver = CreateResolver(
@@ -254,33 +254,42 @@ public class ExportSourceResolverTests
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/site.csproj", ["--flag"], false);
 
-        var spec = resolver.BuildProcessLaunchSpec(request);
-
-        Assert.Equal("dotnet", spec.FileName);
-        Assert.Contains("run", spec.Arguments);
-        Assert.Contains("--project", spec.Arguments);
-        Assert.Contains("-c", spec.Arguments);
-        Assert.Contains("Release", spec.Arguments);
-        Assert.Contains("--no-launch-profile", spec.Arguments);
-        Assert.Contains("--flag", spec.Arguments);
-        Assert.Equal("Production", spec.EnvironmentOverrides["DOTNET_ENVIRONMENT"]);
-        Assert.Equal("Production", spec.EnvironmentOverrides["ASPNETCORE_ENVIRONMENT"]);
+        var ex = Assert.Throws<InvalidOperationException>(() => resolver.BuildProcessLaunchSpec(request));
+        Assert.Contains("resolved to a DLL", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void BuildProcessLaunchSpec_Should_Add_NoBuild_When_Requested()
+    public async Task ResolveLaunchRequestAsync_Should_Resolve_Project_To_Built_Dll_When_NoBuild()
     {
-        var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
-        var resolver = CreateResolver(
-            factory,
-            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/site.csproj", [], true);
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var projectPath = Path.Combine(tempDir, "MySite.csproj");
+        var dllDir = Path.Combine(tempDir, "bin", "Release", "net10.0");
+        Directory.CreateDirectory(dllDir);
+        await File.WriteAllTextAsync(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
+        var expectedDllPath = Path.Combine(dllDir, "MySite.dll");
+        await File.WriteAllBytesAsync(expectedDllPath, [1, 2, 3]);
 
-        var spec = resolver.BuildProcessLaunchSpec(request);
-        var args = spec.Arguments.ToList();
+        try
+        {
+            var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+            var resolver = CreateResolver(
+                factory,
+                new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+            var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], true);
 
-        Assert.Contains("--no-build", args);
-        Assert.True(args.IndexOf("--no-build") < args.IndexOf("--"));
+            var resolved = await resolver.ResolveLaunchRequestAsync(request);
+
+            Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
+            Assert.Equal(expectedDllPath, resolved.SourceValue);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
     }
 
     [Fact]
@@ -291,8 +300,8 @@ public class ExportSourceResolverTests
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         var request = new ExportSourceRequest(
-            ExportSourceKind.Project,
-            "/tmp/site.csproj",
+            ExportSourceKind.Dll,
+            "/tmp/site.dll",
             ["--urls", "http://127.0.0.1:6001"],
             false);
 

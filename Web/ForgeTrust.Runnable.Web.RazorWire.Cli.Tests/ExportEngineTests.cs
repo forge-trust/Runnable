@@ -372,6 +372,37 @@ public class ExportEngineTests
         }
     }
 
+    [Fact]
+    public async Task RunAsync_Should_Export_Content_JavaScript_From_Html_Script_Sources()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var client = new HttpClient(new ContentScriptHandler()) { BaseAddress = new Uri("http://localhost:5000") };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, null, "http://localhost:5000");
+            await _sut.RunAsync(context);
+
+            var scriptPath = Path.Combine(
+                tempDir,
+                "_content",
+                "ForgeTrust.Runnable.Web.RazorWire",
+                "razorwire",
+                "razorwire.js");
+            Assert.True(File.Exists(scriptPath), "RazorWire _content script should be exported.");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
     private class TestHttpMessageHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -463,6 +494,32 @@ public class ExportEngineTests
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent("<html><body><h1>Recovered</h1></body></html>", Encoding.UTF8, "text/html")
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class ContentScriptHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? "/";
+            if (path == "/" || path == "/index")
+            {
+                var html = @"<html><body><script src=""/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js?v=abc123""></script></body></html>";
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
+                });
+            }
+
+            if (path == "/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("console.log('ok');", Encoding.UTF8, "text/javascript")
                 });
             }
 

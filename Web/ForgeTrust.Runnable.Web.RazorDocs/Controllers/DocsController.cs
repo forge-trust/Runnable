@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Primitives;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -22,7 +23,7 @@ public class DocsController : Controller
 
     private static readonly Regex TagRegex = new(
         "<[^>]+>",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled | RegexOptions.NonBacktracking);
 
     private static readonly Regex H2H3Regex = new(
         "<h[23][^>]*>(.*?)</h[23]>",
@@ -34,16 +35,19 @@ public class DocsController : Controller
 
     private readonly DocAggregator _aggregator;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<DocsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of <see cref="DocsController"/> with the specified documentation aggregator.
     /// </summary>
     /// <param name="aggregator">Service used to retrieve documentation items.</param>
     /// <param name="cache">Memory cache used for search index payload reuse.</param>
-    public DocsController(DocAggregator aggregator, IMemoryCache cache)
+    /// <param name="logger">Logger used for search index diagnostics.</param>
+    public DocsController(DocAggregator aggregator, IMemoryCache cache, ILogger<DocsController> logger)
     {
         _aggregator = aggregator ?? throw new ArgumentNullException(nameof(aggregator));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -94,12 +98,20 @@ public class DocsController : Controller
     [HttpGet]
     public async Task<IActionResult> SearchIndex()
     {
+        // Manual invalidation hook for operators: /docs/search-index.json?refresh=1
+        if (ShouldRefreshCache(Request.Query))
+        {
+            _cache.Remove(SearchIndexCacheKey);
+            _logger.LogInformation("Search index cache manually refreshed via query parameter.");
+        }
+
         if (_cache.TryGetValue(SearchIndexCacheKey, out object? cachedPayload)
             && cachedPayload != null)
         {
             return Json(cachedPayload);
         }
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var docs = await _aggregator.GetDocsAsync(HttpContext.RequestAborted);
         var records = docs
             .Select(d =>
@@ -144,6 +156,13 @@ public class DocsController : Controller
 
         _cache.Set(SearchIndexCacheKey, payload, SearchIndexCacheDuration);
 
+        sw.Stop();
+        _logger.LogInformation(
+            "Generated docs search index in {ElapsedMs} ms with {DocumentCount} records. Cache TTL: {CacheMinutes} minutes.",
+            sw.ElapsedMilliseconds,
+            records.Count,
+            SearchIndexCacheDuration.TotalMinutes);
+
         return Json(payload);
     }
 
@@ -186,12 +205,24 @@ public class DocsController : Controller
             return text;
         }
 
-        var boundary = text.LastIndexOf(' ', maxLength, maxLength);
+        var boundary = text.LastIndexOf(' ', maxLength);
         if (boundary <= maxLength / 2)
         {
             boundary = maxLength;
         }
 
         return text[..boundary].TrimEnd() + "...";
+    }
+
+    private static bool ShouldRefreshCache(IQueryCollection query)
+    {
+        if (!query.TryGetValue("refresh", out StringValues refreshValues))
+        {
+            return false;
+        }
+
+        var refresh = refreshValues.ToString();
+        return string.Equals(refresh, "1", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(refresh, "true", StringComparison.OrdinalIgnoreCase);
     }
 }

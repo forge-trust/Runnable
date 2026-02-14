@@ -115,19 +115,37 @@
     }
 
     let activeIndex = -1;
+    let lastRenderedQuery = '';
+
     const runSearch = debounce(() => {
-      const q = sidebarInput.value;
+      const q = normalizeQuery(sidebarInput.value);
       const results = query(q, topResults);
       activeIndex = results.length > 0 ? 0 : -1;
       renderSidebarResults(results, q, activeIndex);
+      lastRenderedQuery = q;
     }, 120);
 
-    sidebarInput.addEventListener('input', runSearch);
+    sidebarInput.addEventListener('input', () => {
+      activeIndex = -1;
+      runSearch();
+    });
+
     sidebarInput.addEventListener('keydown', (event) => {
+      const currentQuery = normalizeQuery(sidebarInput.value);
+      if (currentQuery !== lastRenderedQuery)
+      {
+        const refreshed = query(currentQuery, topResults);
+        activeIndex = refreshed.length > 0 ? 0 : -1;
+        renderSidebarResults(refreshed, currentQuery, activeIndex);
+        lastRenderedQuery = currentQuery;
+      }
+
       const items = Array.from(sidebarResults.querySelectorAll('[role="option"]'));
       if (!items.length) {
         return;
       }
+
+      activeIndex = getActiveSidebarIndex(items);
 
       if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -230,6 +248,11 @@
     if (activeItem && typeof activeItem.focus === 'function') {
       activeItem.focus();
     }
+  }
+
+  function getActiveSidebarIndex(items) {
+    const selectedIndex = items.findIndex((item) => item.getAttribute('aria-selected') === 'true');
+    return selectedIndex >= 0 ? selectedIndex : -1;
   }
 
   function renderSearchPageResults(q) {

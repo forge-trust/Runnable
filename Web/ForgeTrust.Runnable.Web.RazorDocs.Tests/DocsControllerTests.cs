@@ -25,6 +25,7 @@ public class DocsControllerTests : IDisposable
         // Mock Aggregator dependencies
         _harvesterFake = A.Fake<IDocHarvester>();
         var loggerFake = A.Fake<ILogger<DocAggregator>>();
+        var controllerLoggerFake = A.Fake<ILogger<DocsController>>();
         var configFake = A.Fake<Microsoft.Extensions.Configuration.IConfiguration>();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
@@ -44,7 +45,7 @@ public class DocsControllerTests : IDisposable
             loggerFake
         );
 
-        _controller = new DocsController(_aggregator, _cache)
+        _controller = new DocsController(_aggregator, _cache, controllerLoggerFake)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -191,6 +192,7 @@ public class DocsControllerTests : IDisposable
         Assert.NotNull(snippet);
         Assert.EndsWith("...", snippet);
         Assert.DoesNotContain(" ...", snippet);
+        Assert.Equal(snippet.TrimEnd(), snippet);
     }
 
     public void Dispose()

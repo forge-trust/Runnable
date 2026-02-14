@@ -97,7 +97,7 @@ public class RazorDocsWebModuleTests
     [Fact]
     public void ConfigureEndpoints_ShouldRegisterSearchBeforeCatchAll()
     {
-        var repoRoot = FindRepoRoot(AppContext.BaseDirectory);
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
         var sourcePath = Path.Combine(repoRoot, "Web", "ForgeTrust.Runnable.Web.RazorDocs", "RazorDocsWebModule.cs");
         var sourceText = File.ReadAllText(sourcePath);
         var tree = CSharpSyntaxTree.ParseText(sourceText);
@@ -126,21 +126,5 @@ public class RazorDocsWebModuleTests
         Assert.True(searchIndex >= 0, "Expected docs/search route declaration.");
         Assert.True(catchAllIndex >= 0, "Expected docs/{*path} route declaration.");
         Assert.True(searchIndex < catchAllIndex, "docs/search must be registered before docs/{*path}.");
-    }
-
-    private static string FindRepoRoot(string startPath)
-    {
-        var current = new DirectoryInfo(startPath);
-        while (current != null)
-        {
-            if (File.Exists(Path.Combine(current.FullName, "ForgeTrust.Runnable.slnx")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new InvalidOperationException("Could not locate repository root.");
     }
 }

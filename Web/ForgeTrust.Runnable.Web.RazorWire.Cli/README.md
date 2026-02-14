@@ -28,10 +28,17 @@ Exports a RazorWire application to a static directory.
 
 Exactly one source option is required: `--url`, `--project`, or `--dll`.
 
-When `--project` or `--dll` is used:
-- Project mode builds release output, resolves the built app DLL, then launches that DLL for crawling.
-- Project mode builds by default; add `--no-build` only when you want to skip build and reuse existing `bin/Release` output.
-- Launched app processes run in production environment (`DOTNET_ENVIRONMENT=Production`, `ASPNETCORE_ENVIRONMENT=Production`).
+When launched app processes are started by the CLI (`--project` or `--dll`), they run in production environment (`DOTNET_ENVIRONMENT=Production`, `ASPNETCORE_ENVIRONMENT=Production`).
+
+When `--project` is used:
+- Project mode builds release output by default.
+- Project mode resolves the built app DLL and launches that DLL for crawling.
+- Add `--no-build` to skip building and reuse existing `bin/Release` output.
+
+When `--dll` is used:
+- The CLI launches the provided DLL directly (no build or DLL resolution step).
+
+For both `--project` and `--dll`:
 - If you do not pass `--urls` via `--app-args`, the CLI appends `--urls http://127.0.0.1:0`.
 - The CLI waits for startup, crawls the app, then shuts the process down automatically.
 

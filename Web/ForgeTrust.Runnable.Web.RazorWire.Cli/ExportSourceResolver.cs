@@ -201,12 +201,19 @@ public sealed class ExportSourceResolver
         }
 
         using var process = new Process { StartInfo = startInfo };
+        var started = false;
+        Task<string>? stdoutTask = null;
+        Task<string>? stderrTask = null;
         try
         {
-            process.Start();
+            started = process.Start();
+            if (!started)
+            {
+                throw new InvalidOperationException($"Failed to start command: {fileName} {string.Join(" ", args)}");
+            }
 
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
             await process.WaitForExitAsync(cancellationToken);
 
             var stdout = await stdoutTask;
@@ -232,7 +239,9 @@ public sealed class ExportSourceResolver
         }
         finally
         {
-            TryKillProcess(process);
+            TryKillProcess(process, started);
+            await ObserveReadTaskAsync(stdoutTask, "stdout", fileName);
+            await ObserveReadTaskAsync(stderrTask, "stderr", fileName);
         }
     }
 
@@ -321,9 +330,9 @@ public sealed class ExportSourceResolver
             : null;
     }
 
-    private static void TryKillProcess(Process process)
+    private void TryKillProcess(Process process, bool started)
     {
-        if (!process.StartInfo.RedirectStandardOutput && !process.StartInfo.RedirectStandardError)
+        if (!started)
         {
             return;
         }
@@ -338,6 +347,27 @@ public sealed class ExportSourceResolver
         catch (InvalidOperationException)
         {
             // The process may have exited between the HasExited check and Kill call.
+        }
+    }
+
+    private async Task ObserveReadTaskAsync(Task<string>? readTask, string streamName, string fileName)
+    {
+        if (readTask is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = await readTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Read was canceled along with the command cancellation token.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Ignoring {StreamName} read exception for command {FileName}", streamName, fileName);
         }
     }
 

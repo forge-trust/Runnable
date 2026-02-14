@@ -626,11 +626,13 @@ public class MemoTests : IDisposable
 
         Assert.NotNull(method);
 
-        // State is not a tuple
+        // State is not a tuple (OnCacheEntryEvicted expects ValueTuple<ConcurrentDictionary<object, SemaphoreSlim>, SemaphoreSlim>)
         method.Invoke(null, ["key", "value", EvictionReason.Removed, new object()]);
 
-        // Key is not a string
-        var locks = new ConcurrentDictionary<string, SemaphoreSlim>();
+        // Key-type mismatch and logic-guard exercise:
+        // Even if we provide a non-string key (e.g., 123), it should not throw.
+        // We use a dictionary with 'object' keys to match the expected pattern in Memo.cs.
+        var locks = new ConcurrentDictionary<object, SemaphoreSlim>();
         var sem = new SemaphoreSlim(1);
         method.Invoke(null, [123, "value", EvictionReason.Removed, (locks, sem)]);
     }

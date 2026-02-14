@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
@@ -55,6 +56,7 @@ public sealed class TargetAppProcessFactory : ITargetAppProcessFactory
     public ITargetAppProcess Create(ProcessLaunchSpec spec) => new TargetAppProcess(spec);
 }
 
+[ExcludeFromCodeCoverage]
 internal sealed class TargetAppProcess : ITargetAppProcess
 {
     private readonly Process _process;

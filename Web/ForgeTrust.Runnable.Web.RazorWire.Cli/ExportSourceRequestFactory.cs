@@ -37,7 +37,7 @@ public class ExportSourceRequestFactory
             if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)
                 || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                throw new CommandException("BaseUrl must be a valid HTTP or HTTPS URL.");
+                throw new CommandException("--url must be a valid HTTP or HTTPS URL.");
             }
 
             return new ExportSourceRequest(

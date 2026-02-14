@@ -62,7 +62,30 @@ public class ExportCommandTests
         Assert.Contains("mutually exclusive", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static ExportCommand CreateCommand(string? url, string? project, string? dll)
+    [Fact]
+    public async Task ExecuteAsync_WithToken_Should_Respect_Cancellation()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var command = CreateCommand("http://localhost:5001", null, null, tempDir);
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                async () => await command.ExecuteAsync(A.Fake<IConsole>(), cts.Token));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    private static ExportCommand CreateCommand(string? url, string? project, string? dll, string outputPath = "dist")
     {
         var logger = A.Fake<ILogger<ExportCommand>>();
         var engineLogger = A.Fake<ILogger<ExportEngine>>();
@@ -79,6 +102,7 @@ public class ExportCommandTests
 
         return new ExportCommand(logger, engine, requestFactory, sourceResolver)
         {
+            OutputPath = outputPath,
             BaseUrl = url,
             ProjectPath = project,
             DllPath = dll

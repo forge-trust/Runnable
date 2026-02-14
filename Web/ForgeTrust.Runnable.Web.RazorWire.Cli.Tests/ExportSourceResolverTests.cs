@@ -43,6 +43,17 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public void TryParseListeningBaseUrl_Should_Preserve_Ipv6_Authority()
+    {
+        var ok = ExportSourceResolver.TryParseListeningBaseUrl(
+            "Now listening on: http://[::1]:54321",
+            out var baseUrl);
+
+        Assert.True(ok);
+        Assert.Equal("http://[::1]:54321", baseUrl);
+    }
+
+    [Fact]
     public void TryParseListeningBaseUrl_Should_Return_False_For_NonListening_Line()
     {
         var ok = ExportSourceResolver.TryParseListeningBaseUrl(
@@ -180,6 +191,26 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_Should_Dispose_Process_When_Start_Throws()
+    {
+        var fakeProcess = new FakeTargetAppProcess
+        {
+            OnStart = () => throw new InvalidOperationException("start failed")
+        };
+
+        var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/app.csproj", [], false);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await resolver.ResolveAsync(request));
+
+        Assert.Equal("start failed", ex.Message);
+        Assert.True(fakeProcess.Disposed);
+    }
+
+    [Fact]
     public async Task ResolveAsync_Should_Propagate_External_Cancellation()
     {
         var fakeProcess = new FakeTargetAppProcess();
@@ -246,8 +277,74 @@ public class ExportSourceResolverTests
         var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/site.csproj", [], true);
 
         var spec = resolver.BuildProcessLaunchSpec(request);
+        var args = spec.Arguments.ToList();
 
-        Assert.Contains("--no-build", spec.Arguments);
+        Assert.Contains("--no-build", args);
+        Assert.True(args.IndexOf("--no-build") < args.IndexOf("--"));
+    }
+
+    [Fact]
+    public void BuildProcessLaunchSpec_Should_Not_Inject_Ephemeral_Urls_When_User_Supplied_Urls()
+    {
+        var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+        var request = new ExportSourceRequest(
+            ExportSourceKind.Project,
+            "/tmp/site.csproj",
+            ["--urls", "http://127.0.0.1:6001"],
+            false);
+
+        var spec = resolver.BuildProcessLaunchSpec(request);
+        var args = spec.Arguments.ToList();
+
+        Assert.Equal(1, args.Count(a => a == "--urls"));
+        Assert.DoesNotContain("http://127.0.0.1:0", args);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Throw_TimeoutException_When_GetAsync_Is_Canceled_By_ReadyTimeout()
+    {
+        var fakeProcess = new FakeTargetAppProcess();
+        var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
+        var resolver = CreateResolver(factory, new NeverCompletesHttpClientFactory());
+        resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
+        resolver.AppReadyTimeout = TimeSpan.FromMilliseconds(120);
+        resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
+
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        fakeProcess.OnStart = () => fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
+
+        var ex = await Assert.ThrowsAsync<TimeoutException>(async () => await resolver.ResolveAsync(request));
+
+        Assert.Contains("did not become ready", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(fakeProcess.Disposed);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Throw_When_Process_Exits_During_Readiness()
+    {
+        var fakeProcess = new FakeTargetAppProcess();
+        var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
+        var resolver = CreateResolver(factory, new ThrowingHttpClientFactory());
+        resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
+        resolver.AppReadyTimeout = TimeSpan.FromSeconds(1);
+        resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
+
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        fakeProcess.OnStart = () =>
+        {
+            fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
+            fakeProcess.EmitError("fatal startup crash");
+            fakeProcess.TriggerExit();
+        };
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await resolver.ResolveAsync(request));
+
+        Assert.Contains("before it became ready", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("fatal startup crash", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(fakeProcess.Disposed);
     }
 
     [Fact]
@@ -339,6 +436,25 @@ public class ExportSourceResolverTests
             CancellationToken cancellationToken)
         {
             throw new HttpRequestException("not reachable");
+        }
+    }
+
+    private sealed class NeverCompletesHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient(new NeverCompletesHandler());
+        }
+    }
+
+    private sealed class NeverCompletesHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
         }
     }
 

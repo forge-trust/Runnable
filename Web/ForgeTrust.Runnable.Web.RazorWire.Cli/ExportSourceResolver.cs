@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -8,6 +9,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 /// <summary>
 /// Resolves export sources and, when needed, orchestrates launching a target application for crawling.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class ExportSourceResolver
 {
     private readonly ILogger<ExportSourceResolver> _logger;
@@ -83,14 +85,14 @@ public sealed class ExportSourceResolver
                 $"Target application exited before publishing a listening URL.{Environment.NewLine}{GetRecentLogs(logs)}"));
         };
 
-        process.Start();
-        _logger.LogInformation(
-            "Started target application process for export. Listening timeout: {ListeningTimeout}s, ready timeout: {ReadyTimeout}s",
-            ListeningUrlTimeout.TotalSeconds,
-            AppReadyTimeout.TotalSeconds);
-
         try
         {
+            process.Start();
+            _logger.LogInformation(
+                "Started target application process for export. Listening timeout: {ListeningTimeout}s, ready timeout: {ReadyTimeout}s",
+                ListeningUrlTimeout.TotalSeconds,
+                AppReadyTimeout.TotalSeconds);
+
             var baseUrl = await WaitForBoundBaseUrlAsync(boundBaseUrlSource, logs, cancellationToken);
             await WaitForAppReadyAsync(baseUrl, process, () => Volatile.Read(ref processExited) == 1, logs, cancellationToken);
 
@@ -205,7 +207,7 @@ public sealed class ExportSourceResolver
             return false;
         }
 
-        baseUrl = $"{uri.Scheme}://{uri.Host}:{uri.Port}";
+        baseUrl = uri.GetLeftPart(UriPartial.Authority);
         return true;
     }
 

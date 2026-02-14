@@ -1,6 +1,7 @@
 using CliFx;
 using CliFx.Attributes;
 using CliFx.Infrastructure;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -89,6 +90,7 @@ public class ExportCommand : ICommand
     /// </summary>
     /// <param name="console">The console used to write progress and completion messages.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
+    [ExcludeFromCodeCoverage]
     public async ValueTask ExecuteAsync(IConsole console)
     {
         using var cts = new CancellationTokenSource();
@@ -102,19 +104,30 @@ public class ExportCommand : ICommand
         System.Console.CancelKeyPress += handler;
         try
         {
-            var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs, NoBuild);
-            await using var resolvedSource = await _sourceResolver.ResolveAsync(request, cts.Token);
-
-            _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);
-
-            var context = new ExportContext(OutputPath, SeedRoutesPath, resolvedSource.BaseUrl);
-            await _engine.RunAsync(context, cts.Token);
-
-            _logger.LogInformation("Export complete!");
+            await ExecuteAsync(console, cts.Token);
         }
         finally
         {
             System.Console.CancelKeyPress -= handler;
         }
+    }
+
+    /// <summary>
+    /// Executes the export process using an explicit cancellation token.
+    /// </summary>
+    /// <param name="console">The console used to write progress and completion messages.</param>
+    /// <param name="cancellationToken">Cancellation token for startup and export operations.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
+    public async ValueTask ExecuteAsync(IConsole console, CancellationToken cancellationToken)
+    {
+        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs, NoBuild);
+        await using var resolvedSource = await _sourceResolver.ResolveAsync(request, cancellationToken);
+
+        _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);
+
+        var context = new ExportContext(OutputPath, SeedRoutesPath, resolvedSource.BaseUrl);
+        await _engine.RunAsync(context, cancellationToken);
+
+        _logger.LogInformation("Export complete!");
     }
 }

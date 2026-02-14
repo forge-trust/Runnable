@@ -88,8 +88,8 @@ public class ExportSourceResolverTests
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(10);
 
         var request = new ExportSourceRequest(
-            ExportSourceKind.Project,
-            "/tmp/app.csproj",
+            ExportSourceKind.Dll,
+            "/tmp/app.dll",
             ["--foo", "bar"],
             false);
 
@@ -142,7 +142,7 @@ public class ExportSourceResolverTests
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         resolver.ListeningUrlTimeout = TimeSpan.FromMilliseconds(100);
 
-        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/app.csproj", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
 
         var ex = await Assert.ThrowsAsync<TimeoutException>(async () => await resolver.ResolveAsync(request));
 
@@ -202,7 +202,7 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/app.csproj", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await resolver.ResolveAsync(request));
 
@@ -246,7 +246,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public void BuildProcessLaunchSpec_Should_Use_Release_And_Production_For_Project_Mode()
+    public void BuildProcessLaunchSpec_Should_Throw_For_Project_Mode()
     {
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
         var resolver = CreateResolver(
@@ -254,33 +254,297 @@ public class ExportSourceResolverTests
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/site.csproj", ["--flag"], false);
 
-        var spec = resolver.BuildProcessLaunchSpec(request);
-
-        Assert.Equal("dotnet", spec.FileName);
-        Assert.Contains("run", spec.Arguments);
-        Assert.Contains("--project", spec.Arguments);
-        Assert.Contains("-c", spec.Arguments);
-        Assert.Contains("Release", spec.Arguments);
-        Assert.Contains("--no-launch-profile", spec.Arguments);
-        Assert.Contains("--flag", spec.Arguments);
-        Assert.Equal("Production", spec.EnvironmentOverrides["DOTNET_ENVIRONMENT"]);
-        Assert.Equal("Production", spec.EnvironmentOverrides["ASPNETCORE_ENVIRONMENT"]);
+        var ex = Assert.Throws<InvalidOperationException>(() => resolver.BuildProcessLaunchSpec(request));
+        Assert.Contains("resolved to a DLL", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void BuildProcessLaunchSpec_Should_Add_NoBuild_When_Requested()
+    public async Task ResolveLaunchRequestAsync_Should_Resolve_Project_To_Built_Dll_When_NoBuild()
     {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
+        var dllDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0");
+        Directory.CreateDirectory(dllDir);
+        await File.WriteAllTextAsync(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
+        var expectedDllPath = Path.Combine(dllDir, "MySite.dll");
+        await File.WriteAllBytesAsync(expectedDllPath, [1, 2, 3]);
+
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/site.csproj", [], true);
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], true);
 
-        var spec = resolver.BuildProcessLaunchSpec(request);
-        var args = spec.Arguments.ToList();
+        var resolved = await resolver.ResolveLaunchRequestAsync(request);
 
-        Assert.Contains("--no-build", args);
-        Assert.True(args.IndexOf("--no-build") < args.IndexOf("--"));
+        Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
+        Assert.Equal(expectedDllPath, resolved.SourceValue);
+    }
+
+    [Fact]
+    public async Task ResolveLaunchRequestAsync_Should_Respect_Custom_AssemblyName_When_NoBuild()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
+        var dllDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0");
+        Directory.CreateDirectory(dllDir);
+        await File.WriteAllTextAsync(
+            projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk.Web">
+              <PropertyGroup>
+                <AssemblyName>CustomSite</AssemblyName>
+              </PropertyGroup>
+            </Project>
+            """);
+        var expectedDllPath = Path.Combine(dllDir, "CustomSite.dll");
+        await File.WriteAllBytesAsync(expectedDllPath, [1, 2, 3]);
+
+        var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], true);
+
+        var resolved = await resolver.ResolveLaunchRequestAsync(request);
+
+        Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
+        Assert.Equal(expectedDllPath, resolved.SourceValue);
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task ResolveLaunchRequestAsync_Should_Build_Project_When_NoBuild_Is_False()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
+        var programPath = Path.Combine(tempDir.FullPath, "Program.cs");
+
+        await File.WriteAllTextAsync(
+            projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFramework>net10.0</TargetFramework>
+              </PropertyGroup>
+            </Project>
+            """);
+        await File.WriteAllTextAsync(programPath, "System.Console.WriteLine(\"hello\");");
+
+        var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], false);
+
+        var resolved = await resolver.ResolveLaunchRequestAsync(request);
+
+        Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
+        Assert.True(File.Exists(resolved.SourceValue));
+        Assert.EndsWith("MySite.dll", resolved.SourceValue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ResolveLaunchRequestAsync_Should_Throw_When_Build_Fails()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "Missing.csproj");
+
+        var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], false);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => resolver.ResolveLaunchRequestAsync(request));
+        Assert.Contains("dotnet build", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveBuiltDllPath_Should_Throw_When_Release_Directory_Does_Not_Exist()
+    {
+        using var tempDir = new TempDirectory();
+
+        var ex = Assert.Throws<FileNotFoundException>(
+            () => ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite"));
+        Assert.Contains("release build output folder", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveBuiltDllPath_Should_Throw_When_No_Dll_Is_Found()
+    {
+        using var tempDir = new TempDirectory();
+        var releaseDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0");
+        Directory.CreateDirectory(releaseDir);
+
+        var ex = Assert.Throws<FileNotFoundException>(
+            () => ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite"));
+        Assert.Contains("Could not locate built DLL", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveBuiltDllPath_Should_Select_Highest_Target_Framework_When_Multiple_Are_Detected()
+    {
+        using var tempDir = new TempDirectory();
+        var net9 = Path.Combine(tempDir.FullPath, "bin", "Release", "net9.0");
+        var net10 = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0");
+        Directory.CreateDirectory(net9);
+        Directory.CreateDirectory(net10);
+        File.WriteAllBytes(Path.Combine(net9, "MySite.dll"), [1]);
+        File.WriteAllBytes(Path.Combine(net10, "MySite.dll"), [2]);
+
+        var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite");
+        Assert.Equal(Path.Combine(net10, "MySite.dll"), resolved);
+    }
+
+    [Fact]
+    public void TryGetFrameworkSegment_Should_Return_Framework_For_Supported_Tfms()
+    {
+        var releaseDir = Path.Combine(Path.GetTempPath(), "resolver-framework-tests", "bin", "Release");
+
+        Assert.Equal(
+            "net10.0",
+            ExportSourceResolver.TryGetFrameworkSegment(releaseDir, Path.Combine(releaseDir, "net10.0", "MySite.dll")));
+        Assert.Equal(
+            "net9",
+            ExportSourceResolver.TryGetFrameworkSegment(releaseDir, Path.Combine(releaseDir, "net9", "MySite.dll")));
+        Assert.Equal(
+            "netcoreapp3.1",
+            ExportSourceResolver.TryGetFrameworkSegment(releaseDir, Path.Combine(releaseDir, "netcoreapp3.1", "MySite.dll")));
+        Assert.Equal(
+            "netstandard2.0",
+            ExportSourceResolver.TryGetFrameworkSegment(releaseDir, Path.Combine(releaseDir, "netstandard2.0", "MySite.dll")));
+        Assert.Equal(
+            "net10.0-windows",
+            ExportSourceResolver.TryGetFrameworkSegment(releaseDir, Path.Combine(releaseDir, "net10.0-windows", "MySite.dll")));
+    }
+
+    [Fact]
+    public void TryGetFrameworkSegment_Should_Return_Null_For_Path_Outside_ReleaseDir()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "resolver-framework-tests");
+        var releaseDir = Path.Combine(root, "bin", "Release");
+        var outsidePath = Path.Combine(root, "bin", "Debug", "net10.0", "MySite.dll");
+
+        var segment = ExportSourceResolver.TryGetFrameworkSegment(releaseDir, outsidePath);
+        Assert.Null(segment);
+    }
+
+    [Fact]
+    public void TryGetFrameworkSegment_Should_Return_Null_For_NonFramework_Segment()
+    {
+        var releaseDir = Path.Combine(Path.GetTempPath(), "resolver-framework-tests", "bin", "Release");
+        var path = Path.Combine(releaseDir, "publish", "MySite.dll");
+
+        var segment = ExportSourceResolver.TryGetFrameworkSegment(releaseDir, path);
+        Assert.Null(segment);
+    }
+
+    [Fact]
+    public void ResolvePreferredFramework_Should_Select_Highest_Framework()
+    {
+        var releaseDir = Path.Combine(Path.GetTempPath(), "resolver-framework-tests", "bin", "Release");
+        var candidates = new[]
+        {
+            Path.Combine(releaseDir, "net9.0", "MySite.dll"),
+            Path.Combine(releaseDir, "net10.0", "MySite.dll"),
+            Path.Combine(releaseDir, "netcoreapp3.1", "MySite.dll")
+        };
+
+        var selected = ExportSourceResolver.ResolvePreferredFramework(candidates, releaseDir);
+        Assert.Equal("net10.0", selected);
+    }
+
+    [Fact]
+    public void ResolvePreferredFramework_Should_Return_Null_When_No_Framework_Segments_Found()
+    {
+        var releaseDir = Path.Combine(Path.GetTempPath(), "resolver-framework-tests", "bin", "Release");
+        var candidates = new[]
+        {
+            Path.Combine(releaseDir, "publish", "MySite.dll"),
+            Path.Combine(releaseDir, "artifacts", "MySite.dll")
+        };
+
+        var selected = ExportSourceResolver.ResolvePreferredFramework(candidates, releaseDir);
+        Assert.Null(selected);
+    }
+
+    [Fact]
+    public void ParseFrameworkVersion_Should_Handle_Valid_And_Invalid_Inputs()
+    {
+        Assert.Equal(new Version(10, 0), ExportSourceResolver.ParseFrameworkVersion("net10.0"));
+        Assert.Equal(new Version(9, 0), ExportSourceResolver.ParseFrameworkVersion("net9"));
+        Assert.Equal(new Version(10, 0), ExportSourceResolver.ParseFrameworkVersion("net10.0-windows"));
+        Assert.Equal(new Version(3, 1), ExportSourceResolver.ParseFrameworkVersion("netcoreapp3.1"));
+        Assert.Equal(new Version(2, 0), ExportSourceResolver.ParseFrameworkVersion("netstandard2.0"));
+        Assert.Equal(new Version(0, 0), ExportSourceResolver.ParseFrameworkVersion("publish"));
+    }
+
+    [Fact]
+    public void ParseFrameworkVersion_Should_Retain_Major_When_Minor_Overflows()
+    {
+        Assert.Equal(new Version(10, 0), ExportSourceResolver.ParseFrameworkVersion("net10.999999999999999999999999"));
+    }
+
+    [Fact]
+    public void TryResolveAssemblyName_Should_Parse_AssemblyName_When_Present()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
+        File.WriteAllText(
+            projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk.Web">
+              <PropertyGroup>
+                <AssemblyName>CustomAssembly</AssemblyName>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        Assert.Equal("CustomAssembly", resolved);
+    }
+
+    [Fact]
+    public void TryResolveAssemblyName_Should_Fallback_When_AssemblyName_Is_Missing()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
+        File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
+
+        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        Assert.Equal("Site", resolved);
+    }
+
+    [Fact]
+    public void TryResolveAssemblyName_Should_Fallback_On_Invalid_Xml()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
+        File.WriteAllText(projectPath, "<Project><PropertyGroup><AssemblyName>oops");
+
+        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        Assert.Equal("Site", resolved);
+    }
+
+    [Fact]
+    public void TryResolveAssemblyName_Should_Fallback_On_Missing_Or_Invalid_Path()
+    {
+        using var tempDir = new TempDirectory();
+        var missingPath = Path.Combine(tempDir.FullPath, "missing.csproj");
+
+        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyName(missingPath, "Site"));
+        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyName(tempDir.FullPath, "Site"));
+    }
+
+    [Fact]
+    public void IsRefAssemblyPath_Should_Handle_Both_Path_Separators()
+    {
+        Assert.True(ExportSourceResolver.IsRefAssemblyPath("/tmp/bin/Release/net10.0/ref/MySite.dll"));
+        Assert.True(ExportSourceResolver.IsRefAssemblyPath(@"C:\tmp\bin\Release\net10.0\ref\MySite.dll"));
+        Assert.False(ExportSourceResolver.IsRefAssemblyPath("/tmp/bin/Release/net10.0/MySite.dll"));
     }
 
     [Fact]
@@ -291,8 +555,8 @@ public class ExportSourceResolverTests
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         var request = new ExportSourceRequest(
-            ExportSourceKind.Project,
-            "/tmp/site.csproj",
+            ExportSourceKind.Dll,
+            "/tmp/site.dll",
             ["--urls", "http://127.0.0.1:6001"],
             false);
 
@@ -455,6 +719,24 @@ public class ExportSourceResolverTests
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+        }
+    }
+
+    private sealed class TempDirectory : IDisposable
+    {
+        public string FullPath { get; } = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        public TempDirectory()
+        {
+            Directory.CreateDirectory(FullPath);
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(FullPath))
+            {
+                Directory.Delete(FullPath, true);
+            }
         }
     }
 

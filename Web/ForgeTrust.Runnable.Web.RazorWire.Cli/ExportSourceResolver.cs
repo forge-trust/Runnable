@@ -1,7 +1,12 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Xml;
+using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -21,6 +26,9 @@ public sealed class ExportSourceResolver
 
     private static readonly Regex ListeningUrlRegex = new(
         @"Now listening on:\s*(https?://\S+)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex FrameworkSegmentRegex = new(
+        @"^(net(?<major>\d+)(\.(?<minor>\d+))?|netcoreapp(?<major>\d+)(\.(?<minor>\d+))?|netstandard(?<major>\d+)(\.(?<minor>\d+))?)(?:-[A-Za-z0-9][A-Za-z0-9\.-]*)?$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -70,9 +78,11 @@ public sealed class ExportSourceResolver
             return new ResolvedExportSource(request.SourceValue, null);
         }
 
+        var launchRequest = await ResolveLaunchRequestAsync(request, cancellationToken);
+
         var logs = new ConcurrentQueue<string>();
         var boundBaseUrlSource = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var spec = BuildProcessLaunchSpec(request);
+        var spec = BuildProcessLaunchSpec(launchRequest);
         var process = _processFactory.Create(spec);
         var processExited = 0;
 
@@ -110,63 +120,353 @@ public sealed class ExportSourceResolver
         }
     }
 
+    internal async Task<ExportSourceRequest> ResolveLaunchRequestAsync(
+        ExportSourceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.SourceKind != ExportSourceKind.Project)
+        {
+            return request;
+        }
+
+        var projectPath = request.SourceValue;
+        var projectDirectory = Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory();
+        var projectName = Path.GetFileNameWithoutExtension(projectPath);
+        var assemblyName = TryResolveAssemblyName(projectPath, projectName);
+
+        if (!request.NoBuild)
+        {
+            _logger.LogInformation("Building project for export: {ProjectPath}", projectPath);
+            await RunCommandOrThrowAsync(
+                "dotnet",
+                ["build", projectPath, "-c", "Release"],
+                projectDirectory,
+                cancellationToken);
+        }
+        else
+        {
+            _logger.LogInformation("Skipping project build (--no-build): {ProjectPath}", projectPath);
+        }
+
+        var dllPath = ResolveBuiltDllPath(projectDirectory, assemblyName);
+        _logger.LogInformation("Launching built DLL for export: {DllPath}", dllPath);
+
+        return request with
+        {
+            SourceKind = ExportSourceKind.Dll,
+            SourceValue = dllPath
+        };
+    }
+
     internal ProcessLaunchSpec BuildProcessLaunchSpec(ExportSourceRequest request)
     {
         var effectiveAppArgs = BuildEffectiveAppArgs(request.AppArgs);
-        var environmentOverrides = new Dictionary<string, string>
-        {
-            ["ASPNETCORE_ENVIRONMENT"] = "Production",
-            ["DOTNET_ENVIRONMENT"] = "Production"
-        };
 
         if (request.SourceKind == ExportSourceKind.Project)
         {
-            var projectDirectory = Path.GetDirectoryName(request.SourceValue)
-                ?? Directory.GetCurrentDirectory();
-            var args = new List<string>
-            {
-                "run",
-                "--project",
-                request.SourceValue,
-                "-c",
-                "Release",
-                "--no-launch-profile",
-                "--"
-            };
-
-            if (request.NoBuild)
-            {
-                var separatorIndex = args.IndexOf("--");
-                if (separatorIndex < 0)
-                {
-                    separatorIndex = args.Count;
-                }
-
-                args.Insert(separatorIndex, "--no-build");
-            }
-            args.AddRange(effectiveAppArgs);
-
-            return new ProcessLaunchSpec
-            {
-                FileName = "dotnet",
-                Arguments = args,
-                EnvironmentOverrides = environmentOverrides,
-                WorkingDirectory = projectDirectory
-            };
+            throw new InvalidOperationException("Project sources must be resolved to a DLL launch request before building process launch spec.");
         }
 
         var dllDirectory = Path.GetDirectoryName(request.SourceValue)
             ?? Directory.GetCurrentDirectory();
         var dllArgs = new List<string> { request.SourceValue };
         dllArgs.AddRange(effectiveAppArgs);
+        // Deliberately force production hosting for launched export targets so middleware/static-asset
+        // behavior matches deployed runtime semantics. Keep both keys in dllEnvironmentOverrides.
+        var dllEnvironmentOverrides = new Dictionary<string, string>
+        {
+            ["ASPNETCORE_ENVIRONMENT"] = "Production",
+            ["DOTNET_ENVIRONMENT"] = "Production"
+        };
 
         return new ProcessLaunchSpec
         {
             FileName = "dotnet",
             Arguments = dllArgs,
-            EnvironmentOverrides = environmentOverrides,
+            EnvironmentOverrides = dllEnvironmentOverrides,
             WorkingDirectory = dllDirectory
         };
+    }
+
+    private async Task RunCommandOrThrowAsync(
+        string fileName,
+        IReadOnlyList<string> args,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        foreach (var arg in args)
+        {
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        using var process = new Process { StartInfo = startInfo };
+        var started = false;
+        Task<string>? stdoutTask = null;
+        Task<string>? stderrTask = null;
+        try
+        {
+            started = process.Start();
+            if (!started)
+            {
+                throw new InvalidOperationException($"Failed to start command: {fileName} {string.Join(" ", args)}");
+            }
+
+            stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+
+            if (!string.IsNullOrWhiteSpace(stdout))
+            {
+                _logger.LogDebug("Command output ({FileName}):{NewLine}{Output}", fileName, Environment.NewLine, stdout);
+            }
+
+            if (!string.IsNullOrWhiteSpace(stderr))
+            {
+                _logger.LogDebug("Command error output ({FileName}):{NewLine}{Output}", fileName, Environment.NewLine, stderr);
+            }
+
+            if (process.ExitCode == 0)
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{stderr}");
+        }
+        finally
+        {
+            TryKillProcess(process, started);
+            await ObserveReadTaskAsync(stdoutTask, "stdout", fileName);
+            await ObserveReadTaskAsync(stderrTask, "stderr", fileName);
+        }
+    }
+
+    internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)
+    {
+        var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
+        if (!Directory.Exists(releaseDir))
+        {
+            throw new FileNotFoundException(
+                $"Could not find release build output folder. Expected: {releaseDir}");
+        }
+
+        var candidatePaths = Directory.EnumerateFiles(
+                releaseDir,
+                $"{assemblyName}.dll",
+                SearchOption.AllDirectories)
+            .Where(path => !IsRefAssemblyPath(path))
+            .ToList();
+
+        if (candidatePaths.Count == 0)
+        {
+            throw new FileNotFoundException(
+                $"Could not locate built DLL for assembly '{assemblyName}' under '{releaseDir}'.");
+        }
+
+        var preferredFramework = ResolvePreferredFramework(candidatePaths, releaseDir);
+        if (!string.IsNullOrWhiteSpace(preferredFramework))
+        {
+            candidatePaths = candidatePaths
+                .Where(path => string.Equals(
+                    TryGetFrameworkSegment(releaseDir, path),
+                    preferredFramework,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (candidatePaths.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"No candidate DLLs remained after selecting preferred framework '{preferredFramework}' under '{releaseDir}'.");
+            }
+        }
+
+        var candidates = candidatePaths
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(info => info.LastWriteTimeUtc)
+            // When timestamps tie within the selected framework, use path as a deterministic final tie-breaker.
+            .ThenBy(
+                info => info.FullName,
+                RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? StringComparer.OrdinalIgnoreCase
+                    : StringComparer.Ordinal)
+            .ToList();
+
+        return candidates[0].FullName;
+    }
+
+    internal static string TryResolveAssemblyName(string projectPath, string fallbackName)
+    {
+        try
+        {
+            var document = XDocument.Load(projectPath);
+            var assemblyName = document
+                .Descendants()
+                .FirstOrDefault(node => string.Equals(node.Name.LocalName, "AssemblyName", StringComparison.OrdinalIgnoreCase))
+                ?.Value
+                ?.Trim();
+            return string.IsNullOrWhiteSpace(assemblyName) ? fallbackName : assemblyName;
+        }
+        catch (IOException)
+        {
+            return fallbackName;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return fallbackName;
+        }
+        catch (XmlException)
+        {
+            return fallbackName;
+        }
+        catch (ArgumentException)
+        {
+            return fallbackName;
+        }
+        catch (NotSupportedException)
+        {
+            return fallbackName;
+        }
+    }
+
+    internal static bool IsRefAssemblyPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var normalized = path.Replace('\\', '/');
+        return normalized.Contains("/ref/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static string? TryGetFrameworkSegment(string releaseDir, string path)
+    {
+        var releaseFull = Path.GetFullPath(releaseDir);
+        var pathFull = Path.GetFullPath(path);
+
+        var relative = Path.GetRelativePath(releaseFull, pathFull);
+        if (string.IsNullOrWhiteSpace(relative))
+        {
+            return null;
+        }
+
+        if (relative == ".."
+            || relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+            || relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal)
+            || Path.IsPathRooted(relative))
+        {
+            return null;
+        }
+
+        var firstSegment = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(firstSegment))
+        {
+            return null;
+        }
+
+        return FrameworkSegmentRegex.IsMatch(firstSegment)
+            ? firstSegment
+            : null;
+    }
+
+    internal static string? ResolvePreferredFramework(IReadOnlyList<string> candidatePaths, string releaseDir)
+    {
+        var frameworks = candidatePaths
+            .Select(path => TryGetFrameworkSegment(releaseDir, path))
+            .OfType<string>()
+            .Where(segment => !string.IsNullOrWhiteSpace(segment))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (frameworks.Count == 0)
+        {
+            return null;
+        }
+
+        return frameworks
+            .OrderByDescending(ParseFrameworkVersion)
+            .ThenByDescending(name => name, StringComparer.OrdinalIgnoreCase)
+            .First();
+    }
+
+    internal static Version ParseFrameworkVersion(string framework)
+    {
+        var match = FrameworkSegmentRegex.Match(framework);
+        if (!match.Success)
+        {
+            return new Version(0, 0);
+        }
+
+        if (!int.TryParse(match.Groups["major"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var major)
+            || major > ushort.MaxValue)
+        {
+            return new Version(0, 0);
+        }
+
+        var minor = 0;
+        if (match.Groups["minor"].Success
+            && (!int.TryParse(match.Groups["minor"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out minor)
+                || minor > ushort.MaxValue))
+        {
+            return new Version(major, 0);
+        }
+
+        return new Version(major, minor);
+    }
+
+    private void TryKillProcess(Process process, bool started)
+    {
+        if (!started)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Ignoring process termination exception during cleanup.");
+        }
+    }
+
+    private async Task ObserveReadTaskAsync(Task<string>? readTask, string streamName, string fileName)
+    {
+        if (readTask is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = await readTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Read was canceled along with the command cancellation token.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Ignoring {StreamName} read exception for command {FileName}", streamName, fileName);
+        }
     }
 
     internal static IReadOnlyList<string> BuildEffectiveAppArgs(IReadOnlyList<string> appArgs)

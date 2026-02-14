@@ -9,5 +9,6 @@
     <IsExampleProject Condition="$(_NormalizedProjectDir.Contains('/examples/'))">true</IsExampleProject>
     
     <GenerateDocumentationFile Condition="'$(IsTestProject)' != 'true' AND '$(IsBenchmarkProject)' != 'true' AND '$(IsExampleProject)' != 'true'">true</GenerateDocumentationFile>
+    <WarningsAsErrors Condition="'$(IsTestProject)' != 'true' AND '$(IsBenchmarkProject)' != 'true' AND '$(IsExampleProject)' != 'true'">$(WarningsAsErrors);CS1591</WarningsAsErrors>
   </PropertyGroup>
 </Project>

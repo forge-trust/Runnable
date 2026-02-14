@@ -491,154 +491,6 @@ public class MemoTests : IDisposable
         Assert.Equal(1, callCount);
     }
 
-    [Fact]
-    public async Task GetAsync_TwoArgs_Works()
-    {
-        var memo = CreateMemo();
-
-        var result = await memo.GetAsync(
-            "tenant-1",
-            42,
-            (t, u) => Task.FromResult($"{t}:{u}"),
-            CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
-
-        Assert.Equal("tenant-1:42", result);
-    }
-
-    [Fact]
-    public async Task GetAsync_ThreeArgs_Works()
-    {
-        var memo = CreateMemo();
-
-        var result = await memo.GetAsync(
-            "a",
-            "b",
-            "c",
-            (a, b, c) => Task.FromResult($"{a}-{b}-{c}"),
-            CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
-
-        Assert.Equal("a-b-c", result);
-    }
-
-    [Fact]
-    public async Task GetAsync_FourArgs_Works()
-    {
-        var memo = CreateMemo();
-
-        var result = await memo.GetAsync(
-            1,
-            2,
-            3,
-            4,
-            (
-                a,
-                b,
-                c,
-                d) => Task.FromResult(a + b + c + d),
-            CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
-
-        Assert.Equal(10, result);
-    }
-
-    [Fact]
-    public async Task GetAsync_FiveArgs_Works()
-    {
-        var memo = CreateMemo();
-
-        var result = await memo.GetAsync(
-            1,
-            2,
-            3,
-            4,
-            5,
-            (
-                a,
-                b,
-                c,
-                d,
-                e) => Task.FromResult(a + b + c + d + e),
-            CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
-
-        Assert.Equal(15, result);
-    }
-
-    [Fact]
-    public async Task GetAsync_SixArgs_Works()
-    {
-        var memo = CreateMemo();
-
-        var result = await memo.GetAsync(
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            (
-                a,
-                b,
-                c,
-                d,
-                e,
-                f) => Task.FromResult(a + b + c + d + e + f),
-            CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
-
-        Assert.Equal(21, result);
-    }
-
-    [Fact]
-    public async Task GetAsync_SevenArgs_Works()
-    {
-        var memo = CreateMemo();
-
-        var result = await memo.GetAsync(
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            (
-                a,
-                b,
-                c,
-                d,
-                e,
-                f,
-                g) => Task.FromResult(a + b + c + d + e + f + g),
-            CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
-
-        Assert.Equal(28, result);
-    }
-
-    [Fact]
-    public async Task GetAsync_EightArgs_Works()
-    {
-        var memo = CreateMemo();
-
-        var result = await memo.GetAsync(
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            (
-                a,
-                b,
-                c,
-                d,
-                e,
-                f,
-                g,
-                h) => Task.FromResult(a + b + c + d + e + f + g + h),
-            CachePolicy.Absolute(TimeSpan.FromMinutes(5)));
-
-        Assert.Equal(36, result);
-    }
 
     [Fact]
     public async Task GetAsync_CancellationToken_Respected()
@@ -993,7 +845,17 @@ public class MemoTests : IDisposable
             callerFilePath: "collision",
             callerLineNumber: 1);
 
-        await Task.Delay(100); // Ensure task2 is waiting
+        // Wait briefly to ensure task2 has had time to reach the internal semaphore.WaitAsync.
+        // We poll to ensure it remains in the blocked state (not completed, callCount still 1).
+        for (int i = 0; i < 50; i++) // 50 * 10ms = 500ms
+        {
+            await Task.Delay(10);
+            if (task2.IsCompleted || callCount > 1)
+            {
+                throw new Exception(
+                    $"task2 failed to block on semaphore: {(task2.IsCompleted ? "completed unexpectedly" : "factory called again")}");
+            }
+        }
 
         // Release gate
         gate.SetResult(true);
@@ -1006,24 +868,37 @@ public class MemoTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAsync_AllOverloads_WorkCorrectly()
+    public async Task GetAsync_Arity0_Works()
     {
         var memo = CreateMemo();
         var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
-
-        // 0 args (already tested extensively, but for completeness)
         Assert.Equal(42, await memo.GetAsync(() => Task.FromResult(42), policy));
         Assert.Equal(42, await memo.GetAsync(_ => Task.FromResult(42), policy));
+    }
 
-        // 1 arg
+    [Fact]
+    public async Task GetAsync_Arity1_Works()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
         Assert.Equal("1", await memo.GetAsync(1, (a) => Task.FromResult(a.ToString()), policy));
         Assert.Equal("1", await memo.GetAsync(1, (a, _) => Task.FromResult(a.ToString()), policy));
+    }
 
-        // 2 args
+    [Fact]
+    public async Task GetAsync_Arity2_Works_Independent()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
         Assert.Equal("12", await memo.GetAsync(1, 2, (a, b) => Task.FromResult($"{a}{b}"), policy));
         Assert.Equal("12", await memo.GetAsync(1, 2, (a, b, _) => Task.FromResult($"{a}{b}"), policy));
+    }
 
-        // 3 args
+    [Fact]
+    public async Task GetAsync_Arity3_Works_Independent()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
         Assert.Equal("123", await memo.GetAsync(1, 2, 3, (a, b, c) => Task.FromResult($"{a}{b}{c}"), policy));
         Assert.Equal(
             "123",
@@ -1037,8 +912,13 @@ public class MemoTests : IDisposable
                     c,
                     _) => Task.FromResult($"{a}{b}{c}"),
                 policy));
+    }
 
-        // 4 args
+    [Fact]
+    public async Task GetAsync_Arity4_Works()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
         Assert.Equal(
             "1234",
             await memo.GetAsync(
@@ -1066,8 +946,13 @@ public class MemoTests : IDisposable
                     d,
                     _) => Task.FromResult($"{a}{b}{c}{d}"),
                 policy));
+    }
 
-        // 5 args
+    [Fact]
+    public async Task GetAsync_Arity5_Works_Granular()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
         Assert.Equal(
             "12345",
             await memo.GetAsync(
@@ -1099,8 +984,13 @@ public class MemoTests : IDisposable
                     e,
                     _) => Task.FromResult($"{a}{b}{c}{d}{e}"),
                 policy));
+    }
 
-        // 6 args
+    [Fact]
+    public async Task GetAsync_Arity6_Works_Granular()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
         Assert.Equal(
             "123456",
             await memo.GetAsync(
@@ -1136,8 +1026,13 @@ public class MemoTests : IDisposable
                     f,
                     _) => Task.FromResult($"{a}{b}{c}{d}{e}{f}"),
                 policy));
+    }
 
-        // 7 args
+    [Fact]
+    public async Task GetAsync_Arity7_Works_Granular()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
         Assert.Equal(
             "1234567",
             await memo.GetAsync(
@@ -1177,8 +1072,13 @@ public class MemoTests : IDisposable
                     g,
                     _) => Task.FromResult($"{a}{b}{c}{d}{e}{f}{g}"),
                 policy));
+    }
 
-        // 8 args
+    [Fact]
+    public async Task GetAsync_Arity8_Works_Granular()
+    {
+        var memo = CreateMemo();
+        var policy = CachePolicy.Absolute(TimeSpan.FromMinutes(1));
         Assert.Equal(
             "12345678",
             await memo.GetAsync(

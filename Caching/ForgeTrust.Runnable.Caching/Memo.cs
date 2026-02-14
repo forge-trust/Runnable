@@ -14,11 +14,11 @@ public sealed class Memo : IMemo, IDisposable
     private readonly IMemoryCache _cache;
     private readonly ConcurrentDictionary<object, SemaphoreSlim> _locks = new();
     private readonly TimeSpan _failureCacheDuration;
-    private bool _disposed;
+    private int _disposed;
 
     private void ThrowIfDisposed()
     {
-        if (_disposed)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             throw new ObjectDisposedException(nameof(Memo));
         }
@@ -115,7 +115,7 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, cancellationToken),
+            (factory, cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(state.cancellationToken),
             policy,
             cancellationToken);
@@ -163,7 +163,7 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, arg, cancellationToken),
+            (factory, arg, cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(state.arg, state.cancellationToken),
             policy,
             cancellationToken);
@@ -213,7 +213,8 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, arg1, arg2, cancellationToken),
+            (factory, arg1, arg2,
+                cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(state.arg1, state.arg2, state.cancellationToken),
             policy,
             cancellationToken);
@@ -265,7 +266,8 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, arg1, arg2, arg3, cancellationToken),
+            (factory, arg1, arg2, arg3,
+                cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(state.arg1, state.arg2, state.arg3, state.cancellationToken),
             policy,
             cancellationToken);
@@ -331,7 +333,8 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, arg1, arg2, arg3, arg4, cancellationToken),
+            (factory, arg1, arg2, arg3, arg4,
+                cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(state.arg1, state.arg2, state.arg3, state.arg4, state.cancellationToken),
             policy,
             cancellationToken);
@@ -401,7 +404,8 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, arg1, arg2, arg3, arg4, arg5, cancellationToken),
+            (factory, arg1, arg2, arg3, arg4, arg5,
+                cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(
                 state.arg1,
                 state.arg2,
@@ -481,7 +485,8 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, arg1, arg2, arg3, arg4, arg5, arg6, cancellationToken),
+            (factory, arg1, arg2, arg3, arg4, arg5, arg6,
+                cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(
                 state.arg1,
                 state.arg2,
@@ -573,7 +578,8 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, arg1, arg2, arg3, arg4, arg5, arg6, arg7, cancellationToken),
+            (factory, arg1, arg2, arg3, arg4, arg5, arg6, arg7,
+                cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(
                 state.arg1,
                 state.arg2,
@@ -671,7 +677,8 @@ public sealed class Memo : IMemo, IDisposable
 
         return GetOrCreateCoreAsync(
             key,
-            (factory, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, cancellationToken),
+            (factory, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8,
+                cancellationToken), // cancellationToken is duplicated in state to allow static lambda access
             static (state, _) => state.factory(
                 state.arg1,
                 state.arg2,
@@ -836,7 +843,7 @@ public sealed class Memo : IMemo, IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
@@ -847,7 +854,6 @@ public sealed class Memo : IMemo, IDisposable
         }
 
         _locks.Clear();
-        _disposed = true;
     }
 
     // Uses ValueTuple objects (e.g., (prefix, arg1, arg2)) as cache keys.

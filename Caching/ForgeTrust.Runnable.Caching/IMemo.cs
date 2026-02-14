@@ -96,7 +96,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
     /// <typeparam name="TArg2">The type of the second argument.</typeparam>
@@ -120,7 +120,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
@@ -147,7 +147,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
     /// <typeparam name="TArg2">The type of the second argument.</typeparam>
@@ -174,7 +174,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
@@ -204,7 +204,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
     /// <typeparam name="TArg2">The type of the second argument.</typeparam>
@@ -234,7 +234,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
@@ -267,7 +267,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
     /// <typeparam name="TArg2">The type of the second argument.</typeparam>
@@ -300,7 +300,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
@@ -336,7 +336,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
     /// <typeparam name="TArg2">The type of the second argument.</typeparam>
@@ -372,7 +372,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
@@ -411,7 +411,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
     /// <typeparam name="TArg2">The type of the second argument.</typeparam>
@@ -450,7 +450,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
@@ -492,7 +492,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>
     /// <typeparam name="TArg2">The type of the second argument.</typeparam>
@@ -534,7 +534,7 @@ public interface IMemo
 
     /// <summary>
     /// Returns a cached result or invokes <paramref name="factory"/> to compute and cache it.
-    /// The cache key is automatically derived from the caller file path, member name, and the provided arguments.
+    /// The cache key is automatically derived from the caller file path, line number, and the provided arguments.
     /// The <see cref="CancellationToken"/> is forwarded to the factory for cooperative cancellation.
     /// </summary>
     /// <typeparam name="TArg1">The type of the first argument.</typeparam>

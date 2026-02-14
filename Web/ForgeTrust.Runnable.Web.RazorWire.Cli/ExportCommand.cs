@@ -49,6 +49,12 @@ public class ExportCommand : ICommand
     [CommandOption("app-args", Description = "Repeatable app argument token to pass through to the launched target app.")]
     public string[] AppArgs { get; init; } = [];
 
+    /// <summary>
+    /// Gets or sets a value indicating whether project mode should skip build before launch.
+    /// </summary>
+    [CommandOption("no-build", Description = "Project mode only: skip build before launch.")]
+    public bool NoBuild { get; init; }
+
     private readonly ILogger<ExportCommand> _logger;
     private readonly ExportEngine _engine;
     private readonly ExportSourceRequestFactory _requestFactory;
@@ -80,7 +86,7 @@ public class ExportCommand : ICommand
     /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
     public async ValueTask ExecuteAsync(IConsole console)
     {
-        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs);
+        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs, NoBuild);
         await using var resolvedSource = await _sourceResolver.ResolveAsync(request);
 
         _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);

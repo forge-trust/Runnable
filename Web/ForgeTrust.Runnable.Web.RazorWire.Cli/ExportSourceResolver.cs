@@ -128,10 +128,14 @@ public sealed class ExportSourceResolver
                 request.SourceValue,
                 "-c",
                 "Release",
-                "--no-build",
                 "--no-launch-profile",
                 "--"
             };
+
+            if (request.NoBuild)
+            {
+                args.Insert(6, "--no-build");
+            }
             args.AddRange(effectiveAppArgs);
 
             return new ProcessLaunchSpec

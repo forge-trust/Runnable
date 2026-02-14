@@ -24,12 +24,14 @@ Exports a RazorWire application to a static directory.
 - **`-p|--project <path.csproj>`**: Path to a .NET project to run automatically and export.
 - **`-d|--dll <path.dll>`**: Path to a .NET DLL to run automatically and export.
 - **`--app-args <token>`**: Repeatable app-argument token to pass through when launching `--project` or `--dll`.
+- **`--no-build`**: Project mode only. Passes `--no-build` to `dotnet run`.
 
 Exactly one source option is required: `--url`, `--project`, or `--dll`.
 
 When `--project` or `--dll` is used:
 - The target app is launched in production environment (`DOTNET_ENVIRONMENT=Production`, `ASPNETCORE_ENVIRONMENT=Production`).
 - Project mode runs in release configuration (`dotnet run -c Release`).
+- Project mode builds by default; add `--no-build` only when you want to skip build.
 - If you do not pass `--urls` via `--app-args`, the CLI appends `--urls http://127.0.0.1:0`.
 - The CLI waits for startup, crawls the app, then shuts the process down automatically.
 

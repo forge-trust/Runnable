@@ -24,12 +24,12 @@ public sealed class ExportSourceResolver
     /// <summary>
     /// Gets or sets the maximum time to wait for the launched target app to emit a listening URL.
     /// </summary>
-    public TimeSpan ListeningUrlTimeout { get; set; } = TimeSpan.FromSeconds(60);
+    public TimeSpan ListeningUrlTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Gets or sets the maximum time to wait for the launched target app to respond as ready.
     /// </summary>
-    public TimeSpan AppReadyTimeout { get; set; } = TimeSpan.FromSeconds(60);
+    public TimeSpan AppReadyTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Gets or sets the polling interval used while probing target app readiness.
@@ -60,8 +60,11 @@ public sealed class ExportSourceResolver
         ExportSourceRequest request,
         CancellationToken cancellationToken = default)
     {
+        var startupStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         if (request.SourceKind == ExportSourceKind.Url)
         {
+            _logger.LogInformation("Using URL source directly: {BaseUrl}", request.SourceValue);
             return new ResolvedExportSource(request.SourceValue, null);
         }
 
@@ -81,14 +84,21 @@ public sealed class ExportSourceResolver
         };
 
         process.Start();
-        _logger.LogInformation("Started target application process for export.");
+        _logger.LogInformation(
+            "Started target application process for export. Listening timeout: {ListeningTimeout}s, ready timeout: {ReadyTimeout}s",
+            ListeningUrlTimeout.TotalSeconds,
+            AppReadyTimeout.TotalSeconds);
 
         try
         {
             var baseUrl = await WaitForBoundBaseUrlAsync(boundBaseUrlSource, logs, cancellationToken);
             await WaitForAppReadyAsync(baseUrl, process, () => Volatile.Read(ref processExited) == 1, logs, cancellationToken);
 
-            _logger.LogInformation("Resolved export source URL: {BaseUrl}", baseUrl);
+            startupStopwatch.Stop();
+            _logger.LogInformation(
+                "Resolved export source URL: {BaseUrl} (startup took {ElapsedMs}ms)",
+                baseUrl,
+                startupStopwatch.ElapsedMilliseconds);
             return new ResolvedExportSource(baseUrl, process);
         }
         catch
@@ -118,6 +128,7 @@ public sealed class ExportSourceResolver
                 request.SourceValue,
                 "-c",
                 "Release",
+                "--no-build",
                 "--no-launch-profile",
                 "--"
             };
@@ -262,10 +273,9 @@ public sealed class ExportSourceResolver
             try
             {
                 using var response = await client.GetAsync(baseUrl, timeoutCts.Token);
-                if ((int)response.StatusCode is >= 200 and < 400)
-                {
-                    return;
-                }
+                // Any HTTP response proves the app is reachable; we don't require a specific status code.
+                _logger.LogDebug("Readiness probe returned {StatusCode} for {BaseUrl}", (int)response.StatusCode, baseUrl);
+                return;
             }
             catch (HttpRequestException)
             {

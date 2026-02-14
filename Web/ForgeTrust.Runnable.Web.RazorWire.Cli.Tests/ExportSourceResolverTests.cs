@@ -54,6 +54,17 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public void Constructor_Should_Throw_For_Null_Dependencies()
+    {
+        var processFactory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var httpFactory = new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK));
+
+        Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(null!, processFactory, httpFactory));
+        Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(_logger, null!, httpFactory));
+        Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(_logger, processFactory, null!));
+    }
+
+    [Fact]
     public async Task ResolveAsync_Should_Start_Process_And_Return_Resolved_Url()
     {
         var fakeProcess = new FakeTargetAppProcess();
@@ -154,9 +165,7 @@ public class ExportSourceResolverTests
     {
         var fakeProcess = new FakeTargetAppProcess();
         var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
-        var resolver = CreateResolver(
-            factory,
-            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.ServiceUnavailable)));
+        var resolver = CreateResolver(factory, new ThrowingHttpClientFactory());
         resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
         resolver.AppReadyTimeout = TimeSpan.FromMilliseconds(120);
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
@@ -173,9 +182,7 @@ public class ExportSourceResolverTests
     {
         var fakeProcess = new FakeTargetAppProcess();
         var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
-        var resolver = CreateResolver(
-            factory,
-            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.ServiceUnavailable)));
+        var resolver = CreateResolver(factory, new ThrowingHttpClientFactory());
         resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
         resolver.AppReadyTimeout = TimeSpan.FromSeconds(10);
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
@@ -187,6 +194,22 @@ public class ExportSourceResolverTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             async () => await resolver.ResolveAsync(request, cts.Token));
         Assert.True(fakeProcess.Disposed);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Treat_404_As_Ready()
+    {
+        var fakeProcess = new FakeTargetAppProcess();
+        var factory = new FakeTargetAppProcessFactory(_ => fakeProcess);
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.NotFound)));
+
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/site.dll", []);
+        fakeProcess.OnStart = () => fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
+
+        await using var result = await resolver.ResolveAsync(request);
+        Assert.Equal("http://127.0.0.1:5050", result.BaseUrl);
     }
 
     [Fact]
@@ -205,6 +228,7 @@ public class ExportSourceResolverTests
         Assert.Contains("--project", spec.Arguments);
         Assert.Contains("-c", spec.Arguments);
         Assert.Contains("Release", spec.Arguments);
+        Assert.Contains("--no-build", spec.Arguments);
         Assert.Contains("--no-launch-profile", spec.Arguments);
         Assert.Contains("--flag", spec.Arguments);
         Assert.Equal("Production", spec.EnvironmentOverrides["DOTNET_ENVIRONMENT"]);
@@ -282,6 +306,24 @@ public class ExportSourceResolverTests
             Disposed = true;
             HasExited = true;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient(new ThrowingHandler());
+        }
+    }
+
+    private sealed class ThrowingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            throw new HttpRequestException("not reachable");
         }
     }
 

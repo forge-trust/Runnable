@@ -33,6 +33,7 @@ internal static class TestHttpHelpers
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(_responseFactory(request));
         }
     }

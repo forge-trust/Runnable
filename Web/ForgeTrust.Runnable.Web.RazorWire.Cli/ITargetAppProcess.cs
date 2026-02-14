@@ -144,11 +144,16 @@ internal sealed class TargetAppProcess : ITargetAppProcess
                     try
                     {
                         _process.Kill(entireProcessTree: true);
-                        await _process.WaitForExitAsync();
+                        using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        await _process.WaitForExitAsync(waitCts.Token);
                     }
                     catch (InvalidOperationException)
                     {
                         // The process exited between the HasExited check and Kill/Wait calls.
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Kill was issued but process did not exit within timeout; continue disposal.
                     }
                 }
             }

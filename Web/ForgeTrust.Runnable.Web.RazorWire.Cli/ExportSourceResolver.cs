@@ -134,7 +134,13 @@ public sealed class ExportSourceResolver
 
             if (request.NoBuild)
             {
-                args.Insert(6, "--no-build");
+                var separatorIndex = args.IndexOf("--");
+                if (separatorIndex < 0)
+                {
+                    separatorIndex = args.Count;
+                }
+
+                args.Insert(separatorIndex, "--no-build");
             }
             args.AddRange(effectiveAppArgs);
 
@@ -292,6 +298,11 @@ public sealed class ExportSourceResolver
             catch (TaskCanceledException) when (!timeoutCts.IsCancellationRequested)
             {
                 // Retry until global timeout.
+            }
+            catch (TaskCanceledException) when (timeoutCts.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    $"Target application did not become ready within {AppReadyTimeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs(logs)}");
             }
 
             try

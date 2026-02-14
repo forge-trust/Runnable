@@ -73,6 +73,11 @@ public class ExportCommand : ICommand
         ExportSourceRequestFactory requestFactory,
         ExportSourceResolver sourceResolver)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(engine);
+        ArgumentNullException.ThrowIfNull(requestFactory);
+        ArgumentNullException.ThrowIfNull(sourceResolver);
+
         _logger = logger;
         _engine = engine;
         _requestFactory = requestFactory;
@@ -86,14 +91,30 @@ public class ExportCommand : ICommand
     /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
     public async ValueTask ExecuteAsync(IConsole console)
     {
-        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs, NoBuild);
-        await using var resolvedSource = await _sourceResolver.ResolveAsync(request);
+        using var cts = new CancellationTokenSource();
+        ConsoleCancelEventHandler? handler = null;
+        handler = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            cts.Cancel();
+        };
 
-        _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);
+        System.Console.CancelKeyPress += handler;
+        try
+        {
+            var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs, NoBuild);
+            await using var resolvedSource = await _sourceResolver.ResolveAsync(request, cts.Token);
 
-        var context = new ExportContext(OutputPath, SeedRoutesPath, resolvedSource.BaseUrl);
-        await _engine.RunAsync(context);
+            _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);
 
-        _logger.LogInformation("Export complete!");
+            var context = new ExportContext(OutputPath, SeedRoutesPath, resolvedSource.BaseUrl);
+            await _engine.RunAsync(context, cts.Token);
+
+            _logger.LogInformation("Export complete!");
+        }
+        finally
+        {
+            System.Console.CancelKeyPress -= handler;
+        }
     }
 }

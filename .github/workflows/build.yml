@@ -49,3 +49,54 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  export-razordocs:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            10.0.x
+
+      - name: Build RazorDocs and RazorWire CLI (Release)
+        run: |
+          dotnet build Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj -c Release
+          dotnet build Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj -c Release
+
+      - name: Export RazorDocs static site
+        run: |
+          dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj -c Release --no-build -- \
+            export \
+            --output "$RUNNER_TEMP/razordocs-pages" \
+            --project Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj \
+            --no-build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/razordocs-pages
+
+  deploy-razordocs:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: export-razordocs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -126,6 +127,7 @@ public sealed class ExportSourceResolver
         var projectPath = request.SourceValue;
         var projectDirectory = Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory();
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
+        var assemblyName = TryResolveAssemblyName(projectPath, projectName);
 
         if (!request.NoBuild)
         {
@@ -141,7 +143,7 @@ public sealed class ExportSourceResolver
             _logger.LogInformation("Skipping project build (--no-build): {ProjectPath}", projectPath);
         }
 
-        var dllPath = ResolveBuiltDllPath(projectDirectory, projectName);
+        var dllPath = ResolveBuiltDllPath(projectDirectory, assemblyName);
         _logger.LogInformation("Launching built DLL for export: {DllPath}", dllPath);
 
         return request with
@@ -235,7 +237,7 @@ public sealed class ExportSourceResolver
             }
 
             throw new InvalidOperationException(
-                $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+                $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{stderr}");
         }
         finally
         {
@@ -267,20 +269,15 @@ public sealed class ExportSourceResolver
                 $"Could not locate built DLL for project '{projectName}' under '{releaseDir}'.");
         }
 
-        var frameworks = candidatePaths
-            .Select(path => TryGetFrameworkSegment(releaseDir, path))
-            .Where(segment => !string.IsNullOrEmpty(segment))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (frameworks.Count > 1)
+        var preferredFramework = ResolvePreferredFramework(candidatePaths, releaseDir);
+        if (!string.IsNullOrWhiteSpace(preferredFramework))
         {
-            throw new InvalidOperationException(
-                string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Multiple target framework outputs detected under '{0}': {1}. Build a single target framework before exporting.",
-                    releaseDir,
-                    string.Join(", ", frameworks)));
+            candidatePaths = candidatePaths
+                .Where(path => string.Equals(
+                    TryGetFrameworkSegment(releaseDir, path),
+                    preferredFramework,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList();
         }
 
         var candidates = candidatePaths
@@ -289,6 +286,24 @@ public sealed class ExportSourceResolver
             .ToList();
 
         return candidates[0].FullName;
+    }
+
+    internal static string TryResolveAssemblyName(string projectPath, string fallbackName)
+    {
+        try
+        {
+            var document = XDocument.Load(projectPath);
+            var assemblyName = document
+                .Descendants()
+                .FirstOrDefault(node => string.Equals(node.Name.LocalName, "AssemblyName", StringComparison.OrdinalIgnoreCase))
+                ?.Value
+                ?.Trim();
+            return string.IsNullOrWhiteSpace(assemblyName) ? fallbackName : assemblyName;
+        }
+        catch
+        {
+            return fallbackName;
+        }
     }
 
     internal static bool IsRefAssemblyPath(string path)
@@ -330,6 +345,41 @@ public sealed class ExportSourceResolver
             : null;
     }
 
+    private static string? ResolvePreferredFramework(IReadOnlyList<string> candidatePaths, string releaseDir)
+    {
+        var frameworks = candidatePaths
+            .Select(path => TryGetFrameworkSegment(releaseDir, path))
+            .OfType<string>()
+            .Where(segment => !string.IsNullOrWhiteSpace(segment))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (frameworks.Count == 0)
+        {
+            return null;
+        }
+
+        return frameworks
+            .OrderByDescending(ParseFrameworkVersion)
+            .ThenByDescending(name => name, StringComparer.OrdinalIgnoreCase)
+            .First();
+    }
+
+    private static Version ParseFrameworkVersion(string framework)
+    {
+        var match = Regex.Match(framework, @"^net(?<major>\d+)(\.(?<minor>\d+))?$", RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            return new Version(0, 0);
+        }
+
+        var major = int.Parse(match.Groups["major"].Value, CultureInfo.InvariantCulture);
+        var minor = match.Groups["minor"].Success
+            ? int.Parse(match.Groups["minor"].Value, CultureInfo.InvariantCulture)
+            : 0;
+        return new Version(major, minor);
+    }
+
     private void TryKillProcess(Process process, bool started)
     {
         if (!started)
@@ -344,9 +394,9 @@ public sealed class ExportSourceResolver
                 process.Kill(entireProcessTree: true);
             }
         }
-        catch (InvalidOperationException)
+        catch (Exception ex)
         {
-            // The process may have exited between the HasExited check and Kill call.
+            _logger.LogDebug(ex, "Ignoring process termination exception during cleanup.");
         }
     }
 

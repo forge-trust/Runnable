@@ -293,6 +293,48 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public async Task ResolveLaunchRequestAsync_Should_Respect_Custom_AssemblyName_When_NoBuild()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        var projectPath = Path.Combine(tempDir, "MySite.csproj");
+        var dllDir = Path.Combine(tempDir, "bin", "Release", "net10.0");
+        Directory.CreateDirectory(dllDir);
+        await File.WriteAllTextAsync(
+            projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk.Web">
+              <PropertyGroup>
+                <AssemblyName>CustomSite</AssemblyName>
+              </PropertyGroup>
+            </Project>
+            """);
+        var expectedDllPath = Path.Combine(dllDir, "CustomSite.dll");
+        await File.WriteAllBytesAsync(expectedDllPath, [1, 2, 3]);
+
+        try
+        {
+            var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+            var resolver = CreateResolver(
+                factory,
+                new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+            var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], true);
+
+            var resolved = await resolver.ResolveLaunchRequestAsync(request);
+
+            Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
+            Assert.Equal(expectedDllPath, resolved.SourceValue);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ResolveLaunchRequestAsync_Should_Build_Project_When_NoBuild_Is_False()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -407,7 +449,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public void ResolveBuiltDllPath_Should_Throw_When_Multiple_Target_Frameworks_Are_Detected()
+    public void ResolveBuiltDllPath_Should_Select_Highest_Target_Framework_When_Multiple_Are_Detected()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var net9 = Path.Combine(tempDir, "bin", "Release", "net9.0");
@@ -419,9 +461,8 @@ public class ExportSourceResolverTests
 
         try
         {
-            var ex = Assert.Throws<InvalidOperationException>(
-                () => ExportSourceResolver.ResolveBuiltDllPath(tempDir, "MySite"));
-            Assert.Contains("Multiple target framework outputs", ex.Message, StringComparison.OrdinalIgnoreCase);
+            var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir, "MySite");
+            Assert.Equal(Path.Combine(net10, "MySite.dll"), resolved);
         }
         finally
         {

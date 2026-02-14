@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Xml;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 
@@ -278,6 +279,12 @@ public sealed class ExportSourceResolver
                     preferredFramework,
                     StringComparison.OrdinalIgnoreCase))
                 .ToList();
+
+            if (candidatePaths.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"No candidate DLLs remained after selecting preferred framework '{preferredFramework}' under '{releaseDir}'.");
+            }
         }
 
         var candidates = candidatePaths
@@ -300,7 +307,15 @@ public sealed class ExportSourceResolver
                 ?.Trim();
             return string.IsNullOrWhiteSpace(assemblyName) ? fallbackName : assemblyName;
         }
-        catch
+        catch (IOException)
+        {
+            return fallbackName;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return fallbackName;
+        }
+        catch (XmlException)
         {
             return fallbackName;
         }

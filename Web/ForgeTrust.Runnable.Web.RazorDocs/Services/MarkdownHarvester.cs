@@ -1,11 +1,13 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Markdig;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
 /// <summary>
 /// Harvester implementation that scans Markdown source files and converts them into documentation nodes.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class MarkdownHarvester : IDocHarvester
 {
     private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj" };

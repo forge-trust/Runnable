@@ -194,6 +194,113 @@ public class DocAggregatorTests : IDisposable
         Assert.Equal("Method", byCanonicalWithoutAnchor!.Title);
     }
 
+    [Fact]
+    public async Task GetDocsAsync_ShouldUseConfiguredRepositoryRoot_WhenProvided()
+    {
+        // Arrange
+        var configuredRoot = Path.Combine(Path.GetTempPath(), "repo-root");
+        A.CallTo(() => _configFake["RepositoryRoot"]).Returns(configuredRoot);
+        string? capturedRoot = null;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Invokes((string root, CancellationToken _) => capturedRoot = root)
+            .Returns(Enumerable.Empty<DocNode>());
+        var aggregator = new DocAggregator(
+            new[] { _harvesterFake },
+            _configFake,
+            _envFake,
+            _cache,
+            _sanitizerFake,
+            _loggerFake);
+
+        // Act
+        _ = await aggregator.GetDocsAsync();
+
+        // Assert
+        Assert.Equal(configuredRoot, capturedRoot);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldMapEmptyAndWhitespacePaths_ToIndexCanonicalPath()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Home", " ", "content"),
+            new("AnchoredHome", "#overview", "content")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        Assert.Contains(docs, d => d.Path == " " && d.CanonicalPath == "index.html");
+        Assert.Contains(docs, d => d.Path == "#overview" && d.CanonicalPath == "index.html#overview");
+    }
+
+    [Fact]
+    public async Task GetDocByPathAsync_ShouldMatchCanonicalPath_WithFragmentInLookup()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode> { new("Method", "docs/service.cs#MethodId", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var result = await _aggregator.GetDocByPathAsync("docs/service_cs.html#MethodId");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Method", result!.Title);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldPropagateOperationCanceled_FromHarvester()
+    {
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Throws(new OperationCanceledException());
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _aggregator.GetDocsAsync());
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldHandleRootFileCanonicalization()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new("RootFile", "readme.md", "content")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+
+        Assert.Contains(docs, d => d.Title == "RootFile" && d.CanonicalPath == "readme_md.html");
+    }
+
+    [Fact]
+    public async Task Constructor_ShouldPreferConfiguredRoot_OverEnvironmentFallback()
+    {
+        var configuredRoot = Path.Combine(Path.GetTempPath(), "configured-root");
+        var localConfig = A.Fake<Ext_IConfiguration>();
+        A.CallTo(() => localConfig["RepositoryRoot"]).Returns(configuredRoot);
+        var localEnv = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => localEnv.ContentRootPath).Returns("/definitely/not/used");
+        string? capturedRoot = null;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Invokes((string root, CancellationToken _) => capturedRoot = root)
+            .Returns(Enumerable.Empty<DocNode>());
+        var aggregator = new DocAggregator(
+            new[] { _harvesterFake },
+            localConfig,
+            localEnv,
+            _cache,
+            _sanitizerFake,
+            _loggerFake);
+
+        _ = await aggregator.GetDocsAsync();
+
+        Assert.Equal(configuredRoot, capturedRoot);
+    }
+
     public void Dispose()
     {
         _cache.Dispose();

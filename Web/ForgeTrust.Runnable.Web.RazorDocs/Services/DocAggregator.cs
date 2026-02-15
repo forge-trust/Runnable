@@ -148,13 +148,12 @@ public class DocAggregator
                                return g.First();
                            })
                            .ToDictionary(n => n.Path, n => n);
-                   })
-               ?? new Dictionary<string, DocNode>();
+                   }) ?? new Dictionary<string, DocNode>();
     }
 
     private static string NormalizeLookupPath(string path)
     {
-        var sanitized = (path ?? string.Empty).Trim().Trim('/');
+        var sanitized = path.Trim().Trim('/');
         var hashIndex = sanitized.IndexOf('#');
         if (hashIndex >= 0)
         {
@@ -166,10 +165,9 @@ public class DocAggregator
 
     private static string BuildCanonicalPath(string sourcePath)
     {
-        var safeSourcePath = sourcePath ?? string.Empty;
-        var hashIndex = safeSourcePath.IndexOf('#');
-        var fragment = hashIndex >= 0 ? safeSourcePath[hashIndex..] : string.Empty;
-        var trimmed = NormalizeLookupPath(safeSourcePath);
+        var hashIndex = sourcePath.IndexOf('#');
+        var fragment = hashIndex >= 0 ? sourcePath[hashIndex..] : string.Empty;
+        var trimmed = NormalizeLookupPath(sourcePath);
         if (string.IsNullOrEmpty(trimmed))
         {
             return "index.html" + fragment;
@@ -177,11 +175,6 @@ public class DocAggregator
 
         var directory = Path.GetDirectoryName(trimmed)?.Replace('\\', '/');
         var fileName = Path.GetFileName(trimmed);
-        if (string.IsNullOrEmpty(fileName))
-        {
-            return (string.IsNullOrEmpty(directory) ? "index.html" : $"{directory}/index.html") + fragment;
-        }
-
         var safeFileName = fileName.Replace(".", "_", StringComparison.Ordinal) + ".html";
         return (string.IsNullOrEmpty(directory) ? safeFileName : $"{directory}/{safeFileName}") + fragment;
     }

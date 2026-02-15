@@ -111,6 +111,36 @@ public class DocsControllerTests : IDisposable
         Assert.Equal("Title", model.Title);
     }
 
+    [Fact]
+    public async Task Details_ShouldReturnView_WhenDocRequestedByLegacySourcePath()
+    {
+        // Arrange
+        var docs = new List<DocNode> { new("Legacy", "legacy-path.md", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        // Act
+        var result = await _controller.Details("legacy-path.md");
+
+        // Assert
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocNode>(viewResult.Model);
+        Assert.Equal("Legacy", model.Title);
+    }
+
+    [Fact]
+    public async Task Details_ShouldReturnNotFound_WhenPathIsWhitespace()
+    {
+        var result = await _controller.Details("   ");
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenAggregatorIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DocsController(null!));
+    }
+
     public void Dispose()
     {
         _cache.Dispose();

@@ -103,6 +103,45 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal("Home", doc.Title);
     }
 
+    [Fact]
+    public async Task HarvestAsync_ShouldRespectCancellation()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Test.md"), "# Test");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _harvester.HarvestAsync(_testRoot, cts.Token));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldLogAndSkip_WhenFileIsUnreadable()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var unreadable = Path.Combine(_testRoot, "Unreadable.md");
+        await File.WriteAllTextAsync(unreadable, "# Hidden");
+        File.SetUnixFileMode(
+            unreadable,
+            UnixFileMode.UserWrite | UnixFileMode.GroupWrite | UnixFileMode.OtherWrite);
+
+        try
+        {
+            var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+            Assert.Empty(results);
+            A.CallTo(_loggerFake).Where(call => call.Method.Name == "Log").MustHaveHappened();
+        }
+        finally
+        {
+            File.SetUnixFileMode(
+                unreadable,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+        }
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))

@@ -3,6 +3,7 @@ using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -90,5 +91,21 @@ public class RazorDocsWebModuleTests
                 true,
                 "Smoke test passed: MapControllerRoute was invoked (detected via framework dependency exception).");
         }
+    }
+
+    [Fact]
+    public void HostAndAppConfigureMethods_ShouldNotThrow()
+    {
+        var rootModuleFake = A.Fake<IRunnableHostModule>();
+        var envFake = A.Fake<IEnvironmentProvider>();
+        var context = new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
+        var hostBuilder = A.Fake<Microsoft.Extensions.Hosting.IHostBuilder>();
+        var appBuilder = A.Fake<Microsoft.AspNetCore.Builder.IApplicationBuilder>();
+
+        _module.ConfigureHostBeforeServices(context, hostBuilder);
+        _module.ConfigureHostAfterServices(context, hostBuilder);
+        _module.ConfigureWebApplication(context, appBuilder);
+
+        Assert.True(true);
     }
 }

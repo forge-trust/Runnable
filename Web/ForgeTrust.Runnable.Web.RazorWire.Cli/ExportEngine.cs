@@ -59,6 +59,9 @@ public class ExportEngine
         @"url\(\s*(['""]?)(.*?)\1\s*\)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private const string DocsStaticPartialsMetaName = "rw-docs-static-partials";
+    private const string DocsStaticPartialsMetaTag = "<meta name=\"rw-docs-static-partials\" content=\"1\" />";
+
     private static readonly Regex TurboFrameOpenTagRegex = new(
         @"<turbo-frame\b[^>]*>",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -214,7 +217,10 @@ public class ExportEngine
             if (isHtml)
             {
                 var html = await response.Content.ReadAsStringAsync(cancellationToken);
-                await File.WriteAllTextAsync(filePath, html, cancellationToken);
+                var htmlForWrite = IsDocsRoute(route)
+                    ? AddDocsStaticPartialsMarker(html)
+                    : html;
+                await File.WriteAllTextAsync(filePath, htmlForWrite, cancellationToken);
 
                 // Export frame fragments for docs pages so static navigation can fetch only the content island.
                 await TryWriteDocsPartialAsync(route, filePath, html, cancellationToken);
@@ -312,6 +318,27 @@ public class ExportEngine
         }
 
         return null;
+    }
+
+    internal static string AddDocsStaticPartialsMarker(string html)
+    {
+        if (string.IsNullOrEmpty(html))
+        {
+            return html;
+        }
+
+        if (html.Contains($"name=\"{DocsStaticPartialsMetaName}\"", StringComparison.OrdinalIgnoreCase))
+        {
+            return html;
+        }
+
+        var headCloseIndex = html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase);
+        if (headCloseIndex >= 0)
+        {
+            return html.Insert(headCloseIndex, DocsStaticPartialsMetaTag);
+        }
+
+        return DocsStaticPartialsMetaTag + html;
     }
 
     private static int FindMatchingTurboFrameEnd(string html, int scanStart)

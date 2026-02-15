@@ -4,6 +4,9 @@
   const topResults = 8;
   const fetchTimeoutMs = 10000;
   const docsFrameId = 'doc-content';
+  const enableDocsPartialRewrite = Boolean(
+    document.querySelector('meta[name="rw-docs-static-partials"][content="1"]')
+  );
   const defaultSearchOptions = {
     prefix: true,
     fuzzy: 0.1,
@@ -70,6 +73,10 @@
   }
 
   function installDocsPartialHook() {
+    if (!enableDocsPartialRewrite) {
+      return;
+    }
+
     document.addEventListener('turbo:before-fetch-request', (event) => {
       const targetFrame = event.target;
       const turboFrameHeader = getHeader(event.detail?.fetchOptions?.headers, 'Turbo-Frame');

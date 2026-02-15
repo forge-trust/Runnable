@@ -445,6 +445,30 @@ public class ExportEngineTests
     }
 
     [Fact]
+    public void AddDocsStaticPartialsMarker_Should_Inject_Meta_Tag_Into_Head()
+    {
+        var html = "<html><head><title>Docs</title></head><body>content</body></html>";
+
+        var updated = ExportEngine.AddDocsStaticPartialsMarker(html);
+
+        Assert.Contains("<meta name=\"rw-docs-static-partials\" content=\"1\" />", updated);
+        Assert.Contains("</head>", updated);
+        Assert.True(
+            updated.IndexOf("rw-docs-static-partials", StringComparison.OrdinalIgnoreCase)
+            < updated.IndexOf("</head>", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AddDocsStaticPartialsMarker_Should_Be_Idempotent()
+    {
+        var html = "<html><head><meta name=\"rw-docs-static-partials\" content=\"1\" /></head><body>content</body></html>";
+
+        var updated = ExportEngine.AddDocsStaticPartialsMarker(html);
+
+        Assert.Equal(1, updated.Split("rw-docs-static-partials", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Export_Docs_Partial_Fragments()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -470,6 +494,9 @@ public class ExportEngineTests
             Assert.Contains("<turbo-frame id=\"doc-content\">", partialHtml);
             Assert.Contains("<turbo-frame id=\"nested-frame\"><p>Nested doc frame</p></turbo-frame>", partialHtml);
             Assert.DoesNotContain("<html", partialHtml, StringComparison.OrdinalIgnoreCase);
+
+            var fullHtml = await File.ReadAllTextAsync(fullPagePath);
+            Assert.Contains("<meta name=\"rw-docs-static-partials\" content=\"1\" />", fullHtml);
         }
         finally
         {

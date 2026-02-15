@@ -770,8 +770,18 @@ public class CSharpDocHarvester : IDocHarvester
 
     private static string GetNamespaceName(SyntaxNode node)
     {
-        var namespaceDeclaration = node.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault();
-        return namespaceDeclaration?.Name.ToString() ?? "Global";
+        var namespaceParts = node.Ancestors()
+            .OfType<BaseNamespaceDeclarationSyntax>()
+            .Select(n => n.Name.ToString())
+            .Reverse()
+            .ToList();
+
+        if (namespaceParts.Count == 0)
+        {
+            return "Global";
+        }
+
+        return string.Join(".", namespaceParts);
     }
 
     private static string BuildNamespaceDocPath(string namespaceName)

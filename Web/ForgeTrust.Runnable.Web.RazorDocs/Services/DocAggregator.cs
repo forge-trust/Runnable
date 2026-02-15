@@ -188,7 +188,7 @@ public class DocAggregator
 
             if (!string.IsNullOrWhiteSpace(readmeNode.Content))
             {
-                var mergedContent = $"<section class='doc-namespace-intro'>{readmeNode.Content}</section>{namespaceNode.Content}";
+                var mergedContent = MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
                 var mergedNamespaceNode = new DocNode(
                     namespaceNode.Title,
                     namespaceNode.Path,
@@ -208,6 +208,39 @@ public class DocAggregator
 
             nodes.RemoveAll(n => string.Equals(n.Path, readmeNode.Path, StringComparison.OrdinalIgnoreCase));
         }
+    }
+
+    private static string MergeNamespaceIntroIntoContent(string namespaceContent, string readmeContent)
+    {
+        var introSection = $"<section class='doc-namespace-intro'>{readmeContent}</section>";
+        const string namespaceGroupsClassMarker = "doc-namespace-groups";
+
+        var classMarkerIndex = namespaceContent.IndexOf(namespaceGroupsClassMarker, StringComparison.Ordinal);
+        if (classMarkerIndex < 0)
+        {
+            return introSection + namespaceContent;
+        }
+
+        var sectionStart = namespaceContent.LastIndexOf("<section", classMarkerIndex, StringComparison.OrdinalIgnoreCase);
+        if (sectionStart < 0)
+        {
+            return introSection + namespaceContent;
+        }
+
+        var sectionStartTagEnd = namespaceContent.IndexOf('>', classMarkerIndex);
+        if (sectionStartTagEnd < 0)
+        {
+            return introSection + namespaceContent;
+        }
+
+        var groupEnd = namespaceContent.IndexOf("</section>", sectionStartTagEnd, StringComparison.OrdinalIgnoreCase);
+        if (groupEnd < 0)
+        {
+            return introSection + namespaceContent;
+        }
+
+        var insertAt = groupEnd + "</section>".Length;
+        return namespaceContent.Insert(insertAt, introSection);
     }
 
     private static bool IsReadmePath(string path)

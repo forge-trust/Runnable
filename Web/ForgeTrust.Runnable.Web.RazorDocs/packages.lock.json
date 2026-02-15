@@ -54,6 +54,12 @@
           "Microsoft.CodeAnalysis.Analyzers": "3.11.0"
         }
       },
+      "forgetrust.runnable.caching": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeTrust.Runnable.Core": "[1.0.0, )"
+        }
+      },
       "forgetrust.runnable.core": {
         "type": "Project"
       },

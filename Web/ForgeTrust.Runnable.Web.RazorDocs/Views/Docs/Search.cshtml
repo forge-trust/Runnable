@@ -1,0 +1,24 @@
+@{
+    ViewData["Title"] = "Search";
+}
+
+<div id="docs-search-page" class="docs-search-page">
+    <header class="mb-6">
+        <h1 class="text-3xl font-bold text-white tracking-tight mb-2">Search Documentation</h1>
+        <p class="text-slate-400">Search all indexed documentation pages.</p>
+    </header>
+
+    <div class="docs-search-page-input-wrap">
+        <label for="docs-search-page-input" class="sr-only">Search query</label>
+        <input id="docs-search-page-input"
+               type="search"
+               placeholder="Type to search..."
+               autocomplete="off"
+               aria-label="Search query" />
+    </div>
+
+    <p id="docs-search-page-status" class="docs-search-page-status" aria-live="polite">
+        Type to search across documentation.
+    </p>
+    <section id="docs-search-page-results" aria-label="Search results"></section>
+</div>

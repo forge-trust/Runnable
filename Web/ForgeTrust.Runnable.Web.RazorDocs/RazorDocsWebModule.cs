@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Core;
+using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -20,7 +21,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// Registers services required by the RazorDocs module into the provided service collection.
     /// </summary>
     /// <remarks>
-    /// Adds an in-memory cache, HTML sanitizer, Markdown and C# harvesters, and the documentation aggregator.
+    /// Adds HTML sanitizer, Markdown and C# harvesters, and the documentation aggregator.
     /// </remarks>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
@@ -54,6 +55,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <param name="builder">The dependency builder used to register required modules.</param>
     public void RegisterDependentModules(ModuleDependencyBuilder builder)
     {
+        builder.AddModule<RunnableCachingModule>();
         builder.AddModule<RazorWireWebModule>();
     }
 
@@ -99,6 +101,24 @@ public class RazorDocsWebModule : IRunnableWebModule
             {
                 controller = "Docs",
                 action = "Index"
+            });
+
+        endpoints.MapControllerRoute(
+            name: "razordocs_search",
+            pattern: "docs/search",
+            defaults: new
+            {
+                controller = "Docs",
+                action = "Search"
+            });
+
+        endpoints.MapControllerRoute(
+            name: "razordocs_search_index",
+            pattern: "docs/search-index.json",
+            defaults: new
+            {
+                controller = "Docs",
+                action = "SearchIndex"
             });
 
         endpoints.MapControllerRoute(

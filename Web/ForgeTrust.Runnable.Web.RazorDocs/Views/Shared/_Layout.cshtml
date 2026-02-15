@@ -304,7 +304,11 @@
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         }
     </style>
+    <link rel="stylesheet" href="~/docs/search.css" />
+    <link rel="preload" href="~/docs/search-index.json" as="fetch" crossorigin="use-credentials" />
     <rw:scripts/>
+    <script src="~/docs/minisearch.min.js" defer></script>
+    <script src="~/docs/search-client.js" defer></script>
 </head>
 <body class="h-full flex flex-col text-slate-200 overflow-hidden">
 <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:p-4 focus:bg-slate-900 focus:text-white">Skip to content</a>
@@ -314,6 +318,22 @@
         <div class="p-6">
             <a href="/docs" class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 RazorDocs
+            </a>
+        </div>
+        <div id="docs-search-shell" class="px-4 pb-2">
+            <label for="docs-search-input" class="sr-only">Search docs</label>
+            <input id="docs-search-input"
+                   type="search"
+                   placeholder="Search docs..."
+                   aria-label="Search documentation"
+                   aria-autocomplete="list"
+                   aria-controls="docs-search-results"
+                   role="combobox"
+                   autocomplete="off" />
+            <p id="docs-search-status" class="mt-1 text-xs text-slate-500" aria-live="polite"></p>
+            <ul id="docs-search-results" class="hidden" role="listbox" aria-label="Search results"></ul>
+            <a href="/docs/search" class="mt-2 inline-block text-xs text-cyan-400 hover:text-cyan-300">
+                Advanced search
             </a>
         </div>
         <nav class="flex-grow overflow-y-auto px-4 pb-4 space-y-1" aria-label="Documentation navigation">

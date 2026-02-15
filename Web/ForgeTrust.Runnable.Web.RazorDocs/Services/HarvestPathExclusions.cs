@@ -16,22 +16,28 @@ internal static class HarvestPathExclusions
     {
     };
 
-    public static bool ShouldExclude(string path)
+    // File paths should be filtered by directory segments only so dot-prefixed files are still included.
+    public static bool ShouldExcludeFilePath(string filePath)
     {
-        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(filePath);
 
-        var segments = path.Split(
+        var segments = filePath.Split(
             [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/'],
             StringSplitOptions.RemoveEmptyEntries);
 
-        foreach (var segment in segments)
+        if (segments.Length <= 1)
         {
-            if (ExcludedDirectories.Contains(segment))
+            return false;
+        }
+
+        foreach (var directorySegment in segments[..^1])
+        {
+            if (ExcludedDirectories.Contains(directorySegment))
             {
                 return true;
             }
 
-            if (segment.StartsWith('.') && !AllowedHiddenDirectories.Contains(segment))
+            if (directorySegment.StartsWith('.') && !AllowedHiddenDirectories.Contains(directorySegment))
             {
                 return true;
             }

@@ -76,6 +76,20 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldIncludeDotPrefixedFiles()
+    {
+        // Arrange
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, ".hidden.md"), "# Hidden");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        Assert.Single(results);
+        Assert.Contains(results, n => n.Title == ".hidden");
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldParseMarkdownToHtml()
     {
         // Arrange

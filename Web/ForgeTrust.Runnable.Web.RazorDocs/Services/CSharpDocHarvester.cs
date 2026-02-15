@@ -30,6 +30,9 @@ public class CSharpDocHarvester : IDocHarvester
     /// <param name="rootPath">The root directory to recursively scan for .cs files.</param>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>A collection of DocNode objects; each contains a title, a relative file path including a fragment anchor, and the extracted HTML documentation.</returns>
+    /// <remarks>
+    /// Skips files in excluded directories (for example "node_modules", "bin", "obj", and "Tests") and hidden dot-prefixed directories unless explicitly allowlisted. Dot-prefixed files are included.
+    /// </remarks>
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
     {
         var nodes = new List<DocNode>();
@@ -41,7 +44,7 @@ public class CSharpDocHarvester : IDocHarvester
 
             var relativePath = Path.GetRelativePath(rootPath, file)
                 .Replace('\\', '/'); // Normalize to forward slashes for URLs
-            if (HarvestPathExclusions.ShouldExclude(relativePath))
+            if (HarvestPathExclusions.ShouldExcludeFilePath(relativePath))
             {
                 continue;
             }

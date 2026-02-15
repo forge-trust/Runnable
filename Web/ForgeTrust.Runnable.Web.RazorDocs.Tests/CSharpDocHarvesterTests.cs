@@ -89,6 +89,22 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldIncludeDotPrefixedFiles()
+    {
+        // Arrange
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, ".hidden.cs"),
+            "/// <summary>Hidden docs</summary>\npublic class Hidden {}");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        Assert.Contains(results, n => n.Path == ".hidden.cs");
+        Assert.Contains(results, n => n.Title == ".hidden");
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldExtractDocumentationFromDifferentTypes()
     {
         // Arrange

@@ -1,8 +1,10 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -416,6 +418,120 @@ public class PropertyDocs
         Assert.Contains("<span class=\"sig-type\">string</span> <span class=\"sig-parameter\">Name</span> <span class=\"sig-operator\">{ get; }</span>", namespaceNode.Content);
         Assert.Contains("Count docs.", namespaceNode.Content);
         Assert.Contains("Name docs.", namespaceNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldHandleXmlEdgeCases_AndSkipEmptyDocPayloads()
+    {
+        // Arrange
+        var code = @"
+using System.Runtime.CompilerServices;
+namespace Test;
+public class EdgeCases
+{
+    /// <summary>
+    /// Edge content <paramref/> with <typeparamref/>.
+    /// <list>
+    /// <item>Raw list entry</item>
+    /// </list>
+    /// </summary>
+    /// <typeparam>Unnamed generic docs.</typeparam>
+    /// <param name=""value"">Value docs.</param>
+    /// <exception>Unknown failure.</exception>
+    public void Mixed<T>(int value) { }
+
+    /// <summary>Suffix caller attributes.</summary>
+    public void SuffixAttrs([CallerFilePathAttribute] string source = """", [CallerLineNumberAttribute] int line = 0) { }
+
+    /// <param name=""callerFilePath"">Ignored path.</param>
+    /// <param name=""callerLineNumber"">Ignored line.</param>
+    public void Filtered([CallerFilePath] string callerFilePath = """", [CallerLineNumber] int callerLineNumber = 0) { }
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "EdgeCases.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        // Assert
+        Assert.Contains("Mixed", namespaceNode.Content);
+        Assert.Contains("SuffixAttrs", namespaceNode.Content);
+        Assert.Contains("Raw list entry", namespaceNode.Content);
+        Assert.Contains("Unknown failure.", namespaceNode.Content);
+        Assert.DoesNotContain("<code></code>", namespaceNode.Content);
+        Assert.DoesNotContain("Filtered", namespaceNode.Content);
+    }
+
+    [Fact]
+    public void PrivateHelpers_ShouldHandleNullAndWhitespaceBranches()
+    {
+        // Arrange
+        var typelessParameter = SyntaxFactory.Parameter(SyntaxFactory.Identifier("value"));
+        var typelessMethod = SyntaxFactory.MethodDeclaration(
+                SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword)),
+                "Compute")
+            .WithParameterList(
+                SyntaxFactory.ParameterList(
+                    SyntaxFactory.SingletonSeparatedList(typelessParameter)));
+
+        // Act: typeless method parameter falls back to object.
+        var getMethodSignatureAndId = typeof(CSharpDocHarvester).GetMethod(
+            "GetMethodSignatureAndId",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var signatureResult = (ValueTuple<string, string>)getMethodSignatureAndId.Invoke(
+            null,
+            new object?[] { typelessMethod, "Test.EdgeCases" })!;
+
+        var appendHighlightedParameter = typeof(CSharpDocHarvester).GetMethod(
+            "AppendHighlightedParameter",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var signatureBuilder = new StringBuilder();
+        appendHighlightedParameter.Invoke(null, new object?[] { signatureBuilder, typelessParameter });
+
+        var getPropertyAccessorSignature = typeof(CSharpDocHarvester).GetMethod(
+            "GetPropertyAccessorSignature",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var propertyWithoutAccessor = SyntaxFactory.PropertyDeclaration(
+            SyntaxFactory.ParseTypeName("int"),
+            "Count");
+        var propertyWithEmptyAccessorList = propertyWithoutAccessor.WithAccessorList(SyntaxFactory.AccessorList());
+        var nullAccessorSignature = (string)getPropertyAccessorSignature.Invoke(
+            null,
+            new object?[] { propertyWithoutAccessor })!;
+        var emptyAccessorSignature = (string)getPropertyAccessorSignature.Invoke(
+            null,
+            new object?[] { propertyWithEmptyAccessorList })!;
+
+        var simplifyCref = typeof(CSharpDocHarvester).GetMethod(
+            "SimplifyCref",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var simplifiedShortCref = (string?)simplifyCref.Invoke(null, new object?[] { "T:" });
+
+        var buildNamespaceDocPath = typeof(CSharpDocHarvester).GetMethod(
+            "BuildNamespaceDocPath",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var rootNamespacePath = (string)buildNamespaceDocPath.Invoke(null, new object?[] { "   " })!;
+
+        var getOrCreateNamespacePage = typeof(CSharpDocHarvester).GetMethod(
+            "GetOrCreateNamespacePage",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var namespacePageType = getOrCreateNamespacePage.GetParameters()[0].ParameterType.GenericTypeArguments[1];
+        var dictionaryType = typeof(Dictionary<,>).MakeGenericType(typeof(string), namespacePageType);
+        var namespacePages = Activator.CreateInstance(dictionaryType)!;
+        var namespacePage = getOrCreateNamespacePage.Invoke(null, new object?[] { namespacePages, "   " })!;
+        var namespacePath = (string?)namespacePage.GetType()
+            .GetProperty("Path", BindingFlags.Instance | BindingFlags.Public)!
+            .GetValue(namespacePage);
+
+        // Assert
+        Assert.Contains("object", signatureResult.Item1);
+        Assert.Contains("<span class=\"sig-type\">object</span>", signatureBuilder.ToString());
+        Assert.Equal(string.Empty, nullAccessorSignature);
+        Assert.Equal(string.Empty, emptyAccessorSignature);
+        Assert.Equal("T:", simplifiedShortCref);
+        Assert.Equal("Namespaces", rootNamespacePath);
+        Assert.Equal("Namespaces/Global", namespacePath);
     }
 
     [Fact]

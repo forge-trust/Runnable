@@ -118,7 +118,7 @@ public class DocAggregator
     /// </returns>
     private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync(CancellationToken cancellationToken = default)
     {
-        return await _cache.GetOrCreateAsync(
+        return (await _cache.GetOrCreateAsync(
                    CacheKey,
                    async entry =>
                    {
@@ -180,7 +180,7 @@ public class DocAggregator
                                return g.First();
                            })
                            .ToDictionary(n => n.Path, n => n);
-                   }) ?? new Dictionary<string, DocNode>();
+                   }))!;
     }
 
     private static void MergeNamespaceReadmes(List<DocNode> nodes)
@@ -320,7 +320,7 @@ public class DocAggregator
             }
         }
 
-        return parts.Length == 0 ? null : parts[^1];
+        return parts.LastOrDefault();
     }
 
     private static string NormalizeLookupPath(string path)
@@ -362,7 +362,12 @@ public class DocAggregator
             return "index.html" + fragment;
         }
 
-        var directory = Path.GetDirectoryName(trimmed)?.Replace('\\', '/');
+        var directory = Path.GetDirectoryName(trimmed);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            directory = directory.Replace('\\', '/');
+        }
+
         var fileName = Path.GetFileName(trimmed);
         var safeFileName = fileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
             ? fileName

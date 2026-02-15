@@ -427,6 +427,73 @@ public class DocAggregatorTests : IDisposable
         Assert.Null(namespaceName);
     }
 
+    [Fact]
+    public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenConfigIsMissing()
+    {
+        // Arrange
+        var localConfig = A.Fake<Ext_IConfiguration>();
+        A.CallTo(() => localConfig["RepositoryRoot"]).Returns(null);
+        var localEnv = A.Fake<IWebHostEnvironment>();
+        var contentRoot = Path.Combine(Path.GetTempPath(), "repo-fallback-root");
+        A.CallTo(() => localEnv.ContentRootPath).Returns(contentRoot);
+        var expectedRoot = ForgeTrust.Runnable.Core.PathUtils.FindRepositoryRoot(contentRoot);
+        string? capturedRoot = null;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Invokes((string root, CancellationToken _) => capturedRoot = root)
+            .Returns(Enumerable.Empty<DocNode>());
+        var aggregator = new DocAggregator(
+            new[] { _harvesterFake },
+            localConfig,
+            localEnv,
+            _cache,
+            _sanitizerFake,
+            _loggerFake);
+
+        // Act
+        _ = await aggregator.GetDocsAsync();
+
+        // Assert
+        Assert.Equal(expectedRoot, capturedRoot);
+    }
+
+    [Fact]
+    public async Task GetDocByPathAsync_ShouldUsePathFallback_WhenCachedCanonicalPathIsNull()
+    {
+        // Arrange
+        _cache.Set(
+            "HarvestedDocs",
+            new Dictionary<string, DocNode>
+            {
+                { "docs/service.cs#DoWork", new DocNode("Method", "docs/service.cs#DoWork", "content") }
+            });
+
+        // Act
+        var result = await _aggregator.GetDocByPathAsync("DOCS/service.cs#DoWork");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Method", result!.Title);
+    }
+
+    [Fact]
+    public async Task BuildCanonicalPath_ShouldNotAppendHtml_WhenSourceAlreadyHtml()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("AlreadyHtml", "docs/page.html", "content"),
+            new("RootHtml", "index.html", "content")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        Assert.Contains(docs, d => d.Path == "docs/page.html" && d.CanonicalPath == "docs/page.html");
+        Assert.Contains(docs, d => d.Path == "index.html" && d.CanonicalPath == "index.html");
+    }
+
     public void Dispose()
     {
         _cache.Dispose();

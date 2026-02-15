@@ -61,6 +61,19 @@ dotnet build
 dotnet test --no-build
 ```
 
+Run merged solution coverage (product assemblies only):
+
+```bash
+./scripts/coverage-solution.sh
+```
+
+This command:
+- Runs each solution test project.
+- Collects coverage only for `ForgeTrust.Runnable.*` modules.
+- Excludes test modules (`*.Tests` and `*.IntegrationTests`) from coverage.
+- Produces one merged Cobertura file at `TestResults/coverage-merged/coverage.cobertura.xml`.
+- Writes a summary to `TestResults/coverage-merged/summary.txt`.
+
 Check out the examples to see how modules are composed in practice:
 
 ```bash

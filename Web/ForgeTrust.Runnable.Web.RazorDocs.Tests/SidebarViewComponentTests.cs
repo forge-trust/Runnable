@@ -363,46 +363,4 @@ public class SidebarViewComponentTests
         Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, prefixes);
     }
 
-    [Fact]
-    public async Task InvokeAsync_ShouldHandleNullPrefixSection_FromMockedConfiguration()
-    {
-        // Arrange
-        var harvester = A.Fake<IDocHarvester>();
-        var config = A.Fake<ExtIConfiguration>();
-        var env = A.Fake<IWebHostEnvironment>();
-        var sanitizer = A.Fake<IHtmlSanitizer>();
-        var logger = A.Fake<ILogger<DocAggregator>>();
-        using var cache = new MemoryCache(new MemoryCacheOptions());
-
-        A.CallTo(() => config.GetSection("RazorDocs:Sidebar:NamespacePrefixes")).Returns(null!);
-        A.CallTo(() => env.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizer.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string html, string _, IMarkupFormatter _) => html);
-
-        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
-            .Returns(
-                new[]
-                {
-                    new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
-                    new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
-                });
-
-        var aggregator = new DocAggregator(
-            new[] { harvester },
-            config,
-            env,
-            cache,
-            sanitizer,
-            logger);
-
-        var component = new SidebarViewComponent(aggregator, config);
-
-        // Act
-        var result = await component.InvokeAsync();
-
-        // Assert
-        var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-        var prefixes = Assert.IsType<string[]>(viewResult.ViewData!["NamespacePrefixes"]);
-        Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, prefixes);
-    }
 }

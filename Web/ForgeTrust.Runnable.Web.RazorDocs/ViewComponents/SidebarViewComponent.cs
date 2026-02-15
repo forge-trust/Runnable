@@ -23,12 +23,6 @@ public class SidebarViewComponent : ViewComponent
     {
         _aggregator = aggregator;
         var prefixSection = configuration.GetSection("RazorDocs:Sidebar:NamespacePrefixes");
-        if (prefixSection is null)
-        {
-            _namespacePrefixes = [];
-            return;
-        }
-
         _namespacePrefixes = prefixSection
             .GetChildren()
             .Select(child => child.Value)

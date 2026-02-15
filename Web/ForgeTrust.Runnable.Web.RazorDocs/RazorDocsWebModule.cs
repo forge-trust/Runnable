@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Core;
+using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -34,6 +35,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <param name="builder">The dependency builder used to register required modules.</param>
     public void RegisterDependentModules(ModuleDependencyBuilder builder)
     {
+        builder.AddModule<RunnableCachingModule>();
         builder.AddModule<RazorWireWebModule>();
     }
 

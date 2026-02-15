@@ -40,6 +40,7 @@
   }
 
   function formatQueryForStatus(value) {
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: strips non-printable control characters from status text
     return normalizeQuery(value).replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ');
   }
 
@@ -149,8 +150,7 @@
 
     sidebarInput.addEventListener('keydown', (event) => {
       const currentQuery = normalizeQuery(sidebarInput.value);
-      if (currentQuery !== lastRenderedQuery)
-      {
+      if (currentQuery !== lastRenderedQuery) {
         const refreshed = query(currentQuery, topResults);
         activeIndex = refreshed.length > 0 ? 0 : -1;
         renderSidebarResults(refreshed, currentQuery, activeIndex);
@@ -166,12 +166,10 @@
         event.preventDefault();
         activeIndex = Math.min(activeIndex + 1, items.length - 1);
         setActiveSidebarOption(items, activeIndex);
-        focusSidebarOption(items, activeIndex);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         activeIndex = Math.max(activeIndex - 1, 0);
         setActiveSidebarOption(items, activeIndex);
-        focusSidebarOption(items, activeIndex);
       } else if (event.key === 'Enter') {
         if (activeIndex >= 0 && items[activeIndex]) {
           event.preventDefault();
@@ -183,6 +181,7 @@
       } else if (event.key === 'Escape') {
         sidebarResults.innerHTML = '';
         sidebarResults.classList.add('hidden');
+        sidebarInput.removeAttribute('aria-activedescendant');
       }
     });
   }
@@ -225,6 +224,7 @@
     if (!q || !q.trim()) {
       sidebarResults.innerHTML = '';
       sidebarResults.classList.add('hidden');
+      sidebarInput?.removeAttribute('aria-activedescendant');
       setStatus(sidebarStatus, '');
       return;
     }
@@ -232,6 +232,7 @@
     if (!results.length) {
       sidebarResults.classList.remove('hidden');
       sidebarResults.innerHTML = '<li class="docs-search-empty" role="option">No matching docs found.</li>';
+      sidebarInput?.removeAttribute('aria-activedescendant');
       setStatus(sidebarStatus, 'No matching docs found.');
       return;
     }
@@ -239,7 +240,7 @@
     sidebarResults.classList.remove('hidden');
     sidebarResults.innerHTML = results.map((item, index) => {
       const selected = index === activeIndex ? 'true' : 'false';
-      return `<li role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
+      return `<li id="docs-search-option-${index}" role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
         <a href="${escapeHtml(item.path)}" data-turbo-frame="doc-content" data-turbo-action="advance">
           <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
           <span class="docs-search-option-path">${escapeHtml(item.path)}</span>
@@ -256,12 +257,11 @@
       item.setAttribute('aria-selected', selected ? 'true' : 'false');
       item.classList.toggle('active', selected);
     });
-  }
 
-  function focusSidebarOption(items, activeIndex) {
-    const activeItem = items[activeIndex];
-    if (activeItem && typeof activeItem.focus === 'function') {
-      activeItem.focus();
+    if (activeIndex >= 0 && items[activeIndex] && sidebarInput) {
+      sidebarInput.setAttribute('aria-activedescendant', items[activeIndex].id);
+    } else {
+      sidebarInput?.removeAttribute('aria-activedescendant');
     }
   }
 

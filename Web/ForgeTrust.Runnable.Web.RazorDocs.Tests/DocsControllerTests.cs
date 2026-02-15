@@ -1,5 +1,6 @@
 using AngleSharp;
 using FakeItEasy;
+using ForgeTrust.Runnable.Caching;
 using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -9,6 +10,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -19,6 +22,7 @@ public class DocsControllerTests : IDisposable
     private readonly DocsController _controller;
     private readonly IDocHarvester _harvesterFake;
     private readonly IMemoryCache _cache;
+    private readonly IMemo _memo;
 
     public DocsControllerTests()
     {
@@ -45,7 +49,8 @@ public class DocsControllerTests : IDisposable
             loggerFake
         );
 
-        _controller = new DocsController(_aggregator, _cache, controllerLoggerFake)
+        _memo = new Memo(_cache);
+        _controller = new DocsController(_aggregator, _memo, controllerLoggerFake)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -149,6 +154,52 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchIndex_ShouldSetCacheControlHeader()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        _ = await _controller.SearchIndex();
+
+        Assert.Equal("public,max-age=300", _controller.Response.Headers.CacheControl.ToString());
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldRefreshCache_WhenAuthenticatedRefreshRequested()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var first = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var firstPayload = JsonSerializer.Serialize(first.Value);
+        using var firstDoc = JsonDocument.Parse(firstPayload);
+        var firstGenerated = firstDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        var refreshedHttpContext = new DefaultHttpContext();
+        refreshedHttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, "test-user") },
+            authenticationType: "test-auth"));
+        refreshedHttpContext.Request.Query = new QueryCollection(new Dictionary<string, StringValues>
+        {
+            ["refresh"] = "1"
+        });
+        _controller.ControllerContext = new ControllerContext { HttpContext = refreshedHttpContext };
+
+        var second = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var secondPayload = JsonSerializer.Serialize(second.Value);
+        using var secondDoc = JsonDocument.Parse(secondPayload);
+        var secondGenerated = secondDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        Assert.NotEqual(firstGenerated, secondGenerated);
+    }
+
+    [Fact]
     public async Task SearchIndex_ShouldEncodeDocPathInUrl()
     {
         var docs = new List<DocNode>
@@ -198,6 +249,11 @@ public class DocsControllerTests : IDisposable
 
     public void Dispose()
     {
+        if (_memo is IDisposable disposableMemo)
+        {
+            disposableMemo.Dispose();
+        }
+
         _cache.Dispose();
     }
 }

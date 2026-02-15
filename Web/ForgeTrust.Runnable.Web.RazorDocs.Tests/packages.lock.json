@@ -108,6 +108,14 @@
         "resolved": "17.14.1",
         "contentHash": "pmTrhfFIoplzFVbhVwUquT+77CbGH+h4/3mBpdmIlYtBi9nAB+kKI6dN3A/nV4DFi3wLLx/BlHIPK+MkbQ6Tpg=="
       },
+      "Microsoft.Extensions.Caching.Abstractions": {
+        "type": "Transitive",
+        "resolved": "9.0.6",
+        "contentHash": "bL/xQsVNrdVkzjP5yjX4ndkQ03H3+Bk3qPpl+AMCEJR2RkfgAYmoQ/xXffPV7is64+QHShnhA12YAaFmNbfM+A==",
+        "dependencies": {
+          "Microsoft.Extensions.Primitives": "9.0.6"
+        }
+      },
       "Microsoft.Extensions.Configuration": {
         "type": "Transitive",
         "resolved": "9.0.6",
@@ -409,6 +417,13 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "forgetrust.runnable.caching": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeTrust.Runnable.Core": "[1.0.0, )",
+          "Microsoft.Extensions.Caching.Memory": "[9.0.6, )"
+        }
+      },
       "forgetrust.runnable.core": {
         "type": "Project",
         "dependencies": {
@@ -425,6 +440,7 @@
       "forgetrust.runnable.web.razordocs": {
         "type": "Project",
         "dependencies": {
+          "ForgeTrust.Runnable.Caching": "[1.0.0, )",
           "ForgeTrust.Runnable.Web.RazorWire": "[1.0.0, )",
           "HtmlSanitizer": "[9.0.892, )",
           "Markdig": "[0.44.0, )",
@@ -490,6 +506,19 @@
           "Microsoft.AspNetCore.Razor.Language": "6.0.36",
           "Microsoft.CodeAnalysis.CSharp": "4.0.0",
           "Microsoft.CodeAnalysis.Common": "4.0.0"
+        }
+      },
+      "Microsoft.Extensions.Caching.Memory": {
+        "type": "CentralTransitive",
+        "requested": "[9.0.6, )",
+        "resolved": "9.0.6",
+        "contentHash": "qPW2d798tBPZcRmrlaBJqyChf2+0odDdE+0Lxvrr0ywkSNl1oNMK8AKrOfDwyXyjuLCv0ua7p6nrUExCeXhCcg==",
+        "dependencies": {
+          "Microsoft.Extensions.Caching.Abstractions": "9.0.6",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "9.0.6",
+          "Microsoft.Extensions.Logging.Abstractions": "9.0.6",
+          "Microsoft.Extensions.Options": "9.0.6",
+          "Microsoft.Extensions.Primitives": "9.0.6"
         }
       },
       "Microsoft.Extensions.DependencyModel": {

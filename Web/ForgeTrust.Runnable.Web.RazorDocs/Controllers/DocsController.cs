@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Primitives;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -14,8 +14,9 @@ public class DocsController : Controller
 {
     // Bound per-document heading volume so search-index size stays predictable for large docs sets.
     private const int MaxHeadingsPerDocument = 24;
-    private const string SearchIndexCacheKey = "RazorDocs:SearchIndexPayload";
     private static readonly TimeSpan SearchIndexCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly CachePolicy SearchIndexCachePolicy = CachePolicy.Absolute(SearchIndexCacheDuration);
+    private static int _searchIndexGeneration;
 
     private static readonly Regex ScriptOrStyleRegex = new(
         "<script[^>]*>[\\s\\S]*?</script>|<style[^>]*>[\\s\\S]*?</style>",
@@ -31,22 +32,22 @@ public class DocsController : Controller
 
     private static readonly Regex MultiSpaceRegex = new(
         "\\s+",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled | RegexOptions.NonBacktracking);
 
     private readonly DocAggregator _aggregator;
-    private readonly IMemoryCache _cache;
+    private readonly IMemo _memo;
     private readonly ILogger<DocsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of <see cref="DocsController"/> with the specified documentation aggregator.
     /// </summary>
     /// <param name="aggregator">Service used to retrieve documentation items.</param>
-    /// <param name="cache">Memory cache used for search index payload reuse.</param>
+    /// <param name="memo">Memoized cache used for search index payload reuse.</param>
     /// <param name="logger">Logger used for search index diagnostics.</param>
-    public DocsController(DocAggregator aggregator, IMemoryCache cache, ILogger<DocsController> logger)
+    public DocsController(DocAggregator aggregator, IMemo memo, ILogger<DocsController> logger)
     {
         _aggregator = aggregator ?? throw new ArgumentNullException(nameof(aggregator));
-        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _memo = memo ?? throw new ArgumentNullException(nameof(memo));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -98,13 +99,13 @@ public class DocsController : Controller
     [HttpGet]
     public async Task<IActionResult> SearchIndex()
     {
-        // Manual invalidation hook for operators: /docs/search-index.json?refresh=1
+        // Manual invalidation hook for operators: /docs/search-index.json?refresh=1|true
         if (ShouldRefreshCache(Request.Query))
         {
             if (CanRefreshCache())
             {
-                _cache.Remove(SearchIndexCacheKey);
-                _logger.LogInformation("Search index cache manually refreshed by an authenticated user.");
+                Interlocked.Increment(ref _searchIndexGeneration);
+                _logger.LogInformation("Search index cache generation bumped by an authenticated user.");
             }
             else
             {
@@ -112,63 +113,68 @@ public class DocsController : Controller
             }
         }
 
-        if (_cache.TryGetValue(SearchIndexCacheKey, out object? cachedPayload)
-            && cachedPayload != null)
-        {
-            return Json(cachedPayload);
-        }
+        // Browser/proxy hint aligned to memoized server-side TTL.
+        Response.Headers.CacheControl = $"public,max-age={(int)SearchIndexCacheDuration.TotalSeconds}";
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var docs = await _aggregator.GetDocsAsync(HttpContext.RequestAborted);
-        var records = docs
-            .Select(d =>
+        var cacheGeneration = Volatile.Read(ref _searchIndexGeneration);
+        var payload = await _memo.GetAsync(
+            cacheGeneration,
+            async (_, ct) =>
             {
-                var content = d.Content ?? string.Empty;
-                var bodyText = NormalizeText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content, string.Empty), " "));
-                var snippet = TruncateAtWordBoundary(bodyText, 220);
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var docs = await _aggregator.GetDocsAsync(ct);
+                var records = docs
+                    .Select(d =>
+                    {
+                        var content = d.Content ?? string.Empty;
+                        var bodyText = NormalizeText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content, string.Empty), " "));
+                        var snippet = TruncateAtWordBoundary(bodyText, 220);
 
-                var headings = H2H3Regex.Matches(content)
-                    .Select(m => NormalizeText(TagRegex.Replace(m.Groups[1].Value, " ")))
-                    .Where(h => !string.IsNullOrWhiteSpace(h))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(MaxHeadingsPerDocument)
+                        var headings = H2H3Regex.Matches(content)
+                            .Select(m => NormalizeText(TagRegex.Replace(m.Groups[1].Value, " ")))
+                            .Where(h => !string.IsNullOrWhiteSpace(h))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .Take(MaxHeadingsPerDocument)
+                            .ToList();
+
+                        return new
+                        {
+                            id = d.Path,
+                            path = BuildDocUrl(d.Path),
+                            title = d.Title,
+                            headings,
+                            bodyText,
+                            snippet
+                        };
+                    })
+                    .Where(r => !string.IsNullOrWhiteSpace(r.title) || !string.IsNullOrWhiteSpace(r.bodyText))
+                    .GroupBy(r => r.path, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .OrderBy(r => r.path, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
-                return new
+                var computedPayload = (object)new
                 {
-                    id = d.Path,
-                    path = BuildDocUrl(d.Path),
-                    title = d.Title,
-                    headings,
-                    bodyText,
-                    snippet
+                    metadata = new
+                    {
+                        generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+                        version = "1",
+                        engine = "minisearch"
+                    },
+                    documents = records
                 };
-            })
-            .Where(r => !string.IsNullOrWhiteSpace(r.title) || !string.IsNullOrWhiteSpace(r.bodyText))
-            .GroupBy(r => r.path, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .OrderBy(r => r.path, StringComparer.OrdinalIgnoreCase)
-            .ToList();
 
-        var payload = new
-        {
-            metadata = new
-            {
-                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
-                version = "1",
-                engine = "minisearch"
+                sw.Stop();
+                _logger.LogInformation(
+                    "Generated docs search index in {ElapsedMs} ms with {DocumentCount} records. Cache TTL: {CacheMinutes} minutes.",
+                    sw.ElapsedMilliseconds,
+                    records.Count,
+                    SearchIndexCacheDuration.TotalMinutes);
+
+                return computedPayload;
             },
-            documents = records
-        };
-
-        _cache.Set(SearchIndexCacheKey, payload, SearchIndexCacheDuration);
-
-        sw.Stop();
-        _logger.LogInformation(
-            "Generated docs search index in {ElapsedMs} ms with {DocumentCount} records. Cache TTL: {CacheMinutes} minutes.",
-            sw.ElapsedMilliseconds,
-            records.Count,
-            SearchIndexCacheDuration.TotalMinutes);
+            policy: SearchIndexCachePolicy,
+            cancellationToken: HttpContext.RequestAborted);
 
         return Json(payload);
     }

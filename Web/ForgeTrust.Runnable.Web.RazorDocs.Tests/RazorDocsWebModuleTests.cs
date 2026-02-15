@@ -1,4 +1,5 @@
 using FakeItEasy;
+using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -36,6 +37,16 @@ public class RazorDocsWebModuleTests
 
         // Assert
         Assert.Contains(builder.Modules, m => m is RazorWireWebModule);
+    }
+
+    [Fact]
+    public void RegisterDependentModules_ShouldAddCachingModule()
+    {
+        var builder = new ModuleDependencyBuilder();
+
+        _module.RegisterDependentModules(builder);
+
+        Assert.Contains(builder.Modules, m => m is RunnableCachingModule);
     }
 
 

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ForgeTrust.Runnable.Web.RazorWire\ForgeTrust.Runnable.Web.RazorWire.csproj" />
+    <ProjectReference Include="..\..\Caching\ForgeTrust.Runnable.Caching\ForgeTrust.Runnable.Caching.csproj" />
   </ItemGroup>
 
   <ItemGroup>

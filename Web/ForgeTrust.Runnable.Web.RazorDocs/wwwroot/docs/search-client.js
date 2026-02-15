@@ -52,7 +52,14 @@
     }
 
     if (typeof headers === 'object') {
-      return headers[name] ?? headers[name.toLowerCase()] ?? null;
+      const targetName = String(name).toLowerCase();
+      for (const key of Object.keys(headers)) {
+        if (key.toLowerCase() === targetName) {
+          return headers[key] ?? null;
+        }
+      }
+
+      return null;
     }
 
     return null;
@@ -152,9 +159,14 @@
         return;
       }
 
-      const canonicalUrl = toUrl(event.detail?.url);
+      const requestUrl = event.detail?.url;
+      const canonicalUrl = toUrl(requestUrl);
       const partialUrl = toDocsPartialUrl(canonicalUrl);
       if (!partialUrl) {
+        return;
+      }
+
+      if (!(requestUrl instanceof URL)) {
         return;
       }
 
@@ -165,7 +177,9 @@
         docsFrame.setAttribute('data-rw-canonical-url', canonicalUrl.toString());
       }
 
-      event.detail.url = partialUrl;
+      requestUrl.pathname = partialUrl.pathname;
+      requestUrl.search = partialUrl.search;
+      requestUrl.hash = partialUrl.hash;
     });
 
     document.addEventListener('turbo:frame-load', (event) => {

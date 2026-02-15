@@ -452,6 +452,7 @@ public class ExportEngineTests
         var updated = ExportEngine.AddDocsStaticPartialsMarker(html);
 
         Assert.Contains("<meta name=\"rw-docs-static-partials\" content=\"1\" />", updated);
+        Assert.Contains($"{Environment.NewLine}<meta name=\"rw-docs-static-partials\" content=\"1\" />", updated);
         Assert.Contains("</head>", updated);
         Assert.True(
             updated.IndexOf("rw-docs-static-partials", StringComparison.OrdinalIgnoreCase)
@@ -469,12 +470,22 @@ public class ExportEngineTests
     }
 
     [Fact]
+    public void AddDocsStaticPartialsMarker_Should_Prepend_Marker_With_Newline_When_No_Head()
+    {
+        var html = "<html><body>content</body></html>";
+
+        var updated = ExportEngine.AddDocsStaticPartialsMarker(html);
+
+        Assert.StartsWith($"{Environment.NewLine}<meta name=\"rw-docs-static-partials\" content=\"1\" />", updated);
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Export_Docs_Partial_Fragments()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var seedFile = Path.Combine(tempDir, "seeds.txt");
         Directory.CreateDirectory(tempDir);
-        await File.WriteAllLinesAsync(seedFile, ["/docs/start"]);
+        await File.WriteAllLinesAsync(seedFile, ["/docs/start", "/docs"]);
 
         try
         {
@@ -486,9 +497,15 @@ public class ExportEngineTests
 
             var fullPagePath = Path.Combine(tempDir, "docs", "start.html");
             var partialPath = Path.Combine(tempDir, "docs", "start.partial.html");
+            var docsLandingPath = Path.Combine(tempDir, "docs.html");
+            var docsLandingPartialPath = Path.Combine(tempDir, "docs.partial.html");
 
             Assert.True(File.Exists(fullPagePath), "Expected docs full page export.");
             Assert.True(File.Exists(partialPath), "Expected docs partial export.");
+            Assert.True(File.Exists(docsLandingPath), "Expected /docs full page export.");
+            Assert.False(
+                File.Exists(docsLandingPartialPath),
+                "Did not expect /docs partial export without a doc-content frame.");
 
             var partialHtml = await File.ReadAllTextAsync(partialPath);
             Assert.Contains("<turbo-frame id=\"doc-content\">", partialHtml);
@@ -646,6 +663,22 @@ public class ExportEngineTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri?.AbsolutePath ?? "/";
+            if (path == "/docs")
+            {
+                var html = """
+                    <html>
+                      <body>
+                        <main>Docs landing page</main>
+                        <a href="/docs/start">Start</a>
+                      </body>
+                    </html>
+                    """;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
+                });
+            }
+
             if (path == "/docs/start")
             {
                 var html = """

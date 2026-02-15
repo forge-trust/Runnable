@@ -332,13 +332,14 @@ public class ExportEngine
             return html;
         }
 
+        var markerWithLeadingNewline = Environment.NewLine + DocsStaticPartialsMetaTag;
         var headCloseIndex = html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase);
         if (headCloseIndex >= 0)
         {
-            return html.Insert(headCloseIndex, DocsStaticPartialsMetaTag);
+            return html.Insert(headCloseIndex, markerWithLeadingNewline);
         }
 
-        return DocsStaticPartialsMetaTag + html;
+        return markerWithLeadingNewline + html;
     }
 
     private static int FindMatchingTurboFrameEnd(string html, int scanStart)

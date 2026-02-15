@@ -173,9 +173,14 @@
       } else if (event.key === 'Enter') {
         if (activeIndex >= 0 && items[activeIndex]) {
           event.preventDefault();
-          const href = items[activeIndex].getAttribute('data-href');
-          if (href) {
-            window.location.assign(href);
+          const anchor = items[activeIndex].querySelector('a');
+          if (anchor && typeof anchor.click === 'function') {
+            anchor.click();
+          } else {
+            const href = items[activeIndex].getAttribute('data-href');
+            if (href) {
+              window.location.assign(href);
+            }
           }
         }
       } else if (event.key === 'Escape') {
@@ -260,6 +265,7 @@
 
     if (activeIndex >= 0 && items[activeIndex] && sidebarInput) {
       sidebarInput.setAttribute('aria-activedescendant', items[activeIndex].id);
+      items[activeIndex].scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     } else {
       sidebarInput?.removeAttribute('aria-activedescendant');
     }
@@ -300,5 +306,5 @@
     }
   }
 
-  init();
+  init().catch((err) => console.error('Search init failed:', err));
 })();

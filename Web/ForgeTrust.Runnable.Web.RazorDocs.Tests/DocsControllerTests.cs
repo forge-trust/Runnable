@@ -101,6 +101,18 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Details_ShouldReturnTurboFramePartial_WhenTrailingSlashPartialPathRequested()
+    {
+        var docs = new List<DocNode> { new("Title", "target-path", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("target-path/index.partial.html");
+
+        var partial = Assert.IsType<PartialViewResult>(result);
+        Assert.Equal("RazorWire/_TurboFrame", partial.ViewName);
+    }
+
+    [Fact]
     public async Task Details_ShouldReturnNotFound_WhenDocDoesNotExist()
     {
         // Arrange

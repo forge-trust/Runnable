@@ -85,6 +85,17 @@ public class DocsController : Controller
         }
 
         var doc = await _aggregator.GetDocByPathAsync(resolvedPath, HttpContext.RequestAborted);
+        if (doc == null
+            && servesPartial
+            && resolvedPath.EndsWith("/index", StringComparison.OrdinalIgnoreCase))
+        {
+            var fallbackPath = resolvedPath[..^"/index".Length];
+            if (!string.IsNullOrWhiteSpace(fallbackPath))
+            {
+                doc = await _aggregator.GetDocByPathAsync(fallbackPath, HttpContext.RequestAborted);
+            }
+        }
+
         if (doc == null)
         {
             return NotFound();

@@ -10,7 +10,6 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 [ExcludeFromCodeCoverage]
 public class MarkdownHarvester : IDocHarvester
 {
-    private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj" };
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
 
@@ -33,7 +32,7 @@ public class MarkdownHarvester : IDocHarvester
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>A collection of DocNode objects representing each processed Markdown file, containing the display title, path relative to <paramref name="rootPath"/>, and generated HTML.</returns>
     /// <remarks>
-    /// Skips files inside directories named "node_modules", "bin", or "obj". If a file's name is "README" (case-insensitive), its title is set to the parent directory name or "Home" for a repository root README. Files that fail to process are skipped and an error is logged.
+    /// Skips files in excluded directories (for example "node_modules", "bin", "obj") and hidden dot-prefixed directories unless explicitly allowlisted. If a file's name is "README" (case-insensitive), its title is set to the parent directory name or "Home" for a repository root README. Files that fail to process are skipped and an error is logged.
     /// </remarks>
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
     {
@@ -46,8 +45,7 @@ public class MarkdownHarvester : IDocHarvester
             try
             {
                 var relativePath = Path.GetRelativePath(rootPath, file).Replace('\\', '/');
-                var segments = relativePath.Split('/');
-                if (segments.Any(s => ExcludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
+                if (HarvestPathExclusions.ShouldExclude(relativePath))
                 {
                     continue;
                 }

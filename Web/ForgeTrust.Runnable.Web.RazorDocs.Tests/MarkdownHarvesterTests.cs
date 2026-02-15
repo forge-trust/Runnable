@@ -40,6 +40,42 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldIgnoreCommonAgentDirectories()
+    {
+        // Arrange
+        var agentDir = Path.Combine(_testRoot, ".claude");
+        Directory.CreateDirectory(agentDir);
+        await File.WriteAllTextAsync(Path.Combine(agentDir, "Ignored.md"), "# Agent");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Included.md"), "# Included");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        Assert.Single(results);
+        Assert.Contains(results, n => n.Title == "Included");
+        Assert.DoesNotContain(results, n => n.Title == "Ignored");
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldIgnoreDotPrefixedDirectories_IncludingGithub()
+    {
+        // Arrange
+        var hiddenDir = Path.Combine(_testRoot, ".github");
+        Directory.CreateDirectory(hiddenDir);
+        await File.WriteAllTextAsync(Path.Combine(hiddenDir, "Ignored.md"), "# Ignored");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Included.md"), "# Included");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        Assert.Single(results);
+        Assert.Contains(results, n => n.Title == "Included");
+        Assert.DoesNotContain(results, n => n.Title == "Ignored");
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldParseMarkdownToHtml()
     {
         // Arrange

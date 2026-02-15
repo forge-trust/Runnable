@@ -15,7 +15,6 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 public class CSharpDocHarvester : IDocHarvester
 {
     private readonly ILogger<CSharpDocHarvester> _logger;
-    private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj", "Tests" };
 
     /// <summary>
     /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the provided logger.
@@ -40,8 +39,9 @@ public class CSharpDocHarvester : IDocHarvester
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var segments = file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (segments.Any(s => ExcludedDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
+            var relativePath = Path.GetRelativePath(rootPath, file)
+                .Replace('\\', '/'); // Normalize to forward slashes for URLs
+            if (HarvestPathExclusions.ShouldExclude(relativePath))
             {
                 continue;
             }
@@ -51,8 +51,6 @@ public class CSharpDocHarvester : IDocHarvester
                 var code = await File.ReadAllTextAsync(file, cancellationToken);
                 var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
                 var root = await tree.GetRootAsync(cancellationToken);
-                var relativePath = Path.GetRelativePath(rootPath, file)
-                    .Replace('\\', '/'); // Normalize to forward slashes for URLs
 
                 var fileContent = new StringBuilder();
                 var hasAnyDoc = false;

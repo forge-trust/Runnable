@@ -381,7 +381,9 @@
             }
 
             const targetUrl = new URL(anchorLink.href, window.location.origin);
-            if (targetUrl.pathname !== window.location.pathname || !targetUrl.hash) {
+            if (targetUrl.pathname !== window.location.pathname
+                || targetUrl.search !== window.location.search
+                || !targetUrl.hash) {
                 return;
             }
 
@@ -399,7 +401,10 @@
 
             event.preventDefault();
             history.replaceState(null, "", targetUrl.hash);
-            target.scrollIntoView({ behavior: "smooth", block: "start" });
+            const prefersReducedMotion = window.matchMedia
+                && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            const scrollBehavior = prefersReducedMotion ? "auto" : "smooth";
+            target.scrollIntoView({ behavior: scrollBehavior, block: "start" });
         });
     })();
 </script>

@@ -35,6 +35,8 @@ public class CSharpDocHarvester : IDocHarvester
     public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
     {
         var nodes = new List<DocNode>();
+        var stubNodes = new List<DocNode>();
+        var namespacePages = new Dictionary<string, NamespaceDocPage>(StringComparer.OrdinalIgnoreCase);
         var csFiles = Directory.EnumerateFiles(rootPath, "*.cs", SearchOption.AllDirectories);
 
         foreach (var file in csFiles)
@@ -52,55 +54,12 @@ public class CSharpDocHarvester : IDocHarvester
                 var code = await File.ReadAllTextAsync(file, cancellationToken);
                 var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
                 var root = await tree.GetRootAsync(cancellationToken);
-                var relativePath = Path.GetRelativePath(rootPath, file)
-                    .Replace('\\', '/'); // Normalize to forward slashes for URLs
-
-                var fileContent = new StringBuilder();
-                var hasAnyDoc = false;
-                var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file);
-
-                // Collect stub nodes during content generation to avoid duplicate computation
-                var stubNodes = new List<DocNode>();
 
                 // Capture Classes, Structs, Interfaces, Records
                 var typeDeclarations = root.DescendantNodes().OfType<TypeDeclarationSyntax>().ToList();
                 foreach (var typeDecl in typeDeclarations)
                 {
                     var doc = ExtractDoc(typeDecl);
-                    var qualifiedTypeName = GetQualifiedName(typeDecl);
-                    var typeDisplayName = GetDisplayTypeName(typeDecl);
-                    var typeId = StringUtils.ToSafeId(qualifiedTypeName);
-
-                    if (doc != null)
-                    {
-                        hasAnyDoc = true;
-
-                        fileContent.Append(
-                            $@"<section id=""{typeId}"" class=""doc-type"">
-                            <header class=""doc-type-header"">
-                                <span class=""doc-kind"">Type</span>
-                                <h2>{WebUtility.HtmlEncode(typeDisplayName)}</h2>
-                            </header>
-                            <div class=""doc-body"">
-                                {doc}
-                            </div>
-                        </section>");
-
-                        // Add type stub if name doesn't match filename
-                        if (!string.Equals(
-                                typeDecl.Identifier.Text,
-                                fileNameWithoutExt,
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            stubNodes.Add(
-                                new DocNode(
-                                    typeDisplayName,
-                                    relativePath + "#" + typeId,
-                                    string.Empty,
-                                    relativePath));
-                        }
-                    }
-
                     var documentedMethods = typeDecl.Members
                         .OfType<MethodDeclarationSyntax>()
                         .Select(
@@ -112,57 +71,83 @@ public class CSharpDocHarvester : IDocHarvester
                         .Where(x => x.Doc != null)
                         .ToList();
 
-                    if (documentedMethods.Count == 0)
+                    if (doc == null && documentedMethods.Count == 0)
                     {
                         continue;
                     }
 
-                    hasAnyDoc = true;
+                    var qualifiedTypeName = GetQualifiedName(typeDecl);
+                    var typeDisplayName = GetDisplayTypeName(typeDecl);
+                    var typeId = StringUtils.ToSafeId(qualifiedTypeName);
+                    var namespacePage = GetOrCreateNamespacePage(namespacePages, GetNamespaceName(typeDecl));
+
+                    namespacePage.HasAnyDoc = true;
+                    namespacePage.Content.Append(
+                        $@"<section id=""{typeId}"" class=""doc-type"">
+                        <header class=""doc-type-header"">
+                            <span class=""doc-kind"">Type</span>
+                            <h2>{WebUtility.HtmlEncode(typeDisplayName)}</h2>
+                        </header>");
+
+                    if (!string.IsNullOrWhiteSpace(doc))
+                    {
+                        namespacePage.Content.Append(
+                            $@"<div class=""doc-body"">
+                            {doc}
+                        </div>");
+                    }
+
+                    stubNodes.Add(
+                        new DocNode(
+                            typeDisplayName,
+                            namespacePage.Path + "#" + typeId,
+                            string.Empty,
+                            namespacePage.Path));
 
                     foreach (var methodGroup in documentedMethods.GroupBy(x => x.Method.Identifier.Text))
                     {
                         var overloadCount = methodGroup.Count();
-                        var overloadText = overloadCount == 1 ? "1 overload" : $"{overloadCount} overloads";
 
-                        fileContent.Append(
+                        namespacePage.Content.Append(
                             $@"<section class=""doc-method-group"">
                             <header class=""doc-method-group-header"">
                                 <span class=""doc-kind"">Method</span>
-                                <h3>{WebUtility.HtmlEncode(methodGroup.Key)}</h3>
-                                <span class=""doc-overload-count"">{WebUtility.HtmlEncode(overloadText)}</span>
-                            </header>");
+                                <h3>{WebUtility.HtmlEncode(methodGroup.Key)}</h3>");
+
+                        if (overloadCount > 1)
+                        {
+                            namespacePage.Content.Append(
+                                $@"<span class=""doc-overload-count"">{WebUtility.HtmlEncode($"{overloadCount} overloads")}</span>");
+                        }
+
+                        namespacePage.Content.Append("</header>");
 
                         var index = 0;
                         foreach (var methodItem in methodGroup)
                         {
                             var method = methodItem.Method;
                             var methodDoc = methodItem.Doc!;
-                            var (signature, id) = GetMethodSignatureAndId(method, qualifiedTypeName);
-                            var displaySignature = GetDisplaySignature(method);
+                            var (_, id) = GetMethodSignatureAndId(method, qualifiedTypeName);
+                            var highlightedDisplaySignature = GetHighlightedDisplaySignature(method);
                             var openAttribute = index == 0 ? " open" : string.Empty;
 
-                            fileContent.Append(
+                            namespacePage.Content.Append(
                                 $@"<details id=""{id}"" class=""doc-overload""{openAttribute}>
                                 <summary>
-                                    <code>{WebUtility.HtmlEncode(displaySignature)}</code>
+                                    <code class=""doc-signature"">{highlightedDisplaySignature}</code>
                                 </summary>
                                 <div class=""doc-overload-body"">
                                     {methodDoc}
                                 </div>
                             </details>");
 
-                            stubNodes.Add(
-                                new DocNode(
-                                    signature,
-                                    relativePath + "#" + id,
-                                    string.Empty,
-                                    relativePath));
-
                             index++;
                         }
 
-                        fileContent.Append("</section>");
+                        namespacePage.Content.Append("</section>");
                     }
+
+                    namespacePage.Content.Append("</section>");
                 }
 
                 // Capture Enums
@@ -172,11 +157,12 @@ public class CSharpDocHarvester : IDocHarvester
                     var doc = ExtractDoc(enumDecl);
                     if (doc != null)
                     {
-                        hasAnyDoc = true;
+                        var namespacePage = GetOrCreateNamespacePage(namespacePages, GetNamespaceName(enumDecl));
+                        namespacePage.HasAnyDoc = true;
                         var qualifiedName = GetQualifiedName(enumDecl);
                         var enumId = StringUtils.ToSafeId(qualifiedName);
 
-                        fileContent.Append(
+                        namespacePage.Content.Append(
                             $@"<section id=""{enumId}"" class=""doc-type doc-enum"">
                             <header class=""doc-type-header"">
                                 <span class=""doc-kind"">Enum</span>
@@ -187,33 +173,13 @@ public class CSharpDocHarvester : IDocHarvester
                             </div>
                         </section>");
 
-                        // Add enum stub if name doesn't match filename
-                        if (!string.Equals(
+                        stubNodes.Add(
+                            new DocNode(
                                 enumDecl.Identifier.Text,
-                                fileNameWithoutExt,
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            stubNodes.Add(
-                                new DocNode(
-                                    enumDecl.Identifier.Text,
-                                    relativePath + "#" + enumId,
-                                    string.Empty,
-                                    relativePath));
-                        }
+                                namespacePage.Path + "#" + enumId,
+                                string.Empty,
+                                namespacePage.Path));
                     }
-                }
-
-                if (hasAnyDoc)
-                {
-                    // Add the main file node
-                    nodes.Add(
-                        new DocNode(
-                            fileNameWithoutExt,
-                            relativePath,
-                            fileContent.ToString()));
-
-                    // Add all collected stubs
-                    nodes.AddRange(stubNodes);
                 }
             }
             catch (Exception ex)
@@ -221,6 +187,22 @@ public class CSharpDocHarvester : IDocHarvester
                 _logger.LogError(ex, "Failed to parse C# file: {File}", file);
             }
         }
+
+        foreach (var namespacePage in namespacePages.Values.OrderBy(p => p.Path, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!namespacePage.HasAnyDoc)
+            {
+                continue;
+            }
+
+            nodes.Add(
+                new DocNode(
+                    namespacePage.Title,
+                    namespacePage.Path,
+                    namespacePage.Content.ToString()));
+        }
+
+        nodes.AddRange(stubNodes);
 
         return nodes;
     }
@@ -250,19 +232,63 @@ public class CSharpDocHarvester : IDocHarvester
         return (signature, id);
     }
 
-    private static string GetDisplaySignature(MethodDeclarationSyntax method)
+    private static string GetHighlightedDisplaySignature(MethodDeclarationSyntax method)
     {
-        var paramList = string.Join(
-            ", ",
-            method.ParameterList.Parameters
-                .Where(p => !IsCompilerGeneratedCallerParameter(p))
-                .Select(FormatParameterForDisplay));
+        var builder = new StringBuilder();
+        var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim();
 
-        var typeParams = method.TypeParameterList?.ToString().Trim() ?? string.Empty;
-        var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? string.Empty;
-        var methodName = explicitInterface + method.Identifier.Text + typeParams;
+        builder.Append($@"<span class=""sig-return"">{WebUtility.HtmlEncode(method.ReturnType.ToString())}</span> ");
+        if (!string.IsNullOrEmpty(explicitInterface))
+        {
+            builder.Append($@"<span class=""sig-type"">{WebUtility.HtmlEncode(explicitInterface)}</span>");
+        }
 
-        return $"{method.ReturnType} {methodName}({paramList})";
+        builder.Append($@"<span class=""sig-method"">{WebUtility.HtmlEncode(method.Identifier.Text)}</span>");
+
+        if (method.TypeParameterList is { Parameters.Count: > 0 } typeParams)
+        {
+            var typeParamDisplay = string.Join(", ", typeParams.Parameters.Select(p => p.Identifier.Text));
+            builder.Append($@"<span class=""sig-generic"">&lt;{WebUtility.HtmlEncode(typeParamDisplay)}&gt;</span>");
+        }
+
+        builder.Append("(");
+        var parameters = method.ParameterList.Parameters
+            .Where(p => !IsCompilerGeneratedCallerParameter(p))
+            .ToList();
+
+        for (var i = 0; i < parameters.Count; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(", ");
+            }
+
+            AppendHighlightedParameter(builder, parameters[i]);
+        }
+
+        builder.Append(")");
+
+        return builder.ToString();
+    }
+
+    private static void AppendHighlightedParameter(StringBuilder builder, ParameterSyntax parameter)
+    {
+        var modifier = parameter.Modifiers.ToString().Trim();
+        if (!string.IsNullOrWhiteSpace(modifier))
+        {
+            builder.Append($@"<span class=""sig-modifier"">{WebUtility.HtmlEncode(modifier)}</span> ");
+        }
+
+        var type = parameter.Type?.ToString() ?? "object";
+        builder.Append($@"<span class=""sig-type"">{WebUtility.HtmlEncode(type)}</span> ");
+        builder.Append($@"<span class=""sig-parameter"">{WebUtility.HtmlEncode(parameter.Identifier.Text)}</span>");
+
+        var defaultValue = parameter.Default?.Value.ToString();
+        if (!string.IsNullOrWhiteSpace(defaultValue))
+        {
+            builder.Append(@" <span class=""sig-operator"">=</span> ");
+            builder.Append($@"<span class=""sig-literal"">{WebUtility.HtmlEncode(defaultValue)}</span>");
+        }
     }
 
     private static string GetDisplayTypeName(TypeDeclarationSyntax typeDecl)
@@ -281,23 +307,6 @@ public class CSharpDocHarvester : IDocHarvester
     {
         var arity = typeDecl.TypeParameterList?.Parameters.Count ?? 0;
         return arity > 0 ? $"{typeDecl.Identifier.Text}`{arity}" : typeDecl.Identifier.Text;
-    }
-
-    private static string FormatParameterForDisplay(ParameterSyntax parameter)
-    {
-        var prefix = parameter.Modifiers.ToString().Trim();
-        var type = parameter.Type?.ToString() ?? "object";
-        var defaultValue = parameter.Default?.Value.ToString();
-        var parameterDisplay = string.IsNullOrEmpty(prefix)
-            ? $"{type} {parameter.Identifier.Text}"
-            : $"{prefix} {type} {parameter.Identifier.Text}";
-
-        if (!string.IsNullOrEmpty(defaultValue))
-        {
-            parameterDisplay += $" = {defaultValue}";
-        }
-
-        return parameterDisplay;
     }
 
     private static bool IsCompilerGeneratedCallerParameter(ParameterSyntax parameter)
@@ -582,6 +591,33 @@ public class CSharpDocHarvester : IDocHarvester
         return parameterName is "callerFilePath" or "callerLineNumber";
     }
 
+    private static NamespaceDocPage GetOrCreateNamespacePage(
+        IDictionary<string, NamespaceDocPage> namespacePages,
+        string namespaceName)
+    {
+        var normalizedNamespace = string.IsNullOrWhiteSpace(namespaceName) ? "Global" : namespaceName.Trim();
+        var path = BuildNamespaceDocPath(normalizedNamespace);
+
+        if (!namespacePages.TryGetValue(path, out var page))
+        {
+            page = new NamespaceDocPage(normalizedNamespace, path);
+            namespacePages[path] = page;
+        }
+
+        return page;
+    }
+
+    private static string GetNamespaceName(SyntaxNode node)
+    {
+        var namespaceDeclaration = node.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault();
+        return namespaceDeclaration?.Name.ToString() ?? "Global";
+    }
+
+    private static string BuildNamespaceDocPath(string namespaceName)
+    {
+        return $"Namespaces/{namespaceName}";
+    }
+
     /// <summary>
     /// Builds the dot-delimited qualified name for a type or enum declaration, including enclosing types and namespaces.
     /// </summary>
@@ -615,5 +651,22 @@ public class CSharpDocHarvester : IDocHarvester
         }
 
         return string.Join(".", parts);
+    }
+
+    private sealed class NamespaceDocPage
+    {
+        public NamespaceDocPage(string title, string path)
+        {
+            Title = title;
+            Path = path;
+        }
+
+        public string Title { get; }
+
+        public string Path { get; }
+
+        public StringBuilder Content { get; } = new();
+
+        public bool HasAnyDoc { get; set; }
     }
 }

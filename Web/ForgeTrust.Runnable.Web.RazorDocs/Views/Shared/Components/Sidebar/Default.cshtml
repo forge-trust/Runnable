@@ -16,7 +16,9 @@
                     </a>
 
                     @{
-                        var subItems = group.Where(d => d.ParentPath == docNode.Path).ToList();
+                        var subItems = group
+                            .Where(d => d.ParentPath == docNode.Path && !d.Title.Contains('('))
+                            .ToList();
                         if (subItems.Any())
                         {
                             <ul class="ml-4 mt-1 space-y-0.5 border-l border-slate-800">

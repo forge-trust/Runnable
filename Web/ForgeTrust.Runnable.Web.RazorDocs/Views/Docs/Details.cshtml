@@ -1,7 +1,8 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode
 @{
     ViewData["Title"] = Model.Title;
-    var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+    var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                         || Model.Path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
 }
 
 <header class="@(isCSharpApiDoc ? "mb-5" : "mb-8")">

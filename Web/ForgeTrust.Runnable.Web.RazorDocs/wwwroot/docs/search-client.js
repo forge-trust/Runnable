@@ -22,6 +22,26 @@
   const pageResults = document.getElementById('docs-search-page-results');
   const pageStatus = document.getElementById('docs-search-page-status');
 
+  function toUrl(urlLike) {
+    if (!urlLike) {
+      return null;
+    }
+
+    try {
+      if (urlLike instanceof URL) {
+        return new URL(urlLike.toString());
+      }
+
+      return new URL(String(urlLike), window.location.href);
+    } catch {
+      return null;
+    }
+  }
+
+  function isDocsPath(path) {
+    return path === '/docs' || path.startsWith('/docs/');
+  }
+
   function getHeader(headers, name) {
     if (!headers) {
       return null;
@@ -39,14 +59,14 @@
   }
 
   function toDocsPartialUrl(urlLike) {
-    if (!urlLike) {
+    const url = toUrl(urlLike);
+    if (!url) {
       return null;
     }
 
-    const url = urlLike instanceof URL ? new URL(urlLike.toString()) : new URL(String(urlLike), window.location.href);
     const path = url.pathname;
 
-    if (!(path === '/docs' || path.startsWith('/docs/'))) {
+    if (!isDocsPath(path)) {
       return null;
     }
 
@@ -72,6 +92,53 @@
     return url;
   }
 
+  function toDocsCanonicalUrl(urlLike) {
+    const url = toUrl(urlLike);
+    if (!url) {
+      return null;
+    }
+
+    const path = url.pathname;
+    if (!isDocsPath(path) || !path.endsWith('.partial.html')) {
+      return url;
+    }
+
+    let canonicalPath;
+    if (path.endsWith('/index.partial.html')) {
+      canonicalPath = path.slice(0, -'/index.partial.html'.length);
+    } else {
+      canonicalPath = path.slice(0, -'.partial.html'.length);
+      if (canonicalPath.endsWith('/index')) {
+        canonicalPath = canonicalPath.slice(0, -'/index'.length);
+      }
+    }
+
+    url.pathname = canonicalPath || '/docs';
+    return url;
+  }
+
+  function replaceBrowserUrl(urlLike) {
+    const nextUrl = toUrl(urlLike);
+    if (!nextUrl || nextUrl.origin !== window.location.origin) {
+      return;
+    }
+
+    const currentUrl = new URL(window.location.href);
+    if (
+      currentUrl.pathname === nextUrl.pathname
+      && currentUrl.search === nextUrl.search
+      && currentUrl.hash === nextUrl.hash
+    ) {
+      return;
+    }
+
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+    );
+  }
+
   function installDocsPartialHook() {
     if (!enableDocsPartialRewrite) {
       return;
@@ -85,12 +152,39 @@
         return;
       }
 
-      const partialUrl = toDocsPartialUrl(event.detail?.url);
+      const canonicalUrl = toUrl(event.detail?.url);
+      const partialUrl = toDocsPartialUrl(canonicalUrl);
       if (!partialUrl) {
         return;
       }
 
+      const docsFrame = (targetFrame && targetFrame.id === docsFrameId)
+        ? targetFrame
+        : document.getElementById(docsFrameId);
+      if (docsFrame && canonicalUrl) {
+        docsFrame.setAttribute('data-rw-canonical-url', canonicalUrl.toString());
+      }
+
       event.detail.url = partialUrl;
+    });
+
+    document.addEventListener('turbo:frame-load', (event) => {
+      const frame = event.target;
+      if (!frame || frame.id !== docsFrameId) {
+        return;
+      }
+
+      const pendingCanonical = frame.getAttribute('data-rw-canonical-url');
+      if (pendingCanonical) {
+        frame.removeAttribute('data-rw-canonical-url');
+        replaceBrowserUrl(pendingCanonical);
+        return;
+      }
+
+      const canonicalUrl = toDocsCanonicalUrl(window.location.href);
+      if (canonicalUrl) {
+        replaceBrowserUrl(canonicalUrl);
+      }
     });
   }
 

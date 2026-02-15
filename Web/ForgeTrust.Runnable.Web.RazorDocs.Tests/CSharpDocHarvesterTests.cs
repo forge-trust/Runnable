@@ -46,6 +46,68 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldIgnoreCommonAgentDirectories()
+    {
+        // Arrange
+        var agentDir = Path.Combine(_testRoot, ".codex");
+        Directory.CreateDirectory(agentDir);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentDir, "AgentFile.cs"),
+            "/// <summary>Should be skipped</summary>\npublic class AgentFile {}");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "Included.cs"),
+            "/// <summary>Keep this</summary>\npublic class Included {}");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        Assert.Single(results);
+        Assert.Contains(results, n => n.Title == "Included");
+        Assert.DoesNotContain(results, n => n.Title == "AgentFile");
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldIgnoreDotPrefixedDirectories_IncludingGithub()
+    {
+        // Arrange
+        var hiddenDir = Path.Combine(_testRoot, ".github");
+        Directory.CreateDirectory(hiddenDir);
+        await File.WriteAllTextAsync(
+            Path.Combine(hiddenDir, "Ignored.cs"),
+            "/// <summary>Skip this</summary>\npublic class Ignored {}");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "Included.cs"),
+            "/// <summary>Keep this</summary>\npublic class Included {}");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        Assert.Single(results);
+        Assert.Contains(results, n => n.Title == "Included");
+        Assert.DoesNotContain(results, n => n.Title == "Ignored");
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldIncludeDotPrefixedFiles()
+    {
+        // Arrange
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, ".hidden.cs"),
+            "/// <summary>Hidden docs</summary>\npublic class Hidden {}");
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+
+        // Assert
+        Assert.Contains(results, n => n.Path == ".hidden.cs");
+        Assert.Contains(results, n => n.Title == ".hidden");
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldExtractDocumentationFromDifferentTypes()
     {
         // Arrange

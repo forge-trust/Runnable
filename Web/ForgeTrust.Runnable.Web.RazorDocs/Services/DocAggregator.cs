@@ -67,16 +67,55 @@ public class DocAggregator
         var cachedDict = await GetCachedDocsAsync(cancellationToken);
 
         var lookupPath = NormalizeLookupPath(path);
+        var lookupCanonicalPath = NormalizeCanonicalPath(path);
+        var lookupFragment = GetFragment(path);
+
         if (cachedDict.TryGetValue(lookupPath, out var directMatch))
         {
             return directMatch;
         }
 
-        return cachedDict.Values.FirstOrDefault(
+        var canonicalCandidates = cachedDict.Values
+            .Where(
+                doc => string.Equals(
+                    NormalizeLookupPath(doc.CanonicalPath ?? doc.Path),
+                    lookupPath,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (canonicalCandidates.Count == 0)
+        {
+            return null;
+        }
+
+        var exactCanonicalMatch = canonicalCandidates.FirstOrDefault(
             doc => string.Equals(
-                NormalizeLookupPath(doc.CanonicalPath ?? doc.Path),
-                lookupPath,
+                NormalizeCanonicalPath(doc.CanonicalPath ?? doc.Path),
+                lookupCanonicalPath,
                 StringComparison.OrdinalIgnoreCase));
+        if (exactCanonicalMatch != null)
+        {
+            return exactCanonicalMatch;
+        }
+
+        if (!string.IsNullOrWhiteSpace(lookupFragment))
+        {
+            var fragmentMatch = canonicalCandidates.FirstOrDefault(
+                doc => string.Equals(
+                    GetFragment(doc.CanonicalPath ?? doc.Path),
+                    lookupFragment,
+                    StringComparison.OrdinalIgnoreCase));
+            if (fragmentMatch != null)
+            {
+                return fragmentMatch;
+            }
+        }
+
+        return canonicalCandidates
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(doc.CanonicalPath ?? doc.Path)) ? 0 : 1)
+            .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
+            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
     }
 
     /// <summary>
@@ -163,6 +202,7 @@ public class DocAggregator
         var namespaceNodes = nodes
             .Where(
                 n => string.IsNullOrEmpty(n.ParentPath)
+                     && !n.Path.Contains('#')
                      && NormalizeLookupPath(n.Path).StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
             .ToDictionary(
                 n => ExtractNamespaceNameFromNamespacePath(n.Path),
@@ -307,6 +347,23 @@ public class DocAggregator
         }
 
         return sanitized;
+    }
+
+    private static string NormalizeCanonicalPath(string path)
+    {
+        return path.Trim().Trim('/').Replace('\\', '/');
+    }
+
+    private static string? GetFragment(string path)
+    {
+        var canonical = NormalizeCanonicalPath(path);
+        var hashIndex = canonical.IndexOf('#');
+        if (hashIndex < 0 || hashIndex == canonical.Length - 1)
+        {
+            return null;
+        }
+
+        return canonical[(hashIndex + 1)..];
     }
 
     private static string BuildCanonicalPath(string sourcePath)

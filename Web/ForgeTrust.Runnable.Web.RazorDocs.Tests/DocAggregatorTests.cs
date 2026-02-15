@@ -261,6 +261,26 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocByPathAsync_ShouldPreferNamespacePage_WhenCanonicalLookupHasNoFragment()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("FooType", "Namespaces/Foo#Foo-Type", string.Empty),
+            new("Foo", "Namespaces/Foo", "<p>Namespace page</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var result = await _aggregator.GetDocByPathAsync("Namespaces/Foo.html");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Namespaces/Foo", result!.Path);
+        Assert.Equal("Foo", result.Title);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldPropagateOperationCanceled_FromHarvester()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))

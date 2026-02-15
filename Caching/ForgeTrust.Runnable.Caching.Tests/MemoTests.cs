@@ -45,10 +45,12 @@ public class MemoTests : IDisposable
     {
         var memo = CreateMemo();
         var gate = new TaskCompletionSource<bool>();
+        var entered = new TaskCompletionSource<bool>();
 
         var task = memo.GetAsync(
             async () =>
             {
+                entered.SetResult(true);
                 await gate.Task;
 
                 return 1;
@@ -56,7 +58,7 @@ public class MemoTests : IDisposable
             CachePolicy.Absolute(TimeSpan.FromMinutes(1)));
 
         // Wait to ensure it's inside the factory
-        await Task.Delay(50);
+        await entered.Task;
 
         memo.Dispose();
         gate.SetResult(true);

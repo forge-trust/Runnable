@@ -63,8 +63,9 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        Assert.Single(results);
-        Assert.Contains(results, n => n.Title == "Included");
+        Assert.Contains(results, n => n.Path == "Namespaces" && n.Title == "Namespaces");
+        Assert.Contains(results, n => n.Path == "Namespaces/Global" && n.Title == "Global");
+        Assert.Contains(results, n => n.Title == "Included" && n.ParentPath == "Namespaces/Global");
         Assert.DoesNotContain(results, n => n.Title == "AgentFile");
     }
 
@@ -86,8 +87,9 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        Assert.Single(results);
-        Assert.Contains(results, n => n.Title == "Included");
+        Assert.Contains(results, n => n.Path == "Namespaces" && n.Title == "Namespaces");
+        Assert.Contains(results, n => n.Path == "Namespaces/Global" && n.Title == "Global");
+        Assert.Contains(results, n => n.Title == "Included" && n.ParentPath == "Namespaces/Global");
         Assert.DoesNotContain(results, n => n.Title == "Ignored");
     }
 
@@ -103,8 +105,11 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        Assert.Contains(results, n => n.Path == ".hidden.cs");
-        Assert.Contains(results, n => n.Title == ".hidden");
+        Assert.Contains(results, n => n.Path == "Namespaces" && n.Title == "Namespaces");
+        Assert.Contains(results, n => n.Path == "Namespaces/Global" && n.Title == "Global");
+        Assert.Contains(results, n => n.Title == "Hidden" && n.ParentPath == "Namespaces/Global");
+        var globalPage = results.Single(n => n.Path == "Namespaces/Global");
+        Assert.Contains("Hidden docs", globalPage.Content);
     }
 
     [Fact]

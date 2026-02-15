@@ -852,8 +852,8 @@ public class MemoTests : IDisposable
 
         async Task<int> Factory()
         {
-            Interlocked.Increment(ref callCount);
-            if (callCount == 1)
+            var current = Interlocked.Increment(ref callCount);
+            if (current == 1)
             {
                 await gate.Task;
 

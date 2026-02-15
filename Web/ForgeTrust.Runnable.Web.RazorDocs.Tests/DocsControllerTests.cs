@@ -103,7 +103,7 @@ public class DocsControllerTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 
         // Act
-        var result = await _controller.Details("target-path_md.html");
+        var result = await _controller.Details("target-path.md.html");
 
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);

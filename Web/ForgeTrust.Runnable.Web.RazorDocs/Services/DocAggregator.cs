@@ -62,6 +62,8 @@ public class DocAggregator
     /// <returns>The <see cref="DocNode"/> if found, or <c>null</c> if no node exists for the given path.</returns>
     public async Task<DocNode?> GetDocByPathAsync(string path, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(path);
+
         var cachedDict = await GetCachedDocsAsync(cancellationToken);
 
         var lookupPath = NormalizeLookupPath(path);
@@ -175,7 +177,9 @@ public class DocAggregator
 
         var directory = Path.GetDirectoryName(trimmed)?.Replace('\\', '/');
         var fileName = Path.GetFileName(trimmed);
-        var safeFileName = fileName.Replace(".", "_", StringComparison.Ordinal) + ".html";
+        var safeFileName = fileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+            ? fileName
+            : fileName + ".html";
         return (string.IsNullOrEmpty(directory) ? safeFileName : $"{directory}/{safeFileName}") + fragment;
     }
 }

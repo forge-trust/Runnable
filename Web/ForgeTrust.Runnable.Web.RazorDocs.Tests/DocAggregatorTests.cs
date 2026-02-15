@@ -168,6 +168,12 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocByPathAsync_WhenPathIsNull_ThrowsArgumentNullException()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => _aggregator.GetDocByPathAsync(null!));
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldExposeCanonicalHtmlPaths_AndResolveByCanonicalPath()
     {
         // Arrange
@@ -180,14 +186,14 @@ public class DocAggregatorTests : IDisposable
 
         // Act
         var docs = (await _aggregator.GetDocsAsync()).ToList();
-        var byCanonical = await _aggregator.GetDocByPathAsync("docs/readme_md.html");
-        var byCanonicalWithoutAnchor = await _aggregator.GetDocByPathAsync("docs/service_cs.html");
+        var byCanonical = await _aggregator.GetDocByPathAsync("docs/readme.md.html");
+        var byCanonicalWithoutAnchor = await _aggregator.GetDocByPathAsync("docs/service.cs.html");
 
         // Assert
-        Assert.Contains(docs, d => d.Path == "docs/readme.md" && d.CanonicalPath == "docs/readme_md.html");
+        Assert.Contains(docs, d => d.Path == "docs/readme.md" && d.CanonicalPath == "docs/readme.md.html");
         Assert.Contains(
             docs,
-            d => d.Path == "docs/service.cs#MethodId" && d.CanonicalPath == "docs/service_cs.html#MethodId");
+            d => d.Path == "docs/service.cs#MethodId" && d.CanonicalPath == "docs/service.cs.html#MethodId");
         Assert.NotNull(byCanonical);
         Assert.Equal("Guide", byCanonical!.Title);
         Assert.NotNull(byCanonicalWithoutAnchor);
@@ -246,7 +252,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var result = await _aggregator.GetDocByPathAsync("docs/service_cs.html#MethodId");
+        var result = await _aggregator.GetDocByPathAsync("docs/service.cs.html#MethodId");
 
         // Assert
         Assert.NotNull(result);
@@ -273,7 +279,26 @@ public class DocAggregatorTests : IDisposable
 
         var docs = (await _aggregator.GetDocsAsync()).ToList();
 
-        Assert.Contains(docs, d => d.Title == "RootFile" && d.CanonicalPath == "readme_md.html");
+        Assert.Contains(docs, d => d.Title == "RootFile" && d.CanonicalPath == "readme.md.html");
+    }
+
+    [Fact]
+    public async Task BuildCanonicalPath_ShouldPreserve_DotsToAvoidCollisions()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Dotdotted", "docs/readme.md", "content"),
+            new("Underscored", "docs/readme_md.md", "content"),
+            new("ApiV2", "docs/api.v2.md", "content")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+
+        Assert.Contains(docs, d => d.Path == "docs/readme.md" && d.CanonicalPath == "docs/readme.md.html");
+        Assert.Contains(docs, d => d.Path == "docs/readme_md.md" && d.CanonicalPath == "docs/readme_md.md.html");
+        Assert.Contains(docs, d => d.Path == "docs/api.v2.md" && d.CanonicalPath == "docs/api.v2.md.html");
+        Assert.NotEqual("docs/readme.md.html", "docs/readme_md.md.html");
     }
 
     [Fact]

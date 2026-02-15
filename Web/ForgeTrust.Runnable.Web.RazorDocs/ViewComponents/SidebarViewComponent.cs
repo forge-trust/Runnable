@@ -33,8 +33,14 @@ public class SidebarViewComponent : ViewComponent
     public async Task<IViewComponentResult> InvokeAsync()
     {
         var docs = await _aggregator.GetDocsAsync();
-        var groupedDocs = docs.GroupBy(d => Path.GetDirectoryName(d.Path) ?? "General")
-            .OrderBy(g => g.Key);
+        var groupedDocs = docs
+            .GroupBy(
+                d =>
+                {
+                    var directory = Path.GetDirectoryName(d.Path);
+                    return string.IsNullOrWhiteSpace(directory) ? "General" : directory;
+                })
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
 
         return View(groupedDocs);
     }

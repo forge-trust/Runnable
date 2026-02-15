@@ -5,6 +5,7 @@ using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -98,6 +99,9 @@ public class DocsControllerTests : IDisposable
 
         var partial = Assert.IsType<PartialViewResult>(result);
         Assert.Equal("RazorWire/_TurboFrame", partial.ViewName);
+        var frame = Assert.IsType<TurboFrameViewModel>(partial.Model);
+        Assert.Equal("DetailsFrame", frame.PartialView);
+        Assert.Equal("doc-content", frame.Id);
     }
 
     [Fact]
@@ -110,6 +114,9 @@ public class DocsControllerTests : IDisposable
 
         var partial = Assert.IsType<PartialViewResult>(result);
         Assert.Equal("RazorWire/_TurboFrame", partial.ViewName);
+        var frame = Assert.IsType<TurboFrameViewModel>(partial.Model);
+        Assert.Equal("DetailsFrame", frame.PartialView);
+        Assert.Equal("doc-content", frame.Id);
     }
 
     [Fact]

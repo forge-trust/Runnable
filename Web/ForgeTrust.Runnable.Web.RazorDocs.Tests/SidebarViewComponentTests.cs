@@ -52,10 +52,10 @@ public sealed class SidebarViewComponentTests
 
             var groups = model.ToList();
             var keys = groups.Select(g => g.Key).ToList();
-            var expectedOrder = keys.OrderBy(k => k).ToList();
 
-            Assert.Equal(expectedOrder, keys);
-            Assert.Contains(groups, g => g.Key == string.Empty);
+            Assert.Equal(["alpha", "General", "zeta"], keys);
+            Assert.DoesNotContain(groups, g => string.IsNullOrWhiteSpace(g.Key));
+            Assert.Contains(groups, g => g.Key == "General");
             Assert.Contains(groups, g => g.Key == "alpha");
             Assert.Contains(groups, g => g.Key == "zeta");
         }

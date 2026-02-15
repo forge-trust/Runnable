@@ -103,7 +103,7 @@ public class DocsController : Controller
 
         if (servesPartial)
         {
-            return RazorWireBridge.Frame(this, "doc-content", "Details", doc);
+            return RazorWireBridge.Frame(this, "doc-content", "DetailsFrame", doc);
         }
 
         return View(doc);

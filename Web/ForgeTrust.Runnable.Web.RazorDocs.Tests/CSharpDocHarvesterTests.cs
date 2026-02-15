@@ -2,6 +2,7 @@ using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;

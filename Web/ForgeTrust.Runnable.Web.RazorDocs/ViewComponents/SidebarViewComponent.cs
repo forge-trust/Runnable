@@ -22,11 +22,19 @@ public class SidebarViewComponent : ViewComponent
     public SidebarViewComponent(DocAggregator aggregator, IConfiguration configuration)
     {
         _aggregator = aggregator;
-        _namespacePrefixes = configuration.GetSection("RazorDocs:Sidebar:NamespacePrefixes")
-            ?.Get<string[]>()?
+        var prefixSection = configuration.GetSection("RazorDocs:Sidebar:NamespacePrefixes");
+        if (prefixSection is null)
+        {
+            _namespacePrefixes = [];
+            return;
+        }
+
+        _namespacePrefixes = prefixSection
+            .GetChildren()
+            .Select(child => child.Value)
             .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
-            .Select(prefix => prefix.Trim())
-            .ToArray() ?? [];
+            .Select(prefix => prefix!.Trim())
+            .ToArray();
     }
 
     /// <summary>

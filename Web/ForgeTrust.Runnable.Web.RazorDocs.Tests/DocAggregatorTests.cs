@@ -414,6 +414,28 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldFallbackToEmptyDictionary_WhenCacheReturnsNullValue()
+    {
+        // Arrange
+        var nullCache = A.Fake<IMemoryCache>();
+        object? cachedValue = null;
+        A.CallTo(() => nullCache.TryGetValue(A<object>._, out cachedValue)).Returns(true);
+        var aggregator = new DocAggregator(
+            Enumerable.Empty<IDocHarvester>(),
+            _configFake,
+            _envFake,
+            nullCache,
+            _sanitizerFake,
+            _loggerFake);
+
+        // Act
+        var docs = await aggregator.GetDocsAsync();
+
+        // Assert
+        Assert.Empty(docs);
+    }
+
+    [Fact]
     public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenConfigIsMissing()
     {
         // Arrange

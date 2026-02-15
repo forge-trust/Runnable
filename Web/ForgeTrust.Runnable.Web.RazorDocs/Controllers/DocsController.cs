@@ -89,6 +89,7 @@ public class DocsController : Controller
     /// <returns>A view result displaying the search page interface.</returns>
     public IActionResult Search()
     {
+        ViewData["Title"] = "Search";
         return View();
     }
 

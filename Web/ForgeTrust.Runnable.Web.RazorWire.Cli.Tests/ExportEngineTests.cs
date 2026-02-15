@@ -404,6 +404,135 @@ public class ExportEngineTests
         }
     }
 
+    [Fact]
+    public void MapHtmlFilePathToPartialPath_Should_Append_Partial_Suffix()
+    {
+        var htmlPath = Path.Combine("dist", "docs", "topic.html");
+
+        var partialPath = ExportEngine.MapHtmlFilePathToPartialPath(htmlPath);
+
+        Assert.EndsWith(Path.Combine("docs", "topic.partial.html"), partialPath);
+    }
+
+    [Fact]
+    public void ExtractDocContentFrame_Should_Return_Target_Frame_When_Present()
+    {
+        var html = "<html><body><turbo-frame id=\"doc-content\"><h1>Doc</h1></turbo-frame></body></html>";
+
+        var frame = ExportEngine.ExtractDocContentFrame(html);
+
+        Assert.Equal("<turbo-frame id=\"doc-content\"><h1>Doc</h1></turbo-frame>", frame);
+    }
+
+    [Fact]
+    public void ExtractDocContentFrame_Should_Handle_Nested_TurboFrames()
+    {
+        var html = """
+            <html><body>
+            <turbo-frame id="doc-content">
+              <h1>Doc</h1>
+              <turbo-frame id="nested"><p>Nested frame</p></turbo-frame>
+              <p>Tail</p>
+            </turbo-frame>
+            </body></html>
+            """;
+
+        var frame = ExportEngine.ExtractDocContentFrame(html);
+
+        Assert.NotNull(frame);
+        Assert.Contains("<turbo-frame id=\"nested\"><p>Nested frame</p></turbo-frame>", frame);
+        Assert.EndsWith("</turbo-frame>", frame);
+    }
+
+    [Fact]
+    public void AddDocsStaticPartialsMarker_Should_Inject_Meta_Tag_Into_Head()
+    {
+        var html = "<html><head><title>Docs</title></head><body>content</body></html>";
+
+        var updated = ExportEngine.AddDocsStaticPartialsMarker(html);
+
+        Assert.Contains("<meta name=\"rw-docs-static-partials\" content=\"1\" />", updated);
+        Assert.Contains($"{Environment.NewLine}<meta name=\"rw-docs-static-partials\" content=\"1\" />", updated);
+        Assert.Contains("</head>", updated);
+        Assert.True(
+            updated.IndexOf("rw-docs-static-partials", StringComparison.OrdinalIgnoreCase)
+            < updated.IndexOf("</head>", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AddDocsStaticPartialsMarker_Should_Be_Idempotent()
+    {
+        var html = "<html><head><meta name=\"rw-docs-static-partials\" content=\"1\" /></head><body>content</body></html>";
+
+        var updated = ExportEngine.AddDocsStaticPartialsMarker(html);
+
+        Assert.Equal(1, updated.Split("rw-docs-static-partials", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void AddDocsStaticPartialsMarker_Should_Prepend_Marker_With_Newline_When_No_Head()
+    {
+        var html = "<html><body>content</body></html>";
+
+        var updated = ExportEngine.AddDocsStaticPartialsMarker(html);
+
+        Assert.StartsWith($"{Environment.NewLine}<meta name=\"rw-docs-static-partials\" content=\"1\" />", updated);
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Export_Docs_Partial_Fragments()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var seedFile = Path.Combine(tempDir, "seeds.txt");
+        Directory.CreateDirectory(tempDir);
+        await File.WriteAllLinesAsync(seedFile, ["/docs/start", "/docs"]);
+
+        try
+        {
+            var client = new HttpClient(new DocsPartialHandler()) { BaseAddress = new Uri("http://localhost:5000") };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, seedFile, "http://localhost:5000");
+            await _sut.RunAsync(context);
+
+            var fullPagePath = Path.Combine(tempDir, "docs", "start.html");
+            var partialPath = Path.Combine(tempDir, "docs", "start.partial.html");
+            var docsLandingPath = Path.Combine(tempDir, "docs.html");
+            var docsLandingPartialPath = Path.Combine(tempDir, "docs.partial.html");
+
+            Assert.True(File.Exists(fullPagePath), "Expected docs full page export.");
+            Assert.True(File.Exists(partialPath), "Expected docs partial export.");
+            Assert.True(File.Exists(docsLandingPath), "Expected /docs full page export.");
+            Assert.False(
+                File.Exists(docsLandingPartialPath),
+                "Did not expect /docs partial export without a doc-content frame.");
+
+            var partialHtml = await File.ReadAllTextAsync(partialPath);
+            Assert.Contains("<turbo-frame id=\"doc-content\">", partialHtml);
+            Assert.Contains("<turbo-frame id=\"nested-frame\"><p>Nested doc frame</p></turbo-frame>", partialHtml);
+            Assert.DoesNotContain("<html", partialHtml, StringComparison.OrdinalIgnoreCase);
+
+            var fullHtml = await File.ReadAllTextAsync(fullPagePath);
+            Assert.Contains("<meta name=\"rw-docs-static-partials\" content=\"1\" />", fullHtml);
+
+            var nextPartialPath = Path.Combine(tempDir, "docs", "next.partial.html");
+            Assert.True(
+                File.Exists(nextPartialPath),
+                "Expected docs partial export for crawl-discovered /docs/next.");
+
+            var nextPartialHtml = await File.ReadAllTextAsync(nextPartialPath);
+            Assert.Contains("<turbo-frame id=\"doc-content\">", nextPartialHtml);
+            Assert.Contains("<article>Next doc</article>", nextPartialHtml);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
 
     private class TestHttpMessageHandler : HttpMessageHandler
     {
@@ -522,6 +651,67 @@ public class ExportEngineTests
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent("console.log('ok');", Encoding.UTF8, "text/javascript")
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class DocsPartialHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? "/";
+            if (path == "/docs")
+            {
+                var html = """
+                    <html>
+                      <body>
+                        <main>Docs landing page</main>
+                        <a href="/docs/start">Start</a>
+                      </body>
+                    </html>
+                    """;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
+                });
+            }
+
+            if (path == "/docs/start")
+            {
+                var html = """
+                    <html>
+                      <body>
+                        <turbo-frame id="doc-content">
+                          <article>Start doc</article>
+                          <turbo-frame id="nested-frame"><p>Nested doc frame</p></turbo-frame>
+                        </turbo-frame>
+                        <a href="/docs/next">Next</a>
+                      </body>
+                    </html>
+                    """;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
+                });
+            }
+
+            if (path == "/docs/next")
+            {
+                var html = """
+                    <html>
+                      <body>
+                        <turbo-frame id="doc-content">
+                          <article>Next doc</article>
+                        </turbo-frame>
+                      </body>
+                    </html>
+                    """;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
                 });
             }
 

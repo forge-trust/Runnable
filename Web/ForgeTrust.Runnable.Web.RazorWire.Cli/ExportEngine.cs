@@ -59,6 +59,17 @@ public class ExportEngine
         @"url\(\s*(['""]?)(.*?)\1\s*\)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private const string DocsStaticPartialsMetaName = "rw-docs-static-partials";
+    private const string DocsStaticPartialsMetaTag = "<meta name=\"rw-docs-static-partials\" content=\"1\" />";
+
+    private static readonly Regex TurboFrameOpenTagRegex = new(
+        @"<turbo-frame\b[^>]*>",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex DocContentFrameIdRegex = new(
+        @"\bid\s*=\s*(['""])\s*doc-content\s*\1",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ExportEngine"/> class.
     /// </summary>
@@ -206,7 +217,13 @@ public class ExportEngine
             if (isHtml)
             {
                 var html = await response.Content.ReadAsStringAsync(cancellationToken);
-                await File.WriteAllTextAsync(filePath, html, cancellationToken);
+                var htmlForWrite = IsDocsRoute(route)
+                    ? AddDocsStaticPartialsMarker(html)
+                    : html;
+                await File.WriteAllTextAsync(filePath, htmlForWrite, cancellationToken);
+
+                // Export frame fragments for docs pages so static navigation can fetch only the content island.
+                await TryWriteDocsPartialAsync(route, filePath, html, cancellationToken);
 
                 // Extract links, frames, and assets only from HTML
                 ExtractLinks(html, context);
@@ -259,6 +276,149 @@ public class ExportEngine
         {
             _logger.LogError(ex, "Error exporting {Route}", route);
         }
+    }
+
+    internal static bool IsDocsRoute(string route)
+    {
+        return route.Equals("/docs", StringComparison.OrdinalIgnoreCase)
+               || route.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static string MapHtmlFilePathToPartialPath(string htmlFilePath)
+    {
+        if (htmlFilePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            return htmlFilePath[..^5] + ".partial.html";
+        }
+
+        return htmlFilePath + ".partial.html";
+    }
+
+    internal static string? ExtractDocContentFrame(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return null;
+        }
+
+        foreach (Match openTag in TurboFrameOpenTagRegex.Matches(html))
+        {
+            if (!DocContentFrameIdRegex.IsMatch(openTag.Value))
+            {
+                continue;
+            }
+
+            var frameEnd = FindMatchingTurboFrameEnd(html, openTag.Index + openTag.Length);
+            if (frameEnd < 0)
+            {
+                return null;
+            }
+
+            return html[openTag.Index..frameEnd];
+        }
+
+        return null;
+    }
+
+    internal static string AddDocsStaticPartialsMarker(string html)
+    {
+        if (string.IsNullOrEmpty(html))
+        {
+            return html;
+        }
+
+        if (html.Contains($"name=\"{DocsStaticPartialsMetaName}\"", StringComparison.OrdinalIgnoreCase))
+        {
+            return html;
+        }
+
+        var markerWithLeadingNewline = Environment.NewLine + DocsStaticPartialsMetaTag;
+        var headCloseIndex = html.IndexOf("</head>", StringComparison.OrdinalIgnoreCase);
+        if (headCloseIndex >= 0)
+        {
+            return html.Insert(headCloseIndex, markerWithLeadingNewline);
+        }
+
+        return markerWithLeadingNewline + html;
+    }
+
+    private static int FindMatchingTurboFrameEnd(string html, int scanStart)
+    {
+        var depth = 1;
+        var cursor = scanStart;
+
+        while (cursor < html.Length)
+        {
+            var nextOpen = html.IndexOf("<turbo-frame", cursor, StringComparison.OrdinalIgnoreCase);
+            var nextClose = html.IndexOf("</turbo-frame", cursor, StringComparison.OrdinalIgnoreCase);
+            if (nextClose < 0)
+            {
+                return -1;
+            }
+
+            if (nextOpen >= 0 && nextOpen < nextClose)
+            {
+                // Raw string scanning assumes no quoted attribute contains a standalone '>' or '/>' token.
+                // If turbo-frame markup evolves to include those cases, switch this matcher to an HTML parser.
+                var openTagEnd = html.IndexOf('>', nextOpen);
+                if (openTagEnd < 0)
+                {
+                    return -1;
+                }
+
+                var tagCursor = openTagEnd - 1;
+                while (tagCursor > nextOpen && char.IsWhiteSpace(html[tagCursor]))
+                {
+                    tagCursor--;
+                }
+
+                var isSelfClosing = html[tagCursor] == '/';
+                if (!isSelfClosing)
+                {
+                    depth++;
+                }
+
+                cursor = openTagEnd + 1;
+                continue;
+            }
+
+            var closeTagEnd = html.IndexOf('>', nextClose);
+            if (closeTagEnd < 0)
+            {
+                return -1;
+            }
+
+            depth--;
+            cursor = closeTagEnd + 1;
+
+            if (depth == 0)
+            {
+                return cursor;
+            }
+        }
+
+        return -1;
+    }
+
+    private async Task TryWriteDocsPartialAsync(
+        string route,
+        string htmlFilePath,
+        string html,
+        CancellationToken cancellationToken)
+    {
+        if (!IsDocsRoute(route))
+        {
+            return;
+        }
+
+        var frameHtml = ExtractDocContentFrame(html);
+        if (string.IsNullOrWhiteSpace(frameHtml))
+        {
+            return;
+        }
+
+        var partialPath = MapHtmlFilePathToPartialPath(htmlFilePath);
+        await File.WriteAllTextAsync(partialPath, frameHtml, cancellationToken);
     }
 
     /// <summary>

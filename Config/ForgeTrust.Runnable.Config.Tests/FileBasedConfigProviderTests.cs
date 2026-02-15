@@ -473,6 +473,33 @@ public class FileBasedConfigProviderTests
     }
 
     [Fact]
+    public void Initialize_ListMerge_UsesReplaceSemantics()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, "appsettings.json"), """{"Items":["a","b"]}""");
+            File.WriteAllText(Path.Combine(tempDir, "config_override.json"), """{"Items":["override"]}""");
+
+            var locationProvider = A.Fake<IConfigFileLocationProvider>();
+            A.CallTo(() => locationProvider.Directory).Returns(tempDir);
+            var logger = A.Fake<ILogger<FileBasedConfigProvider>>();
+
+            var provider = new FileBasedConfigProvider(locationProvider, logger);
+
+            var values = provider.GetValue<List<string>>("Production", "Items");
+
+            Assert.NotNull(values);
+            Assert.Equal(["override"], values);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void Initialize_HandlesEmptyDirectoryProperty()
     {
         var locationProvider = A.Fake<IConfigFileLocationProvider>();

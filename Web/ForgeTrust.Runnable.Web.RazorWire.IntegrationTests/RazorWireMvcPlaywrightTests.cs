@@ -38,10 +38,7 @@ public sealed class RazorWireMvcPlaywrightTests
         await WaitForStreamConnectedAsync(receiverPage);
 
         await senderPage.FillAsync("#register-username", username);
-        var registerResponse = await senderPage.RunAndWaitForResponseAsync(
-            () => senderPage.EvaluateAsync("document.querySelector('#register-form')?.requestSubmit()"),
-            response => response.Url.Contains("/Reactivity/RegisterUser", StringComparison.OrdinalIgnoreCase)
-                        && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase));
+        var registerResponse = await SubmitAndWaitForPostAsync(senderPage, "#register-form", "/Reactivity/RegisterUser");
         Assert.True(registerResponse.Ok, $"RegisterUser POST failed with status {(int)registerResponse.Status}.");
 
         await receiverPage.WaitForSelectorAsync($"#user-list-items li:has-text('{username}')", new PageWaitForSelectorOptions
@@ -50,10 +47,7 @@ public sealed class RazorWireMvcPlaywrightTests
         });
 
         await senderPage.FillAsync("#message-form input[name='message']", message);
-        var publishResponse = await senderPage.RunAndWaitForResponseAsync(
-            () => senderPage.EvaluateAsync("document.querySelector('#message-form')?.requestSubmit()"),
-            response => response.Url.Contains("/Reactivity/PublishMessage", StringComparison.OrdinalIgnoreCase)
-                        && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase));
+        var publishResponse = await SubmitAndWaitForPostAsync(senderPage, "#message-form", "/Reactivity/PublishMessage");
         Assert.True(publishResponse.Ok, $"PublishMessage POST failed with status {(int)publishResponse.Status}.");
 
         await WaitForMessageAsync(receiverPage, unique);
@@ -286,10 +280,23 @@ public sealed class RazorWireMvcPlaywrightTests
 
     private static async Task<IResponse> SubmitAndWaitForPostAsync(IPage page, string formSelector, string path)
     {
+        await page.WaitForSelectorAsync(formSelector, new PageWaitForSelectorOptions
+        {
+            State = WaitForSelectorState.Attached,
+            Timeout = 15_000
+        });
+
         return await page.RunAndWaitForResponseAsync(
-            () => page.EvaluateAsync("selector => document.querySelector(selector)?.requestSubmit()", formSelector),
+            () => page.Locator(formSelector).EvaluateAsync(
+                @"form => {
+                    if (!(form instanceof HTMLFormElement)) {
+                        throw new Error('Target element is not an HTML form.');
+                    }
+                    form.requestSubmit();
+                }"),
             response => response.Url.Contains(path, StringComparison.OrdinalIgnoreCase)
-                        && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase));
+                        && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase),
+            new PageRunAndWaitForResponseOptions { Timeout = 45_000 });
     }
 
     private static async Task<int> GetIntTextAsync(IPage page, string selector)

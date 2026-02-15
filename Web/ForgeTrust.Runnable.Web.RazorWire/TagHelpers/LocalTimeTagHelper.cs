@@ -3,21 +3,29 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 
 /// <summary>
-/// Tag helper that renders a <c>&lt;time&gt;</c> element with a UTC timestamp for client-side local time formatting.
+/// Tag helper that renders a <c>&lt;time&gt;</c> element with a UTC timestamp for client-side time formatting.
 /// </summary>
 /// <remarks>
-/// The JavaScript runtime formats the timestamp to the user's local timezone using the browser's Intl formatting APIs.
+/// When <c>rw-type="local"</c>, the JavaScript runtime formats the timestamp to the user's local timezone.
+/// When <c>rw-type="utc"</c>, the timestamp is formatted in UTC.
 /// </remarks>
 /// <example>
 /// <code>
 /// &lt;time rw-type="local" datetime="@Model.Timestamp"&gt;&lt;/time&gt;
 /// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="relative"&gt;&lt;/time&gt;
 /// &lt;time rw-type="local" datetime="@Model.Timestamp" rw-display="datetime" rw-format="short"&gt;&lt;/time&gt;
+/// &lt;time rw-type="utc" datetime="@Model.Timestamp"&gt;&lt;/time&gt;
 /// </code>
 /// </example>
 [HtmlTargetElement("time", Attributes = "rw-type")]
 public class LocalTimeTagHelper : TagHelper
 {
+    private static readonly HashSet<string> ValidTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "local",
+        "utc"
+    };
+
     private static readonly HashSet<string> ValidDisplayModes = new(StringComparer.OrdinalIgnoreCase)
     {
         "time",
@@ -35,8 +43,8 @@ public class LocalTimeTagHelper : TagHelper
     };
 
     /// <summary>
-    /// Gets or sets the trigger type for RazorWire time formatting.
-    /// Must be set to <c>local</c> for this helper to process the element.
+    /// Gets or sets the timezone type for RazorWire time formatting.
+    /// Valid values: <c>local</c> (user's browser timezone) or <c>utc</c> (UTC timezone).
     /// </summary>
     [HtmlAttributeName("rw-type")]
     public string? RwType { get; set; }
@@ -70,10 +78,12 @@ public class LocalTimeTagHelper : TagHelper
     /// <exception cref="ArgumentException">Thrown when <see cref="Value"/> is the default value or if <see cref="Display"/> or <see cref="Format"/> have invalid values.</exception>
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
-        if (!string.Equals(RwType, "local", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(RwType) || !ValidTypes.Contains(RwType))
         {
             return;
         }
+
+        var isUtc = string.Equals(RwType, "utc", StringComparison.OrdinalIgnoreCase);
 
         if (Value == default)
         {
@@ -109,6 +119,12 @@ public class LocalTimeTagHelper : TagHelper
 
         // Add data attribute to signal JavaScript formatting
         output.Attributes.SetAttribute("data-rw-time", string.Empty);
+
+        // Add timezone attribute when UTC
+        if (isUtc)
+        {
+            output.Attributes.SetAttribute("data-rw-time-tz", "utc");
+        }
 
         // Add display mode if not default
         if (!string.Equals(Display, "time", StringComparison.OrdinalIgnoreCase))

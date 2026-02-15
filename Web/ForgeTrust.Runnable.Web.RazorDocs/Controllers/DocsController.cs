@@ -208,13 +208,13 @@ public class DocsController : Controller
         return Json(payload);
     }
 
-    private static string NormalizeText(string text)
+    internal static string NormalizeText(string text)
     {
         var decoded = WebUtility.HtmlDecode(text ?? string.Empty);
         return MultiSpaceRegex.Replace(decoded, " ").Trim();
     }
 
-    private static string BuildDocUrl(string path)
+    internal static string BuildDocUrl(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -240,7 +240,7 @@ public class DocsController : Controller
         return url;
     }
 
-    private static string TruncateAtWordBoundary(string text, int maxLength)
+    internal static string TruncateAtWordBoundary(string text, int maxLength)
     {
         if (text.Length <= maxLength)
         {
@@ -268,7 +268,7 @@ public class DocsController : Controller
                || string.Equals(refresh, "true", StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool CanRefreshCache()
+    internal bool CanRefreshCache()
     {
         return User?.Identity?.IsAuthenticated == true;
     }

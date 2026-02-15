@@ -2,7 +2,6 @@ using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -223,9 +222,9 @@ namespace NamespaceB
         var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
 
         // Assert
-        Assert.Contains("<div class='doc-summary", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-summary", namespaceNode.Content);
         Assert.Contains("Summary", namespaceNode.Content);
-        Assert.Contains("<div class='doc-remarks", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-remarks", namespaceNode.Content);
         Assert.Contains("Remarks here", namespaceNode.Content);
     }
 
@@ -334,12 +333,12 @@ public class RichDocs
         var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
 
         // Assert
-        Assert.Contains("<div class='doc-summary'>", namespaceNode.Content);
-        Assert.Contains("<div class='doc-typeparams'>", namespaceNode.Content);
-        Assert.Contains("<div class='doc-params'>", namespaceNode.Content);
-        Assert.Contains("<div class='doc-returns'>", namespaceNode.Content);
-        Assert.Contains("<div class='doc-exceptions'>", namespaceNode.Content);
-        Assert.Contains("<div class='doc-remarks'>", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-summary\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-typeparams\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-params\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-returns\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-exceptions\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-remarks\">", namespaceNode.Content);
 
         // Inline and block XML tags are transformed into readable HTML.
         Assert.Contains("<code>value</code>", namespaceNode.Content);
@@ -386,7 +385,7 @@ public class EmptyKeyDoc
         var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
 
         // Assert
-        Assert.Contains("<div class='doc-params'>", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-params\">", namespaceNode.Content);
         Assert.DoesNotContain("<code></code>", namespaceNode.Content);
         Assert.Contains("Unnamed parameter docs.", namespaceNode.Content);
     }
@@ -460,6 +459,7 @@ public class EdgeCases
         Assert.Contains("Raw list entry", namespaceNode.Content);
         Assert.Contains("Unknown failure.", namespaceNode.Content);
         Assert.DoesNotContain("<code></code>", namespaceNode.Content);
+        // Filtered should not appear: it only contains compiler-generated caller metadata docs.
         Assert.DoesNotContain("id=\"Test-EdgeCases-Filtered", namespaceNode.Content);
     }
 
@@ -499,7 +499,7 @@ public class EdgeCases
         Assert.Contains("<span class=\"sig-type\">object</span>", signatureBuilder.ToString());
         Assert.Equal(string.Empty, nullAccessorSignature);
         Assert.Equal(string.Empty, emptyAccessorSignature);
-        Assert.Equal("T:", simplifiedShortCref);
+        Assert.Null(simplifiedShortCref);
         Assert.Equal("Namespaces", rootNamespacePath);
         Assert.Equal("Namespaces/Global", namespacePath);
     }
@@ -601,13 +601,8 @@ public class GlobalType {}
     [Fact]
     public void GetNamespaceTitle_ShouldReturnNamespaces_ForEmptyNamespace()
     {
-        // Arrange
-        var method = typeof(CSharpDocHarvester).GetMethod("GetNamespaceTitle", BindingFlags.NonPublic | BindingFlags.Static);
+        var title = CSharpDocHarvester.GetNamespaceTitle(string.Empty);
 
-        // Act
-        var title = method?.Invoke(null, new object?[] { string.Empty });
-
-        // Assert
         Assert.Equal("Namespaces", title);
     }
 

@@ -241,7 +241,7 @@ public class DocAggregator
 
     internal static string MergeNamespaceIntroIntoContent(string namespaceContent, string readmeContent)
     {
-        var introSection = $"<section class='doc-namespace-intro'>{readmeContent}</section>";
+        var introSection = $"<section class=\"doc-namespace-intro\">{readmeContent}</section>";
         const string namespaceGroupsClassMarker = "doc-namespace-groups";
 
         var classMarkerIndex = namespaceContent.IndexOf(namespaceGroupsClassMarker, StringComparison.Ordinal);
@@ -256,13 +256,13 @@ public class DocAggregator
             return introSection + namespaceContent;
         }
 
-        var sectionStartTagEnd = namespaceContent.IndexOf('>', classMarkerIndex);
+        var sectionStartTagEnd = namespaceContent.IndexOf('>', sectionStart);
         if (sectionStartTagEnd < 0)
         {
             return introSection + namespaceContent;
         }
 
-        var groupEnd = namespaceContent.IndexOf("</section>", sectionStartTagEnd, StringComparison.OrdinalIgnoreCase);
+        var groupEnd = FindMatchingSectionEnd(namespaceContent, sectionStart);
         if (groupEnd < 0)
         {
             return introSection + namespaceContent;
@@ -270,6 +270,46 @@ public class DocAggregator
 
         var insertAt = groupEnd + "</section>".Length;
         return namespaceContent.Insert(insertAt, introSection);
+    }
+
+    private static int FindMatchingSectionEnd(string content, int sectionStart)
+    {
+        var depth = 0;
+        var cursor = sectionStart;
+
+        while (cursor < content.Length)
+        {
+            var nextOpen = content.IndexOf("<section", cursor, StringComparison.OrdinalIgnoreCase);
+            var nextClose = content.IndexOf("</section>", cursor, StringComparison.OrdinalIgnoreCase);
+
+            if (nextClose < 0)
+            {
+                return -1;
+            }
+
+            if (nextOpen >= 0 && nextOpen < nextClose)
+            {
+                depth++;
+                var openEnd = content.IndexOf('>', nextOpen);
+                if (openEnd < 0)
+                {
+                    return -1;
+                }
+
+                cursor = openEnd + 1;
+                continue;
+            }
+
+            depth--;
+            if (depth == 0)
+            {
+                return nextClose;
+            }
+
+            cursor = nextClose + "</section>".Length;
+        }
+
+        return -1;
     }
 
     private static bool IsReadmePath(string path)
@@ -310,15 +350,12 @@ public class DocAggregator
 
         if (knownNamespaceNames != null)
         {
-            var known = knownNamespaceNames.ToList();
             for (var start = 0; start < parts.Length; start++)
             {
                 var candidate = string.Join(".", parts.Skip(start));
-                var match = known.FirstOrDefault(
-                    ns => string.Equals(ns, candidate, StringComparison.OrdinalIgnoreCase));
-                if (!string.IsNullOrWhiteSpace(match))
+                if (knownNamespaceNames.Any(ns => string.Equals(ns, candidate, StringComparison.OrdinalIgnoreCase)))
                 {
-                    return match;
+                    return candidate;
                 }
             }
         }

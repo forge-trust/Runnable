@@ -194,6 +194,7 @@ public class RazorDocsViewsTests
             new("Build", "docs/guide.md#Build", string.Empty, "docs/guide.md"),
             new("Run", "docs/guide.md#Run", string.Empty, "docs/guide.md")
         };
+        // This test renders the sidebar with a direct model, so CreateServiceProvider docs are intentionally irrelevant.
         using var services = CreateServiceProvider(CreateDocs());
 
         var grouped = CreateGroupedSidebarModel(
@@ -222,7 +223,7 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
-    public void SidebarDisplayHelper_ShouldHandleEdgeBranches()
+    public void SidebarDisplayHelper_IsTypeAnchorNode_ShouldHandleEdgeBranches()
     {
         var typeAnchorTrue = SidebarDisplayHelper.IsTypeAnchorNode(
             new DocNode("Anchor", "Namespaces/Foo#Anchor", string.Empty, "Namespaces/Foo"));
@@ -233,6 +234,15 @@ public class RazorDocsViewsTests
         var typeAnchorFalseNoHash = SidebarDisplayHelper.IsTypeAnchorNode(
             new DocNode("NoHash", "Namespaces/FooAnchor", string.Empty, "Namespaces/Foo"));
 
+        Assert.True(typeAnchorTrue);
+        Assert.False(typeAnchorFalseMissingParent);
+        Assert.False(typeAnchorFalseWithContent);
+        Assert.False(typeAnchorFalseNoHash);
+    }
+
+    [Fact]
+    public void SidebarDisplayHelper_GetFullNamespaceName_ShouldHandleEdgeBranches()
+    {
         var fullNamespaceRoot = SidebarDisplayHelper.GetFullNamespaceName(
             new DocNode("Root", "Namespaces/", string.Empty));
         var fullNamespaceNormal = SidebarDisplayHelper.GetFullNamespaceName(
@@ -240,6 +250,14 @@ public class RazorDocsViewsTests
         var fullNamespaceFallbackTitle = SidebarDisplayHelper.GetFullNamespaceName(
             new DocNode("TitleFallback", "Other.Path", string.Empty));
 
+        Assert.Equal(string.Empty, fullNamespaceRoot);
+        Assert.Equal("Foo.Bar", fullNamespaceNormal);
+        Assert.Equal("TitleFallback", fullNamespaceFallbackTitle);
+    }
+
+    [Fact]
+    public void SidebarDisplayHelper_SimplifyNamespace_ShouldHandleEdgeBranches()
+    {
         var simplifiedBlank = SidebarDisplayHelper.SimplifyNamespace(
             string.Empty,
             new List<string> { "unused" });
@@ -256,27 +274,22 @@ public class RazorDocsViewsTests
             "ForgeTrust.Runnable.",
             new List<string> { "ForgeTrust.Runnable." });
 
+        Assert.Equal("Namespaces", simplifiedBlank);
+        Assert.Equal("Bar", simplifiedDottedPrefix);
+        Assert.Equal("Foo", simplifiedDottedPrefixEmptyRemainder);
+        Assert.Equal("Web", simplifiedNormalizedPrefixWithRemainder);
+        Assert.Equal("Runnable", simplifiedNormalizedPrefixNoRemainder);
+    }
+
+    [Fact]
+    public void SidebarDisplayHelper_GetNamespaceDisplayName_ShouldHandleEdgeBranches()
+    {
         var displayWithTrailingDot = SidebarDisplayHelper.GetNamespaceDisplayName(
             "Foo.",
             new List<string>());
         var displayWithSegment = SidebarDisplayHelper.GetNamespaceDisplayName(
             "Foo.Bar",
             new List<string>());
-
-        Assert.True(typeAnchorTrue);
-        Assert.False(typeAnchorFalseMissingParent);
-        Assert.False(typeAnchorFalseWithContent);
-        Assert.False(typeAnchorFalseNoHash);
-
-        Assert.Equal(string.Empty, fullNamespaceRoot);
-        Assert.Equal("Foo.Bar", fullNamespaceNormal);
-        Assert.Equal("TitleFallback", fullNamespaceFallbackTitle);
-
-        Assert.Equal("Namespaces", simplifiedBlank);
-        Assert.Equal("Bar", simplifiedDottedPrefix);
-        Assert.Equal("Foo", simplifiedDottedPrefixEmptyRemainder);
-        Assert.Equal("Web", simplifiedNormalizedPrefixWithRemainder);
-        Assert.Equal("Runnable", simplifiedNormalizedPrefixNoRemainder);
 
         Assert.Equal("Foo.", displayWithTrailingDot);
         Assert.Equal("Bar", displayWithSegment);
@@ -447,7 +460,7 @@ public class RazorDocsViewsTests
         }
     }
 
-    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    private sealed class TestWebHostEnvironment : IWebHostEnvironment, IDisposable
     {
         public TestWebHostEnvironment(string contentRootPath)
         {
@@ -470,5 +483,11 @@ public class RazorDocsViewsTests
         public IFileProvider WebRootFileProvider { get; set; }
 
         public string WebRootPath { get; set; }
+
+        public void Dispose()
+        {
+            (ContentRootFileProvider as IDisposable)?.Dispose();
+            (WebRootFileProvider as IDisposable)?.Dispose();
+        }
     }
 }

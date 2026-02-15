@@ -64,8 +64,9 @@ public class SidebarViewComponent : ViewComponent
             return "Namespaces";
         }
 
-        var directory = Path.GetDirectoryName(path);
-        return string.IsNullOrWhiteSpace(directory) ? "General" : directory;
+        var normalizedPathForOs = normalizedPath.Replace('/', Path.DirectorySeparatorChar);
+        var directory = Path.GetDirectoryName(normalizedPathForOs);
+        return string.IsNullOrWhiteSpace(directory) ? "General" : directory.Replace('\\', '/');
     }
 
     private static string[] GetDerivedNamespacePrefixes(IEnumerable<DocNode> docs)

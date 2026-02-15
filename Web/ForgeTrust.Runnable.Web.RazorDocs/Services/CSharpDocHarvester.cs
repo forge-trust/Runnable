@@ -471,7 +471,8 @@ public class CSharpDocHarvester : IDocHarvester
             return;
         }
 
-        html.Append($"<div class='{cssClass}'>");
+        var encodedCssClass = WebUtility.HtmlEncode(cssClass);
+        html.Append($"<div class=\"{encodedCssClass}\">");
         if (!string.IsNullOrWhiteSpace(heading))
         {
             html.Append($"<h4>{WebUtility.HtmlEncode(heading)}</h4>");
@@ -503,7 +504,8 @@ public class CSharpDocHarvester : IDocHarvester
             return;
         }
 
-        html.Append($"<div class='{cssClass}'>");
+        var encodedCssClass = WebUtility.HtmlEncode(cssClass);
+        html.Append($"<div class=\"{encodedCssClass}\">");
         html.Append($"<h4>{WebUtility.HtmlEncode(heading)}</h4>");
         html.Append("<ul>");
         foreach (var row in rows)
@@ -652,12 +654,12 @@ public class CSharpDocHarvester : IDocHarvester
         }
 
         var simplified = cref.Trim();
-        if (simplified.Length > 2 && simplified[1] == ':')
+        if (simplified.Length >= 2 && simplified[1] == ':')
         {
             simplified = simplified[2..];
         }
 
-        return simplified;
+        return string.IsNullOrWhiteSpace(simplified) ? null : simplified;
     }
 
     private static bool IsCompilerGeneratedDocParameter(string? parameterName)
@@ -744,7 +746,7 @@ public class CSharpDocHarvester : IDocHarvester
                     });
 
             var childSection = new StringBuilder();
-            childSection.Append("<section class='doc-namespace-groups'>");
+            childSection.Append("<section class=\"doc-namespace-groups\">");
             childSection.Append("<h4>Namespaces</h4>");
             childSection.Append("<ul>");
             foreach (var link in childLinks)
@@ -786,7 +788,7 @@ public class CSharpDocHarvester : IDocHarvester
         return string.IsNullOrWhiteSpace(namespaceName) ? "Namespaces" : $"Namespaces/{namespaceName}";
     }
 
-    private static string GetNamespaceTitle(string fullNamespace)
+    internal static string GetNamespaceTitle(string fullNamespace)
     {
         if (string.IsNullOrWhiteSpace(fullNamespace))
         {

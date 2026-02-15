@@ -384,7 +384,7 @@ public class DocAggregatorTests : IDisposable
         Assert.DoesNotContain(docs, d => d.Path == "docs/ForgeTrust.Web/README.md");
         Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
         Assert.Contains("<p>Namespace intro</p>", namespaceDoc.Content);
-        Assert.Contains("</section><section class='doc-namespace-intro'>", namespaceDoc.Content);
+        Assert.Contains("</section><section class=\"doc-namespace-intro\">", namespaceDoc.Content);
     }
 
     [Fact]
@@ -397,10 +397,10 @@ public class DocAggregatorTests : IDisposable
         var noEndTag = DocAggregator.MergeNamespaceIntroIntoContent("<section class='doc-namespace-groups'>open", "<p>Intro</p>");
 
         // Assert
-        Assert.Equal("<section class='doc-namespace-intro'><p>Intro</p></section><section>Body</section>", noMarker);
-        Assert.Equal("<section class='doc-namespace-intro'><p>Intro</p></section>doc-namespace-groups", noSectionStart);
-        Assert.Equal("<section class='doc-namespace-intro'><p>Intro</p></section><section class='doc-namespace-groups'", noStartTagEnd);
-        Assert.Equal("<section class='doc-namespace-intro'><p>Intro</p></section><section class='doc-namespace-groups'>open", noEndTag);
+        Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section>Body</section>", noMarker);
+        Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section>doc-namespace-groups", noSectionStart);
+        Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section class='doc-namespace-groups'", noStartTagEnd);
+        Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section class='doc-namespace-groups'>open", noEndTag);
     }
 
     [Fact]

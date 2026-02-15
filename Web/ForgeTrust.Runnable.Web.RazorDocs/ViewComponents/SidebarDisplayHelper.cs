@@ -65,18 +65,19 @@ internal static class SidebarDisplayHelper
                 return GetLastNamespaceSegment(trimmedPrefix);
             }
 
-            if (fullNamespace.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
+            var dottedPrefix = trimmedPrefix + ".";
+            if (fullNamespace.StartsWith(dottedPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                var remainder = fullNamespace[normalizedPrefix.Length..].TrimStart('.');
+                var remainder = fullNamespace[dottedPrefix.Length..];
                 return string.IsNullOrWhiteSpace(remainder)
                     ? GetLastNamespaceSegment(trimmedPrefix)
                     : remainder;
             }
 
-            var dottedPrefix = trimmedPrefix + ".";
-            if (fullNamespace.StartsWith(dottedPrefix, StringComparison.OrdinalIgnoreCase))
+            if (fullNamespace.StartsWith(trimmedPrefix, StringComparison.OrdinalIgnoreCase)
+                && (fullNamespace.Length == trimmedPrefix.Length || fullNamespace[trimmedPrefix.Length] == '.'))
             {
-                var remainder = fullNamespace[dottedPrefix.Length..];
+                var remainder = fullNamespace[trimmedPrefix.Length..].TrimStart('.');
                 return string.IsNullOrWhiteSpace(remainder)
                     ? GetLastNamespaceSegment(trimmedPrefix)
                     : remainder;

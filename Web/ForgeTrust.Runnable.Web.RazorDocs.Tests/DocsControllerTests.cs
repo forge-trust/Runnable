@@ -14,7 +14,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using System.Security.Claims;
 using System.Text.Json;
-using System.Reflection;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -506,19 +505,9 @@ public class DocsControllerTests : IDisposable
     [Fact]
     public void PrivateHelpers_ShouldHandleNullAndUnbrokenTextBranches()
     {
-        var normalizeText = typeof(DocsController).GetMethod(
-            "NormalizeText",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var buildDocUrl = typeof(DocsController).GetMethod(
-            "BuildDocUrl",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var truncateAtWordBoundary = typeof(DocsController).GetMethod(
-            "TruncateAtWordBoundary",
-            BindingFlags.NonPublic | BindingFlags.Static);
-
-        var normalized = Assert.IsType<string>(normalizeText!.Invoke(null, [null]));
-        var rootUrl = Assert.IsType<string>(buildDocUrl!.Invoke(null, [" "]));
-        var truncated = Assert.IsType<string>(truncateAtWordBoundary!.Invoke(null, [new string('a', 260), 220]));
+        var normalized = DocsController.NormalizeText(null!);
+        var rootUrl = DocsController.BuildDocUrl(" ");
+        var truncated = DocsController.TruncateAtWordBoundary(new string('a', 260), 220);
 
         Assert.Equal(string.Empty, normalized);
         Assert.Equal("/docs", rootUrl);
@@ -529,19 +518,15 @@ public class DocsControllerTests : IDisposable
     [Fact]
     public void CanRefreshCache_ShouldReturnFalse_WhenUserOrIdentityIsMissing()
     {
-        var canRefreshCache = typeof(DocsController).GetMethod(
-            "CanRefreshCache",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-
         _controller.ControllerContext = new ControllerContext();
-        var nullContextResult = Assert.IsType<bool>(canRefreshCache!.Invoke(_controller, null));
+        var nullContextResult = _controller.CanRefreshCache();
 
         var noIdentityHttpContext = new DefaultHttpContext
         {
             User = new ClaimsPrincipal()
         };
         _controller.ControllerContext = new ControllerContext { HttpContext = noIdentityHttpContext };
-        var noIdentityResult = Assert.IsType<bool>(canRefreshCache.Invoke(_controller, null));
+        var noIdentityResult = _controller.CanRefreshCache();
 
         Assert.False(nullContextResult);
         Assert.False(noIdentityResult);

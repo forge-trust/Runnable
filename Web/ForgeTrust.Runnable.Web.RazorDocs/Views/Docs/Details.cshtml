@@ -25,9 +25,14 @@
     else
     {
         var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var segment in segments)
+        var current = string.Empty;
+        for (var i = 0; i < segments.Length; i++)
         {
-            breadcrumbs.Add((segment, null));
+            var segment = segments[i];
+            current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
+            var isLast = i == segments.Length - 1;
+            var href = isLast ? null : $"/docs/{current}.html";
+            breadcrumbs.Add((segment, href));
         }
     }
 }

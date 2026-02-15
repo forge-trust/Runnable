@@ -301,6 +301,111 @@ namespace NamespaceB
         }
     }
 
+    [Fact]
+    public async Task HarvestAsync_ShouldRenderStructuredXmlSections_AndNormalizeSignatures()
+    {
+        // Arrange
+        var code = @"
+using System.Runtime.CompilerServices;
+namespace Test;
+
+public class RichDocs
+{
+    /// <summary>
+    /// Main <paramref name=""value""/> and <typeparamref name=""TResult""/> with
+    /// <see cref=""T:System.String""/>, <see cref=""System.Int32""/>, <see langword=""null""/>,
+    /// <see href=""https://example.com/docs""/>, <see>inline-see</see> and <see/>.
+    /// Also <c>inline-code</c>.
+    /// <para>Standalone paragraph.</para>
+    /// <para> </para>
+    /// <list type=""number"">
+    /// <item><description>First</description></item>
+    /// <item><description><paramref name=""value""/> second</description></item>
+    /// </list>
+    /// <list></list>
+    /// <code>
+    /// var answer = 42;
+    /// </code>
+    /// <unknown>fallback</unknown>
+    /// <!-- coverage comment -->
+    /// </summary>
+    /// <typeparam name=""TResult"">Result type.</typeparam>
+    /// <param name=""value""><para>Input value.</para></param>
+    /// <param name=""callerFilePath"">Filtered path.</param>
+    /// <param name=""callerLineNumber"">Filtered line.</param>
+    /// <returns><code>return default;</code></returns>
+    /// <exception cref=""T:System.InvalidOperationException"">Boom</exception>
+    /// <remarks>Use <b>carefully</b>.</remarks>
+    /// <example> </example>
+    public TResult Compute<TResult>(int value = 42, [CallerFilePath] string source = """", [CallerLineNumber] int line = 0)
+        => default!;
+
+    /// <summary>Legacy path.</summary>
+    public void Legacy(int value, [CallerFilePath] string callerFilePath = """", [CallerLineNumber] int callerLineNumber = 0) { }
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "RichDocs.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var fileNode = results.Single(n => n.Title == "RichDocs");
+
+        // Assert
+        Assert.Contains("<div class='doc-summary'>", fileNode.Content);
+        Assert.Contains("<div class='doc-typeparams'>", fileNode.Content);
+        Assert.Contains("<div class='doc-params'>", fileNode.Content);
+        Assert.Contains("<div class='doc-returns'>", fileNode.Content);
+        Assert.Contains("<div class='doc-exceptions'>", fileNode.Content);
+        Assert.Contains("<div class='doc-remarks'>", fileNode.Content);
+
+        // Inline and block XML tags are transformed into readable HTML.
+        Assert.Contains("<code>value</code>", fileNode.Content);
+        Assert.Contains("<code>TResult</code>", fileNode.Content);
+        Assert.Contains("<code>System.String</code>", fileNode.Content);
+        Assert.Contains("<code>System.Int32</code>", fileNode.Content);
+        Assert.Contains("<code>null</code>", fileNode.Content);
+        Assert.Contains("<code>https://example.com/docs</code>", fileNode.Content);
+        Assert.Contains("<code>inline-see</code>", fileNode.Content);
+        Assert.Contains("<code>inline-code</code>", fileNode.Content);
+        Assert.Contains("<ol>", fileNode.Content);
+        Assert.Contains("<li>First</li>", fileNode.Content);
+        Assert.Contains("<pre><code>var answer = 42;</code></pre>", fileNode.Content);
+        Assert.Contains("fallback", fileNode.Content);
+
+        // Compiler-injected doc params are filtered from the rendered parameter table.
+        Assert.DoesNotContain("<code>callerFilePath</code>", fileNode.Content);
+        Assert.DoesNotContain("<code>callerLineNumber</code>", fileNode.Content);
+
+        // Display signature hides caller metadata parameters while preserving defaults.
+        Assert.Contains("TResult Compute&lt;TResult&gt;(int value = 42)", fileNode.Content);
+        Assert.Contains("void Legacy(int value)", fileNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldRenderEmptyNamedKeyRows_WithoutCodeLabel()
+    {
+        // Arrange
+        var code = @"
+namespace Test;
+public class EmptyKeyDoc
+{
+    /// <summary>Summary</summary>
+    /// <param>Unnamed parameter docs.</param>
+    public void Method(int value) { }
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "EmptyKeyDoc.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var fileNode = results.Single(n => n.Title == "EmptyKeyDoc");
+
+        // Assert
+        Assert.Contains("<div class='doc-params'>", fileNode.Content);
+        Assert.DoesNotContain("<code></code>", fileNode.Content);
+        Assert.Contains("Unnamed parameter docs.", fileNode.Content);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))

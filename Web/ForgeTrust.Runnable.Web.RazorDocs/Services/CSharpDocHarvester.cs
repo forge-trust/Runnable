@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -66,19 +67,21 @@ public class CSharpDocHarvester : IDocHarvester
                 foreach (var typeDecl in typeDeclarations)
                 {
                     var doc = ExtractDoc(typeDecl);
+                    var qualifiedTypeName = GetQualifiedName(typeDecl);
+                    var typeDisplayName = GetDisplayTypeName(typeDecl);
+                    var typeId = StringUtils.ToSafeId(qualifiedTypeName);
+
                     if (doc != null)
                     {
                         hasAnyDoc = true;
-                        var qualifiedName = GetQualifiedName(typeDecl);
-                        var typeId = StringUtils.ToSafeId(qualifiedName);
 
                         fileContent.Append(
-                            $@"<section id=""{typeId}"" class=""mb-12 scroll-mt-24"">
-                            <div class=""flex items-center gap-2 mb-4"">
-                                <span class=""px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-bold uppercase tracking-wider"">Type</span>
-                                <h2 class=""text-2xl font-bold text-white"">{WebUtility.HtmlEncode(typeDecl.Identifier.Text)}</h2>
-                            </div>
-                            <div class=""pl-4 border-l-2 border-slate-800"">
+                            $@"<section id=""{typeId}"" class=""doc-type"">
+                            <header class=""doc-type-header"">
+                                <span class=""doc-kind"">Type</span>
+                                <h2>{WebUtility.HtmlEncode(typeDisplayName)}</h2>
+                            </header>
+                            <div class=""doc-body"">
                                 {doc}
                             </div>
                         </section>");
@@ -91,42 +94,74 @@ public class CSharpDocHarvester : IDocHarvester
                         {
                             stubNodes.Add(
                                 new DocNode(
-                                    typeDecl.Identifier.Text,
+                                    typeDisplayName,
                                     relativePath + "#" + typeId,
                                     string.Empty,
                                     relativePath));
                         }
                     }
 
-                    var methods = typeDecl.Members.OfType<MethodDeclarationSyntax>().ToList();
-                    foreach (var method in methods)
+                    var documentedMethods = typeDecl.Members
+                        .OfType<MethodDeclarationSyntax>()
+                        .Select(
+                            method => new
+                            {
+                                Method = method,
+                                Doc = ExtractDoc(method)
+                            })
+                        .Where(x => x.Doc != null)
+                        .ToList();
+
+                    if (documentedMethods.Count == 0)
                     {
-                        var methodDoc = ExtractDoc(method);
-                        if (methodDoc != null)
+                        continue;
+                    }
+
+                    hasAnyDoc = true;
+
+                    foreach (var methodGroup in documentedMethods.GroupBy(x => x.Method.Identifier.Text))
+                    {
+                        var overloadCount = methodGroup.Count();
+                        var overloadText = overloadCount == 1 ? "1 overload" : $"{overloadCount} overloads";
+
+                        fileContent.Append(
+                            $@"<section class=""doc-method-group"">
+                            <header class=""doc-method-group-header"">
+                                <span class=""doc-kind"">Method</span>
+                                <h3>{WebUtility.HtmlEncode(methodGroup.Key)}</h3>
+                                <span class=""doc-overload-count"">{WebUtility.HtmlEncode(overloadText)}</span>
+                            </header>");
+
+                        var index = 0;
+                        foreach (var methodItem in methodGroup)
                         {
-                            hasAnyDoc = true;
-                            var qualifiedTypeName = GetQualifiedName(typeDecl);
+                            var method = methodItem.Method;
+                            var methodDoc = methodItem.Doc!;
                             var (signature, id) = GetMethodSignatureAndId(method, qualifiedTypeName);
+                            var displaySignature = GetDisplaySignature(method);
+                            var openAttribute = index == 0 ? " open" : string.Empty;
 
                             fileContent.Append(
-                                $@"<section id=""{id}"" class=""mb-8 ml-6 scroll-mt-24"">
-                                <div class=""flex items-center gap-2 mb-2"">
-                                    <span class=""px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider"">Method</span>
-                                    <h3 class=""text-lg font-semibold text-slate-200"">{WebUtility.HtmlEncode(signature)}</h3>
-                                </div>
-                                <div class=""pl-4 border-l-2 border-slate-800/50"">
+                                $@"<details id=""{id}"" class=""doc-overload""{openAttribute}>
+                                <summary>
+                                    <code>{WebUtility.HtmlEncode(displaySignature)}</code>
+                                </summary>
+                                <div class=""doc-overload-body"">
                                     {methodDoc}
                                 </div>
-                            </section>");
+                            </details>");
 
-                            // Add method stub
                             stubNodes.Add(
                                 new DocNode(
                                     signature,
                                     relativePath + "#" + id,
                                     string.Empty,
                                     relativePath));
+
+                            index++;
                         }
+
+                        fileContent.Append("</section>");
                     }
                 }
 
@@ -142,12 +177,12 @@ public class CSharpDocHarvester : IDocHarvester
                         var enumId = StringUtils.ToSafeId(qualifiedName);
 
                         fileContent.Append(
-                            $@"<section id=""{enumId}"" class=""mb-12 scroll-mt-24"">
-                            <div class=""flex items-center gap-2 mb-4"">
-                                <span class=""px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider"">Enum</span>
-                                <h2 class=""text-2xl font-bold text-white"">{WebUtility.HtmlEncode(enumDecl.Identifier.Text)}</h2>
-                            </div>
-                            <div class=""pl-4 border-l-2 border-slate-800"">
+                            $@"<section id=""{enumId}"" class=""doc-type doc-enum"">
+                            <header class=""doc-type-header"">
+                                <span class=""doc-kind"">Enum</span>
+                                <h2>{WebUtility.HtmlEncode(enumDecl.Identifier.Text)}</h2>
+                            </header>
+                            <div class=""doc-body"">
                                 {doc}
                             </div>
                         </section>");
@@ -215,11 +250,79 @@ public class CSharpDocHarvester : IDocHarvester
         return (signature, id);
     }
 
+    private static string GetDisplaySignature(MethodDeclarationSyntax method)
+    {
+        var paramList = string.Join(
+            ", ",
+            method.ParameterList.Parameters
+                .Where(p => !IsCompilerGeneratedCallerParameter(p))
+                .Select(FormatParameterForDisplay));
+
+        var typeParams = method.TypeParameterList?.ToString().Trim() ?? string.Empty;
+        var explicitInterface = method.ExplicitInterfaceSpecifier?.ToString().Trim() ?? string.Empty;
+        var methodName = explicitInterface + method.Identifier.Text + typeParams;
+
+        return $"{method.ReturnType} {methodName}({paramList})";
+    }
+
+    private static string GetDisplayTypeName(TypeDeclarationSyntax typeDecl)
+    {
+        var typeParams = typeDecl.TypeParameterList?.Parameters;
+        if (typeParams == null || typeParams.Value.Count == 0)
+        {
+            return typeDecl.Identifier.Text;
+        }
+
+        var names = string.Join(", ", typeParams.Value.Select(p => p.Identifier.Text));
+        return $"{typeDecl.Identifier.Text}<{names}>";
+    }
+
+    private static string GetTypeNameForQualifiedId(TypeDeclarationSyntax typeDecl)
+    {
+        var arity = typeDecl.TypeParameterList?.Parameters.Count ?? 0;
+        return arity > 0 ? $"{typeDecl.Identifier.Text}`{arity}" : typeDecl.Identifier.Text;
+    }
+
+    private static string FormatParameterForDisplay(ParameterSyntax parameter)
+    {
+        var prefix = parameter.Modifiers.ToString().Trim();
+        var type = parameter.Type?.ToString() ?? "object";
+        var defaultValue = parameter.Default?.Value.ToString();
+        var parameterDisplay = string.IsNullOrEmpty(prefix)
+            ? $"{type} {parameter.Identifier.Text}"
+            : $"{prefix} {type} {parameter.Identifier.Text}";
+
+        if (!string.IsNullOrEmpty(defaultValue))
+        {
+            parameterDisplay += $" = {defaultValue}";
+        }
+
+        return parameterDisplay;
+    }
+
+    private static bool IsCompilerGeneratedCallerParameter(ParameterSyntax parameter)
+    {
+        if (parameter.Identifier.Text is "callerFilePath" or "callerLineNumber")
+        {
+            return true;
+        }
+
+        return parameter.AttributeLists
+            .SelectMany(list => list.Attributes)
+            .Select(attribute => attribute.Name.ToString())
+            .Any(
+                name =>
+                    name.EndsWith("CallerFilePath", StringComparison.Ordinal)
+                    || name.EndsWith("CallerFilePathAttribute", StringComparison.Ordinal)
+                    || name.EndsWith("CallerLineNumber", StringComparison.Ordinal)
+                    || name.EndsWith("CallerLineNumberAttribute", StringComparison.Ordinal));
+    }
+
     /// <summary>
-    /// Extracts XML documentation from the leading trivia of a syntax node and converts the <c>&lt;summary&gt;</c> and <c>&lt;remarks&gt;</c> elements into HTML fragments.
+    /// Extracts XML documentation from the leading trivia of a syntax node and converts it into HTML fragments.
     /// </summary>
     /// <param name="node">The syntax node whose leading XML documentation comments will be parsed.</param>
-    /// <returns>The HTML string containing encoded summary and remarks, or <c>null</c> if no documentation is present or parsing fails.</returns>
+    /// <returns>The HTML string containing structured documentation sections, or <c>null</c> if no documentation is present or parsing fails.</returns>
     private string? ExtractDoc(SyntaxNode node)
     {
         var xml = node.GetLeadingTrivia()
@@ -233,23 +336,36 @@ public class CSharpDocHarvester : IDocHarvester
         {
             var cleanXml = xml.ToString().Replace("///", "").Trim();
             var wrappedXml = $"<doc>{cleanXml}</doc>";
-            var xdoc = XDocument.Parse(wrappedXml);
+            var xdoc = XDocument.Parse(wrappedXml, LoadOptions.PreserveWhitespace);
+            var root = xdoc.Root!;
 
-            var summary = xdoc.Root?.Element("summary")?.Value.Trim();
-            var remarks = xdoc.Root?.Element("remarks")?.Value.Trim();
+            var html = new StringBuilder();
 
-            var html = "";
-            if (!string.IsNullOrEmpty(summary))
-            {
-                html += $"<div class='doc-summary text-slate-300 mb-4'>{WebUtility.HtmlEncode(summary)}</div>";
-            }
+            AppendTextSection(html, "doc-summary", root.Element("summary"));
+            AppendNamedListSection(
+                html,
+                "doc-typeparams",
+                "Type Parameters",
+                root.Elements("typeparam"),
+                e => e.Attribute("name")?.Value);
+            AppendNamedListSection(
+                html,
+                "doc-params",
+                "Parameters",
+                root.Elements("param").Where(e => !IsCompilerGeneratedDocParameter(e.Attribute("name")?.Value)),
+                e => e.Attribute("name")?.Value);
+            AppendTextSection(html, "doc-returns", root.Element("returns"), "Returns");
+            AppendNamedListSection(
+                html,
+                "doc-exceptions",
+                "Exceptions",
+                root.Elements("exception"),
+                e => SimplifyCref(e.Attribute("cref")?.Value));
+            AppendTextSection(html, "doc-remarks", root.Element("remarks"), "Remarks");
+            AppendTextSection(html, "doc-example", root.Element("example"), "Example");
 
-            if (!string.IsNullOrEmpty(remarks))
-            {
-                html += $"<div class='doc-remarks text-slate-400 italic'>{WebUtility.HtmlEncode(remarks)}</div>";
-            }
-
-            return string.IsNullOrEmpty(html) ? null : html;
+            var output = html.ToString();
+            return string.IsNullOrWhiteSpace(output) ? null : output;
         }
         catch (Exception ex)
         {
@@ -257,6 +373,213 @@ public class CSharpDocHarvester : IDocHarvester
 
             return null;
         }
+    }
+
+    private static void AppendTextSection(StringBuilder html, string cssClass, XElement? section, string? heading = null)
+    {
+        if (section == null)
+        {
+            return;
+        }
+
+        var body = RenderBlockContent(section);
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return;
+        }
+
+        html.Append($"<div class='{cssClass}'>");
+        if (!string.IsNullOrWhiteSpace(heading))
+        {
+            html.Append($"<h4>{WebUtility.HtmlEncode(heading)}</h4>");
+        }
+
+        html.Append(body);
+        html.Append("</div>");
+    }
+
+    private static void AppendNamedListSection(
+        StringBuilder html,
+        string cssClass,
+        string heading,
+        IEnumerable<XElement> entries,
+        Func<XElement, string?> keySelector)
+    {
+        var rows = entries
+            .Select(
+                entry => new
+                {
+                    Key = keySelector(entry)?.Trim(),
+                    Description = RenderInlineContent(entry)
+                })
+            .Where(row => !string.IsNullOrWhiteSpace(row.Description))
+            .ToList();
+
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        html.Append($"<div class='{cssClass}'>");
+        html.Append($"<h4>{WebUtility.HtmlEncode(heading)}</h4>");
+        html.Append("<ul>");
+        foreach (var row in rows)
+        {
+            html.Append("<li>");
+            if (!string.IsNullOrWhiteSpace(row.Key))
+            {
+                html.Append($"<code>{WebUtility.HtmlEncode(row.Key)}</code>");
+            }
+
+            html.Append($"<span>{row.Description}</span>");
+            html.Append("</li>");
+        }
+
+        html.Append("</ul>");
+        html.Append("</div>");
+    }
+
+    private static string RenderBlockContent(XElement element)
+    {
+        var rendered = RenderNodes(element.Nodes(), inlineContext: false).Trim();
+        if (string.IsNullOrWhiteSpace(rendered))
+        {
+            return string.Empty;
+        }
+
+        var hasBlockChildren = element.Elements().Any(
+            e => e.Name.LocalName is "para" or "code" or "list");
+
+        return hasBlockChildren ? rendered : $"<p>{rendered}</p>";
+    }
+
+    private static string RenderInlineContent(XElement element)
+    {
+        return RenderNodes(element.Nodes(), inlineContext: true).Trim();
+    }
+
+    private static string RenderNodes(IEnumerable<XNode> nodes, bool inlineContext)
+    {
+        var builder = new StringBuilder();
+        foreach (var node in nodes)
+        {
+            builder.Append(RenderNode(node, inlineContext));
+        }
+
+        return builder.ToString();
+    }
+
+    private static string RenderNode(XNode node, bool inlineContext)
+    {
+        return node switch
+        {
+            XText textNode => WebUtility.HtmlEncode(NormalizeWhitespace(textNode.Value)),
+            XElement elementNode => RenderElement(elementNode, inlineContext),
+            _ => string.Empty
+        };
+    }
+
+    private static string RenderElement(XElement element, bool inlineContext)
+    {
+        switch (element.Name.LocalName)
+        {
+            case "paramref":
+            case "typeparamref":
+            {
+                var name = element.Attribute("name")?.Value;
+                return string.IsNullOrWhiteSpace(name)
+                    ? string.Empty
+                    : $"<code>{WebUtility.HtmlEncode(name)}</code>";
+            }
+            case "see":
+            {
+                var langword = element.Attribute("langword")?.Value;
+                var cref = SimplifyCref(element.Attribute("cref")?.Value);
+                var href = element.Attribute("href")?.Value;
+                var displayText = langword ?? cref ?? href ?? RenderNodes(element.Nodes(), inlineContext: true).Trim();
+
+                return string.IsNullOrWhiteSpace(displayText)
+                    ? string.Empty
+                    : $"<code>{WebUtility.HtmlEncode(displayText)}</code>";
+            }
+            case "c":
+                return $"<code>{RenderNodes(element.Nodes(), inlineContext: true).Trim()}</code>";
+            case "code":
+                return $"<pre><code>{WebUtility.HtmlEncode(element.Value.Trim())}</code></pre>";
+            case "para":
+            {
+                var paragraph = RenderNodes(element.Nodes(), inlineContext: true).Trim();
+                if (string.IsNullOrWhiteSpace(paragraph))
+                {
+                    return string.Empty;
+                }
+
+                return inlineContext ? paragraph : $"<p>{paragraph}</p>";
+            }
+            case "list":
+            {
+                var listTag = string.Equals(
+                    element.Attribute("type")?.Value,
+                    "number",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "ol"
+                    : "ul";
+
+                var listItems = element.Elements("item")
+                    .Select(
+                        item =>
+                        {
+                            var description = item.Element("description");
+                            var contentSource = description ?? item;
+                            return RenderNodes(contentSource.Nodes(), inlineContext: true).Trim();
+                        })
+                    .Where(content => !string.IsNullOrWhiteSpace(content))
+                    .ToList();
+
+                if (listItems.Count == 0)
+                {
+                    return string.Empty;
+                }
+
+                var builder = new StringBuilder();
+                builder.Append($"<{listTag}>");
+                foreach (var item in listItems)
+                {
+                    builder.Append($"<li>{item}</li>");
+                }
+
+                builder.Append($"</{listTag}>");
+                return builder.ToString();
+            }
+            default:
+                return RenderNodes(element.Nodes(), inlineContext);
+        }
+    }
+
+    private static string NormalizeWhitespace(string value)
+    {
+        return Regex.Replace(value, @"\s+", " ");
+    }
+
+    private static string? SimplifyCref(string? cref)
+    {
+        if (string.IsNullOrWhiteSpace(cref))
+        {
+            return null;
+        }
+
+        var simplified = cref.Trim();
+        if (simplified.Length > 2 && simplified[1] == ':')
+        {
+            simplified = simplified[2..];
+        }
+
+        return simplified;
+    }
+
+    private static bool IsCompilerGeneratedDocParameter(string? parameterName)
+    {
+        return parameterName is "callerFilePath" or "callerLineNumber";
     }
 
     /// <summary>
@@ -267,14 +590,21 @@ public class CSharpDocHarvester : IDocHarvester
     private string GetQualifiedName(BaseTypeDeclarationSyntax node)
     {
         var parts = new Stack<string>();
-        parts.Push(node.Identifier.Text);
+        if (node is TypeDeclarationSyntax rootType)
+        {
+            parts.Push(GetTypeNameForQualifiedId(rootType));
+        }
+        else
+        {
+            parts.Push(node.Identifier.Text);
+        }
 
         var parent = node.Parent;
         while (parent != null)
         {
             if (parent is TypeDeclarationSyntax typeDecl)
             {
-                parts.Push(typeDecl.Identifier.Text);
+                parts.Push(GetTypeNameForQualifiedId(typeDecl));
             }
             else if (parent is BaseNamespaceDeclarationSyntax namespaceDecl)
             {

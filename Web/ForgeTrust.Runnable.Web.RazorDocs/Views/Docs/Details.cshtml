@@ -1,13 +1,17 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode
 @{
     ViewData["Title"] = Model.Title;
+    var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
 }
 
-<header class="mb-8">
-    <div class="flex items-center gap-2 text-xs font-mono text-slate-500 mb-2">
-        <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">@Model.Path</span>
+<header class="@(isCSharpApiDoc ? "mb-5" : "mb-8")">
+    <div class="flex items-center gap-2 text-xs font-mono text-slate-500 mb-3">
+        <span class="inline-flex max-w-full overflow-x-auto px-2 py-0.5 rounded bg-slate-800 border border-slate-700 whitespace-nowrap">@Model.Path</span>
     </div>
-    <h1 class="text-4xl font-bold text-white tracking-tight">@Model.Title</h1>
+    @if (!isCSharpApiDoc)
+    {
+        <h1 class="text-3xl font-bold text-white tracking-tight">@Model.Title</h1>
+    }
 </header>
 
 <div class="docs-content">

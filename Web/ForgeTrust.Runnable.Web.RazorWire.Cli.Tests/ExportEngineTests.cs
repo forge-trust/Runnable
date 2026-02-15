@@ -425,6 +425,26 @@ public class ExportEngineTests
     }
 
     [Fact]
+    public void ExtractDocContentFrame_Should_Handle_Nested_TurboFrames()
+    {
+        var html = """
+            <html><body>
+            <turbo-frame id="doc-content">
+              <h1>Doc</h1>
+              <turbo-frame id="nested"><p>Nested frame</p></turbo-frame>
+              <p>Tail</p>
+            </turbo-frame>
+            </body></html>
+            """;
+
+        var frame = ExportEngine.ExtractDocContentFrame(html);
+
+        Assert.NotNull(frame);
+        Assert.Contains("<turbo-frame id=\"nested\"><p>Nested frame</p></turbo-frame>", frame);
+        Assert.EndsWith("</turbo-frame>", frame);
+    }
+
+    [Fact]
     public async Task RunAsync_Should_Export_Docs_Partial_Fragments()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -448,6 +468,7 @@ public class ExportEngineTests
 
             var partialHtml = await File.ReadAllTextAsync(partialPath);
             Assert.Contains("<turbo-frame id=\"doc-content\">", partialHtml);
+            Assert.Contains("<turbo-frame id=\"nested-frame\"><p>Nested doc frame</p></turbo-frame>", partialHtml);
             Assert.DoesNotContain("<html", partialHtml, StringComparison.OrdinalIgnoreCase);
         }
         finally
@@ -596,6 +617,7 @@ public class ExportEngineTests
                       <body>
                         <turbo-frame id="doc-content">
                           <article>Start doc</article>
+                          <turbo-frame id="nested-frame"><p>Nested doc frame</p></turbo-frame>
                         </turbo-frame>
                         <a href="/docs/next">Next</a>
                       </body>

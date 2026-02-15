@@ -59,8 +59,12 @@ public class ExportEngine
         @"url\(\s*(['""]?)(.*?)\1\s*\)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    private static readonly Regex DocContentFrameRegex = new(
-        @"<turbo-frame[^>]*\sid\s*=\s*(['""])\s*doc-content\s*\1[^>]*>[\s\S]*?</turbo-frame>",
+    private static readonly Regex TurboFrameOpenTagRegex = new(
+        @"<turbo-frame\b[^>]*>",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex DocContentFrameIdRegex = new(
+        @"\bid\s*=\s*(['""])\s*doc-content\s*\1",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -291,8 +295,79 @@ public class ExportEngine
             return null;
         }
 
-        var match = DocContentFrameRegex.Match(html);
-        return match.Success ? match.Value : null;
+        foreach (Match openTag in TurboFrameOpenTagRegex.Matches(html))
+        {
+            if (!DocContentFrameIdRegex.IsMatch(openTag.Value))
+            {
+                continue;
+            }
+
+            var frameEnd = FindMatchingTurboFrameEnd(html, openTag.Index + openTag.Length);
+            if (frameEnd < 0)
+            {
+                return null;
+            }
+
+            return html[openTag.Index..frameEnd];
+        }
+
+        return null;
+    }
+
+    private static int FindMatchingTurboFrameEnd(string html, int scanStart)
+    {
+        var depth = 1;
+        var cursor = scanStart;
+
+        while (cursor < html.Length)
+        {
+            var nextOpen = html.IndexOf("<turbo-frame", cursor, StringComparison.OrdinalIgnoreCase);
+            var nextClose = html.IndexOf("</turbo-frame", cursor, StringComparison.OrdinalIgnoreCase);
+            if (nextClose < 0)
+            {
+                return -1;
+            }
+
+            if (nextOpen >= 0 && nextOpen < nextClose)
+            {
+                var openTagEnd = html.IndexOf('>', nextOpen);
+                if (openTagEnd < 0)
+                {
+                    return -1;
+                }
+
+                var tagCursor = openTagEnd - 1;
+                while (tagCursor > nextOpen && char.IsWhiteSpace(html[tagCursor]))
+                {
+                    tagCursor--;
+                }
+
+                var isSelfClosing = html[tagCursor] == '/';
+                if (!isSelfClosing)
+                {
+                    depth++;
+                }
+
+                cursor = openTagEnd + 1;
+                continue;
+            }
+
+            var closeTagEnd = html.IndexOf('>', nextClose);
+            if (closeTagEnd < 0)
+            {
+                return -1;
+            }
+
+            depth--;
+            cursor = closeTagEnd + 1;
+
+            if (depth == 0)
+            {
+                return cursor;
+            }
+        }
+
+        return -1;
     }
 
     private async Task TryWriteDocsPartialAsync(

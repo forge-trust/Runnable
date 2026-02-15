@@ -17,6 +17,7 @@ public class CSharpDocHarvester : IDocHarvester
 {
     private readonly ILogger<CSharpDocHarvester> _logger;
     private static readonly string[] ExcludedDirs = { "node_modules", "bin", "obj", "Tests" };
+    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
     /// <summary>
     /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the provided logger.
@@ -247,7 +248,7 @@ public class CSharpDocHarvester : IDocHarvester
     /// <param name="method">The method declaration syntax.</param>
     /// <param name="qualifiedTypeName">The qualified name of the containing type.</param>
     /// <returns>A tuple containing the method signature and the safe ID.</returns>
-    private static (string Signature, string Id) GetMethodSignatureAndId(
+    internal static (string Signature, string Id) GetMethodSignatureAndId(
         MethodDeclarationSyntax method,
         string qualifiedTypeName)
     {
@@ -330,7 +331,7 @@ public class CSharpDocHarvester : IDocHarvester
         return builder.ToString();
     }
 
-    private static string GetPropertyAccessorSignature(PropertyDeclarationSyntax property)
+    internal static string GetPropertyAccessorSignature(PropertyDeclarationSyntax property)
     {
         if (property.ExpressionBody != null)
         {
@@ -349,7 +350,7 @@ public class CSharpDocHarvester : IDocHarvester
         return "{ " + string.Join(" ", accessors) + " }";
     }
 
-    private static void AppendHighlightedParameter(StringBuilder builder, ParameterSyntax parameter)
+    internal static void AppendHighlightedParameter(StringBuilder builder, ParameterSyntax parameter)
     {
         var modifier = parameter.Modifiers.ToString().Trim();
         if (!string.IsNullOrWhiteSpace(modifier))
@@ -389,11 +390,6 @@ public class CSharpDocHarvester : IDocHarvester
 
     private static bool IsCompilerGeneratedCallerParameter(ParameterSyntax parameter)
     {
-        if (parameter.Identifier.Text is "callerFilePath" or "callerLineNumber")
-        {
-            return true;
-        }
-
         return parameter.AttributeLists
             .SelectMany(list => list.Attributes)
             .Select(attribute => attribute.Name.ToString())
@@ -645,10 +641,10 @@ public class CSharpDocHarvester : IDocHarvester
 
     private static string NormalizeWhitespace(string value)
     {
-        return Regex.Replace(value, @"\s+", " ");
+        return WhitespaceRegex.Replace(value, " ");
     }
 
-    private static string? SimplifyCref(string? cref)
+    internal static string? SimplifyCref(string? cref)
     {
         if (string.IsNullOrWhiteSpace(cref))
         {
@@ -669,7 +665,7 @@ public class CSharpDocHarvester : IDocHarvester
         return parameterName is "callerFilePath" or "callerLineNumber";
     }
 
-    private static NamespaceDocPage GetOrCreateNamespacePage(
+    internal static NamespaceDocPage GetOrCreateNamespacePage(
         IDictionary<string, NamespaceDocPage> namespacePages,
         string namespaceName)
     {
@@ -685,6 +681,9 @@ public class CSharpDocHarvester : IDocHarvester
         return page;
     }
 
+    /// <summary>
+    /// Ensures parent namespace pages and child links exist, then rebuilds <paramref name="namespacePages"/> in place keyed by <see cref="NamespaceDocPage.Path"/>.
+    /// </summary>
     private static void EnsureNamespaceHierarchy(IDictionary<string, NamespaceDocPage> namespacePages)
     {
         var pagesByNamespace = namespacePages.Values
@@ -782,7 +781,7 @@ public class CSharpDocHarvester : IDocHarvester
         return string.Join(".", namespaceParts);
     }
 
-    private static string BuildNamespaceDocPath(string namespaceName)
+    internal static string BuildNamespaceDocPath(string namespaceName)
     {
         return string.IsNullOrWhiteSpace(namespaceName) ? "Namespaces" : $"Namespaces/{namespaceName}";
     }
@@ -839,7 +838,7 @@ public class CSharpDocHarvester : IDocHarvester
         return string.Join(".", parts);
     }
 
-    private sealed class NamespaceDocPage
+    internal sealed class NamespaceDocPage
     {
         public NamespaceDocPage(string fullNamespace, string path, string title)
         {

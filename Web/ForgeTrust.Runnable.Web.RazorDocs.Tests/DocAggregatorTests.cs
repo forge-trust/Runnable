@@ -6,7 +6,6 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using System.Reflection;
 using Ext_IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -391,15 +390,11 @@ public class DocAggregatorTests : IDisposable
     [Fact]
     public void MergeNamespaceIntroIntoContent_ShouldHandleMalformedNamespaceSections()
     {
-        // Arrange
-        var method = typeof(DocAggregator).GetMethod("MergeNamespaceIntroIntoContent", BindingFlags.NonPublic | BindingFlags.Static);
-        Assert.NotNull(method);
-
         // Act
-        var noMarker = (string?)method!.Invoke(null, new object?[] { "<section>Body</section>", "<p>Intro</p>" });
-        var noSectionStart = (string?)method!.Invoke(null, new object?[] { "doc-namespace-groups", "<p>Intro</p>" });
-        var noStartTagEnd = (string?)method!.Invoke(null, new object?[] { "<section class='doc-namespace-groups'", "<p>Intro</p>" });
-        var noEndTag = (string?)method!.Invoke(null, new object?[] { "<section class='doc-namespace-groups'>open", "<p>Intro</p>" });
+        var noMarker = DocAggregator.MergeNamespaceIntroIntoContent("<section>Body</section>", "<p>Intro</p>");
+        var noSectionStart = DocAggregator.MergeNamespaceIntroIntoContent("doc-namespace-groups", "<p>Intro</p>");
+        var noStartTagEnd = DocAggregator.MergeNamespaceIntroIntoContent("<section class='doc-namespace-groups'", "<p>Intro</p>");
+        var noEndTag = DocAggregator.MergeNamespaceIntroIntoContent("<section class='doc-namespace-groups'>open", "<p>Intro</p>");
 
         // Assert
         Assert.Equal("<section class='doc-namespace-intro'><p>Intro</p></section><section>Body</section>", noMarker);
@@ -411,17 +406,8 @@ public class DocAggregatorTests : IDisposable
     [Fact]
     public void ExtractNamespaceNameFromReadmePath_ShouldReturnNull_WhenPathIsNotReadme()
     {
-        // Arrange
-        var method = typeof(DocAggregator).GetMethod(
-            "ExtractNamespaceNameFromReadmePath",
-            BindingFlags.NonPublic | BindingFlags.Static,
-            binder: null,
-            types: new[] { typeof(string) },
-            modifiers: null);
-        Assert.NotNull(method);
-
         // Act
-        var namespaceName = (string?)method!.Invoke(null, new object?[] { "docs/ForgeTrust.Web/NOTES.md" });
+        var namespaceName = DocAggregator.ExtractNamespaceNameFromReadmePath("docs/ForgeTrust.Web/NOTES.md");
 
         // Assert
         Assert.Null(namespaceName);
@@ -492,6 +478,28 @@ public class DocAggregatorTests : IDisposable
         // Assert
         Assert.Contains(docs, d => d.Path == "docs/page.html" && d.CanonicalPath == "docs/page.html");
         Assert.Contains(docs, d => d.Path == "index.html" && d.CanonicalPath == "index.html");
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldMergeNamespaceReadmes_WhenNamespaceNodesContainDuplicates()
+    {
+        // Arrange
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Web", "Namespaces/ForgeTrust.Web", namespaceContent),
+            new("Web-duplicate", "Namespaces/ForgeTrust.Web", namespaceContent),
+            new("README", "docs/ForgeTrust.Web/README.md", "<p>Namespace intro</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
+        Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
+        Assert.DoesNotContain(docs, d => d.Path == "docs/ForgeTrust.Web/README.md");
     }
 
     public void Dispose()

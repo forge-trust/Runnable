@@ -385,7 +385,13 @@
                 return;
             }
 
-            const targetId = decodeURIComponent(targetUrl.hash.slice(1));
+            let targetId;
+            try {
+                targetId = decodeURIComponent(targetUrl.hash.slice(1));
+            } catch {
+                return;
+            }
+
             const target = document.getElementById(targetId);
             if (!target) {
                 return;

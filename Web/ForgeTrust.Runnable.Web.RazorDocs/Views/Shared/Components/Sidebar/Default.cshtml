@@ -1,6 +1,13 @@
 @attribute [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 @model IEnumerable<IGrouping<string, ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode>>
 @using ForgeTrust.Runnable.Web.RazorDocs.Models
+@{
+    var namespacePrefixes = (ViewData["NamespacePrefixes"] as IEnumerable<string> ?? [])
+        .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
+        .Select(prefix => prefix.Trim())
+        .OrderByDescending(prefix => prefix.Length)
+        .ToArray();
+}
 
 @functions
 {
@@ -24,40 +31,64 @@
             : node.Title;
     }
 
-    private static string SimplifyNamespace(string fullNamespace)
+    private static string GetLastNamespaceSegment(string namespaceValue)
+    {
+        var separatorIndex = namespaceValue.LastIndexOf('.');
+        return separatorIndex >= 0 ? namespaceValue[(separatorIndex + 1)..] : namespaceValue;
+    }
+
+    private static string SimplifyNamespace(string fullNamespace, IReadOnlyList<string> namespacePrefixes)
     {
         if (string.IsNullOrWhiteSpace(fullNamespace))
         {
             return "Namespaces";
         }
 
-        const string runnablePrefix = "ForgeTrust.Runnable.";
-        if (fullNamespace.StartsWith(runnablePrefix, StringComparison.OrdinalIgnoreCase))
+        foreach (var prefix in namespacePrefixes)
         {
-            return fullNamespace[runnablePrefix.Length..];
+            var normalizedPrefix = prefix.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedPrefix))
+            {
+                continue;
+            }
+
+            var trimmedPrefix = normalizedPrefix.TrimEnd('.');
+            if (string.Equals(fullNamespace, trimmedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return GetLastNamespaceSegment(trimmedPrefix);
+            }
+
+            if (fullNamespace.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var remainder = fullNamespace[normalizedPrefix.Length..].TrimStart('.');
+                return string.IsNullOrWhiteSpace(remainder)
+                    ? GetLastNamespaceSegment(trimmedPrefix)
+                    : remainder;
+            }
+
+            var dottedPrefix = trimmedPrefix + ".";
+            if (fullNamespace.StartsWith(dottedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var remainder = fullNamespace[dottedPrefix.Length..];
+                return string.IsNullOrWhiteSpace(remainder)
+                    ? GetLastNamespaceSegment(trimmedPrefix)
+                    : remainder;
+            }
         }
 
-        if (string.Equals(fullNamespace, "ForgeTrust.Runnable", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Runnable";
-        }
-
-        const string forgeTrustPrefix = "ForgeTrust.";
-        return fullNamespace.StartsWith(forgeTrustPrefix, StringComparison.OrdinalIgnoreCase)
-            ? fullNamespace[forgeTrustPrefix.Length..]
-            : fullNamespace;
+        return fullNamespace;
     }
 
-    private static string GetNamespaceFamily(string fullNamespace)
+    private static string GetNamespaceFamily(string fullNamespace, IReadOnlyList<string> namespacePrefixes)
     {
-        var simplified = SimplifyNamespace(fullNamespace);
+        var simplified = SimplifyNamespace(fullNamespace, namespacePrefixes);
         var separatorIndex = simplified.IndexOf('.');
         return separatorIndex > 0 ? simplified[..separatorIndex] : simplified;
     }
 
-    private static string GetNamespaceDisplayName(string fullNamespace)
+    private static string GetNamespaceDisplayName(string fullNamespace, IReadOnlyList<string> namespacePrefixes)
     {
-        var simplified = SimplifyNamespace(fullNamespace);
+        var simplified = SimplifyNamespace(fullNamespace, namespacePrefixes);
         var separatorIndex = simplified.IndexOf('.');
         if (separatorIndex < 0)
         {
@@ -95,7 +126,7 @@
             }
 
             var namespaceFamilies = namespaceNodes
-                .GroupBy(n => GetNamespaceFamily(GetFullNamespaceName(n)))
+                .GroupBy(n => GetNamespaceFamily(GetFullNamespaceName(n), namespacePrefixes))
                 .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
 
             <div class="space-y-2">
@@ -111,7 +142,7 @@
                                        data-turbo-frame="doc-content"
                                        data-turbo-action="advance"
                                        class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
-                                        @GetNamespaceDisplayName(GetFullNamespaceName(namespaceNode))
+                                        @GetNamespaceDisplayName(GetFullNamespaceName(namespaceNode), namespacePrefixes)
                                     </a>
 
                                     @{

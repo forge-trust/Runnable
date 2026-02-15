@@ -26,10 +26,8 @@
     else
     {
         var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var current = string.Empty;
         foreach (var segment in segments)
         {
-            current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
             breadcrumbs.Add((segment, null));
         }
     }

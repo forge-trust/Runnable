@@ -2,7 +2,6 @@ using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -460,7 +459,7 @@ public class EdgeCases
         Assert.Contains("Raw list entry", namespaceNode.Content);
         Assert.Contains("Unknown failure.", namespaceNode.Content);
         Assert.DoesNotContain("<code></code>", namespaceNode.Content);
-        Assert.DoesNotContain("Filtered", namespaceNode.Content);
+        Assert.DoesNotContain("id=\"Test-EdgeCases-Filtered", namespaceNode.Content);
     }
 
     [Fact]
@@ -476,53 +475,23 @@ public class EdgeCases
                     SyntaxFactory.SingletonSeparatedList(typelessParameter)));
 
         // Act: typeless method parameter falls back to object.
-        var getMethodSignatureAndId = typeof(CSharpDocHarvester).GetMethod(
-            "GetMethodSignatureAndId",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
-        var signatureResult = (ValueTuple<string, string>)getMethodSignatureAndId.Invoke(
-            null,
-            new object?[] { typelessMethod, "Test.EdgeCases" })!;
-
-        var appendHighlightedParameter = typeof(CSharpDocHarvester).GetMethod(
-            "AppendHighlightedParameter",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var signatureResult = CSharpDocHarvester.GetMethodSignatureAndId(typelessMethod, "Test.EdgeCases");
         var signatureBuilder = new StringBuilder();
-        appendHighlightedParameter.Invoke(null, new object?[] { signatureBuilder, typelessParameter });
+        CSharpDocHarvester.AppendHighlightedParameter(signatureBuilder, typelessParameter);
 
-        var getPropertyAccessorSignature = typeof(CSharpDocHarvester).GetMethod(
-            "GetPropertyAccessorSignature",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
         var propertyWithoutAccessor = SyntaxFactory.PropertyDeclaration(
             SyntaxFactory.ParseTypeName("int"),
             "Count");
         var propertyWithEmptyAccessorList = propertyWithoutAccessor.WithAccessorList(SyntaxFactory.AccessorList());
-        var nullAccessorSignature = (string)getPropertyAccessorSignature.Invoke(
-            null,
-            new object?[] { propertyWithoutAccessor })!;
-        var emptyAccessorSignature = (string)getPropertyAccessorSignature.Invoke(
-            null,
-            new object?[] { propertyWithEmptyAccessorList })!;
+        var nullAccessorSignature = CSharpDocHarvester.GetPropertyAccessorSignature(propertyWithoutAccessor);
+        var emptyAccessorSignature = CSharpDocHarvester.GetPropertyAccessorSignature(propertyWithEmptyAccessorList);
 
-        var simplifyCref = typeof(CSharpDocHarvester).GetMethod(
-            "SimplifyCref",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
-        var simplifiedShortCref = (string?)simplifyCref.Invoke(null, new object?[] { "T:" });
+        var simplifiedShortCref = CSharpDocHarvester.SimplifyCref("T:");
+        var rootNamespacePath = CSharpDocHarvester.BuildNamespaceDocPath("   ");
 
-        var buildNamespaceDocPath = typeof(CSharpDocHarvester).GetMethod(
-            "BuildNamespaceDocPath",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
-        var rootNamespacePath = (string)buildNamespaceDocPath.Invoke(null, new object?[] { "   " })!;
-
-        var getOrCreateNamespacePage = typeof(CSharpDocHarvester).GetMethod(
-            "GetOrCreateNamespacePage",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
-        var namespacePageType = getOrCreateNamespacePage.GetParameters()[0].ParameterType.GenericTypeArguments[1];
-        var dictionaryType = typeof(Dictionary<,>).MakeGenericType(typeof(string), namespacePageType);
-        var namespacePages = Activator.CreateInstance(dictionaryType)!;
-        var namespacePage = getOrCreateNamespacePage.Invoke(null, new object?[] { namespacePages, "   " })!;
-        var namespacePath = (string?)namespacePage.GetType()
-            .GetProperty("Path", BindingFlags.Instance | BindingFlags.Public)!
-            .GetValue(namespacePage);
+        var namespacePages = new Dictionary<string, CSharpDocHarvester.NamespaceDocPage>(StringComparer.OrdinalIgnoreCase);
+        var namespacePage = CSharpDocHarvester.GetOrCreateNamespacePage(namespacePages, "   ");
+        var namespacePath = namespacePage.Path;
 
         // Assert
         Assert.Contains("object", signatureResult.Item1);

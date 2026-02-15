@@ -118,7 +118,7 @@ public class DocAggregator
     /// </returns>
     private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync(CancellationToken cancellationToken = default)
     {
-        return (await _cache.GetOrCreateAsync(
+        return await _cache.GetOrCreateAsync(
                    CacheKey,
                    async entry =>
                    {
@@ -180,7 +180,7 @@ public class DocAggregator
                                return g.First();
                            })
                            .ToDictionary(n => n.Path, n => n);
-                   }))!;
+                   }) ?? new Dictionary<string, DocNode>();
     }
 
     private static void MergeNamespaceReadmes(List<DocNode> nodes)
@@ -190,9 +190,12 @@ public class DocAggregator
                 n => string.IsNullOrEmpty(n.ParentPath)
                      && !n.Path.Contains('#')
                      && NormalizeLookupPath(n.Path).StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(
+            .GroupBy(
                 n => ExtractNamespaceNameFromNamespacePath(n.Path),
-                n => n,
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.First(),
                 StringComparer.OrdinalIgnoreCase);
 
         var readmeNodes = nodes
@@ -236,7 +239,7 @@ public class DocAggregator
         }
     }
 
-    private static string MergeNamespaceIntroIntoContent(string namespaceContent, string readmeContent)
+    internal static string MergeNamespaceIntroIntoContent(string namespaceContent, string readmeContent)
     {
         var introSection = $"<section class='doc-namespace-intro'>{readmeContent}</section>";
         const string namespaceGroupsClassMarker = "doc-namespace-groups";
@@ -282,7 +285,7 @@ public class DocAggregator
         return normalized["Namespaces/".Length..];
     }
 
-    private static string? ExtractNamespaceNameFromReadmePath(string path)
+    internal static string? ExtractNamespaceNameFromReadmePath(string path)
     {
         return ExtractNamespaceNameFromReadmePath(path, null);
     }

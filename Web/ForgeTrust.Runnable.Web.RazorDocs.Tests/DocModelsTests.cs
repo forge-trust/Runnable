@@ -18,5 +18,6 @@ public class DocModelsTests
 
         // This hits the ParentPath getter
         Assert.Null(node.ParentPath);
+        Assert.Null(node.CanonicalPath);
     }
 }

@@ -2,12 +2,14 @@ using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs;
 
 /// <summary>
 /// Web module configuration for the RazorDocs documentation system.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class RazorDocsWebModule : IRunnableWebModule
 {
     /// <inheritdoc />

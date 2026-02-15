@@ -62,9 +62,21 @@ public class DocAggregator
     /// <returns>The <see cref="DocNode"/> if found, or <c>null</c> if no node exists for the given path.</returns>
     public async Task<DocNode?> GetDocByPathAsync(string path, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(path);
+
         var cachedDict = await GetCachedDocsAsync(cancellationToken);
 
-        return cachedDict.GetValueOrDefault(path);
+        var lookupPath = NormalizeLookupPath(path);
+        if (cachedDict.TryGetValue(lookupPath, out var directMatch))
+        {
+            return directMatch;
+        }
+
+        return cachedDict.Values.FirstOrDefault(
+            doc => string.Equals(
+                NormalizeLookupPath(doc.CanonicalPath ?? doc.Path),
+                lookupPath,
+                StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -117,7 +129,14 @@ public class DocAggregator
                        }
 
                        return allNodes
-                           .Select(n => new DocNode(n.Title, n.Path, _sanitizer.Sanitize(n.Content)))
+                           .Select(
+                               n => new DocNode(
+                                   n.Title,
+                                   n.Path,
+                                   _sanitizer.Sanitize(n.Content),
+                                   n.ParentPath,
+                                   n.IsDirectory,
+                                   BuildCanonicalPath(n.Path)))
                            .GroupBy(n => n.Path)
                            .Select(g =>
                            {
@@ -131,7 +150,36 @@ public class DocAggregator
                                return g.First();
                            })
                            .ToDictionary(n => n.Path, n => n);
-                   })
-               ?? new Dictionary<string, DocNode>();
+                   }) ?? new Dictionary<string, DocNode>();
+    }
+
+    private static string NormalizeLookupPath(string path)
+    {
+        var sanitized = path.Trim().Trim('/');
+        var hashIndex = sanitized.IndexOf('#');
+        if (hashIndex >= 0)
+        {
+            sanitized = sanitized[..hashIndex];
+        }
+
+        return sanitized;
+    }
+
+    private static string BuildCanonicalPath(string sourcePath)
+    {
+        var hashIndex = sourcePath.IndexOf('#');
+        var fragment = hashIndex >= 0 ? sourcePath[hashIndex..] : string.Empty;
+        var trimmed = NormalizeLookupPath(sourcePath);
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return "index.html" + fragment;
+        }
+
+        var directory = Path.GetDirectoryName(trimmed)?.Replace('\\', '/');
+        var fileName = Path.GetFileName(trimmed);
+        var safeFileName = fileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+            ? fileName
+            : fileName + ".html";
+        return (string.IsNullOrEmpty(directory) ? safeFileName : $"{directory}/{safeFileName}") + fragment;
     }
 }

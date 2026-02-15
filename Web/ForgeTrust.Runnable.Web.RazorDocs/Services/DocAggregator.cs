@@ -128,7 +128,7 @@ public class DocAggregator
                            allNodes.AddRange(result);
                        }
 
-                       return allNodes
+                       var sanitizedNodes = allNodes
                            .Select(
                                n => new DocNode(
                                    n.Title,
@@ -137,6 +137,11 @@ public class DocAggregator
                                    n.ParentPath,
                                    n.IsDirectory,
                                    BuildCanonicalPath(n.Path)))
+                           .ToList();
+
+                       MergeNamespaceReadmes(sanitizedNodes);
+
+                       return sanitizedNodes
                            .GroupBy(n => n.Path)
                            .Select(g =>
                            {
@@ -151,6 +156,91 @@ public class DocAggregator
                            })
                            .ToDictionary(n => n.Path, n => n);
                    }) ?? new Dictionary<string, DocNode>();
+    }
+
+    private static void MergeNamespaceReadmes(List<DocNode> nodes)
+    {
+        var namespaceNodes = nodes
+            .Where(
+                n => string.IsNullOrEmpty(n.ParentPath)
+                     && NormalizeLookupPath(n.Path).StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(
+                n => ExtractNamespaceNameFromNamespacePath(n.Path),
+                n => n,
+                StringComparer.OrdinalIgnoreCase);
+
+        var readmeNodes = nodes
+            .Where(n => string.IsNullOrEmpty(n.ParentPath) && IsReadmePath(n.Path))
+            .ToList();
+
+        foreach (var readmeNode in readmeNodes)
+        {
+            var namespaceName = ExtractNamespaceNameFromReadmePath(readmeNode.Path);
+            if (string.IsNullOrWhiteSpace(namespaceName))
+            {
+                continue;
+            }
+
+            if (!namespaceNodes.TryGetValue(namespaceName, out var namespaceNode))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(readmeNode.Content))
+            {
+                var mergedContent = $"<section class='doc-namespace-intro'>{readmeNode.Content}</section>{namespaceNode.Content}";
+                var mergedNamespaceNode = new DocNode(
+                    namespaceNode.Title,
+                    namespaceNode.Path,
+                    mergedContent,
+                    namespaceNode.ParentPath,
+                    namespaceNode.IsDirectory,
+                    namespaceNode.CanonicalPath);
+
+                var namespaceIndex = nodes.FindIndex(n => string.Equals(n.Path, namespaceNode.Path, StringComparison.OrdinalIgnoreCase));
+                if (namespaceIndex >= 0)
+                {
+                    nodes[namespaceIndex] = mergedNamespaceNode;
+                }
+
+                namespaceNodes[namespaceName] = mergedNamespaceNode;
+            }
+
+            nodes.RemoveAll(n => string.Equals(n.Path, readmeNode.Path, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private static bool IsReadmePath(string path)
+    {
+        var normalized = NormalizeLookupPath(path);
+        var fileName = Path.GetFileName(normalized);
+        return string.Equals(fileName, "README.md", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractNamespaceNameFromNamespacePath(string path)
+    {
+        var normalized = NormalizeLookupPath(path);
+        return normalized["Namespaces/".Length..];
+    }
+
+    private static string? ExtractNamespaceNameFromReadmePath(string path)
+    {
+        var normalized = NormalizeLookupPath(path);
+        if (!IsReadmePath(normalized))
+        {
+            return null;
+        }
+
+        var directoryPath = Path.GetDirectoryName(normalized);
+        if (string.IsNullOrWhiteSpace(directoryPath))
+        {
+            return null;
+        }
+
+        var parts = directoryPath
+            .Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 0 ? null : parts[^1];
     }
 
     private static string NormalizeLookupPath(string path)

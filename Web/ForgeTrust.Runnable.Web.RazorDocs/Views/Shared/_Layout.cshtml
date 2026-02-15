@@ -199,6 +199,39 @@
             color: #e2e8f0;
         }
 
+        .docs-content .doc-namespace-intro {
+            margin: 0 0 1.25rem;
+            padding: 1rem 1.1rem;
+            border: 1px solid #1e293b;
+            border-radius: 0.75rem;
+            background: rgba(15, 23, 42, 0.42);
+        }
+
+        .docs-content .doc-namespace-intro p:last-child {
+            margin-bottom: 0;
+        }
+
+        .docs-content .doc-namespace-groups {
+            margin: 0 0 1.1rem;
+            padding: 0.85rem 1rem;
+            border: 1px solid #1e293b;
+            border-radius: 0.7rem;
+            background: rgba(15, 23, 42, 0.32);
+        }
+
+        .docs-content .doc-namespace-groups ul {
+            margin: 0.2rem 0 0;
+            padding-left: 1rem;
+        }
+
+        .docs-content .doc-namespace-groups a {
+            color: #7dd3fc;
+        }
+
+        .docs-content .doc-namespace-groups a:hover {
+            color: #22d3ee;
+        }
+
         .docs-content .doc-remarks > p {
             color: #94a3b8;
         }
@@ -302,5 +335,30 @@
 </div>
 
 @await RenderSectionAsync("Scripts", required: false)
+<script>
+    (() => {
+        document.addEventListener("click", event => {
+            const anchorLink = event.target.closest("a[data-doc-anchor-link='true']");
+            if (!anchorLink) {
+                return;
+            }
+
+            const targetUrl = new URL(anchorLink.href, window.location.origin);
+            if (targetUrl.pathname !== window.location.pathname || !targetUrl.hash) {
+                return;
+            }
+
+            const targetId = decodeURIComponent(targetUrl.hash.slice(1));
+            const target = document.getElementById(targetId);
+            if (!target) {
+                return;
+            }
+
+            event.preventDefault();
+            history.replaceState(null, "", targetUrl.hash);
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    })();
+</script>
 </body>
 </html>

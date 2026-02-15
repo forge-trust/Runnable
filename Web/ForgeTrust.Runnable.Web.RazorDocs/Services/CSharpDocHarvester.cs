@@ -70,8 +70,18 @@ public class CSharpDocHarvester : IDocHarvester
                             })
                         .Where(x => x.Doc != null)
                         .ToList();
+                    var documentedProperties = typeDecl.Members
+                        .OfType<PropertyDeclarationSyntax>()
+                        .Select(
+                            property => new
+                            {
+                                Property = property,
+                                Doc = ExtractDoc(property)
+                            })
+                        .Where(x => x.Doc != null)
+                        .ToList();
 
-                    if (doc == null && documentedMethods.Count == 0)
+                    if (doc == null && documentedMethods.Count == 0 && documentedProperties.Count == 0)
                     {
                         continue;
                     }
@@ -81,7 +91,7 @@ public class CSharpDocHarvester : IDocHarvester
                     var typeId = StringUtils.ToSafeId(qualifiedTypeName);
                     var namespacePage = GetOrCreateNamespacePage(namespacePages, GetNamespaceName(typeDecl));
 
-                    namespacePage.HasAnyDoc = true;
+                    namespacePage.HasOwnContent = true;
                     namespacePage.Content.Append(
                         $@"<section id=""{typeId}"" class=""doc-type"">
                         <header class=""doc-type-header"">
@@ -147,6 +157,30 @@ public class CSharpDocHarvester : IDocHarvester
                         namespacePage.Content.Append("</section>");
                     }
 
+                    foreach (var propertyItem in documentedProperties)
+                    {
+                        var property = propertyItem.Property;
+                        var propertyDoc = propertyItem.Doc!;
+                        var (_, id) = GetPropertySignatureAndId(property, qualifiedTypeName);
+                        var highlightedPropertySignature = GetHighlightedPropertySignature(property);
+
+                        namespacePage.Content.Append(
+                            $@"<section class=""doc-method-group"">
+                            <header class=""doc-method-group-header"">
+                                <span class=""doc-kind"">Property</span>
+                                <h3>{WebUtility.HtmlEncode(property.Identifier.Text)}</h3>
+                            </header>
+                            <article id=""{id}"" class=""doc-overload doc-property"">
+                                <div class=""doc-property-signature"">
+                                    <code class=""doc-signature"">{highlightedPropertySignature}</code>
+                                </div>
+                                <div class=""doc-overload-body"">
+                                    {propertyDoc}
+                                </div>
+                            </article>
+                        </section>");
+                    }
+
                     namespacePage.Content.Append("</section>");
                 }
 
@@ -158,7 +192,7 @@ public class CSharpDocHarvester : IDocHarvester
                     if (doc != null)
                     {
                         var namespacePage = GetOrCreateNamespacePage(namespacePages, GetNamespaceName(enumDecl));
-                        namespacePage.HasAnyDoc = true;
+                        namespacePage.HasOwnContent = true;
                         var qualifiedName = GetQualifiedName(enumDecl);
                         var enumId = StringUtils.ToSafeId(qualifiedName);
 
@@ -188,9 +222,11 @@ public class CSharpDocHarvester : IDocHarvester
             }
         }
 
+        EnsureNamespaceHierarchy(namespacePages);
+
         foreach (var namespacePage in namespacePages.Values.OrderBy(p => p.Path, StringComparer.OrdinalIgnoreCase))
         {
-            if (!namespacePage.HasAnyDoc)
+            if (namespacePage.Content.Length == 0)
             {
                 continue;
             }
@@ -232,6 +268,15 @@ public class CSharpDocHarvester : IDocHarvester
         return (signature, id);
     }
 
+    private static (string Signature, string Id) GetPropertySignatureAndId(
+        PropertyDeclarationSyntax property,
+        string qualifiedTypeName)
+    {
+        var signature = $"{property.Type} {property.Identifier.Text}{GetPropertyAccessorSignature(property)}";
+        var id = StringUtils.ToSafeId($"{qualifiedTypeName}.{signature}");
+        return (signature, id);
+    }
+
     private static string GetHighlightedDisplaySignature(MethodDeclarationSyntax method)
     {
         var builder = new StringBuilder();
@@ -269,6 +314,41 @@ public class CSharpDocHarvester : IDocHarvester
         builder.Append(")");
 
         return builder.ToString();
+    }
+
+    private static string GetHighlightedPropertySignature(PropertyDeclarationSyntax property)
+    {
+        var builder = new StringBuilder();
+        builder.Append($@"<span class=""sig-type"">{WebUtility.HtmlEncode(property.Type.ToString())}</span> ");
+        builder.Append($@"<span class=""sig-parameter"">{WebUtility.HtmlEncode(property.Identifier.Text)}</span>");
+
+        var accessorSignature = GetPropertyAccessorSignature(property);
+        if (!string.IsNullOrWhiteSpace(accessorSignature))
+        {
+            builder.Append(" ");
+            builder.Append($@"<span class=""sig-operator"">{WebUtility.HtmlEncode(accessorSignature)}</span>");
+        }
+
+        return builder.ToString();
+    }
+
+    private static string GetPropertyAccessorSignature(PropertyDeclarationSyntax property)
+    {
+        if (property.ExpressionBody != null)
+        {
+            return "{ get; }";
+        }
+
+        var accessors = property.AccessorList?.Accessors
+            .Select(a => $"{a.Keyword.Text};")
+            .ToList();
+
+        if (accessors == null || accessors.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return "{ " + string.Join(" ", accessors) + " }";
     }
 
     private static void AppendHighlightedParameter(StringBuilder builder, ParameterSyntax parameter)
@@ -600,11 +680,92 @@ public class CSharpDocHarvester : IDocHarvester
 
         if (!namespacePages.TryGetValue(path, out var page))
         {
-            page = new NamespaceDocPage(normalizedNamespace, path);
+            page = new NamespaceDocPage(normalizedNamespace, path, GetNamespaceTitle(normalizedNamespace));
             namespacePages[path] = page;
         }
 
         return page;
+    }
+
+    private static void EnsureNamespaceHierarchy(IDictionary<string, NamespaceDocPage> namespacePages)
+    {
+        var pagesByNamespace = namespacePages.Values
+            .ToDictionary(p => p.FullNamespace, StringComparer.OrdinalIgnoreCase);
+
+        if (!pagesByNamespace.ContainsKey(string.Empty))
+        {
+            pagesByNamespace[string.Empty] = new NamespaceDocPage(string.Empty, "Namespaces", "Namespaces");
+        }
+
+        var fullNamespaces = pagesByNamespace.Keys.Where(k => !string.IsNullOrWhiteSpace(k)).ToList();
+        foreach (var namespaceName in fullNamespaces)
+        {
+            var parts = namespaceName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 1; i < parts.Length; i++)
+            {
+                var parentNamespace = string.Join(".", parts.Take(i));
+                if (!pagesByNamespace.ContainsKey(parentNamespace))
+                {
+                    pagesByNamespace[parentNamespace] = new NamespaceDocPage(
+                        parentNamespace,
+                        BuildNamespaceDocPath(parentNamespace),
+                        GetNamespaceTitle(parentNamespace));
+                }
+            }
+        }
+
+        foreach (var page in pagesByNamespace.Values)
+        {
+            page.ChildNamespaces.Clear();
+        }
+
+        foreach (var namespaceName in pagesByNamespace.Keys.Where(k => !string.IsNullOrWhiteSpace(k)))
+        {
+            var parentNamespace = GetParentNamespace(namespaceName);
+            if (pagesByNamespace.TryGetValue(parentNamespace, out var parentPage))
+            {
+                parentPage.ChildNamespaces.Add(namespaceName);
+            }
+        }
+
+        foreach (var page in pagesByNamespace.Values)
+        {
+            if (page.ChildNamespaces.Count == 0)
+            {
+                continue;
+            }
+
+            var childLinks = page.ChildNamespaces
+                .OrderBy(child => child, StringComparer.OrdinalIgnoreCase)
+                .Select(
+                    child =>
+                    {
+                        var childPath = BuildNamespaceDocPath(child);
+                        var childTitle = GetNamespaceTitle(child);
+                        return
+                            $@"<li><a href=""/docs/{WebUtility.HtmlEncode(childPath)}.html"">{WebUtility.HtmlEncode(childTitle)}</a></li>";
+                    });
+
+            var childSection = new StringBuilder();
+            childSection.Append("<section class='doc-namespace-groups'>");
+            childSection.Append("<h4>Namespaces</h4>");
+            childSection.Append("<ul>");
+            foreach (var link in childLinks)
+            {
+                childSection.Append(link);
+            }
+
+            childSection.Append("</ul>");
+            childSection.Append("</section>");
+
+            page.Content.Insert(0, childSection.ToString());
+        }
+
+        namespacePages.Clear();
+        foreach (var page in pagesByNamespace.Values)
+        {
+            namespacePages[page.Path] = page;
+        }
     }
 
     private static string GetNamespaceName(SyntaxNode node)
@@ -615,7 +776,24 @@ public class CSharpDocHarvester : IDocHarvester
 
     private static string BuildNamespaceDocPath(string namespaceName)
     {
-        return $"Namespaces/{namespaceName}";
+        return string.IsNullOrWhiteSpace(namespaceName) ? "Namespaces" : $"Namespaces/{namespaceName}";
+    }
+
+    private static string GetNamespaceTitle(string fullNamespace)
+    {
+        if (string.IsNullOrWhiteSpace(fullNamespace))
+        {
+            return "Namespaces";
+        }
+
+        var separatorIndex = fullNamespace.LastIndexOf('.');
+        return separatorIndex >= 0 ? fullNamespace[(separatorIndex + 1)..] : fullNamespace;
+    }
+
+    private static string GetParentNamespace(string namespaceName)
+    {
+        var separatorIndex = namespaceName.LastIndexOf('.');
+        return separatorIndex < 0 ? string.Empty : namespaceName[..separatorIndex];
     }
 
     /// <summary>
@@ -655,11 +833,14 @@ public class CSharpDocHarvester : IDocHarvester
 
     private sealed class NamespaceDocPage
     {
-        public NamespaceDocPage(string title, string path)
+        public NamespaceDocPage(string fullNamespace, string path, string title)
         {
+            FullNamespace = fullNamespace;
             Title = title;
             Path = path;
         }
+
+        public string FullNamespace { get; }
 
         public string Title { get; }
 
@@ -667,6 +848,8 @@ public class CSharpDocHarvester : IDocHarvester
 
         public StringBuilder Content { get; } = new();
 
-        public bool HasAnyDoc { get; set; }
+        public bool HasOwnContent { get; set; }
+
+        public HashSet<string> ChildNamespaces { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 }

@@ -20,19 +20,19 @@ public class DocsController : Controller
 
     private static readonly Regex ScriptOrStyleRegex = new(
         "<script[^>]*>[\\s\\S]*?</script>|<style[^>]*>[\\s\\S]*?</style>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled | RegexOptions.NonBacktracking);
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.NonBacktracking);
 
     private static readonly Regex TagRegex = new(
         "<[^>]+>",
-        RegexOptions.Compiled | RegexOptions.NonBacktracking);
+        RegexOptions.NonBacktracking);
 
     private static readonly Regex H2H3Regex = new(
         "<h[23][^>]*>(.*?)</h[23]>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled | RegexOptions.NonBacktracking);
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.NonBacktracking);
 
     private static readonly Regex MultiSpaceRegex = new(
         "\\s+",
-        RegexOptions.Compiled | RegexOptions.NonBacktracking);
+        RegexOptions.NonBacktracking);
 
     private readonly DocAggregator _aggregator;
     private readonly IMemo _memo;
@@ -117,12 +117,12 @@ public class DocsController : Controller
         Response.Headers.CacheControl = $"public,max-age={(int)SearchIndexCacheDuration.TotalSeconds}";
 
         var cacheGeneration = Volatile.Read(ref _searchIndexGeneration);
-        var payload = await _memo.GetAsync(
+        var payloadTask = _memo.GetAsync(
             cacheGeneration,
             async (_, ct) =>
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var docs = await _aggregator.GetDocsAsync(ct);
+                var docs = await _aggregator.GetDocsAsync(CancellationToken.None);
                 var records = docs
                     .Select(d =>
                     {
@@ -174,7 +174,9 @@ public class DocsController : Controller
                 return computedPayload;
             },
             policy: SearchIndexCachePolicy,
-            cancellationToken: HttpContext.RequestAborted);
+            cancellationToken: CancellationToken.None);
+
+        var payload = await payloadTask.WaitAsync(HttpContext.RequestAborted);
 
         return Json(payload);
     }

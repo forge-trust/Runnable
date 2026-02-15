@@ -231,7 +231,7 @@
 
     if (!results.length) {
       sidebarResults.classList.remove('hidden');
-      sidebarResults.innerHTML = '<li class="docs-search-empty" role="option">No matching docs found.</li>';
+      sidebarResults.innerHTML = '<li class="docs-search-empty" role="presentation">No matching docs found.</li>';
       sidebarInput?.removeAttribute('aria-activedescendant');
       setStatus(sidebarStatus, 'No matching docs found.');
       return;

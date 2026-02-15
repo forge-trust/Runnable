@@ -110,6 +110,7 @@ public class RazorDocsWebModuleTests
     {
         var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
         var sourcePath = Path.Combine(repoRoot, "Web", "ForgeTrust.Runnable.Web.RazorDocs", "RazorDocsWebModule.cs");
+        Assert.True(File.Exists(sourcePath), $"Expected source file to exist for route-order test: {sourcePath}");
         var sourceText = File.ReadAllText(sourcePath);
         var tree = CSharpSyntaxTree.ParseText(sourceText);
         var root = tree.GetRoot();

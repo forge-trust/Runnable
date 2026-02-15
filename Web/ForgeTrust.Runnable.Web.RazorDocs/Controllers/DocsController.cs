@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ForgeTrust.Runnable.Caching;
+using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.Extensions.Primitives;
 using System.Net;
@@ -74,10 +75,24 @@ public class DocsController : Controller
             return NotFound();
         }
 
-        var doc = await _aggregator.GetDocByPathAsync(path, HttpContext.RequestAborted);
+        var servesPartial = path.EndsWith(".partial.html", StringComparison.OrdinalIgnoreCase);
+        var resolvedPath = servesPartial
+            ? path[..^".partial.html".Length]
+            : path;
+        if (string.IsNullOrWhiteSpace(resolvedPath))
+        {
+            return NotFound();
+        }
+
+        var doc = await _aggregator.GetDocByPathAsync(resolvedPath, HttpContext.RequestAborted);
         if (doc == null)
         {
             return NotFound();
+        }
+
+        if (servesPartial)
+        {
+            return RazorWireBridge.Frame(this, "doc-content", "Details", doc);
         }
 
         return View(doc);

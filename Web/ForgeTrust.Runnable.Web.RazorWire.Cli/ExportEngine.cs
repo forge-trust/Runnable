@@ -59,6 +59,10 @@ public class ExportEngine
         @"url\(\s*(['""]?)(.*?)\1\s*\)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex DocContentFrameRegex = new(
+        @"<turbo-frame[^>]*\sid\s*=\s*(['""])\s*doc-content\s*\1[^>]*>[\s\S]*?</turbo-frame>",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ExportEngine"/> class.
     /// </summary>
@@ -208,6 +212,9 @@ public class ExportEngine
                 var html = await response.Content.ReadAsStringAsync(cancellationToken);
                 await File.WriteAllTextAsync(filePath, html, cancellationToken);
 
+                // Export frame fragments for docs pages so static navigation can fetch only the content island.
+                await TryWriteDocsPartialAsync(route, filePath, html, cancellationToken);
+
                 // Extract links, frames, and assets only from HTML
                 ExtractLinks(html, context);
                 ExtractFrames(html, context);
@@ -259,6 +266,54 @@ public class ExportEngine
         {
             _logger.LogError(ex, "Error exporting {Route}", route);
         }
+    }
+
+    internal static bool IsDocsRoute(string route)
+    {
+        return route.Equals("/docs", StringComparison.OrdinalIgnoreCase)
+               || route.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static string MapHtmlFilePathToPartialPath(string htmlFilePath)
+    {
+        if (htmlFilePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            return htmlFilePath[..^5] + ".partial.html";
+        }
+
+        return htmlFilePath + ".partial.html";
+    }
+
+    internal static string? ExtractDocContentFrame(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return null;
+        }
+
+        var match = DocContentFrameRegex.Match(html);
+        return match.Success ? match.Value : null;
+    }
+
+    private async Task TryWriteDocsPartialAsync(
+        string route,
+        string htmlFilePath,
+        string html,
+        CancellationToken cancellationToken)
+    {
+        if (!IsDocsRoute(route))
+        {
+            return;
+        }
+
+        var frameHtml = ExtractDocContentFrame(html);
+        if (string.IsNullOrWhiteSpace(frameHtml))
+        {
+            return;
+        }
+
+        var partialPath = MapHtmlFilePathToPartialPath(htmlFilePath);
+        await File.WriteAllTextAsync(partialPath, frameHtml, cancellationToken);
     }
 
     /// <summary>

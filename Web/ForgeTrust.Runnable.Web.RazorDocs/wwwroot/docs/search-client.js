@@ -3,6 +3,7 @@
   const maxQueryLength = 500;
   const topResults = 8;
   const fetchTimeoutMs = 10000;
+  const docsFrameId = 'doc-content';
   const defaultSearchOptions = {
     prefix: true,
     fuzzy: 0.1,
@@ -17,6 +18,74 @@
   const pageInput = document.getElementById('docs-search-page-input');
   const pageResults = document.getElementById('docs-search-page-results');
   const pageStatus = document.getElementById('docs-search-page-status');
+
+  function getHeader(headers, name) {
+    if (!headers) {
+      return null;
+    }
+
+    if (headers instanceof Headers) {
+      return headers.get(name);
+    }
+
+    if (typeof headers === 'object') {
+      return headers[name] ?? headers[name.toLowerCase()] ?? null;
+    }
+
+    return null;
+  }
+
+  function toDocsPartialUrl(urlLike) {
+    if (!urlLike) {
+      return null;
+    }
+
+    const url = urlLike instanceof URL ? new URL(urlLike.toString()) : new URL(String(urlLike), window.location.href);
+    const path = url.pathname;
+
+    if (!(path === '/docs' || path.startsWith('/docs/'))) {
+      return null;
+    }
+
+    if (path === '/docs') {
+      return null;
+    }
+
+    if (path.endsWith('.partial.html') || path.endsWith('/search-index.json')) {
+      return null;
+    }
+
+    if (path.endsWith('/')) {
+      url.pathname = `${path}index.partial.html`;
+      return url;
+    }
+
+    if (path.endsWith('.html')) {
+      url.pathname = `${path.slice(0, -5)}.partial.html`;
+      return url;
+    }
+
+    url.pathname = `${path}.partial.html`;
+    return url;
+  }
+
+  function installDocsPartialHook() {
+    document.addEventListener('turbo:before-fetch-request', (event) => {
+      const targetFrame = event.target;
+      const turboFrameHeader = getHeader(event.detail?.fetchOptions?.headers, 'Turbo-Frame');
+      const isDocFrameRequest = (targetFrame && targetFrame.id === docsFrameId) || turboFrameHeader === docsFrameId;
+      if (!isDocFrameRequest) {
+        return;
+      }
+
+      const partialUrl = toDocsPartialUrl(event.detail?.url);
+      if (!partialUrl) {
+        return;
+      }
+
+      event.detail.url = partialUrl;
+    });
+  }
 
   function debounce(fn, delay) {
     let timer = null;
@@ -306,5 +375,6 @@
     }
   }
 
+  installDocsPartialHook();
   init().catch((err) => console.error('Search init failed:', err));
 })();

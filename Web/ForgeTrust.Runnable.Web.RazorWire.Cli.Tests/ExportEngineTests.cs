@@ -404,6 +404,61 @@ public class ExportEngineTests
         }
     }
 
+    [Fact]
+    public void MapHtmlFilePathToPartialPath_Should_Append_Partial_Suffix()
+    {
+        var htmlPath = Path.Combine("dist", "docs", "topic.html");
+
+        var partialPath = ExportEngine.MapHtmlFilePathToPartialPath(htmlPath);
+
+        Assert.EndsWith(Path.Combine("docs", "topic.partial.html"), partialPath);
+    }
+
+    [Fact]
+    public void ExtractDocContentFrame_Should_Return_Target_Frame_When_Present()
+    {
+        var html = "<html><body><turbo-frame id=\"doc-content\"><h1>Doc</h1></turbo-frame></body></html>";
+
+        var frame = ExportEngine.ExtractDocContentFrame(html);
+
+        Assert.Equal("<turbo-frame id=\"doc-content\"><h1>Doc</h1></turbo-frame>", frame);
+    }
+
+    [Fact]
+    public async Task RunAsync_Should_Export_Docs_Partial_Fragments()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var seedFile = Path.Combine(tempDir, "seeds.txt");
+        Directory.CreateDirectory(tempDir);
+        await File.WriteAllLinesAsync(seedFile, ["/docs/start"]);
+
+        try
+        {
+            var client = new HttpClient(new DocsPartialHandler()) { BaseAddress = new Uri("http://localhost:5000") };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, seedFile, "http://localhost:5000");
+            await _sut.RunAsync(context);
+
+            var fullPagePath = Path.Combine(tempDir, "docs", "start.html");
+            var partialPath = Path.Combine(tempDir, "docs", "start.partial.html");
+
+            Assert.True(File.Exists(fullPagePath), "Expected docs full page export.");
+            Assert.True(File.Exists(partialPath), "Expected docs partial export.");
+
+            var partialHtml = await File.ReadAllTextAsync(partialPath);
+            Assert.Contains("<turbo-frame id=\"doc-content\">", partialHtml);
+            Assert.DoesNotContain("<html", partialHtml, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
 
     private class TestHttpMessageHandler : HttpMessageHandler
     {
@@ -522,6 +577,50 @@ public class ExportEngineTests
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent("console.log('ok');", Encoding.UTF8, "text/javascript")
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class DocsPartialHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? "/";
+            if (path == "/docs/start")
+            {
+                var html = """
+                    <html>
+                      <body>
+                        <turbo-frame id="doc-content">
+                          <article>Start doc</article>
+                        </turbo-frame>
+                        <a href="/docs/next">Next</a>
+                      </body>
+                    </html>
+                    """;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
+                });
+            }
+
+            if (path == "/docs/next")
+            {
+                var html = """
+                    <html>
+                      <body>
+                        <turbo-frame id="doc-content">
+                          <article>Next doc</article>
+                        </turbo-frame>
+                      </body>
+                    </html>
+                    """;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(html, Encoding.UTF8, "text/html")
                 });
             }
 

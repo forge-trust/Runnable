@@ -362,6 +362,7 @@ public class ExportEngineTests
             Assert.True(File.Exists(imgPath), "image.png should exist");
             var imgBytes = await File.ReadAllBytesAsync(imgPath);
             Assert.Equal(new byte[] { 0x01, 0x02, 0x03, 0x04 }, imgBytes);
+
         }
         finally
         {

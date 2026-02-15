@@ -497,6 +497,15 @@ public class ExportEngineTests
 
             var fullHtml = await File.ReadAllTextAsync(fullPagePath);
             Assert.Contains("<meta name=\"rw-docs-static-partials\" content=\"1\" />", fullHtml);
+
+            var nextPartialPath = Path.Combine(tempDir, "docs", "next.partial.html");
+            Assert.True(
+                File.Exists(nextPartialPath),
+                "Expected docs partial export for crawl-discovered /docs/next.");
+
+            var nextPartialHtml = await File.ReadAllTextAsync(nextPartialPath);
+            Assert.Contains("<turbo-frame id=\"doc-content\">", nextPartialHtml);
+            Assert.Contains("<article>Next doc</article>", nextPartialHtml);
         }
         finally
         {

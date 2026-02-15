@@ -357,6 +357,8 @@ public class ExportEngine
 
             if (nextOpen >= 0 && nextOpen < nextClose)
             {
+                // Raw string scanning assumes no quoted attribute contains a standalone '>' or '/>' token.
+                // If turbo-frame markup evolves to include those cases, switch this matcher to an HTML parser.
                 var openTagEnd = html.IndexOf('>', nextOpen);
                 if (openTagEnd < 0)
                 {

@@ -22,7 +22,7 @@ internal static class HarvestPathExclusions
         ArgumentNullException.ThrowIfNull(filePath);
 
         var segments = filePath.Split(
-            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/'],
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\'],
             StringSplitOptions.RemoveEmptyEntries);
 
         if (segments.Length <= 1)

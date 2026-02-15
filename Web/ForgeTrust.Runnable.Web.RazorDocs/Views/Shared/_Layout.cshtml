@@ -338,8 +338,25 @@
 <script>
     (() => {
         document.addEventListener("click", event => {
-            const anchorLink = event.target.closest("a[data-doc-anchor-link='true']");
+            if (event.defaultPrevented) {
+                return;
+            }
+
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            const clickTarget = event.target;
+            if (!(clickTarget instanceof Element)) {
+                return;
+            }
+
+            const anchorLink = clickTarget.closest("a[data-doc-anchor-link='true']");
             if (!anchorLink) {
+                return;
+            }
+
+            if (anchorLink.target && anchorLink.target !== "_self") {
                 return;
             }
 

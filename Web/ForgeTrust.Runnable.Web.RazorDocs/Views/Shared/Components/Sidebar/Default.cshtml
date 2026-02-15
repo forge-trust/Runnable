@@ -4,9 +4,11 @@
 
 @functions
 {
-    private static bool IsMethodNode(DocNode node)
+    private static bool IsTypeAnchorNode(DocNode node)
     {
-        return node.Title.Contains('(');
+        return !string.IsNullOrWhiteSpace(node.ParentPath)
+               && string.IsNullOrWhiteSpace(node.Content)
+               && node.Path.Contains('#');
     }
 
     private static string GetFullNamespaceName(DocNode node)
@@ -114,7 +116,7 @@
 
                                     @{
                                         var typeItems = group
-                                            .Where(d => d.ParentPath == namespaceNode.Path && !IsMethodNode(d))
+                                            .Where(d => d.ParentPath == namespaceNode.Path && IsTypeAnchorNode(d))
                                             .OrderBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
                                             .ToList();
 
@@ -159,7 +161,7 @@
 
                         @{
                             var subItems = group
-                                .Where(d => d.ParentPath == docNode.Path && !IsMethodNode(d))
+                                .Where(d => d.ParentPath == docNode.Path && IsTypeAnchorNode(d))
                                 .OrderBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
                                 .ToList();
 

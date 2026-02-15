@@ -91,7 +91,6 @@ public class CSharpDocHarvester : IDocHarvester
                     var typeId = StringUtils.ToSafeId(qualifiedTypeName);
                     var namespacePage = GetOrCreateNamespacePage(namespacePages, GetNamespaceName(typeDecl));
 
-                    namespacePage.HasOwnContent = true;
                     namespacePage.Content.Append(
                         $@"<section id=""{typeId}"" class=""doc-type"">
                         <header class=""doc-type-header"">
@@ -192,7 +191,6 @@ public class CSharpDocHarvester : IDocHarvester
                     if (doc != null)
                     {
                         var namespacePage = GetOrCreateNamespacePage(namespacePages, GetNamespaceName(enumDecl));
-                        namespacePage.HasOwnContent = true;
                         var qualifiedName = GetQualifiedName(enumDecl);
                         var enumId = StringUtils.ToSafeId(qualifiedName);
 
@@ -857,8 +855,6 @@ public class CSharpDocHarvester : IDocHarvester
         public string Path { get; }
 
         public StringBuilder Content { get; } = new();
-
-        public bool HasOwnContent { get; set; }
 
         public HashSet<string> ChildNamespaces { get; } = new(StringComparer.OrdinalIgnoreCase);
     }

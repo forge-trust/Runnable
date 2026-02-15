@@ -3,6 +3,10 @@
   const maxQueryLength = 500;
   const topResults = 8;
   const fetchTimeoutMs = 10000;
+  const docsFrameId = 'doc-content';
+  const enableDocsPartialRewrite = Boolean(
+    document.querySelector('meta[name="rw-docs-static-partials"][content="1"]')
+  );
   const defaultSearchOptions = {
     prefix: true,
     fuzzy: 0.1,
@@ -17,6 +21,186 @@
   const pageInput = document.getElementById('docs-search-page-input');
   const pageResults = document.getElementById('docs-search-page-results');
   const pageStatus = document.getElementById('docs-search-page-status');
+
+  function toUrl(urlLike) {
+    if (!urlLike) {
+      return null;
+    }
+
+    try {
+      if (urlLike instanceof URL) {
+        return new URL(urlLike.toString());
+      }
+
+      return new URL(String(urlLike), window.location.href);
+    } catch {
+      return null;
+    }
+  }
+
+  function isDocsPath(path) {
+    return path === '/docs' || path.startsWith('/docs/');
+  }
+
+  function getHeader(headers, name) {
+    if (!headers) {
+      return null;
+    }
+
+    if (headers instanceof Headers) {
+      return headers.get(name);
+    }
+
+    if (typeof headers === 'object') {
+      const targetName = String(name).toLowerCase();
+      for (const key of Object.keys(headers)) {
+        if (key.toLowerCase() === targetName) {
+          return headers[key] ?? null;
+        }
+      }
+
+      return null;
+    }
+
+    return null;
+  }
+
+  function toDocsPartialUrl(urlLike) {
+    const url = toUrl(urlLike);
+    if (!url) {
+      return null;
+    }
+
+    const path = url.pathname;
+
+    if (!isDocsPath(path)) {
+      return null;
+    }
+
+    if (path === '/docs') {
+      return null;
+    }
+
+    if (path.endsWith('.partial.html') || path.endsWith('/search-index.json')) {
+      return null;
+    }
+
+    if (path.endsWith('/')) {
+      url.pathname = `${path}index.partial.html`;
+      return url;
+    }
+
+    if (path.endsWith('.html')) {
+      url.pathname = `${path.slice(0, -5)}.partial.html`;
+      return url;
+    }
+
+    url.pathname = `${path}.partial.html`;
+    return url;
+  }
+
+  function toDocsCanonicalUrl(urlLike) {
+    const url = toUrl(urlLike);
+    if (!url) {
+      return null;
+    }
+
+    const path = url.pathname;
+    if (!isDocsPath(path) || !path.endsWith('.partial.html')) {
+      return url;
+    }
+
+    let canonicalPath;
+    if (path.endsWith('/index.partial.html')) {
+      canonicalPath = path.slice(0, -'/index.partial.html'.length);
+    } else {
+      canonicalPath = path.slice(0, -'.partial.html'.length);
+      if (canonicalPath.endsWith('/index')) {
+        canonicalPath = canonicalPath.slice(0, -'/index'.length);
+      }
+    }
+
+    url.pathname = canonicalPath || '/docs';
+    return url;
+  }
+
+  function replaceBrowserUrl(urlLike) {
+    const nextUrl = toUrl(urlLike);
+    if (!nextUrl || nextUrl.origin !== window.location.origin) {
+      return;
+    }
+
+    const currentUrl = new URL(window.location.href);
+    if (
+      currentUrl.pathname === nextUrl.pathname
+      && currentUrl.search === nextUrl.search
+      && currentUrl.hash === nextUrl.hash
+    ) {
+      return;
+    }
+
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+    );
+  }
+
+  function installDocsPartialHook() {
+    if (!enableDocsPartialRewrite) {
+      return;
+    }
+
+    document.addEventListener('turbo:before-fetch-request', (event) => {
+      const targetFrame = event.target;
+      const turboFrameHeader = getHeader(event.detail?.fetchOptions?.headers, 'Turbo-Frame');
+      const isDocFrameRequest = (targetFrame && targetFrame.id === docsFrameId) || turboFrameHeader === docsFrameId;
+      if (!isDocFrameRequest) {
+        return;
+      }
+
+      const requestUrl = event.detail?.url;
+      const canonicalUrl = toUrl(requestUrl);
+      const partialUrl = toDocsPartialUrl(canonicalUrl);
+      if (!partialUrl) {
+        return;
+      }
+
+      if (!(requestUrl instanceof URL)) {
+        return;
+      }
+
+      const docsFrame = (targetFrame && targetFrame.id === docsFrameId)
+        ? targetFrame
+        : document.getElementById(docsFrameId);
+      if (docsFrame && canonicalUrl) {
+        docsFrame.setAttribute('data-rw-canonical-url', canonicalUrl.toString());
+      }
+
+      requestUrl.pathname = partialUrl.pathname;
+      requestUrl.search = partialUrl.search;
+      requestUrl.hash = partialUrl.hash;
+    });
+
+    document.addEventListener('turbo:frame-load', (event) => {
+      const frame = event.target;
+      if (!frame || frame.id !== docsFrameId) {
+        return;
+      }
+
+      const pendingCanonical = frame.getAttribute('data-rw-canonical-url');
+      if (pendingCanonical) {
+        frame.removeAttribute('data-rw-canonical-url');
+        replaceBrowserUrl(pendingCanonical);
+        return;
+      }
+
+      const canonicalUrl = toDocsCanonicalUrl(window.location.href);
+      if (canonicalUrl) {
+        replaceBrowserUrl(canonicalUrl);
+      }
+    });
+  }
 
   function debounce(fn, delay) {
     let timer = null;
@@ -306,5 +490,6 @@
     }
   }
 
+  installDocsPartialHook();
   init().catch((err) => console.error('Search init failed:', err));
 })();

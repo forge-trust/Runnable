@@ -44,8 +44,9 @@ public class SidebarViewComponent : ViewComponent
     public async Task<IViewComponentResult> InvokeAsync()
     {
         var docs = await _aggregator.GetDocsAsync();
-        var groupedDocs = docs.GroupBy(d => GetGroupName(d.Path))
-            .OrderBy(g => g.Key);
+        var groupedDocs = docs
+            .GroupBy(d => GetGroupName(d.Path))
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
 
         var namespacePrefixes = _namespacePrefixes.Length > 0
             ? _namespacePrefixes

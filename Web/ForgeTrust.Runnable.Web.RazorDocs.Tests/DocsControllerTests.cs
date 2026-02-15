@@ -5,6 +5,7 @@ using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -90,6 +91,36 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Details_ShouldReturnTurboFramePartial_WhenPartialSuffixRequested()
+    {
+        var docs = new List<DocNode> { new("Title", "target-path", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("target-path.partial.html");
+
+        var partial = Assert.IsType<PartialViewResult>(result);
+        Assert.Equal("RazorWire/_TurboFrame", partial.ViewName);
+        var frame = Assert.IsType<TurboFrameViewModel>(partial.Model);
+        Assert.Equal("DetailsFrame", frame.PartialView);
+        Assert.Equal("doc-content", frame.Id);
+    }
+
+    [Fact]
+    public async Task Details_ShouldReturnTurboFramePartial_WhenTrailingSlashPartialPathRequested()
+    {
+        var docs = new List<DocNode> { new("Title", "target-path", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("target-path/index.partial.html");
+
+        var partial = Assert.IsType<PartialViewResult>(result);
+        Assert.Equal("RazorWire/_TurboFrame", partial.ViewName);
+        var frame = Assert.IsType<TurboFrameViewModel>(partial.Model);
+        Assert.Equal("DetailsFrame", frame.PartialView);
+        Assert.Equal("doc-content", frame.Id);
+    }
+
+    [Fact]
     public async Task Details_ShouldReturnNotFound_WhenDocDoesNotExist()
     {
         // Arrange
@@ -161,6 +192,14 @@ public class DocsControllerTests : IDisposable
     public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
         Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, _memo, null!));
+    }
+
+    [Fact]
+    public async Task Details_ShouldReturnNotFound_WhenPartialSuffixResolvesToWhitespacePath()
+    {
+        var result = await _controller.Details(".partial.html");
+
+        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
@@ -261,6 +300,38 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchIndex_ShouldRefreshCache_WhenAuthenticatedRefreshTrueRequested()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var first = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var firstPayload = JsonSerializer.Serialize(first.Value);
+        using var firstDoc = JsonDocument.Parse(firstPayload);
+        var firstGenerated = firstDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        var refreshedHttpContext = new DefaultHttpContext();
+        refreshedHttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, "test-user") },
+            authenticationType: "test-auth"));
+        refreshedHttpContext.Request.Query = new QueryCollection(new Dictionary<string, StringValues>
+        {
+            ["refresh"] = "true"
+        });
+        _controller.ControllerContext = new ControllerContext { HttpContext = refreshedHttpContext };
+
+        var second = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var secondPayload = JsonSerializer.Serialize(second.Value);
+        using var secondDoc = JsonDocument.Parse(secondPayload);
+        var secondGenerated = secondDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        Assert.NotEqual(firstGenerated, secondGenerated);
+    }
+
+    [Fact]
     public async Task SearchIndex_ShouldIgnoreRefresh_WhenUnauthenticatedRefreshRequested()
     {
         var docs = new List<DocNode>
@@ -283,6 +354,35 @@ public class DocsControllerTests : IDisposable
             ["refresh"] = "true"
         });
         _controller.ControllerContext = new ControllerContext { HttpContext = refreshedHttpContext };
+
+        var second = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var secondPayload = JsonSerializer.Serialize(second.Value);
+        using var secondDoc = JsonDocument.Parse(secondPayload);
+        var secondGenerated = secondDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        Assert.Equal(firstGenerated, secondGenerated);
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldIgnoreRefreshRequest_WhenUnauthenticated()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var first = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var firstPayload = JsonSerializer.Serialize(first.Value);
+        using var firstDoc = JsonDocument.Parse(firstPayload);
+        var firstGenerated = firstDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        var refreshRequestContext = new DefaultHttpContext();
+        refreshRequestContext.Request.Query = new QueryCollection(new Dictionary<string, StringValues>
+        {
+            ["refresh"] = "1"
+        });
+        _controller.ControllerContext = new ControllerContext { HttpContext = refreshRequestContext };
 
         var second = Assert.IsType<JsonResult>(await _controller.SearchIndex());
         var secondPayload = JsonSerializer.Serialize(second.Value);

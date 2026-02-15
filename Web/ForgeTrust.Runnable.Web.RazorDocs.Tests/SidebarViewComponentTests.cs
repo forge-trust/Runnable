@@ -362,5 +362,4 @@ public class SidebarViewComponentTests
         var prefixes = Assert.IsType<string[]>(viewResult.ViewData!["NamespacePrefixes"]);
         Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, prefixes);
     }
-
 }

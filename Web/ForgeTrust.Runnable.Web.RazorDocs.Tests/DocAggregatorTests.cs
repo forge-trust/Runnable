@@ -374,7 +374,12 @@ public class DocAggregatorTests : IDisposable
     public void ExtractNamespaceNameFromReadmePath_ShouldReturnNull_WhenPathIsNotReadme()
     {
         // Arrange
-        var method = typeof(DocAggregator).GetMethod("ExtractNamespaceNameFromReadmePath", BindingFlags.NonPublic | BindingFlags.Static);
+        var method = typeof(DocAggregator).GetMethod(
+            "ExtractNamespaceNameFromReadmePath",
+            BindingFlags.NonPublic | BindingFlags.Static,
+            binder: null,
+            types: new[] { typeof(string) },
+            modifiers: null);
         Assert.NotNull(method);
 
         // Act

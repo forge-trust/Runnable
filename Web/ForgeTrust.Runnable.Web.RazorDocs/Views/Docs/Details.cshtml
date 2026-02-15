@@ -5,7 +5,7 @@
     var normalizedPath = Model.Path.Trim().Trim('/');
     var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                           || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
-    var breadcrumbs = new List<(string Label, string Href)>();
+    var breadcrumbs = new List<(string Label, string? Href)>();
 
     if (isNamespacePath)
     {
@@ -29,7 +29,7 @@
         foreach (var segment in segments)
         {
             current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
-            breadcrumbs.Add((segment, $"/docs/{current}.html"));
+            breadcrumbs.Add((segment, null));
         }
     }
 }
@@ -41,7 +41,7 @@
             var crumb = breadcrumbs[i];
             var isLast = i == breadcrumbs.Count - 1;
 
-            if (isLast)
+            if (isLast || string.IsNullOrWhiteSpace(crumb.Href))
             {
                 <span class="inline-flex max-w-full overflow-x-auto px-2 py-0.5 rounded bg-slate-800 border border-slate-700 whitespace-nowrap">@crumb.Label</span>
             }

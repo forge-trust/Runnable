@@ -175,7 +175,7 @@ public class DocAggregator
 
         foreach (var readmeNode in readmeNodes)
         {
-            var namespaceName = ExtractNamespaceNameFromReadmePath(readmeNode.Path);
+            var namespaceName = ExtractNamespaceNameFromReadmePath(readmeNode.Path, namespaceNodes.Keys);
             if (string.IsNullOrWhiteSpace(namespaceName))
             {
                 continue;
@@ -258,6 +258,11 @@ public class DocAggregator
 
     private static string? ExtractNamespaceNameFromReadmePath(string path)
     {
+        return ExtractNamespaceNameFromReadmePath(path, null);
+    }
+
+    private static string? ExtractNamespaceNameFromReadmePath(string path, IEnumerable<string>? knownNamespaceNames)
+    {
         var normalized = NormalizeLookupPath(path);
         if (!IsReadmePath(normalized))
         {
@@ -273,6 +278,22 @@ public class DocAggregator
         var parts = directoryPath
             .Replace('\\', '/')
             .Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        if (knownNamespaceNames != null)
+        {
+            var known = knownNamespaceNames.ToList();
+            for (var start = 0; start < parts.Length; start++)
+            {
+                var candidate = string.Join(".", parts.Skip(start));
+                var match = known.FirstOrDefault(
+                    ns => string.Equals(ns, candidate, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(match))
+                {
+                    return match;
+                }
+            }
+        }
+
         return parts.Length == 0 ? null : parts[^1];
     }
 

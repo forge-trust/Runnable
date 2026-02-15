@@ -174,6 +174,27 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_ShouldThrow_WhenMemoIsNull()
+    {
+        var logger = A.Fake<ILogger<DocsController>>();
+        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, null!, logger));
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenLoggerIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, _memo, null!));
+    }
+
+    [Fact]
+    public async Task Details_ShouldReturnNotFound_WhenPartialSuffixResolvesToWhitespacePath()
+    {
+        var result = await _controller.Details(".partial.html");
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
     public void Search_ShouldReturnView()
     {
         var result = _controller.Search();
@@ -271,6 +292,67 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchIndex_ShouldRefreshCache_WhenAuthenticatedRefreshTrueRequested()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var first = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var firstPayload = JsonSerializer.Serialize(first.Value);
+        using var firstDoc = JsonDocument.Parse(firstPayload);
+        var firstGenerated = firstDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        var refreshedHttpContext = new DefaultHttpContext();
+        refreshedHttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, "test-user") },
+            authenticationType: "test-auth"));
+        refreshedHttpContext.Request.Query = new QueryCollection(new Dictionary<string, StringValues>
+        {
+            ["refresh"] = "true"
+        });
+        _controller.ControllerContext = new ControllerContext { HttpContext = refreshedHttpContext };
+
+        var second = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var secondPayload = JsonSerializer.Serialize(second.Value);
+        using var secondDoc = JsonDocument.Parse(secondPayload);
+        var secondGenerated = secondDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        Assert.NotEqual(firstGenerated, secondGenerated);
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldIgnoreRefreshRequest_WhenUnauthenticated()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var first = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var firstPayload = JsonSerializer.Serialize(first.Value);
+        using var firstDoc = JsonDocument.Parse(firstPayload);
+        var firstGenerated = firstDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        var refreshRequestContext = new DefaultHttpContext();
+        refreshRequestContext.Request.Query = new QueryCollection(new Dictionary<string, StringValues>
+        {
+            ["refresh"] = "1"
+        });
+        _controller.ControllerContext = new ControllerContext { HttpContext = refreshRequestContext };
+
+        var second = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var secondPayload = JsonSerializer.Serialize(second.Value);
+        using var secondDoc = JsonDocument.Parse(secondPayload);
+        var secondGenerated = secondDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        Assert.Equal(firstGenerated, secondGenerated);
+    }
+
+    [Fact]
     public async Task SearchIndex_ShouldEncodeDocPathInUrl()
     {
         var docs = new List<DocNode>
@@ -316,6 +398,38 @@ public class DocsControllerTests : IDisposable
         Assert.DoesNotContain(" ...", snippet);
         Assert.Equal(snippet.TrimEnd(), snippet);
         Assert.True(snippet.Length <= 223, $"Snippet length {snippet.Length} exceeds 220 + ellipsis.");
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldHandleEmptyPathAndLongUnbrokenSnippet()
+    {
+        var longUnbrokenContent = "<p>" + new string('x', 300) + "</p>";
+        var docs = new List<DocNode>
+        {
+            new("Empty Path", "", null!),
+            new("Single Word", "guides/no-breaks", longUnbrokenContent),
+            new("  ", "guides/with-body", "<p>Body text</p>"),
+            new("  ", "guides/filtered", "<script>only-script</script>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var doc = JsonDocument.Parse(payload);
+
+        var documents = doc.RootElement.GetProperty("documents").EnumerateArray().ToList();
+        Assert.Contains(documents, d => d.GetProperty("path").GetString() == "/docs");
+        Assert.Contains(documents, d => d.GetProperty("path").GetString() == "/docs/guides/with-body");
+        Assert.DoesNotContain(documents, d => d.GetProperty("path").GetString() == "/docs/guides/filtered");
+
+        var singleWordSnippet = documents
+            .First(d => d.GetProperty("path").GetString() == "/docs/guides/no-breaks")
+            .GetProperty("snippet")
+            .GetString();
+
+        Assert.NotNull(singleWordSnippet);
+        Assert.EndsWith("...", singleWordSnippet);
+        Assert.True(singleWordSnippet.Length <= 223, $"Snippet length {singleWordSnippet.Length} exceeds 220 + ellipsis.");
     }
 
     public void Dispose()

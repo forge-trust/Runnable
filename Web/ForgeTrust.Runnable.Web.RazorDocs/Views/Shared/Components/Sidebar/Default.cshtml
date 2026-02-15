@@ -1,42 +1,132 @@
 @model IEnumerable<IGrouping<string, ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode>>
+@using ForgeTrust.Runnable.Web.RazorDocs.Models
+@using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents
+@{
+    var namespacePrefixes = (ViewData["NamespacePrefixes"] as IEnumerable<string> ?? [])
+        .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
+        .Select(prefix => prefix.Trim())
+        .OrderByDescending(prefix => prefix.Length)
+        .ToArray();
+}
 
 @foreach (var group in Model)
 {
+    var rootItems = group.Where(d => string.IsNullOrEmpty(d.ParentPath)).ToList();
     <div class="py-2">
         <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-widest px-2 mb-2">@group.Key</h3>
-        <ul class="space-y-1">
-            @foreach (var docNode in group.Where(d => string.IsNullOrEmpty(d.ParentPath)))
-            {
-                <li>
-                    <a href="/docs/@(docNode.CanonicalPath ?? docNode.Path)"
-                       data-turbo-frame="doc-content"
-                       data-turbo-action="advance"
-                       class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
-                        @docNode.Title
-                    </a>
 
-                    @{
-                        var subItems = group.Where(d => d.ParentPath == docNode.Path).ToList();
-                        if (subItems.Any())
-                        {
-                            <ul class="ml-4 mt-1 space-y-0.5 border-l border-slate-800">
-                                @foreach (var sub in subItems)
-                                {
-                                    var subLinkPath = sub.CanonicalPath ?? sub.Path;
-                                    <li>
-                                        <a href="/docs/@subLinkPath"
-                                           data-turbo-frame="doc-content"
-                                           data-turbo-action="advance"
-                                           class="block px-4 py-1 text-xs text-slate-500 hover:text-cyan-400 transition-colors">
-                                            @sub.Title
-                                        </a>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    }
-                </li>
+        @if (string.Equals(group.Key, "Namespaces", StringComparison.OrdinalIgnoreCase))
+        {
+            var namespaceRoot = rootItems
+                .FirstOrDefault(n => n.Path.Trim().Trim('/').Equals("Namespaces", StringComparison.OrdinalIgnoreCase));
+            var namespaceNodes = rootItems
+                .Where(n => n.Path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(n => SidebarDisplayHelper.GetFullNamespaceName(n), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (namespaceRoot != null)
+            {
+                <a href="/docs/@(namespaceRoot.CanonicalPath ?? namespaceRoot.Path)"
+                   data-turbo-frame="doc-content"
+                   data-turbo-action="advance"
+                   class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
+                    @namespaceRoot.Title
+                </a>
             }
-        </ul>
+
+            var namespaceFamilies = namespaceNodes
+                .GroupBy(n => SidebarDisplayHelper.GetNamespaceFamily(SidebarDisplayHelper.GetFullNamespaceName(n), namespacePrefixes))
+                .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+
+            <div class="space-y-2">
+                @foreach (var namespaceFamily in namespaceFamilies)
+                {
+                    <div class="mt-2">
+                        <div class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600">@namespaceFamily.Key</div>
+                        <ul class="space-y-1">
+                            @foreach (var namespaceNode in namespaceFamily.OrderBy(n => SidebarDisplayHelper.GetFullNamespaceName(n), StringComparer.OrdinalIgnoreCase))
+                            {
+                                <li>
+                                    <a href="/docs/@(namespaceNode.CanonicalPath ?? namespaceNode.Path)"
+                                       data-turbo-frame="doc-content"
+                                       data-turbo-action="advance"
+                                       class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
+                                        @SidebarDisplayHelper.GetNamespaceDisplayName(SidebarDisplayHelper.GetFullNamespaceName(namespaceNode), namespacePrefixes)
+                                    </a>
+
+                                    @{
+                                        var typeItems = group
+                                            .Where(d => d.ParentPath == namespaceNode.Path && SidebarDisplayHelper.IsTypeAnchorNode(d))
+                                            .OrderBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+                                            .ToList();
+
+                                        if (typeItems.Any())
+                                        {
+                                            <ul class="ml-4 mt-1 space-y-0.5 border-l border-slate-800">
+                                                @foreach (var typeItem in typeItems)
+                                                {
+                                                    var typeLinkPath = typeItem.CanonicalPath ?? typeItem.Path;
+                                                    <li>
+                                                        <a href="/docs/@typeLinkPath"
+                                                           data-doc-anchor-link="true"
+                                                           data-turbo-frame="doc-content"
+                                                           data-turbo-action="advance"
+                                                           class="block px-4 py-1 text-xs text-slate-500 hover:text-cyan-400 transition-colors">
+                                                            @typeItem.Title
+                                                        </a>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <ul class="space-y-1">
+                @foreach (var docNode in rootItems)
+                {
+                    <li>
+                        <a href="/docs/@(docNode.CanonicalPath ?? docNode.Path)"
+                           data-turbo-frame="doc-content"
+                           data-turbo-action="advance"
+                           class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
+                            @docNode.Title
+                        </a>
+
+                        @{
+                            var subItems = group
+                                .Where(d => d.ParentPath == docNode.Path && SidebarDisplayHelper.IsTypeAnchorNode(d))
+                                .OrderBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+                                .ToList();
+
+                            if (subItems.Any())
+                            {
+                                <ul class="ml-4 mt-1 space-y-0.5 border-l border-slate-800">
+                                    @foreach (var sub in subItems)
+                                    {
+                                        var subLinkPath = sub.CanonicalPath ?? sub.Path;
+                                        <li>
+                                            <a href="/docs/@subLinkPath"
+                                               data-doc-anchor-link="true"
+                                               data-turbo-frame="doc-content"
+                                               data-turbo-action="advance"
+                                               class="block px-4 py-1 text-xs text-slate-500 hover:text-cyan-400 transition-colors">
+                                                @sub.Title
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        }
+                    </li>
+                }
+            </ul>
+        }
     </div>
 }

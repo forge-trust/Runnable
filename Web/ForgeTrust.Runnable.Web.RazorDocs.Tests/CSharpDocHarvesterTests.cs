@@ -1,7 +1,10 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -36,9 +39,9 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        // Now returns: 1 File Node. The Type Node "Included" is suppressed because it matches the filename "Included".
-        Assert.Single(results);
-        Assert.Contains(results, n => n.Title == "Included" && string.IsNullOrEmpty(n.ParentPath));
+        Assert.Contains(results, n => n.Path == "Namespaces" && n.Title == "Namespaces");
+        Assert.Contains(results, n => n.Path == "Namespaces/Global" && n.Title == "Global");
+        Assert.Contains(results, n => n.Title == "Included" && n.ParentPath == "Namespaces/Global");
         Assert.DoesNotContain(results, n => n.Title == "Ignored");
     }
 
@@ -132,22 +135,19 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        // 1 File Node + 5 Type Nodes = 6 nodes
-        Assert.Equal(6, results.Count);
+        Assert.True(results.Count >= 7);
 
-        var fileNode = results.First(n => n.Title == "Types");
-        Assert.Contains("Class Summary", fileNode.Content);
-        Assert.Contains("Record Summary", fileNode.Content);
-        Assert.Contains("Struct Summary", fileNode.Content);
-        Assert.Contains("Interface Summary", fileNode.Content);
-        Assert.Contains("Enum Summary", fileNode.Content);
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+        Assert.Contains("Class Summary", namespaceNode.Content);
+        Assert.Contains("Record Summary", namespaceNode.Content);
+        Assert.Contains("Struct Summary", namespaceNode.Content);
+        Assert.Contains("Interface Summary", namespaceNode.Content);
+        Assert.Contains("Enum Summary", namespaceNode.Content);
 
         // Sub-nodes should exist but have empty content (navigation stubs)
-        // With correct parent path (Types.cs)
-        // Note: ID generation now includes namespace, so we don't assert exact path suffix here, just parent/title.
         Assert.Contains(
             results,
-            n => n.Title == "MyClass" && string.IsNullOrEmpty(n.Content) && n.ParentPath == "Types.cs");
+            n => n.Title == "MyClass" && string.IsNullOrEmpty(n.Content) && n.ParentPath == "Namespaces/Test");
     }
 
     [Fact]
@@ -186,14 +186,9 @@ public class CSharpDocHarvesterTests : IDisposable
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
         // Assert
-        // Sub-node title for method is just the signature
-        var methodNode = results.FirstOrDefault(n => n.Title == "MyMethod(int, string, ref bool)");
-        Assert.NotNull(methodNode);
-        Assert.Equal("MyMethod(int, string, ref bool)", methodNode.Title);
-
-        // Expect sanitized ID including namespace (Test.SignatureTest.MyMethod...)
-        // ToSafeId replaces dots with hyphens: Test-SignatureTest-MyMethod-int-string-ref-bool
-        Assert.EndsWith("#Test-SignatureTest-MyMethod-int-string-ref-bool", methodNode.Path);
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+        Assert.Contains("MyMethod", namespaceNode.Content);
+        Assert.Contains("id=\"Test-SignatureTest-MyMethod-int-string-ref-bool\"", namespaceNode.Content);
     }
 
     [Fact]
@@ -217,19 +212,14 @@ public class Calculator
 ");
 
         // Act
-        var results = await _harvester.HarvestAsync(_testRoot);
-        // Look for method nodes (Calculator is file, Calculator is type (suppressed matching file?), Methods are nodes)
-        // Wait, if Calculator matches filename Calculator.cs (without ext), type node is suppressed.
-        // So we only see File node + 2 Method nodes.
-        var processNodes = results.Where(n => n.Title.Contains("Process")).ToList();
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/TestNamespace");
+        var overloadIdMatches = Regex.Matches(namespaceNode.Content, "id=\"TestNamespace-Calculator-Process");
 
         // Assert: Should have two distinct Process methods
-        Assert.Equal(2, processNodes.Count);
-        Assert.NotEqual(processNodes[0].Path, processNodes[1].Path);
-
-        // Verify both have distinct anchors
-        Assert.Contains("Process", processNodes[0].Path);
-        Assert.Contains("Process", processNodes[1].Path);
+        Assert.Equal(2, overloadIdMatches.Count);
+        Assert.Contains("<span class=\"sig-type\">int</span> <span class=\"sig-parameter\">value</span>", namespaceNode.Content);
+        Assert.Contains("<span class=\"sig-modifier\">ref</span> <span class=\"sig-type\">int</span> <span class=\"sig-parameter\">value</span>", namespaceNode.Content);
     }
 
     [Fact]
@@ -256,9 +246,6 @@ namespace NamespaceB
         // Act
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
-        // We expect ONE file node (Collision)
-        // AND TWO type nodes (SharedName). 
-        // Note: Filename "Collision" does NOT match "SharedName", so both are kept.
         var types = results.Where(n => n.Title == "SharedName").ToList();
 
         // Assert
@@ -273,10 +260,10 @@ namespace NamespaceB
         Assert.True(pathA, "Should contain anchor for NamespaceA.SharedName");
         Assert.True(pathB, "Should contain anchor for NamespaceB.SharedName");
 
-        // Also verify the CONTENT in the file node has the correct IDs
-        var fileNode = results.Single(n => n.Title == "Collision");
-        Assert.Contains("id=\"NamespaceA-SharedName\"", fileNode.Content);
-        Assert.Contains("id=\"NamespaceB-SharedName\"", fileNode.Content);
+        var namespaceA = results.Single(n => n.Path == "Namespaces/NamespaceA");
+        var namespaceB = results.Single(n => n.Path == "Namespaces/NamespaceB");
+        Assert.Contains("id=\"NamespaceA-SharedName\"", namespaceA.Content);
+        Assert.Contains("id=\"NamespaceB-SharedName\"", namespaceB.Content);
     }
 
     [Fact]
@@ -294,18 +281,13 @@ namespace NamespaceB
         // Act
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
 
-        // Type name "RemarksTest" != Filename "Remarks" -> Type node exists
-        var node = results.Last(n => n.Title == "RemarksTest");
-        // Note: The STUB node has empty content. The FILE node has the content.
-        // In consolidated architecture, the type node is a stub pointing to the file.
-
-        var fileNode = results.Single(n => n.Title == "Remarks");
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
 
         // Assert
-        Assert.Contains("<div class='doc-summary", fileNode.Content);
-        Assert.Contains("Summary", fileNode.Content);
-        Assert.Contains("<div class='doc-remarks", fileNode.Content);
-        Assert.Contains("Remarks here", fileNode.Content);
+        Assert.Contains("<div class=\"doc-summary", namespaceNode.Content);
+        Assert.Contains("Summary", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-remarks", namespaceNode.Content);
+        Assert.Contains("Remarks here", namespaceNode.Content);
     }
 
     [Fact]
@@ -323,14 +305,14 @@ namespace NamespaceB
 
         // Act
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
-        var fileNode = results.Single(n => n.Title == "Nested");
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
 
         // Assert
         // Check content for inner summary
-        Assert.Contains("Inner Summary", fileNode.Content);
+        Assert.Contains("Inner Summary", namespaceNode.Content);
 
         // Check for nested ID: Test.Outer.Inner -> Test-Outer-Inner
-        Assert.Contains("id=\"Test-Outer-Inner\"", fileNode.Content);
+        Assert.Contains("id=\"Test-Outer-Inner\"", namespaceNode.Content);
     }
 
     [Fact]
@@ -361,6 +343,329 @@ namespace NamespaceB
                 File.SetUnixFileMode(filePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
         }
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldRenderStructuredXmlSections_AndNormalizeSignatures()
+    {
+        // Arrange
+        var code = @"
+using System.Runtime.CompilerServices;
+namespace Test;
+
+public class RichDocs
+{
+    /// <summary>
+    /// Main <paramref name=""value""/> and <typeparamref name=""TResult""/> with
+    /// <see cref=""T:System.String""/>, <see cref=""System.Int32""/>, <see langword=""null""/>,
+    /// <see href=""https://example.com/docs""/>, <see>inline-see</see> and <see/>.
+    /// Also <c>inline-code</c>.
+    /// <para>Standalone paragraph.</para>
+    /// <para> </para>
+    /// <list type=""number"">
+    /// <item><description>First</description></item>
+    /// <item><description><paramref name=""value""/> second</description></item>
+    /// </list>
+    /// <list></list>
+    /// <code>
+    /// var answer = 42;
+    /// </code>
+    /// <unknown>fallback</unknown>
+    /// <!-- coverage comment -->
+    /// </summary>
+    /// <typeparam name=""TResult"">Result type.</typeparam>
+    /// <param name=""value""><para>Input value.</para></param>
+    /// <param name=""callerFilePath"">Filtered path.</param>
+    /// <param name=""callerLineNumber"">Filtered line.</param>
+    /// <returns><code>return default;</code></returns>
+    /// <exception cref=""T:System.InvalidOperationException"">Boom</exception>
+    /// <remarks>Use <b>carefully</b>.</remarks>
+    /// <example> </example>
+    public TResult Compute<TResult>(int value = 42, [CallerFilePath] string source = """", [CallerLineNumber] int line = 0)
+        => default!;
+
+    /// <summary>Legacy path.</summary>
+    public void Legacy(int value, [CallerFilePath] string callerFilePath = """", [CallerLineNumber] int callerLineNumber = 0) { }
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "RichDocs.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        // Assert
+        Assert.Contains("<div class=\"doc-summary\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-typeparams\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-params\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-returns\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-exceptions\">", namespaceNode.Content);
+        Assert.Contains("<div class=\"doc-remarks\">", namespaceNode.Content);
+
+        // Inline and block XML tags are transformed into readable HTML.
+        Assert.Contains("<code>value</code>", namespaceNode.Content);
+        Assert.Contains("<code>TResult</code>", namespaceNode.Content);
+        Assert.Contains("<code>System.String</code>", namespaceNode.Content);
+        Assert.Contains("<code>System.Int32</code>", namespaceNode.Content);
+        Assert.Contains("<code>null</code>", namespaceNode.Content);
+        Assert.Contains("<code>https://example.com/docs</code>", namespaceNode.Content);
+        Assert.Contains("<code>inline-see</code>", namespaceNode.Content);
+        Assert.Contains("<code>inline-code</code>", namespaceNode.Content);
+        Assert.Contains("<ol>", namespaceNode.Content);
+        Assert.Contains("<li>First</li>", namespaceNode.Content);
+        Assert.Contains("<pre><code>var answer = 42;</code></pre>", namespaceNode.Content);
+        Assert.Contains("fallback", namespaceNode.Content);
+
+        // Compiler-injected doc params are filtered from the rendered parameter table.
+        Assert.DoesNotContain("<code>callerFilePath</code>", namespaceNode.Content);
+        Assert.DoesNotContain("<code>callerLineNumber</code>", namespaceNode.Content);
+
+        // Display signature hides caller metadata parameters while preserving defaults.
+        Assert.Contains("TResult", namespaceNode.Content);
+        Assert.Contains("Compute", namespaceNode.Content);
+        Assert.Contains("Legacy", namespaceNode.Content);
+        Assert.Contains("<span class=\"sig-type\">int</span> <span class=\"sig-parameter\">value</span>", namespaceNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldRenderEmptyNamedKeyRows_WithoutCodeLabel()
+    {
+        // Arrange
+        var code = @"
+namespace Test;
+public class EmptyKeyDoc
+{
+    /// <summary>Summary</summary>
+    /// <param>Unnamed parameter docs.</param>
+    public void Method(int value) { }
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "EmptyKeyDoc.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        // Assert
+        Assert.Contains("<div class=\"doc-params\">", namespaceNode.Content);
+        Assert.DoesNotContain("<code></code>", namespaceNode.Content);
+        Assert.Contains("Unnamed parameter docs.", namespaceNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldRenderDocumentedProperties_WithHighlightedSignatures()
+    {
+        // Arrange
+        var code = @"
+namespace Test;
+public class PropertyDocs
+{
+    /// <summary>Count docs.</summary>
+    public int Count { get; set; }
+
+    /// <summary>Name docs.</summary>
+    public string Name => ""value"";
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "PropertyDocs.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        // Assert
+        Assert.Contains("<span class=\"doc-kind\">Property</span>", namespaceNode.Content);
+        Assert.Contains("<span class=\"sig-type\">int</span> <span class=\"sig-parameter\">Count</span> <span class=\"sig-operator\">{ get; set; }</span>", namespaceNode.Content);
+        Assert.Contains("<span class=\"sig-type\">string</span> <span class=\"sig-parameter\">Name</span> <span class=\"sig-operator\">{ get; }</span>", namespaceNode.Content);
+        Assert.Contains("Count docs.", namespaceNode.Content);
+        Assert.Contains("Name docs.", namespaceNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldHandleXmlEdgeCases_AndSkipEmptyDocPayloads()
+    {
+        // Arrange
+        var code = @"
+using System.Runtime.CompilerServices;
+namespace Test;
+public class EdgeCases
+{
+    /// <summary>
+    /// Edge content <paramref/> with <typeparamref/>.
+    /// <list>
+    /// <item>Raw list entry</item>
+    /// </list>
+    /// </summary>
+    /// <typeparam>Unnamed generic docs.</typeparam>
+    /// <param name=""value"">Value docs.</param>
+    /// <exception>Unknown failure.</exception>
+    public void Mixed<T>(int value) { }
+
+    /// <summary>Suffix caller attributes.</summary>
+    public void SuffixAttrs([CallerFilePathAttribute] string source = """", [CallerLineNumberAttribute] int line = 0) { }
+
+    /// <param name=""callerFilePath"">Ignored path.</param>
+    /// <param name=""callerLineNumber"">Ignored line.</param>
+    public void Filtered([CallerFilePath] string callerFilePath = """", [CallerLineNumber] int callerLineNumber = 0) { }
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "EdgeCases.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        // Assert
+        Assert.Contains("Mixed", namespaceNode.Content);
+        Assert.Contains("SuffixAttrs", namespaceNode.Content);
+        Assert.Contains("Raw list entry", namespaceNode.Content);
+        Assert.Contains("Unknown failure.", namespaceNode.Content);
+        Assert.DoesNotContain("<code></code>", namespaceNode.Content);
+        // Filtered should not appear: it only contains compiler-generated caller metadata docs.
+        Assert.DoesNotContain("id=\"Test-EdgeCases-Filtered", namespaceNode.Content);
+    }
+
+    [Fact]
+    public void PrivateHelpers_ShouldHandleNullAndWhitespaceBranches()
+    {
+        // Arrange
+        var typelessParameter = SyntaxFactory.Parameter(SyntaxFactory.Identifier("value"));
+        var typelessMethod = SyntaxFactory.MethodDeclaration(
+                SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword)),
+                "Compute")
+            .WithParameterList(
+                SyntaxFactory.ParameterList(
+                    SyntaxFactory.SingletonSeparatedList(typelessParameter)));
+
+        // Act: typeless method parameter falls back to object.
+        var signatureResult = CSharpDocHarvester.GetMethodSignatureAndId(typelessMethod, "Test.EdgeCases");
+        var signatureBuilder = new StringBuilder();
+        CSharpDocHarvester.AppendHighlightedParameter(signatureBuilder, typelessParameter);
+
+        var propertyWithoutAccessor = SyntaxFactory.PropertyDeclaration(
+            SyntaxFactory.ParseTypeName("int"),
+            "Count");
+        var propertyWithEmptyAccessorList = propertyWithoutAccessor.WithAccessorList(SyntaxFactory.AccessorList());
+        var nullAccessorSignature = CSharpDocHarvester.GetPropertyAccessorSignature(propertyWithoutAccessor);
+        var emptyAccessorSignature = CSharpDocHarvester.GetPropertyAccessorSignature(propertyWithEmptyAccessorList);
+
+        var simplifiedShortCref = CSharpDocHarvester.SimplifyCref("T:");
+        var rootNamespacePath = CSharpDocHarvester.BuildNamespaceDocPath("   ");
+
+        var namespacePages = new Dictionary<string, CSharpDocHarvester.NamespaceDocPage>(StringComparer.OrdinalIgnoreCase);
+        var namespacePage = CSharpDocHarvester.GetOrCreateNamespacePage(namespacePages, "   ");
+        var namespacePath = namespacePage.Path;
+
+        // Assert
+        Assert.Contains("object", signatureResult.Item1);
+        Assert.Contains("<span class=\"sig-type\">object</span>", signatureBuilder.ToString());
+        Assert.Equal(string.Empty, nullAccessorSignature);
+        Assert.Equal(string.Empty, emptyAccessorSignature);
+        Assert.Null(simplifiedShortCref);
+        Assert.Equal("Namespaces", rootNamespacePath);
+        Assert.Equal("Namespaces/Global", namespacePath);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldRenderPropertySignatureWithoutOperator_WhenAccessorListIsEmpty()
+    {
+        // Arrange
+        var code = @"
+namespace Test;
+public class BrokenPropertyDocs
+{
+    /// <summary>Broken property docs.</summary>
+    public int Value { }
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "BrokenPropertyDocs.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        // Assert
+        Assert.Contains("<span class=\"sig-type\">int</span> <span class=\"sig-parameter\">Value</span>", namespaceNode.Content);
+        Assert.Contains("Broken property docs.", namespaceNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldRenderExplicitInterfaceMethodSignature()
+    {
+        // Arrange
+        var code = @"
+namespace Test;
+public interface IRunner
+{
+    void Run();
+}
+
+public class Runner : IRunner
+{
+    /// <summary>Runs explicitly.</summary>
+    void IRunner.Run() { }
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Runner.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        // Assert
+        Assert.Contains("<span class=\"sig-type\">IRunner.</span>", namespaceNode.Content);
+        Assert.Contains("<span class=\"sig-method\">Run</span>", namespaceNode.Content);
+        Assert.Contains("Runs explicitly.", namespaceNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldCreateIntermediateNamespacePages_AndRenderGenericTypeName()
+    {
+        // Arrange
+        var code = @"
+namespace Root.Middle.Leaf;
+/// <summary>Generic docs.</summary>
+public class GenericThing<TItem> {}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "GenericThing.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var rootNode = results.Single(n => n.Path == "Namespaces/Root");
+        var middleNode = results.Single(n => n.Path == "Namespaces/Root.Middle");
+        var leafNode = results.Single(n => n.Path == "Namespaces/Root.Middle.Leaf");
+
+        // Assert
+        Assert.Contains("/docs/Namespaces/Root.Middle.html", rootNode.Content);
+        Assert.Contains("/docs/Namespaces/Root.Middle.Leaf.html", middleNode.Content);
+        Assert.Contains("<h2>GenericThing&lt;TItem&gt;</h2>", leafNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldCreateGlobalNamespacePage_ForTypesWithoutNamespace()
+    {
+        // Arrange
+        var code = @"
+/// <summary>Global docs.</summary>
+public class GlobalType {}
+";
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "GlobalType.cs"), code);
+
+        // Act
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var globalNode = results.Single(n => n.Path == "Namespaces/Global");
+
+        // Assert
+        Assert.Equal("Global", globalNode.Title);
+        Assert.Contains("Global docs.", globalNode.Content);
+    }
+
+    [Fact]
+    public void GetNamespaceTitle_ShouldReturnNamespaces_ForEmptyNamespace()
+    {
+        var title = CSharpDocHarvester.GetNamespaceTitle(string.Empty);
+
+        Assert.Equal("Namespaces", title);
     }
 
     public void Dispose()

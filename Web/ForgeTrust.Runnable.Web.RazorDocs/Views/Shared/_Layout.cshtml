@@ -40,11 +40,268 @@
             scrollbar-color: #334155 #0f172a;
         }
 
-        .prose pre {
-            background-color: #1e293b !important;
-            border-radius: 0.5rem;
-            padding: 1rem;
+        .docs-content {
+            max-width: 80ch;
+            color: #cbd5e1;
+            font-size: 1.025rem;
+            line-height: 1.75;
+        }
+
+        .docs-content .doc-type {
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #1e293b;
+        }
+
+        .docs-content .doc-type:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: 0;
+        }
+
+        .docs-content .doc-type-header {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .docs-content .doc-kind {
+            display: inline-flex;
+            align-items: center;
             border: 1px solid #334155;
+            border-radius: 9999px;
+            padding: 0.2rem 0.65rem;
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #93c5fd;
+            background: rgba(30, 41, 59, 0.8);
+            font-weight: 600;
+        }
+
+        .docs-content h2 {
+            font-size: 1.95rem;
+            line-height: 1.2;
+            font-weight: 700;
+            color: #f8fafc;
+            margin: 0;
+        }
+
+        .docs-content .doc-method-group {
+            margin: 1.25rem 0 0 1rem;
+            padding-left: 1rem;
+            border-left: 1px solid #1e293b;
+        }
+
+        .docs-content .doc-method-group-header {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .docs-content h3 {
+            font-size: 1.3rem;
+            line-height: 1.35;
+            margin: 0;
+            color: #e2e8f0;
+        }
+
+        .docs-content .doc-overload-count {
+            font-size: 0.78rem;
+            color: #94a3b8;
+        }
+
+        .docs-content .doc-overload {
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            margin-bottom: 0.75rem;
+            background: rgba(15, 23, 42, 0.55);
+            overflow: hidden;
+        }
+
+        .docs-content .doc-overload > summary {
+            cursor: pointer;
+            list-style: none;
+            padding: 0.85rem 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.6rem;
+            background: rgba(15, 23, 42, 0.65);
+        }
+
+        .docs-content .doc-overload > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .docs-content .doc-overload > summary::before {
+            content: "+";
+            color: #38bdf8;
+            font-weight: 700;
+            line-height: 1;
+            margin-top: 0.15rem;
+        }
+
+        .docs-content .doc-overload[open] > summary::before {
+            content: "-";
+        }
+
+        .docs-content .doc-overload > summary code {
+            color: #e2e8f0;
+            font-weight: 500;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .docs-content .doc-signature .sig-return {
+            color: #7dd3fc;
+        }
+
+        .docs-content .doc-signature .sig-method {
+            color: #f8fafc;
+            font-weight: 700;
+        }
+
+        .docs-content .doc-signature .sig-generic {
+            color: #86efac;
+        }
+
+        .docs-content .doc-signature .sig-type {
+            color: #a5b4fc;
+        }
+
+        .docs-content .doc-signature .sig-parameter {
+            color: #fcd34d;
+        }
+
+        .docs-content .doc-signature .sig-modifier {
+            color: #f9a8d4;
+        }
+
+        .docs-content .doc-signature .sig-operator {
+            color: #cbd5e1;
+        }
+
+        .docs-content .doc-signature .sig-literal {
+            color: #fca5a5;
+        }
+
+        .docs-content .doc-overload-body {
+            padding: 0.9rem 1rem 1rem;
+            border-top: 1px solid #1e293b;
+        }
+
+        .docs-content .doc-summary > p {
+            margin: 0 0 0.8rem;
+            color: #e2e8f0;
+        }
+
+        .docs-content .doc-namespace-intro {
+            margin: 0 0 1.25rem;
+            padding: 1rem 1.1rem;
+            border: 1px solid #1e293b;
+            border-radius: 0.75rem;
+            background: rgba(15, 23, 42, 0.42);
+        }
+
+        .docs-content .doc-namespace-intro p:last-child {
+            margin-bottom: 0;
+        }
+
+        .docs-content .doc-namespace-groups {
+            margin: 0 0 1.1rem;
+            padding: 0.85rem 1rem;
+            border: 1px solid #1e293b;
+            border-radius: 0.7rem;
+            background: rgba(15, 23, 42, 0.32);
+        }
+
+        .docs-content .doc-namespace-groups ul {
+            margin: 0.2rem 0 0;
+            padding-left: 1rem;
+        }
+
+        .docs-content .doc-namespace-groups a {
+            color: #7dd3fc;
+        }
+
+        .docs-content .doc-namespace-groups a:hover {
+            color: #22d3ee;
+        }
+
+        .docs-content .doc-remarks > p {
+            color: #94a3b8;
+        }
+
+        .docs-content .doc-typeparams,
+        .docs-content .doc-params,
+        .docs-content .doc-returns,
+        .docs-content .doc-exceptions,
+        .docs-content .doc-remarks,
+        .docs-content .doc-example {
+            margin-top: 0.9rem;
+        }
+
+        .docs-content h4 {
+            margin: 0 0 0.4rem;
+            font-size: 0.72rem;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .docs-content .doc-typeparams ul,
+        .docs-content .doc-params ul,
+        .docs-content .doc-exceptions ul {
+            margin: 0;
+            padding-left: 0;
+            list-style: none;
+            display: grid;
+            gap: 0.45rem;
+        }
+
+        .docs-content .doc-typeparams li,
+        .docs-content .doc-params li,
+        .docs-content .doc-exceptions li {
+            display: grid;
+            grid-template-columns: minmax(9rem, auto) 1fr;
+            gap: 0.7rem;
+            align-items: start;
+            color: #cbd5e1;
+        }
+
+        .docs-content .doc-typeparams li code,
+        .docs-content .doc-params li code,
+        .docs-content .doc-exceptions li code {
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.35rem;
+            padding: 0.08rem 0.4rem;
+            color: #93c5fd;
+            font-size: 0.86rem;
+            width: fit-content;
+        }
+
+        .docs-content p {
+            margin: 0 0 0.75rem;
+        }
+
+        .docs-content pre {
+            background-color: #1e293b;
+            border-radius: 0.5rem;
+            padding: 0.9rem;
+            border: 1px solid #334155;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0.65rem 0 0.85rem;
+        }
+
+        .docs-content code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         }
     </style>
     <link rel="stylesheet" href="~/docs/search.css" />
@@ -90,7 +347,7 @@
     <!-- Main Content -->
     <main id="main-content" role="main" class="flex-grow overflow-y-auto bg-slate-900">
         <rw:island id="doc-content">
-            <div class="max-w-4xl mx-auto px-8 py-12">
+            <div class="max-w-6xl mx-auto px-8 py-12">
                 @RenderBody()
             </div>
         </rw:island>
@@ -98,5 +355,58 @@
 </div>
 
 @await RenderSectionAsync("Scripts", required: false)
+<script>
+    (() => {
+        document.addEventListener("click", event => {
+            if (event.defaultPrevented) {
+                return;
+            }
+
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            const clickTarget = event.target;
+            if (!(clickTarget instanceof Element)) {
+                return;
+            }
+
+            const anchorLink = clickTarget.closest("a[data-doc-anchor-link='true']");
+            if (!anchorLink) {
+                return;
+            }
+
+            if (anchorLink.target && anchorLink.target !== "_self") {
+                return;
+            }
+
+            const targetUrl = new URL(anchorLink.href, window.location.origin);
+            if (targetUrl.pathname !== window.location.pathname
+                || targetUrl.search !== window.location.search
+                || !targetUrl.hash) {
+                return;
+            }
+
+            let targetId;
+            try {
+                targetId = decodeURIComponent(targetUrl.hash.slice(1));
+            } catch {
+                return;
+            }
+
+            const target = document.getElementById(targetId);
+            if (!target) {
+                return;
+            }
+
+            event.preventDefault();
+            history.replaceState(null, "", targetUrl.hash);
+            const prefersReducedMotion = window.matchMedia
+                && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            const scrollBehavior = prefersReducedMotion ? "auto" : "smooth";
+            target.scrollIntoView({ behavior: scrollBehavior, block: "start" });
+        });
+    })();
+</script>
 </body>
 </html>

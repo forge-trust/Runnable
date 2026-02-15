@@ -67,16 +67,41 @@ public class DocAggregator
         var cachedDict = await GetCachedDocsAsync(cancellationToken);
 
         var lookupPath = NormalizeLookupPath(path);
+        var lookupCanonicalPath = NormalizeCanonicalPath(path);
+
         if (cachedDict.TryGetValue(lookupPath, out var directMatch))
         {
             return directMatch;
         }
 
-        return cachedDict.Values.FirstOrDefault(
+        var canonicalCandidates = cachedDict.Values
+            .Where(
+                doc => string.Equals(
+                    NormalizeLookupPath(doc.CanonicalPath ?? doc.Path),
+                    lookupPath,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (canonicalCandidates.Count == 0)
+        {
+            return null;
+        }
+
+        var exactCanonicalMatch = canonicalCandidates.FirstOrDefault(
             doc => string.Equals(
-                NormalizeLookupPath(doc.CanonicalPath ?? doc.Path),
-                lookupPath,
+                NormalizeCanonicalPath(doc.CanonicalPath ?? doc.Path),
+                lookupCanonicalPath,
                 StringComparison.OrdinalIgnoreCase));
+        if (exactCanonicalMatch != null)
+        {
+            return exactCanonicalMatch;
+        }
+
+        return canonicalCandidates
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(doc.CanonicalPath ?? doc.Path)) ? 0 : 1)
+            .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
+            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
     }
 
     /// <summary>
@@ -128,7 +153,7 @@ public class DocAggregator
                            allNodes.AddRange(result);
                        }
 
-                       return allNodes
+                       var sanitizedNodes = allNodes
                            .Select(
                                n => new DocNode(
                                    n.Title,
@@ -137,6 +162,11 @@ public class DocAggregator
                                    n.ParentPath,
                                    n.IsDirectory,
                                    BuildCanonicalPath(n.Path)))
+                           .ToList();
+
+                       MergeNamespaceReadmes(sanitizedNodes);
+
+                       return sanitizedNodes
                            .GroupBy(n => n.Path)
                            .Select(g =>
                            {
@@ -153,6 +183,186 @@ public class DocAggregator
                    }) ?? new Dictionary<string, DocNode>();
     }
 
+    private static void MergeNamespaceReadmes(List<DocNode> nodes)
+    {
+        var namespaceNodes = nodes
+            .Where(
+                n => string.IsNullOrEmpty(n.ParentPath)
+                     && !n.Path.Contains('#')
+                     && NormalizeLookupPath(n.Path).StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(
+                n => ExtractNamespaceNameFromNamespacePath(n.Path),
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.First(),
+                StringComparer.OrdinalIgnoreCase);
+
+        var readmeNodes = nodes
+            .Where(n => string.IsNullOrEmpty(n.ParentPath) && IsReadmePath(n.Path))
+            .ToList();
+
+        foreach (var readmeNode in readmeNodes)
+        {
+            var namespaceName = ExtractNamespaceNameFromReadmePath(readmeNode.Path, namespaceNodes.Keys);
+            if (string.IsNullOrWhiteSpace(namespaceName))
+            {
+                continue;
+            }
+
+            if (!namespaceNodes.TryGetValue(namespaceName, out var namespaceNode))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(readmeNode.Content))
+            {
+                var mergedContent = MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
+                var mergedNamespaceNode = new DocNode(
+                    namespaceNode.Title,
+                    namespaceNode.Path,
+                    mergedContent,
+                    namespaceNode.ParentPath,
+                    namespaceNode.IsDirectory,
+                    namespaceNode.CanonicalPath);
+
+                var namespaceIndex = nodes.FindIndex(n => string.Equals(n.Path, namespaceNode.Path, StringComparison.OrdinalIgnoreCase));
+                if (namespaceIndex >= 0)
+                {
+                    nodes[namespaceIndex] = mergedNamespaceNode;
+                }
+
+                namespaceNodes[namespaceName] = mergedNamespaceNode;
+            }
+
+            nodes.RemoveAll(n => string.Equals(n.Path, readmeNode.Path, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    internal static string MergeNamespaceIntroIntoContent(string namespaceContent, string readmeContent)
+    {
+        var introSection = $"<section class=\"doc-namespace-intro\">{readmeContent}</section>";
+        const string namespaceGroupsClassMarker = "doc-namespace-groups";
+
+        var classMarkerIndex = namespaceContent.IndexOf(namespaceGroupsClassMarker, StringComparison.Ordinal);
+        if (classMarkerIndex < 0)
+        {
+            return introSection + namespaceContent;
+        }
+
+        var sectionStart = namespaceContent.LastIndexOf("<section", classMarkerIndex, StringComparison.OrdinalIgnoreCase);
+        if (sectionStart < 0)
+        {
+            return introSection + namespaceContent;
+        }
+
+        var sectionStartTagEnd = namespaceContent.IndexOf('>', sectionStart);
+        if (sectionStartTagEnd < 0)
+        {
+            return introSection + namespaceContent;
+        }
+
+        var groupEnd = FindMatchingSectionEnd(namespaceContent, sectionStart);
+        if (groupEnd < 0)
+        {
+            return introSection + namespaceContent;
+        }
+
+        var insertAt = groupEnd + "</section>".Length;
+        return namespaceContent.Insert(insertAt, introSection);
+    }
+
+    private static int FindMatchingSectionEnd(string content, int sectionStart)
+    {
+        var depth = 0;
+        var cursor = sectionStart;
+
+        while (cursor < content.Length)
+        {
+            var nextOpen = content.IndexOf("<section", cursor, StringComparison.OrdinalIgnoreCase);
+            var nextClose = content.IndexOf("</section>", cursor, StringComparison.OrdinalIgnoreCase);
+
+            if (nextClose < 0)
+            {
+                return -1;
+            }
+
+            if (nextOpen >= 0 && nextOpen < nextClose)
+            {
+                depth++;
+                var openEnd = content.IndexOf('>', nextOpen);
+                if (openEnd < 0)
+                {
+                    return -1;
+                }
+
+                cursor = openEnd + 1;
+                continue;
+            }
+
+            depth--;
+            if (depth == 0)
+            {
+                return nextClose;
+            }
+
+            cursor = nextClose + "</section>".Length;
+        }
+
+        return -1;
+    }
+
+    private static bool IsReadmePath(string path)
+    {
+        var normalized = NormalizeLookupPath(path);
+        var fileName = Path.GetFileName(normalized);
+        return string.Equals(fileName, "README.md", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ExtractNamespaceNameFromNamespacePath(string path)
+    {
+        var normalized = NormalizeLookupPath(path);
+        return normalized["Namespaces/".Length..];
+    }
+
+    internal static string? ExtractNamespaceNameFromReadmePath(string path)
+    {
+        return ExtractNamespaceNameFromReadmePath(path, null);
+    }
+
+    private static string? ExtractNamespaceNameFromReadmePath(string path, IEnumerable<string>? knownNamespaceNames)
+    {
+        var normalized = NormalizeLookupPath(path);
+        if (!IsReadmePath(normalized))
+        {
+            return null;
+        }
+
+        var directoryPath = Path.GetDirectoryName(normalized);
+        if (string.IsNullOrWhiteSpace(directoryPath))
+        {
+            return null;
+        }
+
+        var parts = directoryPath
+            .Replace('\\', '/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        if (knownNamespaceNames != null)
+        {
+            for (var start = 0; start < parts.Length; start++)
+            {
+                var candidate = string.Join(".", parts.Skip(start));
+                if (knownNamespaceNames.Any(ns => string.Equals(ns, candidate, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return parts.LastOrDefault();
+    }
+
     private static string NormalizeLookupPath(string path)
     {
         var sanitized = path.Trim().Trim('/');
@@ -165,6 +375,23 @@ public class DocAggregator
         return sanitized;
     }
 
+    private static string NormalizeCanonicalPath(string path)
+    {
+        return path.Trim().Trim('/').Replace('\\', '/');
+    }
+
+    private static string? GetFragment(string path)
+    {
+        var canonical = NormalizeCanonicalPath(path);
+        var hashIndex = canonical.IndexOf('#');
+        if (hashIndex < 0 || hashIndex == canonical.Length - 1)
+        {
+            return null;
+        }
+
+        return canonical[(hashIndex + 1)..];
+    }
+
     private static string BuildCanonicalPath(string sourcePath)
     {
         var hashIndex = sourcePath.IndexOf('#');
@@ -175,7 +402,12 @@ public class DocAggregator
             return "index.html" + fragment;
         }
 
-        var directory = Path.GetDirectoryName(trimmed)?.Replace('\\', '/');
+        var directory = Path.GetDirectoryName(trimmed);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            directory = directory.Replace('\\', '/');
+        }
+
         var fileName = Path.GetFileName(trimmed);
         var safeFileName = fileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
             ? fileName

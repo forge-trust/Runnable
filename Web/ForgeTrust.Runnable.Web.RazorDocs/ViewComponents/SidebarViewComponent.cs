@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using Microsoft.Extensions.Configuration;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 
@@ -10,14 +12,23 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 public class SidebarViewComponent : ViewComponent
 {
     private readonly DocAggregator _aggregator;
+    private readonly string[] _namespacePrefixes;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SidebarViewComponent"/> class.
     /// </summary>
     /// <param name="aggregator">The documentation aggregator used to retrieve document nodes.</param>
-    public SidebarViewComponent(DocAggregator aggregator)
+    /// <param name="configuration">Application configuration used for optional namespace prefix simplification settings.</param>
+    public SidebarViewComponent(DocAggregator aggregator, IConfiguration configuration)
     {
         _aggregator = aggregator;
+        var prefixSection = configuration.GetSection("RazorDocs:Sidebar:NamespacePrefixes");
+        _namespacePrefixes = prefixSection
+            .GetChildren()
+            .Select(child => child.Value)
+            .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
+            .Select(prefix => prefix!.Trim())
+            .ToArray();
     }
 
     /// <summary>
@@ -34,14 +45,68 @@ public class SidebarViewComponent : ViewComponent
     {
         var docs = await _aggregator.GetDocsAsync();
         var groupedDocs = docs
-            .GroupBy(
-                d =>
-                {
-                    var directory = Path.GetDirectoryName(d.Path);
-                    return string.IsNullOrWhiteSpace(directory) ? "General" : directory;
-                })
+            .GroupBy(d => GetGroupName(d.Path))
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
 
+        var namespacePrefixes = _namespacePrefixes.Length > 0
+            ? _namespacePrefixes
+            : GetDerivedNamespacePrefixes(docs);
+        ViewData["NamespacePrefixes"] = namespacePrefixes;
         return View(groupedDocs);
+    }
+
+    private static string GetGroupName(string path)
+    {
+        var normalizedPath = path.Trim().Trim('/');
+        if (normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Namespaces";
+        }
+
+        var normalizedPathForOs = normalizedPath.Replace('/', Path.DirectorySeparatorChar);
+        var directory = Path.GetDirectoryName(normalizedPathForOs);
+        return string.IsNullOrWhiteSpace(directory) ? "General" : directory.Replace('\\', '/');
+    }
+
+    private static string[] GetDerivedNamespacePrefixes(IEnumerable<DocNode> docs)
+    {
+        var namespaces = docs
+            .Where(d => string.IsNullOrEmpty(d.ParentPath))
+            .Select(d => d.Path.Trim().Trim('/'))
+            .Where(path => path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+            .Select(path => path["Namespaces/".Length..])
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToList();
+
+        if (namespaces.Count == 0)
+        {
+            return [];
+        }
+
+        var sharedSegments = namespaces[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var sharedLength = sharedSegments.Length;
+
+        foreach (var namespaceName in namespaces.Skip(1))
+        {
+            var parts = namespaceName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            sharedLength = Math.Min(sharedLength, parts.Length);
+            for (var i = 0; i < sharedLength; i++)
+            {
+                if (!string.Equals(sharedSegments[i], parts[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    sharedLength = i;
+                    break;
+                }
+            }
+        }
+
+        if (sharedLength == 0)
+        {
+            return [];
+        }
+
+        var sharedPrefix = string.Join(".", sharedSegments.Take(sharedLength));
+        return [sharedPrefix + ".", sharedPrefix];
     }
 }

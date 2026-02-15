@@ -331,6 +331,38 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchIndex_ShouldIgnoreRefresh_WhenUnauthenticatedRefreshRequested()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>First steps.</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var first = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var firstPayload = JsonSerializer.Serialize(first.Value);
+        using var firstDoc = JsonDocument.Parse(firstPayload);
+        var firstGenerated = firstDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        var refreshedHttpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity())
+        };
+        refreshedHttpContext.Request.Query = new QueryCollection(new Dictionary<string, StringValues>
+        {
+            ["refresh"] = "true"
+        });
+        _controller.ControllerContext = new ControllerContext { HttpContext = refreshedHttpContext };
+
+        var second = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var secondPayload = JsonSerializer.Serialize(second.Value);
+        using var secondDoc = JsonDocument.Parse(secondPayload);
+        var secondGenerated = secondDoc.RootElement.GetProperty("metadata").GetProperty("generatedAtUtc").GetString();
+
+        Assert.Equal(firstGenerated, secondGenerated);
+    }
+
+    [Fact]
     public async Task SearchIndex_ShouldIgnoreRefreshRequest_WhenUnauthenticated()
     {
         var docs = new List<DocNode>
@@ -408,35 +440,96 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchIndex_ShouldHandleEmptyPathAndLongUnbrokenSnippet()
+    public async Task SearchIndex_ShouldExcludeDocumentsWithNoTitleAndNoBody()
     {
-        var longUnbrokenContent = "<p>" + new string('x', 300) + "</p>";
         var docs = new List<DocNode>
         {
-            new("Empty Path", "", null!),
-            new("Single Word", "guides/no-breaks", longUnbrokenContent),
-            new("  ", "guides/with-body", "<p>Body text</p>"),
-            new("  ", "guides/filtered", "<script>only-script</script>")
+            new("", "guides/empty", "<script>alert('x')</script><style>body{}</style>"),
+            new("Kept", "guides/kept", "<p>Visible body</p>")
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 
         var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
         var payload = JsonSerializer.Serialize(result.Value);
-        using var doc = JsonDocument.Parse(payload);
+        using var document = JsonDocument.Parse(payload);
 
-        var documents = doc.RootElement.GetProperty("documents").EnumerateArray().ToList();
-        Assert.Contains(documents, d => d.GetProperty("path").GetString() == "/docs");
-        Assert.Contains(documents, d => d.GetProperty("path").GetString() == "/docs/guides/with-body");
-        Assert.DoesNotContain(documents, d => d.GetProperty("path").GetString() == "/docs/guides/filtered");
+        var items = document.RootElement.GetProperty("documents").EnumerateArray().ToList();
+        Assert.Single(items);
+        Assert.Equal("/docs/guides/kept", items[0].GetProperty("path").GetString());
+    }
 
-        var singleWordSnippet = documents
-            .First(d => d.GetProperty("path").GetString() == "/docs/guides/no-breaks")
-            .GetProperty("snippet")
-            .GetString();
+    [Fact]
+    public async Task SearchIndex_ShouldCollapseDuplicatePaths_AndHandleNullContent()
+    {
+        var docs = new List<DocNode>
+        {
+            new("First", "guides/dup", null!),
+            new("Second", "guides/dup", "<p>Body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 
-        Assert.NotNull(singleWordSnippet);
-        Assert.EndsWith("...", singleWordSnippet);
-        Assert.True(singleWordSnippet.Length <= 223, $"Snippet length {singleWordSnippet.Length} exceeds 220 + ellipsis.");
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var document = JsonDocument.Parse(payload);
+
+        var items = document.RootElement.GetProperty("documents").EnumerateArray().ToList();
+        Assert.Single(items);
+        Assert.Equal("First", items[0].GetProperty("title").GetString());
+        Assert.Equal(string.Empty, items[0].GetProperty("bodyText").GetString());
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldMapWhitespaceAndFragmentOnlyPaths_ToDocsRootUrl()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Root", "   ", "<p>Body</p>"),
+            new("Fragment", "#overview", "<p>Body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var document = JsonDocument.Parse(payload);
+
+        var paths = document.RootElement
+            .GetProperty("documents")
+            .EnumerateArray()
+            .Select(e => e.GetProperty("path").GetString())
+            .ToList();
+
+        Assert.Contains("/docs", paths);
+        Assert.Contains("/docs#overview", paths);
+    }
+
+    [Fact]
+    public void PrivateHelpers_ShouldHandleNullAndUnbrokenTextBranches()
+    {
+        var normalized = DocsController.NormalizeText(null!);
+        var rootUrl = DocsController.BuildDocUrl(" ");
+        var truncated = DocsController.TruncateAtWordBoundary(new string('a', 260), 220);
+
+        Assert.Equal(string.Empty, normalized);
+        Assert.Equal("/docs", rootUrl);
+        Assert.Equal(223, truncated.Length);
+        Assert.EndsWith("...", truncated);
+    }
+
+    [Fact]
+    public void CanRefreshCache_ShouldReturnFalse_WhenUserOrIdentityIsMissing()
+    {
+        _controller.ControllerContext = new ControllerContext();
+        var nullContextResult = _controller.CanRefreshCache();
+
+        var noIdentityHttpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal()
+        };
+        _controller.ControllerContext = new ControllerContext { HttpContext = noIdentityHttpContext };
+        var noIdentityResult = _controller.CanRefreshCache();
+
+        Assert.False(nullContextResult);
+        Assert.False(noIdentityResult);
     }
 
     public void Dispose()

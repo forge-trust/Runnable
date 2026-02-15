@@ -260,6 +260,44 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocByPathAsync_ShouldPreferNamespacePage_WhenCanonicalLookupHasNoFragment()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("FooType", "Namespaces/Foo#Foo-Type", string.Empty),
+            new("Foo", "Namespaces/Foo", "<p>Namespace page</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var result = await _aggregator.GetDocByPathAsync("Namespaces/Foo.html");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Namespaces/Foo", result!.Path);
+        Assert.Equal("Foo", result.Title);
+    }
+
+    [Fact]
+    public async Task GetDocByPathAsync_ShouldFallbackWhenLookupFragmentMissing_AndDocHasNoFragment()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Service", "docs/service.cs", "<p>Service</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var result = await _aggregator.GetDocByPathAsync("docs/service.cs.html#MissingFragment");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Service", result!.Title);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldPropagateOperationCanceled_FromHarvester()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
@@ -324,6 +362,166 @@ public class DocAggregatorTests : IDisposable
         _ = await aggregator.GetDocsAsync();
 
         Assert.Equal(configuredRoot, capturedRoot);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldMergeNamespaceReadmeIntoNamespaceNode_AndRemoveReadmeNode()
+    {
+        // Arrange
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Web", "Namespaces/ForgeTrust.Web", namespaceContent),
+            new("README", "docs/ForgeTrust.Web/README.md", "<p>Namespace intro</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
+        Assert.DoesNotContain(docs, d => d.Path == "docs/ForgeTrust.Web/README.md");
+        Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
+        Assert.Contains("<p>Namespace intro</p>", namespaceDoc.Content);
+        Assert.Contains("</section><section class=\"doc-namespace-intro\">", namespaceDoc.Content);
+    }
+
+    [Fact]
+    public void MergeNamespaceIntroIntoContent_ShouldHandleMalformedNamespaceSections()
+    {
+        // Act
+        var noMarker = DocAggregator.MergeNamespaceIntroIntoContent("<section>Body</section>", "<p>Intro</p>");
+        var noSectionStart = DocAggregator.MergeNamespaceIntroIntoContent("doc-namespace-groups", "<p>Intro</p>");
+        var noStartTagEnd = DocAggregator.MergeNamespaceIntroIntoContent("<section class='doc-namespace-groups'", "<p>Intro</p>");
+        var noEndTag = DocAggregator.MergeNamespaceIntroIntoContent("<section class='doc-namespace-groups'>open", "<p>Intro</p>");
+
+        // Assert
+        Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section>Body</section>", noMarker);
+        Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section>doc-namespace-groups", noSectionStart);
+        Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section class='doc-namespace-groups'", noStartTagEnd);
+        Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section class='doc-namespace-groups'>open", noEndTag);
+    }
+
+    [Fact]
+    public void ExtractNamespaceNameFromReadmePath_ShouldReturnNull_WhenPathIsNotReadme()
+    {
+        // Act
+        var namespaceName = DocAggregator.ExtractNamespaceNameFromReadmePath("docs/ForgeTrust.Web/NOTES.md");
+
+        // Assert
+        Assert.Null(namespaceName);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldFallbackToEmptyDictionary_WhenCacheReturnsNullValue()
+    {
+        // Arrange
+        var nullCache = A.Fake<IMemoryCache>();
+        object? cachedValue = null;
+        A.CallTo(() => nullCache.TryGetValue(A<object>._, out cachedValue)).Returns(true);
+        var aggregator = new DocAggregator(
+            Enumerable.Empty<IDocHarvester>(),
+            _configFake,
+            _envFake,
+            nullCache,
+            _sanitizerFake,
+            _loggerFake);
+
+        // Act
+        var docs = await aggregator.GetDocsAsync();
+
+        // Assert
+        Assert.Empty(docs);
+    }
+
+    [Fact]
+    public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenConfigIsMissing()
+    {
+        // Arrange
+        var localConfig = A.Fake<Ext_IConfiguration>();
+        A.CallTo(() => localConfig["RepositoryRoot"]).Returns(null);
+        var localEnv = A.Fake<IWebHostEnvironment>();
+        var contentRoot = Path.Combine(Path.GetTempPath(), "repo-fallback-root");
+        A.CallTo(() => localEnv.ContentRootPath).Returns(contentRoot);
+        var expectedRoot = ForgeTrust.Runnable.Core.PathUtils.FindRepositoryRoot(contentRoot);
+        string? capturedRoot = null;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Invokes((string root, CancellationToken _) => capturedRoot = root)
+            .Returns(Enumerable.Empty<DocNode>());
+        var aggregator = new DocAggregator(
+            new[] { _harvesterFake },
+            localConfig,
+            localEnv,
+            _cache,
+            _sanitizerFake,
+            _loggerFake);
+
+        // Act
+        _ = await aggregator.GetDocsAsync();
+
+        // Assert
+        Assert.Equal(expectedRoot, capturedRoot);
+    }
+
+    [Fact]
+    public async Task GetDocByPathAsync_ShouldUsePathFallback_WhenCachedCanonicalPathIsNull()
+    {
+        // Arrange
+        _cache.Set(
+            "HarvestedDocs",
+            new Dictionary<string, DocNode>
+            {
+                { "docs/service.cs#DoWork", new DocNode("Method", "docs/service.cs#DoWork", "content") }
+            });
+
+        // Act
+        var result = await _aggregator.GetDocByPathAsync("DOCS/service.cs#DoWork");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Method", result!.Title);
+    }
+
+    [Fact]
+    public async Task BuildCanonicalPath_ShouldNotAppendHtml_WhenSourceAlreadyHtml()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("AlreadyHtml", "docs/page.html", "content"),
+            new("RootHtml", "index.html", "content")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        Assert.Contains(docs, d => d.Path == "docs/page.html" && d.CanonicalPath == "docs/page.html");
+        Assert.Contains(docs, d => d.Path == "index.html" && d.CanonicalPath == "index.html");
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldMergeNamespaceReadmes_WhenNamespaceNodesContainDuplicates()
+    {
+        // Arrange
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Web", "Namespaces/ForgeTrust.Web", namespaceContent),
+            new("Web-duplicate", "Namespaces/ForgeTrust.Web", namespaceContent),
+            new("README", "docs/ForgeTrust.Web/README.md", "<p>Namespace intro</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
+        Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
+        Assert.DoesNotContain(docs, d => d.Path == "docs/ForgeTrust.Web/README.md");
     }
 
     public void Dispose()

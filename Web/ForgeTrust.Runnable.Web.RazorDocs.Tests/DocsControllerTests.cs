@@ -95,6 +95,22 @@ public class DocsControllerTests : IDisposable
         Assert.IsType<NotFoundResult>(result);
     }
 
+    [Fact]
+    public async Task Details_ShouldReturnView_WhenDocRequestedByCanonicalPath()
+    {
+        // Arrange
+        var docs = new List<DocNode> { new("Title", "target-path.md", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        // Act
+        var result = await _controller.Details("target-path_md.html");
+
+        // Assert
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocNode>(viewResult.Model);
+        Assert.Equal("Title", model.Title);
+    }
+
     public void Dispose()
     {
         _cache.Dispose();

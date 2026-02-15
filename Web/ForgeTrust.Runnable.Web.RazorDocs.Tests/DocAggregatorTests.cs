@@ -167,6 +167,33 @@ public class DocAggregatorTests : IDisposable
         Assert.Null(result);
     }
 
+    [Fact]
+    public async Task GetDocsAsync_ShouldExposeCanonicalHtmlPaths_AndResolveByCanonicalPath()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Guide", "docs/readme.md", "content"),
+            new("Method", "docs/service.cs#MethodId", "content", "docs/service.cs")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var byCanonical = await _aggregator.GetDocByPathAsync("docs/readme_md.html");
+        var byCanonicalWithoutAnchor = await _aggregator.GetDocByPathAsync("docs/service_cs.html");
+
+        // Assert
+        Assert.Contains(docs, d => d.Path == "docs/readme.md" && d.CanonicalPath == "docs/readme_md.html");
+        Assert.Contains(
+            docs,
+            d => d.Path == "docs/service.cs#MethodId" && d.CanonicalPath == "docs/service_cs.html#MethodId");
+        Assert.NotNull(byCanonical);
+        Assert.Equal("Guide", byCanonical!.Title);
+        Assert.NotNull(byCanonicalWithoutAnchor);
+        Assert.Equal("Method", byCanonicalWithoutAnchor!.Title);
+    }
+
     public void Dispose()
     {
         _cache.Dispose();

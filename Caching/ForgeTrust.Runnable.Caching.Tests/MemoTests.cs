@@ -41,22 +41,27 @@ public class MemoTests : IDisposable
     }
 
     [Fact]
-    public async Task GetAsync_OngoingOperation_FailsIfDisposedMidWait()
+    public async Task GetAsync_OngoingOperation_ThrowsWhenDisposedDuringWait()
     {
         var memo = CreateMemo();
-        var factoryGate = new TaskCompletionSource<int>();
-        var waitTask = memo.GetAsync(() => factoryGate.Task, CachePolicy.Absolute(TimeSpan.FromMinutes(1)));
+        var gate = new TaskCompletionSource<bool>();
+
+        var task = memo.GetAsync(
+            async () =>
+            {
+                await gate.Task;
+
+                return 1;
+            },
+            CachePolicy.Absolute(TimeSpan.FromMinutes(1)));
+
+        // Wait to ensure it's inside the factory
+        await Task.Delay(50);
 
         memo.Dispose();
-        factoryGate.SetResult(1);
+        gate.SetResult(true);
 
-        // Even if the factory finishes, the lock release or subsequent check should throw if we strictly guarded it.
-        // In our implementation, we check ThrowIfDisposed AFTER WaitAsync.
-        // Let's test two calls to hit the WaitAsync path.
-
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => memo.GetAsync(
-            () => Task.FromResult(2),
-            CachePolicy.Absolute(TimeSpan.FromMinutes(1))));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => task);
     }
 
     private readonly List<MemoryCache> _caches = [];
@@ -448,39 +453,64 @@ public class MemoTests : IDisposable
         Assert.Equal(CancellationToken.None, received);
     }
 
+    private sealed class DeterministicCache : IMemoryCache
+    {
+        private readonly IMemoryCache _inner;
+        private readonly CountdownEvent _event;
+
+        public DeterministicCache(IMemoryCache inner, CountdownEvent @event)
+        {
+            _inner = inner;
+            _event = @event;
+        }
+
+        public bool TryGetValue(object key, out object? value)
+        {
+            var result = _inner.TryGetValue(key, out value);
+            try
+            {
+                _event.Signal();
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignore if signaled too many times
+            }
+
+            return result;
+        }
+
+        public ICacheEntry CreateEntry(object key) => _inner.CreateEntry(key);
+        public void Remove(object key) => _inner.Remove(key);
+        public void Dispose() => _inner.Dispose();
+    }
+
     [Fact]
     public async Task GetAsync_ThunderingHerd_FactoryCalledOnce()
     {
-        var memo = CreateMemo();
+        const int callerCount = 10;
+        using var allWaitersReachedCache = new CountdownEvent(callerCount);
+        var innerCache = new MemoryCache(new MemoryCacheOptions());
+        var deterministicCache = new DeterministicCache(innerCache, allWaitersReachedCache);
+        var memo = new Memo(deterministicCache);
+        _caches.Add(innerCache);
+
         var callCount = 0;
         var gate = new TaskCompletionSource<bool>();
-        const int callerCount = 10;
-        using var allCallersReady = new CountdownEvent(callerCount);
 
         async Task<int> SlowFactory()
         {
             Interlocked.Increment(ref callCount);
-            allCallersReady.Signal();
-            await gate.Task;
 
-            return 99;
+            return await gate.Task ? 99 : 0;
         }
 
         var tasks = Enumerable.Range(0, callerCount)
             .Select(_ => Task.Run(() => memo.GetAsync(SlowFactory, CachePolicy.Absolute(TimeSpan.FromMinutes(5)))))
             .ToArray();
 
-        // Wait for all tasks to reach the semaphore or factory
-        await Task.Delay(200);
-
-        // Signal the countdown for callers blocked on the semaphore
-        var factoryCalls = callCount;
-        for (var i = 0; i < callerCount - factoryCalls; i++)
-        {
-            allCallersReady.Signal();
-        }
-
-        allCallersReady.Wait(TimeSpan.FromSeconds(5));
+        // Wait for all tasks to have at least attempted to read from the cache.
+        // This ensures they are either running the factory or blocked on the semaphore.
+        allWaitersReachedCache.Wait(TimeSpan.FromSeconds(5));
 
         // Release the factory
         gate.SetResult(true);
@@ -1170,6 +1200,6 @@ public class MemoTests : IDisposable
         Assert.Empty(locks);
 
         tcs.SetResult(42);
-        await task;
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => task);
     }
 }

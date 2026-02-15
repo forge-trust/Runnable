@@ -728,7 +728,20 @@ public sealed class Memo : IMemo, IDisposable
         // Slow path: acquire per-key lock to prevent thundering herd
         var keyLock = _locks.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
 
-        await keyLock.WaitAsync(cancellationToken);
+        try
+        {
+            await keyLock.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // If WaitAsync is canceled, try to remove the lock entry from _locks
+            // to prevent unbounded growth if this was the last waiter for this specific key.
+            // We only remove if it's still the same instance we were waiting on.
+            _locks.TryRemove(new KeyValuePair<object, SemaphoreSlim>(key, keyLock));
+
+            throw;
+        }
+
         ThrowIfDisposed();
         try
         {
@@ -747,8 +760,9 @@ public sealed class Memo : IMemo, IDisposable
             try
             {
                 result = await factory(state, cancellationToken);
+                ThrowIfDisposed();
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not ObjectDisposedException)
             {
                 // Cache the failure with a short TTL so subsequent waiters short-circuit
                 // instead of re-invoking the factory (prevents serial thundering herd).
@@ -857,9 +871,11 @@ public sealed class Memo : IMemo, IDisposable
     }
 
     // Uses ValueTuple objects (e.g., (prefix, arg1, arg2)) as cache keys.
-    // This provides high-performance, allocation-minimizing lookups while ensuring
-    // 100% collision-free equality checks and absolute safety against buffer overflows.
-    // Nulls and empty values in arguments are handled naturally by the tuple's HashCode/Equality.
+    // These provide straightforward, type-safe identity for the cache.
+    // Note: ValueTuples used as 'object' in the dictionary will be boxed,
+    // resulting in one allocation per key construction during a cache miss or sync-point acquisition.
+    // Equality and HashCode are handled naturally by the tuple implementation,
+    // and collisions are resolved as per standard ConcurrentDictionary behavior.
 
 
     internal static object BuildKey<TResult, TArg>(string path, int line, TArg arg) =>

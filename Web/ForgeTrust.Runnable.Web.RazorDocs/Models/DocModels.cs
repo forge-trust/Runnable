@@ -8,12 +8,14 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Models;
 /// <param name="Content">The rendered HTML content of the documentation.</param>
 /// <param name="ParentPath">The optional parent path for hierarchical organization.</param>
 /// <param name="IsDirectory">Indicates if this node represents a directory container.</param>
+/// <param name="CanonicalPath">The browser-facing docs route path used for linking and lookup.</param>
 public record DocNode(
     string Title,
     string Path,
     string Content,
     string? ParentPath = null,
-    bool IsDirectory = false);
+    bool IsDirectory = false,
+    string? CanonicalPath = null);
 
 /// <summary>
 /// Interface for harvesting documentation from various sources.

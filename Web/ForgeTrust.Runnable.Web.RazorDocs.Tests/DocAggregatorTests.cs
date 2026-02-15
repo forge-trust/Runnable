@@ -281,6 +281,24 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocByPathAsync_ShouldFallbackWhenLookupFragmentMissing_AndDocHasNoFragment()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Service", "docs/service.cs", "<p>Service</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var result = await _aggregator.GetDocByPathAsync("docs/service.cs.html#MissingFragment");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Service", result!.Title);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldPropagateOperationCanceled_FromHarvester()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))

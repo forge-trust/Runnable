@@ -68,7 +68,6 @@ public class DocAggregator
 
         var lookupPath = NormalizeLookupPath(path);
         var lookupCanonicalPath = NormalizeCanonicalPath(path);
-        var lookupFragment = GetFragment(path);
 
         if (cachedDict.TryGetValue(lookupPath, out var directMatch))
         {
@@ -96,19 +95,6 @@ public class DocAggregator
         if (exactCanonicalMatch != null)
         {
             return exactCanonicalMatch;
-        }
-
-        if (!string.IsNullOrWhiteSpace(lookupFragment))
-        {
-            var fragmentMatch = canonicalCandidates.FirstOrDefault(
-                doc => string.Equals(
-                    GetFragment(doc.CanonicalPath ?? doc.Path),
-                    lookupFragment,
-                    StringComparison.OrdinalIgnoreCase));
-            if (fragmentMatch != null)
-            {
-                return fragmentMatch;
-            }
         }
 
         return canonicalCandidates

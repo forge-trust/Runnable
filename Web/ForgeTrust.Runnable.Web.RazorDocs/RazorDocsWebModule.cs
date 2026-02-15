@@ -18,11 +18,10 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// Registers services required by the RazorDocs module into the provided service collection.
     /// </summary>
     /// <remarks>
-    /// Adds an in-memory cache, HTML sanitizer, Markdown and C# harvesters, and the documentation aggregator.
+    /// Adds HTML sanitizer, Markdown and C# harvesters, and the documentation aggregator.
     /// </remarks>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
-        services.AddMemoryCache();
         services.AddSingleton<Ganss.Xss.IHtmlSanitizer, Ganss.Xss.HtmlSanitizer>();
         services.AddSingleton<IDocHarvester, MarkdownHarvester>();
         services.AddSingleton<IDocHarvester, CSharpDocHarvester>();

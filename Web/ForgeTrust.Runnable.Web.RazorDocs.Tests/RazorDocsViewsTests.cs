@@ -19,7 +19,7 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-results\"", layout);
         Assert.Contains("href=\"~/docs/search.css\"", layout);
         Assert.Contains("href=\"~/docs/search-index.json\"", layout);
-        Assert.Contains("crossorigin=\"anonymous\"", layout);
+        Assert.Contains("crossorigin=\"use-credentials\"", layout);
         Assert.Contains("src=\"~/docs/search-client.js\"", layout);
     }
 }

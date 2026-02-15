@@ -164,7 +164,7 @@ public class DocsControllerTests : IDisposable
 
         _ = await _controller.SearchIndex();
 
-        Assert.Equal("public,max-age=300", _controller.Response.Headers.CacheControl.ToString());
+        Assert.Equal("private,max-age=300", _controller.Response.Headers.CacheControl.ToString());
     }
 
     [Fact]

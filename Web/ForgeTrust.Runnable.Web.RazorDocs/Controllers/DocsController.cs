@@ -113,8 +113,8 @@ public class DocsController : Controller
             }
         }
 
-        // Browser/proxy hint aligned to memoized server-side TTL.
-        Response.Headers.CacheControl = $"public,max-age={(int)SearchIndexCacheDuration.TotalSeconds}";
+        // Keep response caching private by default; docs may be served behind auth.
+        Response.Headers.CacheControl = $"private,max-age={(int)SearchIndexCacheDuration.TotalSeconds}";
 
         var cacheGeneration = Volatile.Read(ref _searchIndexGeneration);
         var payloadTask = _memo.GetAsync(

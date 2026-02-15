@@ -84,7 +84,7 @@
     let response;
 
     try {
-      response = await fetch(indexUrl, { credentials: 'omit', signal: controller.signal });
+      response = await fetch(indexUrl, { credentials: 'same-origin', signal: controller.signal });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         throw new Error('Search index request timed out.');

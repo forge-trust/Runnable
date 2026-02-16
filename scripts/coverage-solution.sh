@@ -13,6 +13,8 @@ if [[ ! -f "$SOLUTION_PATH" ]]; then
   exit 1
 fi
 
+SOLUTION_DIR="$(cd "$(dirname "$SOLUTION_PATH")" && pwd)"
+
 mkdir -p "$OUTPUT_DIR"
 rm -f "$OUTPUT_DIR/coverage.json" "$OUTPUT_DIR/coverage.cobertura.xml" "$OUTPUT_DIR/summary.txt"
 
@@ -40,7 +42,11 @@ overall_exit=0
 
 for i in "${!test_projects[@]}"; do
   project_rel="${test_projects[$i]}"
-  project_path="$ROOT_DIR/$project_rel"
+  if [[ "$project_rel" = /* ]]; then
+    project_path="$project_rel"
+  else
+    project_path="$SOLUTION_DIR/$project_rel"
+  fi
   echo "[$((i + 1))/${#test_projects[@]}] dotnet test $project_rel"
 
   args=(
@@ -70,6 +76,16 @@ done
 
 coverage_file="$OUTPUT_DIR/coverage.cobertura.xml"
 if [[ ! -f "$coverage_file" ]]; then
+  if [[ "${#failures[@]}" -gt 0 ]]; then
+    echo "One or more test projects failed:" >&2
+    for failure in "${failures[@]}"; do
+      echo "  - $failure" >&2
+    done
+    echo >&2
+    echo "Merged Cobertura file was not created: $coverage_file" >&2
+    exit "$overall_exit"
+  fi
+
   echo "Merged Cobertura file was not created: $coverage_file" >&2
   exit 1
 fi

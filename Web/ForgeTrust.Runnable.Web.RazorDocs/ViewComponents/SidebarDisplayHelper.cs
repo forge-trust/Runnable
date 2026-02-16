@@ -73,15 +73,6 @@ internal static class SidebarDisplayHelper
                     ? GetLastNamespaceSegment(trimmedPrefix)
                     : remainder;
             }
-
-            if (fullNamespace.StartsWith(trimmedPrefix, StringComparison.OrdinalIgnoreCase)
-                && (fullNamespace.Length == trimmedPrefix.Length || fullNamespace[trimmedPrefix.Length] == '.'))
-            {
-                var remainder = fullNamespace[trimmedPrefix.Length..].TrimStart('.');
-                return string.IsNullOrWhiteSpace(remainder)
-                    ? GetLastNamespaceSegment(trimmedPrefix)
-                    : remainder;
-            }
         }
 
         return fullNamespace;

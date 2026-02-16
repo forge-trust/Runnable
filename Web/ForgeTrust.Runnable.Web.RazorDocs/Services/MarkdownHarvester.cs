@@ -1,25 +1,35 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Markdig;
-using System.Diagnostics.CodeAnalysis;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
 /// <summary>
 /// Harvester implementation that scans Markdown source files and converts them into documentation nodes.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class MarkdownHarvester : IDocHarvester
 {
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
+    private readonly Func<string, CancellationToken, Task<string>> _readAllTextAsync;
 
     /// <summary>
     /// Initializes a new instance of <see cref="MarkdownHarvester"/> with the specified logger and configures the Markdown pipeline.
     /// </summary>
     /// <param name="logger">Logger used for recording harvesting events and errors.</param>
     public MarkdownHarvester(ILogger<MarkdownHarvester> logger)
+        : this(logger, File.ReadAllTextAsync)
     {
+    }
+
+    internal MarkdownHarvester(
+        ILogger<MarkdownHarvester> logger,
+        Func<string, CancellationToken, Task<string>> readAllTextAsync)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(readAllTextAsync);
+
         _logger = logger;
+        _readAllTextAsync = readAllTextAsync;
         _pipeline = new MarkdownPipelineBuilder()
             .UseAdvancedExtensions()
             .Build();
@@ -50,7 +60,7 @@ public class MarkdownHarvester : IDocHarvester
                     continue;
                 }
 
-                var content = await File.ReadAllTextAsync(file, cancellationToken);
+                var content = await _readAllTextAsync(file, cancellationToken);
                 var html = Markdown.ToHtml(content, _pipeline);
                 var title = Path.GetFileNameWithoutExtension(file);
 

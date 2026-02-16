@@ -107,19 +107,33 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
-    public async Task HarvestAsync_ShouldHandleFileReadErrorsGracefully()
+    public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
-        // Arrange
-        var lockedFile = Path.Combine(_testRoot, "Locked.md");
-        await File.WriteAllTextAsync(lockedFile, "secret");
+        Assert.Throws<ArgumentNullException>(
+            () => new MarkdownHarvester(null!, (_, _) => Task.FromResult(string.Empty)));
+    }
 
-        using var open = File.Open(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None);
-        // Act - File is locked
-        var results = await _harvester.HarvestAsync(_testRoot);
+    [Fact]
+    public void Constructor_ShouldThrow_WhenReadDelegateIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => new MarkdownHarvester(_loggerFake, null!));
+    }
 
-        // Assert
-        Assert.Empty(results);
-        // Verify logger was called
+    [Fact]
+    public async Task HarvestAsync_ShouldLogAndSkip_WhenReadDelegateThrows()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Good.md"), "# Good");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Broken.md"), "# Broken");
+        var harvester = new MarkdownHarvester(
+            _loggerFake,
+            (path, cancellationToken) => path.EndsWith("Broken.md", StringComparison.Ordinal)
+                ? Task.FromException<string>(new IOException("boom"))
+                : File.ReadAllTextAsync(path, cancellationToken));
+
+        var results = (await harvester.HarvestAsync(_testRoot)).ToList();
+
+        Assert.Single(results);
+        Assert.Equal("Good", results[0].Title);
         A.CallTo(_loggerFake).Where(call => call.Method.Name == "Log").MustHaveHappened();
     }
 
@@ -164,32 +178,15 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
-    public async Task HarvestAsync_ShouldLogAndSkip_WhenFileIsUnreadable()
+    public async Task HarvestAsync_ShouldPropagateOperationCanceled_WhenReadDelegateThrows()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Cancel.md"), "# Cancel");
+        var harvester = new MarkdownHarvester(
+            _loggerFake,
+            (_, cancellationToken) => throw new OperationCanceledException(cancellationToken));
 
-        var unreadable = Path.Combine(_testRoot, "Unreadable.md");
-        await File.WriteAllTextAsync(unreadable, "# Hidden");
-        File.SetUnixFileMode(
-            unreadable,
-            UnixFileMode.UserWrite | UnixFileMode.GroupWrite | UnixFileMode.OtherWrite);
-
-        try
-        {
-            var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
-
-            Assert.Empty(results);
-            A.CallTo(_loggerFake).Where(call => call.Method.Name == "Log").MustHaveHappened();
-        }
-        finally
-        {
-            File.SetUnixFileMode(
-                unreadable,
-                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
-        }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harvester.HarvestAsync(_testRoot));
+        A.CallTo(_loggerFake).Where(call => call.Method.Name == "Log").MustNotHaveHappened();
     }
 
     public void Dispose()

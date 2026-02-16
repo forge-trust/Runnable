@@ -328,7 +328,7 @@ public sealed class RazorWireMvcPlaywrightTests
                                 && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase),
                     new PageRunAndWaitForResponseOptions { Timeout = 45_000 });
             }
-            catch (TimeoutException) when (attempt == 1)
+            catch (Exception ex) when (attempt == 1 && (ex is TimeoutException || ex is PlaywrightException))
             {
                 // Retry once to absorb in-flight form replacement races on slower CI runners.
                 await page.WaitForTimeoutAsync(300);

@@ -7,6 +7,8 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -121,9 +123,31 @@ public class RazorDocsWebModuleTests
             "Web",
             "ForgeTrust.Runnable.Web.RazorDocs",
             "RazorDocsWebModule.cs");
-        var source = File.ReadAllText(sourcePath);
-        var searchIndex = source.IndexOf("pattern: \"docs/search\"", StringComparison.Ordinal);
-        var catchAllIndex = source.IndexOf("pattern: \"docs/{*path}\"", StringComparison.Ordinal);
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(File.ReadAllText(sourcePath));
+        var root = syntaxTree.GetRoot();
+        var configureEndpointsMethod = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .SingleOrDefault(method => method.Identifier.Text == "ConfigureEndpoints");
+
+        Assert.NotNull(configureEndpointsMethod);
+
+        var routePatterns = configureEndpointsMethod!
+            .DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Where(
+                invocation => invocation.Expression is MemberAccessExpressionSyntax memberAccess
+                              && memberAccess.Name.Identifier.Text == "MapControllerRoute")
+            .Select(
+                invocation => invocation.ArgumentList.Arguments
+                    .FirstOrDefault(argument => argument.NameColon?.Name.Identifier.Text == "pattern")
+                    ?.Expression as LiteralExpressionSyntax)
+            .Where(patternLiteral => patternLiteral is not null)
+            .Select(patternLiteral => patternLiteral!.Token.ValueText)
+            .ToList();
+
+        var searchIndex = routePatterns.IndexOf("docs/search");
+        var catchAllIndex = routePatterns.IndexOf("docs/{*path}");
 
         Assert.True(searchIndex >= 0, "Expected docs/search route declaration.");
         Assert.True(catchAllIndex >= 0, "Expected docs/{*path} route declaration.");

@@ -26,22 +26,44 @@ public class RazorDocsViewsTests
     [Fact]
     public void Layout_ShouldContain_SearchShellMarkers()
     {
-        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
-        var layoutPath = Path.Combine(
-            repoRoot,
-            "Web",
-            "ForgeTrust.Runnable.Web.RazorDocs",
-            "Views",
-            "Shared",
-            "_Layout.cshtml");
-
-        var layout = File.ReadAllText(layoutPath);
+        var layout = ReadLayoutMarkup();
         Assert.Contains("id=\"docs-search-input\"", layout);
         Assert.Contains("id=\"docs-search-results\"", layout);
         Assert.Contains("href=\"~/docs/search.css\"", layout);
         Assert.Contains("href=\"~/docs/search-index.json\"", layout);
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
         Assert.Contains("src=\"~/docs/search-client.js\"", layout);
+    }
+
+    [Fact]
+    public void Layout_ShouldKeepSidebarVisibleByDefault_ForNoScriptFallback()
+    {
+        var layout = ReadLayoutMarkup();
+
+        var sidebarStart = layout.IndexOf("<aside id=\"docs-sidebar\"", StringComparison.Ordinal);
+        Assert.NotEqual(-1, sidebarStart);
+
+        var sidebarEnd = layout.IndexOf(">", sidebarStart, StringComparison.Ordinal);
+        Assert.NotEqual(-1, sidebarEnd);
+
+        var sidebarDeclaration = layout.Substring(sidebarStart, sidebarEnd - sidebarStart);
+        Assert.DoesNotContain("-translate-x-full", sidebarDeclaration);
+    }
+
+    [Fact]
+    public void Layout_ShouldContain_MobileSidebarAccessibilityBehaviorMarkers()
+    {
+        var layout = ReadLayoutMarkup();
+
+        Assert.Contains("id=\"docs-sidebar-overlay\"", layout);
+        Assert.Contains("id=\"docs-sidebar-open\"", layout);
+        Assert.Contains("id=\"docs-sidebar-close\"", layout);
+        Assert.Contains("id=\"main-content\"", layout);
+        Assert.Contains("tabindex=\"-1\"", layout);
+        Assert.Contains("function getSidebarFocusableElements()", layout);
+        Assert.Contains("setAttribute(\"inert\"", layout);
+        Assert.Contains("removeAttribute(\"inert\")", layout);
+        Assert.Contains("lastFocusedBeforeSidebarOpen.focus", layout);
     }
 
     [Fact]
@@ -332,6 +354,20 @@ public class RazorDocsViewsTests
             .AddApplicationPart(typeof(DocsController).Assembly);
 
         return services.BuildServiceProvider();
+    }
+
+    private static string ReadLayoutMarkup()
+    {
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        var layoutPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "Views",
+            "Shared",
+            "_Layout.cshtml");
+
+        return File.ReadAllText(layoutPath);
     }
 
     private static async Task<string> RenderDocsViewAsync(

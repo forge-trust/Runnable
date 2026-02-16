@@ -298,10 +298,34 @@
             white-space: pre-wrap;
             word-break: break-word;
             margin: 0.65rem 0 0.85rem;
+            overflow-x: auto;
         }
 
         .docs-content code {
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+
+        @@media (max-width: 767px) {
+            .docs-content {
+                font-size: 0.97rem;
+                line-height: 1.65;
+            }
+
+            .docs-content h2 {
+                font-size: 1.55rem;
+            }
+
+            .docs-content .doc-method-group {
+                margin-left: 0;
+                padding-left: 0.75rem;
+            }
+
+            .docs-content .doc-typeparams li,
+            .docs-content .doc-params li,
+            .docs-content .doc-exceptions li {
+                grid-template-columns: 1fr;
+                gap: 0.3rem;
+            }
         }
     </style>
     <link rel="stylesheet" href="~/docs/search.css" />
@@ -313,9 +337,29 @@
 <body class="h-full flex flex-col text-slate-200 overflow-hidden">
 <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:p-4 focus:bg-slate-900 focus:text-white">Skip to content</a>
 <div class="flex h-full">
+    <button id="docs-sidebar-overlay"
+            class="fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm hidden md:hidden"
+            type="button"
+            tabindex="-1"
+            aria-label="Close navigation menu">
+    </button>
+
     <!-- Sidebar -->
-    <aside class="w-64 flex-shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col">
-        <div class="p-6">
+    <aside id="docs-sidebar"
+           class="fixed inset-y-0 left-0 z-40 w-72 max-w-[90vw] flex-shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col transform transition-transform duration-200 ease-out md:relative md:z-auto md:w-64 md:max-w-none md:translate-x-0"
+           tabindex="-1"
+           aria-hidden="false">
+        <div class="flex items-center justify-between p-4 border-b border-slate-800 md:hidden">
+            <a href="/docs" class="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                RazorDocs
+            </a>
+            <button id="docs-sidebar-close"
+                    type="button"
+                    class="px-2 py-1 text-xs font-semibold tracking-wide uppercase text-slate-300 border border-slate-700 rounded-md hover:text-cyan-300 hover:border-cyan-500/50">
+                Close
+            </button>
+        </div>
+        <div class="hidden md:block p-6">
             <a href="/docs" class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 RazorDocs
             </a>
@@ -336,7 +380,7 @@
                 Advanced search
             </a>
         </div>
-        <nav class="flex-grow overflow-y-auto px-4 pb-4 space-y-1" aria-label="Documentation navigation">
+        <nav class="flex-grow overflow-y-auto px-4 pb-4 space-y-1 min-h-0" aria-label="Documentation navigation">
             @await Component.InvokeAsync("Sidebar")
         </nav>
         <div class="p-4 border-t border-slate-800 text-xs text-slate-500 text-center">
@@ -345,9 +389,23 @@
     </aside>
 
     <!-- Main Content -->
-    <main id="main-content" role="main" class="flex-grow overflow-y-auto bg-slate-900">
+    <main id="main-content" role="main" class="flex-grow min-w-0 overflow-y-auto bg-slate-900">
+        <header class="md:hidden sticky top-0 z-20 border-b border-slate-800 bg-slate-950/95 backdrop-blur px-4 py-3 flex items-center gap-3">
+            <button id="docs-sidebar-open"
+                    type="button"
+                    class="inline-flex items-center justify-center w-9 h-9 rounded-md border border-slate-700 text-slate-200 hover:text-cyan-300 hover:border-cyan-500/50"
+                    aria-label="Open navigation menu"
+                    aria-controls="docs-sidebar"
+                    aria-expanded="false">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+            </button>
+            <a href="/docs" class="text-lg font-semibold text-white">RazorDocs</a>
+            <a href="/docs/search" class="ml-auto text-xs font-semibold uppercase tracking-wide text-cyan-300 hover:text-cyan-200">Search</a>
+        </header>
         <rw:island id="doc-content">
-            <div class="max-w-6xl mx-auto px-8 py-12">
+            <div class="max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
                 @RenderBody()
             </div>
         </rw:island>
@@ -357,6 +415,208 @@
 @await RenderSectionAsync("Scripts", required: false)
 <script>
     (() => {
+        const sidebar = document.getElementById("docs-sidebar");
+        const sidebarOverlay = document.getElementById("docs-sidebar-overlay");
+        const openSidebarButton = document.getElementById("docs-sidebar-open");
+        const closeSidebarButton = document.getElementById("docs-sidebar-close");
+        const mainContent = document.getElementById("main-content");
+        const mobileMedia = window.matchMedia ? window.matchMedia("(max-width: 767px)") : null;
+        let lastFocusedBeforeSidebarOpen = null;
+
+        function shouldAutoCloseSidebar() {
+            return mobileMedia ? mobileMedia.matches : window.innerWidth < 768;
+        }
+
+        function isSidebarOpen() {
+            return !!sidebar && !sidebar.classList.contains("-translate-x-full");
+        }
+
+        function getSidebarFocusableElements() {
+            if (!sidebar) {
+                return [];
+            }
+
+            const focusableSelector = [
+                "a[href]",
+                "button:not([disabled])",
+                "input:not([disabled])",
+                "select:not([disabled])",
+                "textarea:not([disabled])",
+                "[tabindex]:not([tabindex='-1'])"
+            ].join(",");
+
+            return Array.from(sidebar.querySelectorAll(focusableSelector))
+                .filter(element => {
+                    if (!(element instanceof HTMLElement)) {
+                        return false;
+                    }
+
+                    const styles = window.getComputedStyle(element);
+                    return styles.display !== "none" && styles.visibility !== "hidden";
+                });
+        }
+
+        function setMainInteractivityDisabled(disabled) {
+            if (!mainContent) {
+                return;
+            }
+
+            if (disabled) {
+                mainContent.setAttribute("aria-hidden", "true");
+                mainContent.setAttribute("inert", "");
+                return;
+            }
+
+            mainContent.removeAttribute("aria-hidden");
+            mainContent.removeAttribute("inert");
+        }
+
+        function setSidebarModalAttributes(isModalOpen) {
+            if (!sidebar) {
+                return;
+            }
+
+            if (isModalOpen) {
+                sidebar.setAttribute("role", "dialog");
+                sidebar.setAttribute("aria-modal", "true");
+                sidebar.setAttribute("aria-label", "Documentation navigation");
+                sidebar.setAttribute("aria-hidden", "false");
+                return;
+            }
+
+            sidebar.removeAttribute("role");
+            sidebar.removeAttribute("aria-modal");
+            sidebar.removeAttribute("aria-label");
+            sidebar.setAttribute("aria-hidden", shouldAutoCloseSidebar() ? "true" : "false");
+        }
+
+        function closeSidebar({ restoreFocus = true } = {}) {
+            if (!sidebar || !sidebarOverlay) {
+                return;
+            }
+
+            sidebar.classList.add("-translate-x-full");
+            sidebarOverlay.classList.add("hidden");
+            if (openSidebarButton) {
+                openSidebarButton.setAttribute("aria-expanded", "false");
+            }
+
+            setMainInteractivityDisabled(false);
+            setSidebarModalAttributes(false);
+
+            if (restoreFocus && lastFocusedBeforeSidebarOpen instanceof HTMLElement) {
+                lastFocusedBeforeSidebarOpen.focus();
+            }
+
+            lastFocusedBeforeSidebarOpen = null;
+        }
+
+        function openSidebar() {
+            if (!sidebar || !sidebarOverlay) {
+                return;
+            }
+
+            if (shouldAutoCloseSidebar() && document.activeElement instanceof HTMLElement) {
+                lastFocusedBeforeSidebarOpen = document.activeElement;
+            }
+
+            sidebar.classList.remove("-translate-x-full");
+            sidebarOverlay.classList.remove("hidden");
+            if (openSidebarButton) {
+                openSidebarButton.setAttribute("aria-expanded", "true");
+            }
+
+            if (!shouldAutoCloseSidebar()) {
+                setMainInteractivityDisabled(false);
+                setSidebarModalAttributes(false);
+                return;
+            }
+
+            setMainInteractivityDisabled(true);
+            setSidebarModalAttributes(true);
+
+            const focusableElements = getSidebarFocusableElements();
+            const firstFocusable = focusableElements[0] ?? sidebar;
+            if (firstFocusable instanceof HTMLElement) {
+                firstFocusable.focus();
+            }
+        }
+
+        function syncSidebarForViewport() {
+            if (!sidebar || !sidebarOverlay) {
+                return;
+            }
+
+            if (shouldAutoCloseSidebar()) {
+                closeSidebar({ restoreFocus: false });
+                return;
+            }
+
+            sidebar.classList.remove("-translate-x-full");
+            sidebarOverlay.classList.add("hidden");
+            if (openSidebarButton) {
+                openSidebarButton.setAttribute("aria-expanded", "false");
+            }
+            setMainInteractivityDisabled(false);
+            setSidebarModalAttributes(false);
+        }
+
+        openSidebarButton?.addEventListener("click", openSidebar);
+        closeSidebarButton?.addEventListener("click", () => closeSidebar());
+        sidebarOverlay?.addEventListener("click", () => closeSidebar());
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape" && isSidebarOpen() && shouldAutoCloseSidebar()) {
+                closeSidebar();
+                return;
+            }
+
+            if (event.key !== "Tab" || !isSidebarOpen() || !shouldAutoCloseSidebar() || !sidebar) {
+                return;
+            }
+
+            const focusableElements = getSidebarFocusableElements();
+            if (focusableElements.length === 0) {
+                event.preventDefault();
+                sidebar.focus();
+                return;
+            }
+
+            const firstFocusable = focusableElements[0];
+            const lastFocusable = focusableElements[focusableElements.length - 1];
+
+            if (event.shiftKey && document.activeElement === firstFocusable) {
+                event.preventDefault();
+                lastFocusable.focus();
+                return;
+            }
+
+            if (!event.shiftKey && document.activeElement === lastFocusable) {
+                event.preventDefault();
+                firstFocusable.focus();
+            }
+        });
+
+        if (sidebar) {
+            sidebar.classList.add("transition-none");
+        }
+        syncSidebarForViewport();
+        if (sidebar) {
+            const restoreSidebarTransitions = () => {
+                sidebar.classList.remove("transition-none");
+            };
+
+            if (typeof requestAnimationFrame === "function") {
+                requestAnimationFrame(restoreSidebarTransitions);
+            } else {
+                setTimeout(restoreSidebarTransitions, 0);
+            }
+        }
+
+        mobileMedia?.addEventListener("change", () => {
+            syncSidebarForViewport();
+        });
+
         document.addEventListener("click", event => {
             if (event.defaultPrevented) {
                 return;
@@ -369,6 +629,11 @@
             const clickTarget = event.target;
             if (!(clickTarget instanceof Element)) {
                 return;
+            }
+
+            const sidebarNavLink = clickTarget.closest("#docs-sidebar a");
+            if (sidebarNavLink && shouldAutoCloseSidebar()) {
+                closeSidebar();
             }
 
             const anchorLink = clickTarget.closest("a[data-doc-anchor-link='true']");

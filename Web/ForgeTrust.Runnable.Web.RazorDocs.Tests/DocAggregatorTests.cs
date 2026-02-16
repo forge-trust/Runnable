@@ -395,12 +395,24 @@ public class DocAggregatorTests : IDisposable
         var noSectionStart = DocAggregator.MergeNamespaceIntroIntoContent("doc-namespace-groups", "<p>Intro</p>");
         var noStartTagEnd = DocAggregator.MergeNamespaceIntroIntoContent("<section class='doc-namespace-groups'", "<p>Intro</p>");
         var noEndTag = DocAggregator.MergeNamespaceIntroIntoContent("<section class='doc-namespace-groups'>open", "<p>Intro</p>");
+        var malformedNestedOpen = DocAggregator.MergeNamespaceIntroIntoContent(
+            "<section class='doc-namespace-groups'><section class='inner'</section></section>",
+            "<p>Intro</p>");
+        var unbalancedNested = DocAggregator.MergeNamespaceIntroIntoContent(
+            "<section class='doc-namespace-groups'><section></section>",
+            "<p>Intro</p>");
 
         // Assert
         Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section>Body</section>", noMarker);
         Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section>doc-namespace-groups", noSectionStart);
         Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section class='doc-namespace-groups'", noStartTagEnd);
         Assert.Equal("<section class=\"doc-namespace-intro\"><p>Intro</p></section><section class='doc-namespace-groups'>open", noEndTag);
+        Assert.Equal(
+            "<section class=\"doc-namespace-intro\"><p>Intro</p></section><section class='doc-namespace-groups'><section class='inner'</section></section>",
+            malformedNestedOpen);
+        Assert.Equal(
+            "<section class=\"doc-namespace-intro\"><p>Intro</p></section><section class='doc-namespace-groups'><section></section>",
+            unbalancedNested);
     }
 
     [Fact]

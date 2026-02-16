@@ -291,7 +291,7 @@ public class DocAggregator
             {
                 depth++;
                 var openEnd = content.IndexOf('>', nextOpen);
-                if (openEnd < 0)
+                if (openEnd < 0 || openEnd > nextClose)
                 {
                     return -1;
                 }

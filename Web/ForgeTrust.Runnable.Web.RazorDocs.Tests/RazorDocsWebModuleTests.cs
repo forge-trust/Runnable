@@ -1,14 +1,14 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
+using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -74,67 +74,56 @@ public class RazorDocsWebModuleTests
         Assert.Contains(
             services,
             s => s.ServiceType == typeof(Ganss.Xss.IHtmlSanitizer) && s.Lifetime == ServiceLifetime.Singleton);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var sanitizer = Assert.IsType<Ganss.Xss.HtmlSanitizer>(
+            serviceProvider.GetRequiredService<Ganss.Xss.IHtmlSanitizer>());
+        Assert.Contains("section", sanitizer.AllowedTags);
+        Assert.Contains("article", sanitizer.AllowedTags);
+        Assert.Contains("header", sanitizer.AllowedTags);
+        Assert.Contains("details", sanitizer.AllowedTags);
+        Assert.Contains("summary", sanitizer.AllowedTags);
+        Assert.Contains("class", sanitizer.AllowedAttributes);
+        Assert.Contains("id", sanitizer.AllowedAttributes);
+        Assert.Contains("open", sanitizer.AllowedAttributes);
     }
 
     [Fact]
     public void ConfigureEndpoints_ShouldMapDefaultRoute()
     {
-        // Arrange
-        var rootModuleFake = A.Fake<IRunnableHostModule>();
-        var envFake = A.Fake<IEnvironmentProvider>();
-        var context = new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
-        var endpointsFake = A.Fake<IEndpointRouteBuilder>();
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+        using var app = builder.Build();
+        var routeBuilder = (IEndpointRouteBuilder)app;
 
-        // Act & Assert
-        try
-        {
-            // Smoke test: Ensure the configuration logic runs without crashing.
-            // MapControllerRoute is a static extension that attempts to resolve MvcMarkerService
-            // from the ServiceProvider, which is difficult to mock fully in a unit test.
-            _module.ConfigureEndpoints(context, endpointsFake);
+        _module.ConfigureEndpoints(context, routeBuilder);
 
-            Assert.True(true, "Smoke test passed: ConfigureEndpoints executed without unexpected exceptions.");
-        }
-        catch (Exception ex) when (ex is InvalidCastException || ex is InvalidOperationException)
-        {
-            // Expected due to mocking limitations of internal framework services (MvcMarkerService).
-            // Execution reaching here confirms MapControllerRoute was indeed invoked by the module.
-            Assert.True(
-                true,
-                "Smoke test passed: MapControllerRoute was invoked (detected via framework dependency exception).");
-        }
+        var routePatterns = routeBuilder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .Where(pattern => !string.IsNullOrEmpty(pattern))
+            .ToList();
+
+        Assert.Contains("docs", routePatterns);
+        Assert.Contains("docs/search", routePatterns);
+        Assert.Contains("docs/search-index.json", routePatterns);
+        Assert.Contains("docs/{*path}", routePatterns);
+        Assert.Contains("{controller=Docs}/{action=Index}/{path?}", routePatterns);
     }
 
     [Fact]
-    public void ConfigureEndpoints_ShouldRegisterSearchBeforeCatchAll()
+    public void ConfigureEndpoints_ShouldRegisterSearchBeforeCatchAll_InSourceOrder()
     {
-        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
-        var sourcePath = Path.Combine(repoRoot, "Web", "ForgeTrust.Runnable.Web.RazorDocs", "RazorDocsWebModule.cs");
-        Assert.True(File.Exists(sourcePath), $"Expected source file to exist for route-order test: {sourcePath}");
-        var sourceText = File.ReadAllText(sourcePath);
-        var tree = CSharpSyntaxTree.ParseText(sourceText);
-        var root = tree.GetRoot();
-
-        var method = root.DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .FirstOrDefault(m => m.Identifier.Text == "ConfigureEndpoints");
-
-        Assert.NotNull(method);
-
-        var routePatterns = method!
-            .DescendantNodes()
-            .OfType<InvocationExpressionSyntax>()
-            .Where(inv => inv.Expression.ToString().EndsWith(".MapControllerRoute", StringComparison.Ordinal))
-            .Select(inv => inv.ArgumentList.Arguments)
-            .Select(args => args
-                .Select(a => (Name: a.NameColon?.Name.Identifier.Text, Value: a.Expression.ToString()))
-                .ToList())
-            .Select(namedArgs => namedArgs.FirstOrDefault(x => x.Name == "pattern").Value)
-            .Where(pattern => pattern != null)
-            .ToList();
-
-        var searchIndex = routePatterns.IndexOf("\"docs/search\"");
-        var catchAllIndex = routePatterns.IndexOf("\"docs/{*path}\"");
+        var sourcePath = Path.Combine(
+            TestPathUtils.FindRepoRoot(AppContext.BaseDirectory),
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "RazorDocsWebModule.cs");
+        var source = File.ReadAllText(sourcePath);
+        var searchIndex = source.IndexOf("pattern: \"docs/search\"", StringComparison.Ordinal);
+        var catchAllIndex = source.IndexOf("pattern: \"docs/{*path}\"", StringComparison.Ordinal);
 
         Assert.True(searchIndex >= 0, "Expected docs/search route declaration.");
         Assert.True(catchAllIndex >= 0, "Expected docs/{*path} route declaration.");
@@ -144,10 +133,8 @@ public class RazorDocsWebModuleTests
     [Fact]
     public void HostAndAppConfigureMethods_ShouldNotThrow()
     {
-        var rootModuleFake = A.Fake<IRunnableHostModule>();
-        var envFake = A.Fake<IEnvironmentProvider>();
-        var context = new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
-        var hostBuilder = A.Fake<Microsoft.Extensions.Hosting.IHostBuilder>();
+        var context = CreateStartupContext();
+        var hostBuilder = A.Fake<IHostBuilder>();
         var appBuilder = A.Fake<Microsoft.AspNetCore.Builder.IApplicationBuilder>();
 
         _module.ConfigureHostBeforeServices(context, hostBuilder);
@@ -155,5 +142,12 @@ public class RazorDocsWebModuleTests
         _module.ConfigureWebApplication(context, appBuilder);
 
         Assert.True(true);
+    }
+
+    private static StartupContext CreateStartupContext()
+    {
+        var rootModuleFake = A.Fake<IRunnableHostModule>();
+        var envFake = A.Fake<IEnvironmentProvider>();
+        return new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
     }
 }

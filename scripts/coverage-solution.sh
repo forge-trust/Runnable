@@ -64,10 +64,9 @@ for i in "${!test_projects[@]}"; do
     args+=("/p:MergeWith=$OUTPUT_DIR/coverage.json")
   fi
 
-  if "${args[@]}"; then
-    :
-  else
-    project_exit=$?
+  project_exit=0
+  "${args[@]}" || project_exit=$?
+  if [[ "$project_exit" -ne 0 ]]; then
     overall_exit=$project_exit
     failures+=("$project_rel (exit $project_exit)")
     echo "Test run failed for $project_rel (exit $project_exit)" >&2
@@ -90,6 +89,7 @@ if [[ ! -f "$coverage_file" ]]; then
   exit 1
 fi
 
+# Extract a numeric attribute value from the Cobertura <coverage> element.
 extract_coverage_attr() {
   local attr="$1"
   tr '\n' ' ' < "$coverage_file" \

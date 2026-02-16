@@ -596,7 +596,21 @@
             }
         });
 
+        if (sidebar) {
+            sidebar.classList.add("transition-none");
+        }
         syncSidebarForViewport();
+        if (sidebar) {
+            const restoreSidebarTransitions = () => {
+                sidebar.classList.remove("transition-none");
+            };
+
+            if (typeof requestAnimationFrame === "function") {
+                requestAnimationFrame(restoreSidebarTransitions);
+            } else {
+                setTimeout(restoreSidebarTransitions, 0);
+            }
+        }
 
         mobileMedia?.addEventListener("change", () => {
             syncSidebarForViewport();

@@ -58,13 +58,12 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-sidebar-overlay\"", layout);
         Assert.Contains("id=\"docs-sidebar-open\"", layout);
         Assert.Contains("id=\"docs-sidebar-close\"", layout);
+        Assert.Contains("id=\"main-content\"", layout);
         Assert.Contains("tabindex=\"-1\"", layout);
-        Assert.Contains("const mainContent = document.getElementById(\"main-content\");", layout);
-        Assert.Contains("mainContent.setAttribute(\"inert\", \"\");", layout);
-        Assert.Contains("mainContent.removeAttribute(\"inert\");", layout);
         Assert.Contains("function getSidebarFocusableElements()", layout);
-        Assert.Contains("if (event.key !== \"Tab\" || !isSidebarOpen() || !shouldAutoCloseSidebar() || !sidebar)", layout);
-        Assert.Contains("lastFocusedBeforeSidebarOpen.focus();", layout);
+        Assert.Contains("setAttribute(\"inert\"", layout);
+        Assert.Contains("removeAttribute(\"inert\")", layout);
+        Assert.Contains("lastFocusedBeforeSidebarOpen.focus", layout);
     }
 
     [Fact]

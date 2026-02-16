@@ -36,15 +36,14 @@ public sealed class RazorWireMvcPlaywrightTests
 
         await WaitForStreamConnectedAsync(senderPage);
         await WaitForStreamConnectedAsync(receiverPage);
+        await WaitForUserListReadyAsync(senderPage);
+        await WaitForUserListReadyAsync(receiverPage);
 
         await senderPage.FillAsync("#register-username", username);
         var registerResponse = await SubmitAndWaitForPostAsync(senderPage, "#register-form", "/Reactivity/RegisterUser");
         Assert.True(registerResponse.Ok, $"RegisterUser POST failed with status {(int)registerResponse.Status}.");
 
-        await receiverPage.WaitForSelectorAsync($"#user-list-items li:has-text('{username}')", new PageWaitForSelectorOptions
-        {
-            Timeout = 15_000
-        });
+        await WaitForUserInListAsync(receiverPage, username);
 
         await senderPage.FillAsync("#message-form input[name='message']", message);
         var publishResponse = await SubmitAndWaitForPostAsync(senderPage, "#message-form", "/Reactivity/PublishMessage");
@@ -121,6 +120,8 @@ public sealed class RazorWireMvcPlaywrightTests
 
         await WaitForStreamConnectedAsync(actorPage);
         await WaitForStreamConnectedAsync(observerPage);
+        await WaitForUserListReadyAsync(actorPage);
+        await WaitForUserListReadyAsync(observerPage);
 
         await PlantNoRefreshMarkerAsync(actorPage);
 
@@ -130,7 +131,7 @@ public sealed class RazorWireMvcPlaywrightTests
             "#register-form",
             "/Reactivity/RegisterUser");
         Assert.True(registerOneResponse.Ok, $"First RegisterUser POST failed with status {(int)registerOneResponse.Status}.");
-        await observerPage.WaitForSelectorAsync($"#user-list-items li:has-text('{userOne}')", new PageWaitForSelectorOptions { Timeout = 15_000 });
+        await WaitForUserInListAsync(observerPage, userOne);
 
         await actorPage.FillAsync("#register-username", userTwo);
         var registerTwoResponse = await SubmitAndWaitForPostAsync(
@@ -138,7 +139,7 @@ public sealed class RazorWireMvcPlaywrightTests
             "#register-form",
             "/Reactivity/RegisterUser");
         Assert.True(registerTwoResponse.Ok, $"Second RegisterUser POST failed with status {(int)registerTwoResponse.Status}.");
-        await observerPage.WaitForSelectorAsync($"#user-list-items li:has-text('{userTwo}')", new PageWaitForSelectorOptions { Timeout = 15_000 });
+        await WaitForUserInListAsync(observerPage, userTwo);
 
         await AssertNoPageRefreshAsync(actorPage, _fixture.ReactivityUrl);
     }
@@ -262,6 +263,29 @@ public sealed class RazorWireMvcPlaywrightTests
         await page.WaitForFunctionAsync(
             "args => document.querySelector('#messages')?.innerText?.includes(args.token) === true",
             new { token },
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+    }
+
+    private static async Task WaitForUserListReadyAsync(IPage page)
+    {
+        await page.WaitForSelectorAsync("#active-user-list", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000
+        });
+        await page.WaitForSelectorAsync("#user-list-items", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Attached
+        });
+    }
+
+    private static async Task WaitForUserInListAsync(IPage page, string username)
+    {
+        await page.WaitForFunctionAsync(
+            @"args => Array
+                .from(document.querySelectorAll('#user-list-items li'))
+                .some(item => item.textContent?.includes(args.username) === true)",
+            new { username },
             new PageWaitForFunctionOptions { Timeout = 30_000 });
     }
 

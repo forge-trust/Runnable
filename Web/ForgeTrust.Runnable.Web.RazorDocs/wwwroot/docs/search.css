@@ -110,3 +110,17 @@
     margin: 0;
     line-height: 1.4;
 }
+
+@media (max-width: 767px) {
+    #docs-search-results {
+        max-height: 14rem;
+    }
+
+    .docs-search-page {
+        max-width: 100%;
+    }
+
+    .docs-search-result {
+        padding: 0.85rem;
+    }
+}

@@ -13,14 +13,26 @@
     boost: { title: 6, headings: 3, bodyText: 1 }
   };
   let searchIndex = null;
+  let searchIndexLoadPromise = null;
+  const sidebarBoundAttribute = 'data-rw-search-sidebar-bound';
+  const searchPageBoundAttribute = 'data-rw-search-page-bound';
 
-  const sidebarInput = document.getElementById('docs-search-input');
-  const sidebarResults = document.getElementById('docs-search-results');
-  const sidebarStatus = document.getElementById('docs-search-status');
-  const pageRoot = document.getElementById('docs-search-page');
-  const pageInput = document.getElementById('docs-search-page-input');
-  const pageResults = document.getElementById('docs-search-page-results');
-  const pageStatus = document.getElementById('docs-search-page-status');
+  function getSidebarSearchElements() {
+    return {
+      input: document.getElementById('docs-search-input'),
+      results: document.getElementById('docs-search-results'),
+      status: document.getElementById('docs-search-status')
+    };
+  }
+
+  function getSearchPageElements() {
+    return {
+      root: document.getElementById('docs-search-page'),
+      input: document.getElementById('docs-search-page-input'),
+      results: document.getElementById('docs-search-page-results'),
+      status: document.getElementById('docs-search-page-status')
+    };
+  }
 
   function toUrl(urlLike) {
     if (!urlLike) {
@@ -230,15 +242,36 @@
 
   async function init() {
     try {
-      await loadIndex();
+      await ensureSearchIndexLoaded();
       bindSidebar();
       bindSearchPage();
     } catch (err) {
-      console.error(err);
-      const message = getErrorMessage(err);
-      setStatus(sidebarStatus, message);
-      setStatus(pageStatus, message);
+      reportInitError(err);
     }
+  }
+
+  function reportInitError(err) {
+    console.error(err);
+    const message = getErrorMessage(err);
+    const sidebar = getSidebarSearchElements();
+    const page = getSearchPageElements();
+    setStatus(sidebar.status, message);
+    setStatus(page.status, message);
+  }
+
+  async function ensureSearchIndexLoaded() {
+    if (searchIndex) {
+      return;
+    }
+
+    if (!searchIndexLoadPromise) {
+      searchIndexLoadPromise = loadIndex().catch((err) => {
+        searchIndexLoadPromise = null;
+        throw err;
+      });
+    }
+
+    await searchIndexLoadPromise;
   }
 
   function getErrorMessage(err) {
@@ -312,36 +345,44 @@
   }
 
   function bindSidebar() {
-    if (!sidebarInput || !sidebarResults) {
+    const sidebar = getSidebarSearchElements();
+    const { input, results } = sidebar;
+    if (!input || !results) {
       return;
     }
+
+    if (input.getAttribute(sidebarBoundAttribute) === '1') {
+      return;
+    }
+
+    input.setAttribute(sidebarBoundAttribute, '1');
 
     let activeIndex = -1;
     let lastRenderedQuery = '';
 
     const runSearch = debounce(() => {
-      const q = normalizeQuery(sidebarInput.value);
-      const results = query(q, topResults);
-      activeIndex = results.length > 0 ? 0 : -1;
-      renderSidebarResults(results, q, activeIndex);
+      const q = normalizeQuery(input.value);
+      const queryResults = query(q, topResults);
+      activeIndex = queryResults.length > 0 ? 0 : -1;
+      renderSidebarResults(sidebar, queryResults, q, activeIndex);
       lastRenderedQuery = q;
     }, 120);
 
-    sidebarInput.addEventListener('input', () => {
+    input.addEventListener('input', () => {
       activeIndex = -1;
       runSearch();
     });
 
-    sidebarInput.addEventListener('keydown', (event) => {
-      const currentQuery = normalizeQuery(sidebarInput.value);
+    input.addEventListener('keydown', (event) => {
+      const currentQuery = normalizeQuery(input.value);
       if (currentQuery !== lastRenderedQuery) {
         const refreshed = query(currentQuery, topResults);
         activeIndex = refreshed.length > 0 ? 0 : -1;
-        renderSidebarResults(refreshed, currentQuery, activeIndex);
+        renderSidebarResults(sidebar, refreshed, currentQuery, activeIndex);
         lastRenderedQuery = currentQuery;
       }
 
-      const items = Array.from(sidebarResults.querySelectorAll('[role="option"]'));
+      const items = Array.from(results.querySelectorAll('[role="option"]'));
       if (!items.length) {
         return;
       }
@@ -349,11 +390,11 @@
       if (event.key === 'ArrowDown') {
         event.preventDefault();
         activeIndex = Math.min(activeIndex + 1, items.length - 1);
-        setActiveSidebarOption(items, activeIndex);
+        setActiveSidebarOption(items, activeIndex, input);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         activeIndex = Math.max(activeIndex - 1, 0);
-        setActiveSidebarOption(items, activeIndex);
+        setActiveSidebarOption(items, activeIndex, input);
       } else if (event.key === 'Enter') {
         if (activeIndex >= 0 && items[activeIndex]) {
           event.preventDefault();
@@ -368,27 +409,35 @@
           }
         }
       } else if (event.key === 'Escape') {
-        sidebarResults.innerHTML = '';
-        sidebarResults.classList.add('hidden');
-        sidebarInput.removeAttribute('aria-activedescendant');
+        results.innerHTML = '';
+        results.classList.add('hidden');
+        input.removeAttribute('aria-activedescendant');
       }
     });
   }
 
   function bindSearchPage() {
-    if (!pageRoot || !pageInput || !pageResults) {
+    const page = getSearchPageElements();
+    const { root, input, results } = page;
+    if (!root || !input || !results) {
       return;
     }
 
+    if (root.getAttribute(searchPageBoundAttribute) === '1') {
+      return;
+    }
+
+    root.setAttribute(searchPageBoundAttribute, '1');
+
     const params = new URLSearchParams(window.location.search);
     const initialQuery = normalizeQuery(params.get('q'));
-    pageInput.value = initialQuery;
-    renderSearchPageResults(initialQuery);
+    input.value = initialQuery;
+    renderSearchPageResults(page, initialQuery);
 
     const onInput = debounce(() => {
-      const q = normalizeQuery(pageInput.value);
-      if (q !== pageInput.value) {
-        pageInput.value = q;
+      const q = normalizeQuery(input.value);
+      if (q !== input.value) {
+        input.value = q;
       }
 
       const url = new URL(window.location.href);
@@ -399,35 +448,36 @@
       }
 
       window.history.replaceState({}, '', url);
-      renderSearchPageResults(q);
+      renderSearchPageResults(page, q);
     }, 120);
 
-    pageInput.addEventListener('input', onInput);
+    input.addEventListener('input', onInput);
   }
 
-  function renderSidebarResults(results, q, activeIndex = -1) {
-    if (!sidebarResults) {
+  function renderSidebarResults(sidebar, queryResults, q, activeIndex = -1) {
+    const { input, results, status } = sidebar;
+    if (!results) {
       return;
     }
 
     if (!q || !q.trim()) {
-      sidebarResults.innerHTML = '';
-      sidebarResults.classList.add('hidden');
-      sidebarInput?.removeAttribute('aria-activedescendant');
-      setStatus(sidebarStatus, '');
+      results.innerHTML = '';
+      results.classList.add('hidden');
+      input?.removeAttribute('aria-activedescendant');
+      setStatus(status, '');
       return;
     }
 
-    if (!results.length) {
-      sidebarResults.classList.remove('hidden');
-      sidebarResults.innerHTML = '<li class="docs-search-empty" role="presentation">No matching docs found.</li>';
-      sidebarInput?.removeAttribute('aria-activedescendant');
-      setStatus(sidebarStatus, 'No matching docs found.');
+    if (!queryResults.length) {
+      results.classList.remove('hidden');
+      results.innerHTML = '<li class="docs-search-empty" role="presentation">No matching docs found.</li>';
+      input?.removeAttribute('aria-activedescendant');
+      setStatus(status, 'No matching docs found.');
       return;
     }
 
-    sidebarResults.classList.remove('hidden');
-    sidebarResults.innerHTML = results.map((item, index) => {
+    results.classList.remove('hidden');
+    results.innerHTML = queryResults.map((item, index) => {
       const selected = index === activeIndex ? 'true' : 'false';
       return `<li id="docs-search-option-${index}" role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
         <a href="${escapeHtml(item.path)}" data-turbo-frame="doc-content" data-turbo-action="advance">
@@ -437,45 +487,46 @@
       </li>`;
     }).join('');
 
-    setStatus(sidebarStatus, `${results.length} result(s).`);
+    setStatus(status, `${queryResults.length} result(s).`);
   }
 
-  function setActiveSidebarOption(items, activeIndex) {
+  function setActiveSidebarOption(items, activeIndex, input) {
     items.forEach((item, i) => {
       const selected = i === activeIndex;
       item.setAttribute('aria-selected', selected ? 'true' : 'false');
       item.classList.toggle('active', selected);
     });
 
-    if (activeIndex >= 0 && items[activeIndex] && sidebarInput) {
-      sidebarInput.setAttribute('aria-activedescendant', items[activeIndex].id);
+    if (activeIndex >= 0 && items[activeIndex] && input) {
+      input.setAttribute('aria-activedescendant', items[activeIndex].id);
       items[activeIndex].scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     } else {
-      sidebarInput?.removeAttribute('aria-activedescendant');
+      input?.removeAttribute('aria-activedescendant');
     }
   }
 
-  function renderSearchPageResults(q) {
-    if (!pageResults) {
+  function renderSearchPageResults(page, q) {
+    const { results, status } = page;
+    if (!results) {
       return;
     }
 
     if (!q || !q.trim()) {
-      setStatus(pageStatus, 'Type to search across documentation.');
-      pageResults.innerHTML = '';
+      setStatus(status, 'Type to search across documentation.');
+      results.innerHTML = '';
       return;
     }
 
-    const results = query(q, 100);
+    const queryResults = query(q, 100);
     const safeQuery = formatQueryForStatus(q);
-    setStatus(pageStatus, `${results.length} result(s) for "${safeQuery}".`);
+    setStatus(status, `${queryResults.length} result(s) for "${safeQuery}".`);
 
-    if (!results.length) {
-      pageResults.innerHTML = '<p class="docs-search-empty">No results found.</p>';
+    if (!queryResults.length) {
+      results.innerHTML = '<p class="docs-search-empty">No results found.</p>';
       return;
     }
 
-    pageResults.innerHTML = results.map((item) => `
+    results.innerHTML = queryResults.map((item) => `
       <article class="docs-search-result">
         <h2><a href="${escapeHtml(item.path)}">${escapeHtml(item.title)}</a></h2>
         <p class="docs-search-result-path">${escapeHtml(item.path)}</p>
@@ -490,6 +541,54 @@
     }
   }
 
+  function initOnTurboFrameLoad(event) {
+    const frame = event.target;
+    if (!(frame instanceof Element) || frame.id !== docsFrameId) {
+      return;
+    }
+
+    init().catch((err) => console.error('Search init failed:', err));
+  }
+
+  function runInit() {
+    init().catch((err) => console.error('Search init failed:', err));
+  }
+
+  function getCurrentUrlKey() {
+    return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  }
+
   installDocsPartialHook();
-  init().catch((err) => console.error('Search init failed:', err));
+  const hasTurbo = typeof window !== 'undefined'
+    && (Object.prototype.hasOwnProperty.call(window, 'Turbo')
+      || typeof window.Turbo !== 'undefined'
+      || document.documentElement.hasAttribute('data-turbo'));
+  let lastInitializedUrlKey = null;
+
+  function runInitForCurrentUrl() {
+    runInit();
+    lastInitializedUrlKey = getCurrentUrlKey();
+  }
+
+  if (hasTurbo) {
+    document.addEventListener('turbo:load', () => {
+      const currentUrlKey = getCurrentUrlKey();
+      if (currentUrlKey === lastInitializedUrlKey) {
+        return;
+      }
+
+      runInitForCurrentUrl();
+    });
+    document.addEventListener('turbo:frame-load', initOnTurboFrameLoad);
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', runInitForCurrentUrl, { once: true });
+    } else {
+      runInitForCurrentUrl();
+    }
+  } else if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runInit, { once: true });
+  } else {
+    runInit();
+  }
 })();

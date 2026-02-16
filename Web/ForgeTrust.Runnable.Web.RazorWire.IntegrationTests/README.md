@@ -1,6 +1,7 @@
 # RazorWire Playwright Integration Tests
 
 This project contains browser-level integration tests for the RazorWire MVC sample application in `examples/razorwire-mvc`.
+It also includes a RazorDocs browser regression test that runs against `Web/ForgeTrust.Runnable.Web.RazorDocs`.
 
 ## What it validates
 
@@ -16,6 +17,9 @@ This project contains browser-level integration tests for the RazorWire MVC samp
   - single-session increment updates instance/session/client-count values without refresh,
   - multi-session flow keeps session score independent while instance score is global,
   - session score persists while navigating across Home, Navigation, and Reactivity pages.
+- RazorDocs search behavior:
+  - sidebar search works from `/docs`,
+  - navigating to `/docs/search` via Turbo keeps both advanced search and sidebar search functional.
 
 ## Run
 

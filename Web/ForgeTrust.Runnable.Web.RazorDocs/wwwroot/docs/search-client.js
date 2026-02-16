@@ -550,10 +550,45 @@
     init().catch((err) => console.error('Search init failed:', err));
   }
 
-  installDocsPartialHook();
-  document.addEventListener('turbo:load', () => {
+  function runInit() {
     init().catch((err) => console.error('Search init failed:', err));
-  });
-  document.addEventListener('turbo:frame-load', initOnTurboFrameLoad);
-  init().catch((err) => console.error('Search init failed:', err));
+  }
+
+  function getCurrentUrlKey() {
+    return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  }
+
+  installDocsPartialHook();
+  const hasTurbo = typeof window !== 'undefined'
+    && (Object.prototype.hasOwnProperty.call(window, 'Turbo')
+      || typeof window.Turbo !== 'undefined'
+      || document.documentElement.hasAttribute('data-turbo'));
+  let lastInitializedUrlKey = null;
+
+  function runInitForCurrentUrl() {
+    runInit();
+    lastInitializedUrlKey = getCurrentUrlKey();
+  }
+
+  if (hasTurbo) {
+    document.addEventListener('turbo:load', () => {
+      const currentUrlKey = getCurrentUrlKey();
+      if (currentUrlKey === lastInitializedUrlKey) {
+        return;
+      }
+
+      runInitForCurrentUrl();
+    });
+    document.addEventListener('turbo:frame-load', initOnTurboFrameLoad);
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', runInitForCurrentUrl, { once: true });
+    } else {
+      runInitForCurrentUrl();
+    }
+  } else if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runInit, { once: true });
+  } else {
+    runInit();
+  }
 })();

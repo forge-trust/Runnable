@@ -241,20 +241,61 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
 
     private async Task WaitForAppReadyAsync(string docsUrl, TimeSpan timeout)
     {
-        using var timeoutCts = new CancellationTokenSource(timeout);
         using var client = new HttpClient();
+
+        await PollUntilAsync(
+            timeout,
+            timeoutMessage: "RazorDocs app did not become ready",
+            appExitedMessage: "RazorDocs app exited before it became ready",
+            async cancellationToken =>
+            {
+                using var response = await client.GetAsync(docsUrl, cancellationToken);
+                return response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Redirect;
+            });
+    }
+
+    private async Task<string> WarmSearchIndexAndResolveQueryAsync(string baseUrl, TimeSpan timeout)
+    {
+        using var client = new HttpClient();
+        var searchIndexUrl = $"{baseUrl}/docs/search-index.json";
+        string? resolvedQuery = null;
+
+        await PollUntilAsync(
+            timeout,
+            timeoutMessage: "RazorDocs search index did not become ready",
+            appExitedMessage: "RazorDocs app exited before search index warmed",
+            async cancellationToken =>
+            {
+                using var response = await client.GetAsync(searchIndexUrl, cancellationToken);
+                if (response.StatusCode != HttpStatusCode.OK)
+                {
+                    return false;
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var payload = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                resolvedQuery = ResolveSearchQuery(payload.RootElement);
+                return true;
+            });
+
+        return resolvedQuery ?? "Namespaces";
+    }
+
+    private async Task PollUntilAsync(
+        TimeSpan timeout,
+        string timeoutMessage,
+        string appExitedMessage,
+        Func<CancellationToken, Task<bool>> probeAsync)
+    {
+        using var timeoutCts = new CancellationTokenSource(timeout);
 
         while (!timeoutCts.Token.IsCancellationRequested)
         {
-            if (_appProcess is null || _appProcess.HasExited)
-            {
-                throw new InvalidOperationException($"RazorDocs app exited before it became ready.{Environment.NewLine}{GetRecentLogs()}");
-            }
+            EnsureAppProcessIsRunning(appExitedMessage);
 
             try
             {
-                using var response = await client.GetAsync(docsUrl, timeoutCts.Token);
-                if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Redirect)
+                if (await probeAsync(timeoutCts.Token))
                 {
                     return;
                 }
@@ -265,7 +306,7 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
             }
             catch (TaskCanceledException) when (timeoutCts.IsCancellationRequested)
             {
-                throw new TimeoutException($"RazorDocs app did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
+                throw new TimeoutException($"{timeoutMessage} within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
             }
             catch (TaskCanceledException) when (!timeoutCts.IsCancellationRequested)
             {
@@ -278,63 +319,19 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
             }
             catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
             {
-                throw new TimeoutException($"RazorDocs app did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
+                throw new TimeoutException($"{timeoutMessage} within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
             }
         }
 
-        throw new TimeoutException($"RazorDocs app did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
+        throw new TimeoutException($"{timeoutMessage} within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
     }
 
-    private async Task<string> WarmSearchIndexAndResolveQueryAsync(string baseUrl, TimeSpan timeout)
+    private void EnsureAppProcessIsRunning(string appExitedMessage)
     {
-        using var timeoutCts = new CancellationTokenSource(timeout);
-        using var client = new HttpClient();
-        var searchIndexUrl = $"{baseUrl}/docs/search-index.json";
-
-        while (!timeoutCts.Token.IsCancellationRequested)
+        if (_appProcess is null || _appProcess.HasExited)
         {
-            if (_appProcess is null || _appProcess.HasExited)
-            {
-                throw new InvalidOperationException($"RazorDocs app exited before search index warmed.{Environment.NewLine}{GetRecentLogs()}");
-            }
-
-            try
-            {
-                using var response = await client.GetAsync(searchIndexUrl, timeoutCts.Token);
-                if (response.StatusCode != HttpStatusCode.OK)
-                {
-                    await Task.Delay(250, timeoutCts.Token);
-                    continue;
-                }
-
-                await using var stream = await response.Content.ReadAsStreamAsync(timeoutCts.Token);
-                using var payload = await JsonDocument.ParseAsync(stream, cancellationToken: timeoutCts.Token);
-                return ResolveSearchQuery(payload.RootElement);
-            }
-            catch (HttpRequestException)
-            {
-                // Application is still starting.
-            }
-            catch (TaskCanceledException) when (timeoutCts.IsCancellationRequested)
-            {
-                throw new TimeoutException($"RazorDocs search index did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
-            }
-            catch (TaskCanceledException) when (!timeoutCts.IsCancellationRequested)
-            {
-                // Retry until global timeout.
-            }
-
-            try
-            {
-                await Task.Delay(250, timeoutCts.Token);
-            }
-            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
-            {
-                throw new TimeoutException($"RazorDocs search index did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
-            }
+            throw new InvalidOperationException($"{appExitedMessage}.{Environment.NewLine}{GetRecentLogs()}");
         }
-
-        throw new TimeoutException($"RazorDocs search index did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
     }
 
     private static string ResolveSearchQuery(JsonElement payload)
@@ -362,35 +359,48 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
     private static IEnumerable<string> EnumerateCandidateText(JsonElement document)
     {
         if (document.TryGetProperty("title", out var title)
-            && title.ValueKind == JsonValueKind.String
-            && !string.IsNullOrWhiteSpace(title.GetString()))
+            && title.ValueKind == JsonValueKind.String)
         {
-            yield return title.GetString()!;
+            var titleText = title.GetString();
+            if (!string.IsNullOrWhiteSpace(titleText))
+            {
+                yield return titleText!;
+            }
         }
 
         if (document.TryGetProperty("headings", out var headings) && headings.ValueKind == JsonValueKind.Array)
         {
             foreach (var heading in headings.EnumerateArray())
             {
-                if (heading.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(heading.GetString()))
+                if (heading.ValueKind == JsonValueKind.String)
                 {
-                    yield return heading.GetString()!;
+                    var headingText = heading.GetString();
+                    if (!string.IsNullOrWhiteSpace(headingText))
+                    {
+                        yield return headingText!;
+                    }
                 }
             }
         }
 
         if (document.TryGetProperty("snippet", out var snippet)
-            && snippet.ValueKind == JsonValueKind.String
-            && !string.IsNullOrWhiteSpace(snippet.GetString()))
+            && snippet.ValueKind == JsonValueKind.String)
         {
-            yield return snippet.GetString()!;
+            var snippetText = snippet.GetString();
+            if (!string.IsNullOrWhiteSpace(snippetText))
+            {
+                yield return snippetText!;
+            }
         }
 
         if (document.TryGetProperty("bodyText", out var bodyText)
-            && bodyText.ValueKind == JsonValueKind.String
-            && !string.IsNullOrWhiteSpace(bodyText.GetString()))
+            && bodyText.ValueKind == JsonValueKind.String)
         {
-            yield return bodyText.GetString()!;
+            var bodyTextValue = bodyText.GetString();
+            if (!string.IsNullOrWhiteSpace(bodyTextValue))
+            {
+                yield return bodyTextValue!;
+            }
         }
     }
 

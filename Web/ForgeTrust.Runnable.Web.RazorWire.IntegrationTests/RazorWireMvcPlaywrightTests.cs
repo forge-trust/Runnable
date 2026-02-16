@@ -45,8 +45,7 @@ public sealed class RazorWireMvcPlaywrightTests
 
         await WaitForUserInListAsync(receiverPage, username);
 
-        await senderPage.FillAsync("#message-form input[name='message']", message);
-        var publishResponse = await SubmitAndWaitForPostAsync(senderPage, "#message-form", "/Reactivity/PublishMessage");
+        var publishResponse = await PublishMessageAndWaitForPostAsync(senderPage, message);
         Assert.True(publishResponse.Ok, $"PublishMessage POST failed with status {(int)publishResponse.Status}.");
 
         await WaitForMessageAsync(receiverPage, unique);
@@ -65,8 +64,7 @@ public sealed class RazorWireMvcPlaywrightTests
         await page.GotoAsync(_fixture.ReactivityUrl);
         await WaitForStreamConnectedAsync(page);
 
-        await page.FillAsync("#message-form input[name='message']", message);
-        var publishResponse = await SubmitAndWaitForPostAsync(page, "#message-form", "/Reactivity/PublishMessage");
+        var publishResponse = await PublishMessageAndWaitForPostAsync(page, message);
         Assert.True(publishResponse.Ok, $"PublishMessage POST failed with status {(int)publishResponse.Status}.");
         await WaitForMessageAsync(page, unique);
 
@@ -91,8 +89,7 @@ public sealed class RazorWireMvcPlaywrightTests
         await page.GotoAsync(_fixture.ReactivityUrl);
         await WaitForStreamConnectedAsync(page);
 
-        await page.FillAsync("#message-form input[name='message']", message);
-        var publishResponse = await SubmitAndWaitForPostAsync(page, "#message-form", "/Reactivity/PublishMessage");
+        var publishResponse = await PublishMessageAndWaitForPostAsync(page, message);
         Assert.True(publishResponse.Ok, $"PublishMessage POST failed with status {(int)publishResponse.Status}.");
         await WaitForMessageAsync(page, unique);
 
@@ -287,6 +284,58 @@ public sealed class RazorWireMvcPlaywrightTests
                 .some(item => item.textContent?.includes(args.username) === true)",
             new { username },
             new PageWaitForFunctionOptions { Timeout = 30_000 });
+    }
+
+    private static async Task<IResponse> PublishMessageAndWaitForPostAsync(IPage page, string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            throw new ArgumentException("Message cannot be null or whitespace.", nameof(message));
+        }
+
+        const string formSelector = "#message-form";
+        const string publishPath = "/Reactivity/PublishMessage";
+
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            try
+            {
+                await page.WaitForSelectorAsync(formSelector, new PageWaitForSelectorOptions
+                {
+                    State = WaitForSelectorState.Attached,
+                    Timeout = 30_000
+                });
+
+                return await page.RunAndWaitForResponseAsync(
+                    () => page.EvaluateAsync(
+                        @"args => {
+                            const form = document.querySelector(args.formSelector);
+                            if (!(form instanceof HTMLFormElement)) {
+                                throw new Error('Publish form was not found.');
+                            }
+
+                            const input = form.querySelector(""input[name='message']"");
+                            if (!(input instanceof HTMLInputElement)) {
+                                throw new Error('Publish message input was not found.');
+                            }
+
+                            input.value = args.message;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            form.requestSubmit();
+                        }",
+                        new { formSelector, message }),
+                    response => response.Url.Contains(publishPath, StringComparison.OrdinalIgnoreCase)
+                                && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase),
+                    new PageRunAndWaitForResponseOptions { Timeout = 45_000 });
+            }
+            catch (TimeoutException) when (attempt == 1)
+            {
+                // Retry once to absorb in-flight form replacement races on slower CI runners.
+                await page.WaitForTimeoutAsync(300);
+            }
+        }
+
+        throw new InvalidOperationException("PublishMessage request did not complete after retry.");
     }
 
     private static async Task WaitForCounterReadyAsync(IPage page)

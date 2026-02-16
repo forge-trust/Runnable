@@ -7,8 +7,6 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -113,45 +111,21 @@ public class RazorDocsWebModuleTests
         Assert.Contains("docs/search-index.json", routePatterns);
         Assert.Contains("docs/{*path}", routePatterns);
         Assert.Contains("{controller=Docs}/{action=Index}/{path?}", routePatterns);
-    }
 
-    [Fact]
-    public void ConfigureEndpoints_ShouldRegisterSearchBeforeCatchAll_InSourceOrder()
-    {
-        var sourcePath = Path.Combine(
-            TestPathUtils.FindRepoRoot(AppContext.BaseDirectory),
-            "Web",
-            "ForgeTrust.Runnable.Web.RazorDocs",
-            "RazorDocsWebModule.cs");
-
-        var syntaxTree = CSharpSyntaxTree.ParseText(File.ReadAllText(sourcePath));
-        var root = syntaxTree.GetRoot();
-        var configureEndpointsMethod = root.DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .SingleOrDefault(method => method.Identifier.Text == "ConfigureEndpoints");
-
-        Assert.NotNull(configureEndpointsMethod);
-
-        var routePatterns = configureEndpointsMethod!
-            .DescendantNodes()
-            .OfType<InvocationExpressionSyntax>()
-            .Where(
-                invocation => invocation.Expression is MemberAccessExpressionSyntax memberAccess
-                              && memberAccess.Name.Identifier.Text == "MapControllerRoute")
-            .Select(
-                invocation => invocation.ArgumentList.Arguments
-                    .FirstOrDefault(argument => argument.NameColon?.Name.Identifier.Text == "pattern")
-                    ?.Expression as LiteralExpressionSyntax)
-            .Where(patternLiteral => patternLiteral is not null)
-            .Select(patternLiteral => patternLiteral!.Token.ValueText)
+        var prioritizedPatterns = routeBuilder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .OfType<RouteEndpoint>()
+            .OrderBy(endpoint => endpoint.Order)
+            .ThenBy(endpoint => endpoint.RoutePattern.InboundPrecedence)
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .Where(pattern => !string.IsNullOrEmpty(pattern))
             .ToList();
 
-        var searchIndex = routePatterns.IndexOf("docs/search");
-        var catchAllIndex = routePatterns.IndexOf("docs/{*path}");
-
+        var searchIndex = prioritizedPatterns.IndexOf("docs/search");
+        var catchAllIndex = prioritizedPatterns.IndexOf("docs/{*path}");
         Assert.True(searchIndex >= 0, "Expected docs/search route declaration.");
         Assert.True(catchAllIndex >= 0, "Expected docs/{*path} route declaration.");
-        Assert.True(searchIndex < catchAllIndex, "docs/search must be registered before docs/{*path}.");
+        Assert.True(searchIndex < catchAllIndex, "docs/search must be prioritized before docs/{*path}.");
     }
 
     [Fact]

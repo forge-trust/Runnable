@@ -76,7 +76,7 @@ public class DocAggregator
     /// <returns>An enumerable of all <see cref="DocNode"/> objects ordered by their Path.</returns>
     public async Task<IEnumerable<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
     {
-        var snapshot = await GetCachedDocsSnapshotAsync(cancellationToken);
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
         var cachedDict = snapshot.DocsByPath;
 
         return cachedDict.Values.OrderBy(n => n.Path).ToList();
@@ -92,7 +92,7 @@ public class DocAggregator
     {
         ArgumentNullException.ThrowIfNull(path);
 
-        var snapshot = await GetCachedDocsSnapshotAsync(cancellationToken);
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
         var cachedDict = snapshot.DocsByPath;
 
         var lookupPath = NormalizeLookupPath(path);
@@ -144,7 +144,7 @@ public class DocAggregator
     /// <returns>A JSON-serializable payload containing index metadata and documents.</returns>
     public async Task<object> GetSearchIndexPayloadAsync(CancellationToken cancellationToken = default)
     {
-        var snapshot = await GetCachedDocsSnapshotAsync(cancellationToken);
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
         return snapshot.SearchIndexPayload;
     }
 
@@ -159,20 +159,20 @@ public class DocAggregator
     /// <summary>
     /// Retrieves the cached docs snapshot, harvesting docs and generating the search-index payload when absent.
     /// </summary>
-    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <remarks>
     /// When harvesting, each configured harvester is invoked; failures from individual harvesters are caught and logged. 
     /// Contents are sanitized before being cached. If multiple nodes share the same Path, a warning is logged and the first occurrence is retained.
     /// The search-index payload is generated from the same harvested snapshot.
+    /// Caller cancellation does not cancel shared snapshot computation; callers can cancel their own wait.
     /// The memoized cache entry is created with a 5-minute absolute expiration.
     /// </remarks>
     /// <returns>A cached snapshot containing both docs and search-index payload.</returns>
-    private async Task<CachedDocsSnapshot> GetCachedDocsSnapshotAsync(CancellationToken cancellationToken = default)
+    private async Task<CachedDocsSnapshot> GetCachedDocsSnapshotAsync()
     {
         var generation = Volatile.Read(ref _cacheGeneration);
         return await _memo.GetAsync(
                    generation,
-                   async (_, ct) =>
+                   async (_, _) =>
                    {
                        var sw = System.Diagnostics.Stopwatch.StartNew();
                        var allNodes = new List<DocNode>();
@@ -180,7 +180,7 @@ public class DocAggregator
                        {
                            try
                            {
-                               return await harvester.HarvestAsync(_repositoryRoot, ct);
+                               return await harvester.HarvestAsync(_repositoryRoot, CancellationToken.None);
                            }
                            catch (OperationCanceledException)
                            {
@@ -245,7 +245,7 @@ public class DocAggregator
                        return new CachedDocsSnapshot(docsByPath, searchIndexPayload);
                    },
                    DocsCachePolicy,
-                   cancellationToken: cancellationToken) ?? new CachedDocsSnapshot(
+                   cancellationToken: CancellationToken.None) ?? new CachedDocsSnapshot(
                        new Dictionary<string, DocNode>(),
                        BuildSearchIndexPayload(Enumerable.Empty<DocNode>()).Payload);
     }

@@ -314,6 +314,35 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldCancelCallerWait_WithoutPoisoningSharedSnapshot()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode> { new("Recovered", "path", "content") };
+        var releaseHarvester = new TaskCompletionSource<IEnumerable<DocNode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken? observedToken = null;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Invokes((string _, CancellationToken ct) => observedToken = ct)
+            .ReturnsLazily(() => releaseHarvester.Task);
+
+        using var cts = new CancellationTokenSource();
+        var canceledCall = _aggregator.GetDocsAsync(cts.Token);
+
+        // Act
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => _ = (await canceledCall).ToList());
+        releaseHarvester.SetResult(harvestedDocs);
+        var recovered = (await _aggregator.GetDocsAsync()).ToList();
+
+        // Assert
+        Assert.NotNull(observedToken);
+        Assert.False(observedToken!.Value.CanBeCanceled);
+        Assert.Single(recovered);
+        Assert.Equal("Recovered", recovered[0].Title);
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldHandleRootFileCanonicalization()
     {
         var harvestedDocs = new List<DocNode>

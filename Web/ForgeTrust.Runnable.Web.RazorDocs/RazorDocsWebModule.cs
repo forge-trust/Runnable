@@ -23,7 +23,6 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// </remarks>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
-        services.AddMemoryCache();
         services.AddSingleton<IHtmlSanitizer>(
             _ =>
             {

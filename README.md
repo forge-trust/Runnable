@@ -28,6 +28,13 @@ This approach aims to:
 6.  **Convention over Configuration**: Sensible defaults are provided so only minimal configuration is required.
 7.  **Secure By Default**: Security best practices are applied automatically where appropriate.
 
+## Caching Conventions
+
+- Use `IMemo` for application and service-layer caching (for example, web modules and domain services).
+- Use direct `IMemoryCache` only inside caching infrastructure (the `ForgeTrust.Runnable.Caching` package) or framework integration points where `IMemo` cannot be injected.
+- If a module depends on `RunnableCachingModule`, do not call `AddMemoryCache()` again in that module.
+- Prefer one cache boundary per data snapshot. In RazorDocs, `DocAggregator` owns both docs aggregation and search-index payload caching so downstream controllers consume one shared snapshot.
+
 
 ## Project Structure
 

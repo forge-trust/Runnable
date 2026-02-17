@@ -38,6 +38,7 @@ public class DocsControllerTests : IDisposable
         A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
         A.CallTo(() => sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
             .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        _memo = new Memo(_cache);
 
         // Use real Aggregator with fake dependencies (or we could fake Aggregator but it's a concrete class)
         // Since Controller takes concrete DocAggregator, we instantiate it.
@@ -45,13 +46,12 @@ public class DocsControllerTests : IDisposable
             new[] { _harvesterFake },
             configFake,
             envFake,
-            _cache,
+            _memo,
             sanitizerFake,
             loggerFake
         );
 
-        _memo = new Memo(_cache);
-        _controller = new DocsController(_aggregator, _memo, controllerLoggerFake)
+        _controller = new DocsController(_aggregator, controllerLoggerFake)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -177,20 +177,13 @@ public class DocsControllerTests : IDisposable
     public void Constructor_ShouldThrow_WhenAggregatorIsNull()
     {
         var logger = A.Fake<ILogger<DocsController>>();
-        Assert.Throws<ArgumentNullException>(() => new DocsController(null!, _memo, logger));
-    }
-
-    [Fact]
-    public void Constructor_ShouldThrow_WhenMemoIsNull()
-    {
-        var logger = A.Fake<ILogger<DocsController>>();
-        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, null!, logger));
+        Assert.Throws<ArgumentNullException>(() => new DocsController(null!, logger));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, _memo, null!));
+        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, null!));
     }
 
     [Fact]
@@ -505,9 +498,9 @@ public class DocsControllerTests : IDisposable
     [Fact]
     public void PrivateHelpers_ShouldHandleNullAndUnbrokenTextBranches()
     {
-        var normalized = DocsController.NormalizeText(null!);
-        var rootUrl = DocsController.BuildDocUrl(" ");
-        var truncated = DocsController.TruncateAtWordBoundary(new string('a', 260), 220);
+        var normalized = DocAggregator.NormalizeSearchText(null!);
+        var rootUrl = DocAggregator.BuildSearchDocUrl(" ");
+        var truncated = DocAggregator.TruncateSnippetAtWordBoundary(new string('a', 260), 220);
 
         Assert.Equal(string.Empty, normalized);
         Assert.Equal("/docs", rootUrl);
@@ -534,7 +527,7 @@ public class DocsControllerTests : IDisposable
 
     public void Dispose()
     {
-        if (_memo is IDisposable disposableMemo)
+        if (_memo is IDisposable disposableMemo && !ReferenceEquals(disposableMemo, _cache))
         {
             disposableMemo.Dispose();
         }

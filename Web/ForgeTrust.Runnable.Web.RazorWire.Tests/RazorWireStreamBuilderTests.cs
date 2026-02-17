@@ -1,3 +1,4 @@
+using System.Reflection;
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 using Microsoft.AspNetCore.Http;
@@ -90,8 +91,11 @@ public class RazorWireStreamBuilderTests
     [Fact]
     public void BuildResult_AllowsQueuingAllFluentActionTypes()
     {
-        // Arrange + Act
-        var result = new RazorWireStreamBuilder(new TestController())
+        // Arrange
+        var controller = new TestController();
+
+        // Act
+        var result = new RazorWireStreamBuilder(controller)
             .Append("target-1", "<div>a</div>")
             .AppendPartial("target-2", "_SomePartial", new { Name = "A" })
             .Prepend("target-3", "<div>b</div>")
@@ -113,6 +117,35 @@ public class RazorWireStreamBuilderTests
 
         // Assert
         Assert.NotNull(result);
+        var controllerField = typeof(RazorWireStreamResult).GetField("_controller", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(controllerField);
+        Assert.Same(controller, controllerField!.GetValue(result));
+
+        var actionsField = typeof(RazorWireStreamResult).GetField("_actions", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(actionsField);
+        var actions = Assert.IsAssignableFrom<IEnumerable<IRazorWireStreamAction>>(actionsField!.GetValue(result));
+        var actionList = actions.ToList();
+
+        Assert.Equal(17, actionList.Count);
+        Assert.Collection(
+            actionList,
+            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name),
+            action => Assert.IsType<PartialViewStreamAction>(action),
+            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name),
+            action => Assert.IsType<PartialViewStreamAction>(action),
+            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name),
+            action => Assert.IsType<PartialViewStreamAction>(action),
+            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name),
+            action => Assert.IsType<PartialViewStreamAction>(action),
+            action => Assert.IsType<ViewComponentStreamAction>(action),
+            action => Assert.IsType<ViewComponentStreamAction>(action),
+            action => Assert.IsType<ViewComponentStreamAction>(action),
+            action => Assert.IsType<ViewComponentStreamAction>(action),
+            action => Assert.IsType<ViewComponentByNameStreamAction>(action),
+            action => Assert.IsType<ViewComponentByNameStreamAction>(action),
+            action => Assert.IsType<ViewComponentByNameStreamAction>(action),
+            action => Assert.IsType<ViewComponentByNameStreamAction>(action),
+            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name));
     }
 
     private static ViewContext CreateViewContext()

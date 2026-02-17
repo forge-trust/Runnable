@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Console.Tests;
 
+[Collection(CommandServiceStateCollection.Name)]
 public class ChainedCommandEdgeCaseTests
 {
     private static bool _requiredChildExecuted;

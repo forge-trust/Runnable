@@ -1,6 +1,5 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
-using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -85,40 +84,4 @@ public class ViewComponentStreamActionTests
             new HtmlHelperOptions());
     }
 
-    private sealed class RecordingViewComponentHelper : IViewComponentHelper, IViewContextAware
-    {
-        private readonly IHtmlContent _content;
-
-        public RecordingViewComponentHelper(string html)
-        {
-            _content = new HtmlString(html);
-        }
-
-        public object? LastIdentifier { get; private set; }
-
-        public object? LastArguments { get; private set; }
-
-        public ViewContext? ContextualizedViewContext { get; private set; }
-
-        public void Contextualize(ViewContext viewContext)
-        {
-            ContextualizedViewContext = viewContext;
-        }
-
-        public Task<IHtmlContent> InvokeAsync(string name, object? arguments)
-        {
-            LastIdentifier = name;
-            LastArguments = arguments;
-            return Task.FromResult(_content);
-        }
-
-        public Task<IHtmlContent> InvokeAsync(Type componentType, object? arguments)
-        {
-            LastIdentifier = componentType;
-            LastArguments = arguments;
-            return Task.FromResult(_content);
-        }
-    }
-
-    private sealed class TestComponent : ViewComponent;
 }

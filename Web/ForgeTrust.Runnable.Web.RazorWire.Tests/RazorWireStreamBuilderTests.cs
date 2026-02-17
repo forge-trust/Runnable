@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
-using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -97,7 +96,7 @@ public class RazorWireStreamBuilderTests
         var partialView = new StaticPartialView();
         var viewComponentHelper = new RecordingViewComponentHelper();
         var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
-        var actionContext = CreateActionContext(services =>
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
         {
             services
                 .AddSingleton(viewEngine)
@@ -131,11 +130,11 @@ public class RazorWireStreamBuilderTests
             .Remove("target-17")
             .BuildResult();
 
-        await result.ExecuteResultAsync(actionContext);
-        var rendered = await ReadBodyAsync(actionContext.HttpContext.Response);
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
 
         // Assert
-        Assert.Equal("text/vnd.turbo-stream.html", actionContext.HttpContext.Response.ContentType);
+        Assert.Equal("text/vnd.turbo-stream.html", actionContext.ActionContext.HttpContext.Response.ContentType);
         Assert.Equal(17, Regex.Matches(rendered, "<turbo-stream").Count);
         var expectedTargets = new[]
         {
@@ -187,28 +186,6 @@ public class RazorWireStreamBuilderTests
             new HtmlHelperOptions());
     }
 
-    private static ActionContext CreateActionContext(Action<ServiceCollection>? configureServices = null)
-    {
-        var services = new ServiceCollection();
-        configureServices?.Invoke(services);
-        var serviceProvider = services.BuildServiceProvider();
-
-        var httpContext = new DefaultHttpContext
-        {
-            RequestServices = serviceProvider
-        };
-        httpContext.Response.Body = new MemoryStream();
-
-        return new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
-    }
-
-    private static async Task<string> ReadBodyAsync(HttpResponse response)
-    {
-        response.Body.Seek(0, SeekOrigin.Begin);
-        using var reader = new StreamReader(response.Body, leaveOpen: true);
-        return await reader.ReadToEndAsync();
-    }
-
     private sealed class StaticPartialView : IView
     {
         public string Path => "test";
@@ -219,31 +196,4 @@ public class RazorWireStreamBuilderTests
         }
     }
 
-    private sealed class RecordingViewComponentHelper : IViewComponentHelper, IViewContextAware
-    {
-        private int _typedInvocationCount;
-        private int _namedInvocationCount;
-
-        public int TypedInvocationCount => _typedInvocationCount;
-
-        public int NamedInvocationCount => _namedInvocationCount;
-
-        public void Contextualize(ViewContext viewContext)
-        {
-        }
-
-        public Task<IHtmlContent> InvokeAsync(Type componentType, object? arguments)
-        {
-            Interlocked.Increment(ref _typedInvocationCount);
-            return Task.FromResult<IHtmlContent>(new HtmlString("<typed-component/>"));
-        }
-
-        public Task<IHtmlContent> InvokeAsync(string name, object? arguments)
-        {
-            Interlocked.Increment(ref _namedInvocationCount);
-            return Task.FromResult<IHtmlContent>(new HtmlString("<named-component/>"));
-        }
-    }
-
-    private class TestComponent : ViewComponent;
 }

@@ -15,6 +15,6 @@ public sealed class CommandServiceStateFixture : IDisposable
 
     public void Dispose()
     {
-        CommandService.PrimaryServiceProvider = _originalProvider!;
+        CommandService.PrimaryServiceProvider = _originalProvider;
     }
 }

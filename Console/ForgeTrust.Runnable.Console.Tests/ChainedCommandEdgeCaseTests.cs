@@ -22,20 +22,22 @@ public class ChainedCommandEdgeCaseTests
     {
         // Arrange
         ResetTracker();
-        var command = CreateCommand<MissingParentCompositeCommand>(
+        var (command, provider) = CreateCommand<MissingParentCompositeCommand>(
             services =>
             {
                 services.AddTransient<MissingParentCompositeCommand>();
                 services.AddTransient<RequiredChildCommand>();
             });
+        using (provider)
+        {
+            // Act
+            var exception = await Assert.ThrowsAsync<CommandException>(async () =>
+                await command.ExecuteAsync(new FakeConsole()));
 
-        // Act
-        var exception = await Assert.ThrowsAsync<CommandException>(async () =>
-            await command.ExecuteAsync(new FakeConsole()));
-
-        // Assert
-        Assert.Contains("RequiredChildCommand.Required", exception.Message);
-        Assert.False(_requiredChildExecuted);
+            // Assert
+            Assert.Contains("RequiredChildCommand.Required", exception.Message);
+            Assert.False(_requiredChildExecuted);
+        }
     }
 
     [Fact]
@@ -43,22 +45,25 @@ public class ChainedCommandEdgeCaseTests
     {
         // Arrange
         ResetTracker();
-        var command = CreateCommand<TypeMismatchCompositeCommand>(
+        var (command, provider) = CreateCommand<TypeMismatchCompositeCommand>(
             services =>
             {
                 services.AddTransient<TypeMismatchCompositeCommand>();
                 services.AddTransient<TypeMismatchChildCommand>();
             });
-        command.Value = "42";
-        command.Metadata = "parent-metadata";
+        using (provider)
+        {
+            command.Value = "42";
+            command.Metadata = "parent-metadata";
 
-        // Act
-        await command.ExecuteAsync(new FakeConsole());
+            // Act
+            await command.ExecuteAsync(new FakeConsole());
 
-        // Assert
-        Assert.True(_typeMismatchChildExecuted);
-        Assert.Equal(0, _typeMismatchChildValue);
-        Assert.Null(_typeMismatchChildMetadata);
+            // Assert
+            Assert.True(_typeMismatchChildExecuted);
+            Assert.Equal(0, _typeMismatchChildValue);
+            Assert.Null(_typeMismatchChildMetadata);
+        }
     }
 
     [Fact]
@@ -66,19 +71,21 @@ public class ChainedCommandEdgeCaseTests
     {
         // Arrange
         ResetTracker();
-        var command = CreateCommand<NullableParentCompositeCommand>(
+        var (command, provider) = CreateCommand<NullableParentCompositeCommand>(
             services =>
             {
                 services.AddTransient<NullableParentCompositeCommand>();
                 services.AddTransient<NullableChildCommand>();
             });
+        using (provider)
+        {
+            // Act
+            await command.ExecuteAsync(new FakeConsole());
 
-        // Act
-        await command.ExecuteAsync(new FakeConsole());
-
-        // Assert
-        Assert.True(_nullableChildExecuted);
-        Assert.Equal(7, _nullableChildValue);
+            // Assert
+            Assert.True(_nullableChildExecuted);
+            Assert.Equal(7, _nullableChildValue);
+        }
     }
 
     [Fact]
@@ -86,21 +93,23 @@ public class ChainedCommandEdgeCaseTests
     {
         // Arrange
         ResetTracker();
-        var command = CreateCommand<EmptyChainCompositeCommand>(
+        var (command, provider) = CreateCommand<EmptyChainCompositeCommand>(
             services =>
             {
                 services.AddTransient<EmptyChainCompositeCommand>();
                 services.AddTransient<RequiredChildCommand>();
             });
+        using (provider)
+        {
+            // Act
+            await command.ExecuteAsync(new FakeConsole());
 
-        // Act
-        await command.ExecuteAsync(new FakeConsole());
-
-        // Assert
-        Assert.False(_requiredChildExecuted);
+            // Assert
+            Assert.False(_requiredChildExecuted);
+        }
     }
 
-    private static TCommand CreateCommand<TCommand>(
+    private static (TCommand Command, ServiceProvider Provider) CreateCommand<TCommand>(
         Action<IServiceCollection> registerCommands)
         where TCommand : class, ICommand
     {
@@ -110,7 +119,7 @@ public class ChainedCommandEdgeCaseTests
         var provider = services.BuildServiceProvider();
         CommandService.PrimaryServiceProvider = provider;
 
-        return provider.GetRequiredService<TCommand>();
+        return (provider.GetRequiredService<TCommand>(), provider);
     }
 
     private static void ResetTracker()
@@ -151,6 +160,8 @@ public class ChainedCommandEdgeCaseTests
         [CommandOption("value")]
         public int Value { get; set; }
 
+        // This property intentionally has no [CommandOption] attribute to verify
+        // it is not bound by CliFx.
         public string? Metadata { get; set; }
 
         public ValueTask ExecuteAsync(IConsole console)

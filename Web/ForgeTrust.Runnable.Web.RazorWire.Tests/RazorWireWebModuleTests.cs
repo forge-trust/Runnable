@@ -82,14 +82,14 @@ public class RazorWireWebModuleTests
     }
 
     [Fact]
-    public void ConfigureEndpoints_MapsRazorWireStreamEndpoint()
+    public async Task ConfigureEndpoints_MapsRazorWireStreamEndpoint()
     {
         // Arrange
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton(new RazorWireOptions());
         builder.Services.AddSingleton<IRazorWireChannelAuthorizer, DefaultRazorWireChannelAuthorizer>();
         builder.Services.AddSingleton<IRazorWireStreamHub, InMemoryRazorWireStreamHub>();
-        var app = builder.Build();
+        await using var app = builder.Build();
         var module = new RazorWireWebModule();
 
         // Act

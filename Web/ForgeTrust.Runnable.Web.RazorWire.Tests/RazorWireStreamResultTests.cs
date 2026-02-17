@@ -18,15 +18,17 @@ public class RazorWireStreamResultTests
     public async Task ExecuteResultAsync_WithRawHtml_WritesBodyAndSetsTurboContentType()
     {
         // Arrange
-        var actionContext = CreateActionContext();
+        using var actionContext = CreateActionContext();
         var result = new RazorWireStreamResult("<turbo-stream>payload</turbo-stream>");
 
         // Act
-        await result.ExecuteResultAsync(actionContext);
+        await result.ExecuteResultAsync(actionContext.ActionContext);
 
         // Assert
-        Assert.Equal("text/vnd.turbo-stream.html", actionContext.HttpContext.Response.ContentType);
-        Assert.Equal("<turbo-stream>payload</turbo-stream>", await ReadBodyAsync(actionContext.HttpContext.Response));
+        Assert.Equal("text/vnd.turbo-stream.html", actionContext.ActionContext.HttpContext.Response.ContentType);
+        Assert.Equal(
+            "<turbo-stream>payload</turbo-stream>",
+            await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response));
     }
 
     [Fact]
@@ -39,11 +41,11 @@ public class RazorWireStreamResultTests
         controller.TempData = tempData;
         controller.ViewData["user"] = "andrew";
 
-        var actionContext = CreateActionContext();
+        using var actionContext = CreateActionContext();
         var result = new RazorWireStreamResult([action], controller);
 
         // Act
-        await result.ExecuteResultAsync(actionContext);
+        await result.ExecuteResultAsync(actionContext.ActionContext);
 
         // Assert
         Assert.NotNull(action.CapturedViewContext);
@@ -59,45 +61,27 @@ public class RazorWireStreamResultTests
         A.CallTo(() => antiforgery.GetAndStoreTokens(A<HttpContext>._))
             .Returns(new AntiforgeryTokenSet("request", "cookie", "form", "header"));
 
-        var actionContext = CreateActionContext(
+        using var actionContext = CreateActionContext(
             services => services.AddSingleton<IAntiforgery>(antiforgery));
         var result = new RazorWireStreamResult("<turbo-stream>payload</turbo-stream>");
 
         // Act
-        await result.ExecuteResultAsync(actionContext);
+        await result.ExecuteResultAsync(actionContext.ActionContext);
 
         // Assert
-        A.CallTo(() => antiforgery.GetAndStoreTokens(actionContext.HttpContext)).MustHaveHappenedOnceExactly();
+        A.CallTo(() => antiforgery.GetAndStoreTokens(actionContext.ActionContext.HttpContext)).MustHaveHappenedOnceExactly();
     }
 
-    private static ActionContext CreateActionContext(Action<IServiceCollection>? configure = null)
+    private static RazorWireTestContext CreateActionContext(Action<ServiceCollection>? configure = null)
     {
-        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
-        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
-
-        var services = new ServiceCollection()
-            .AddSingleton<ITempDataDictionaryFactory>(tempDataFactory);
-
-        configure?.Invoke(services);
-
-        var provider = services.BuildServiceProvider();
-        var httpContext = new DefaultHttpContext
+        return RazorWireTestContext.CreateActionContext(services =>
         {
-            RequestServices = provider,
-            Response =
-            {
-                Body = new MemoryStream()
-            }
-        };
+            var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+            A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
 
-        return new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
-    }
-
-    private static async Task<string> ReadBodyAsync(HttpResponse response)
-    {
-        response.Body.Seek(0, SeekOrigin.Begin);
-        using var reader = new StreamReader(response.Body, leaveOpen: true);
-        return await reader.ReadToEndAsync();
+            services.AddSingleton<ITempDataDictionaryFactory>(tempDataFactory);
+            configure?.Invoke(services);
+        });
     }
 
     private sealed class CapturingStreamAction : IRazorWireStreamAction

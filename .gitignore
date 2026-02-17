@@ -72,4 +72,4 @@ coverage.xml
 .DS_Store
 
 # Tooling output
-.codex-review/
+.codex-review

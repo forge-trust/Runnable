@@ -1,6 +1,7 @@
-using System.Reflection;
+using System.Text.RegularExpressions;
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
+using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -89,13 +90,28 @@ public class RazorWireStreamBuilderTests
     }
 
     [Fact]
-    public void BuildResult_AllowsQueuingAllFluentActionTypes()
+    public async Task BuildResult_AllowsQueuingAllFluentActionTypes()
     {
         // Arrange
-        var controller = new TestController();
+        var viewEngine = A.Fake<ICompositeViewEngine>();
+        var partialView = new StaticPartialView();
+        var viewComponentHelper = new RecordingViewComponentHelper();
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        var actionContext = CreateActionContext(services =>
+        {
+            services
+                .AddSingleton(viewEngine)
+                .AddSingleton(tempDataFactory)
+                .AddSingleton<IViewComponentHelper>(viewComponentHelper);
+        });
+
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+        A.CallTo(() => viewEngine.FindView(A<ViewContext>._, A<string>._, A<bool>._))
+            .ReturnsLazily(call =>
+                ViewEngineResult.Found(call.GetArgument<string>(1)!, partialView));
 
         // Act
-        var result = new RazorWireStreamBuilder(controller)
+        var result = new RazorWireStreamBuilder()
             .Append("target-1", "<div>a</div>")
             .AppendPartial("target-2", "_SomePartial", new { Name = "A" })
             .Prepend("target-3", "<div>b</div>")
@@ -115,37 +131,44 @@ public class RazorWireStreamBuilderTests
             .Remove("target-17")
             .BuildResult();
 
+        await result.ExecuteResultAsync(actionContext);
+        var rendered = await ReadBodyAsync(actionContext.HttpContext.Response);
+
         // Assert
-        Assert.NotNull(result);
-        var controllerField = typeof(RazorWireStreamResult).GetField("_controller", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(controllerField);
-        Assert.Same(controller, controllerField!.GetValue(result));
+        Assert.Equal("text/vnd.turbo-stream.html", actionContext.HttpContext.Response.ContentType);
+        Assert.Equal(17, Regex.Matches(rendered, "<turbo-stream").Count);
+        var expectedTargets = new[]
+        {
+            "target-1",
+            "target-2",
+            "target-3",
+            "target-4",
+            "target-5",
+            "target-6",
+            "target-7",
+            "target-8",
+            "target-9",
+            "target-10",
+            "target-11",
+            "target-12",
+            "target-13",
+            "target-14",
+            "target-15",
+            "target-16",
+            "target-17"
+        };
+        var previousIndex = -1;
+        foreach (var target in expectedTargets)
+        {
+            var marker = $"target=\"{target}\"";
+            var index = rendered.IndexOf(marker, StringComparison.Ordinal);
+            Assert.True(index >= 0, $"Expected rendered action for {target}.");
+            Assert.True(index > previousIndex, $"Expected actions to render in builder queue order.");
+            previousIndex = index;
+        }
 
-        var actionsField = typeof(RazorWireStreamResult).GetField("_actions", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(actionsField);
-        var actions = Assert.IsAssignableFrom<IEnumerable<IRazorWireStreamAction>>(actionsField!.GetValue(result));
-        var actionList = actions.ToList();
-
-        Assert.Equal(17, actionList.Count);
-        Assert.Collection(
-            actionList,
-            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name),
-            action => Assert.IsType<PartialViewStreamAction>(action),
-            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name),
-            action => Assert.IsType<PartialViewStreamAction>(action),
-            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name),
-            action => Assert.IsType<PartialViewStreamAction>(action),
-            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name),
-            action => Assert.IsType<PartialViewStreamAction>(action),
-            action => Assert.IsType<ViewComponentStreamAction>(action),
-            action => Assert.IsType<ViewComponentStreamAction>(action),
-            action => Assert.IsType<ViewComponentStreamAction>(action),
-            action => Assert.IsType<ViewComponentStreamAction>(action),
-            action => Assert.IsType<ViewComponentByNameStreamAction>(action),
-            action => Assert.IsType<ViewComponentByNameStreamAction>(action),
-            action => Assert.IsType<ViewComponentByNameStreamAction>(action),
-            action => Assert.IsType<ViewComponentByNameStreamAction>(action),
-            action => Assert.Equal("RawHtmlStreamAction", action.GetType().Name));
+        Assert.Equal(4, viewComponentHelper.TypedInvocationCount);
+        Assert.Equal(4, viewComponentHelper.NamedInvocationCount);
     }
 
     private static ViewContext CreateViewContext()
@@ -164,7 +187,63 @@ public class RazorWireStreamBuilderTests
             new HtmlHelperOptions());
     }
 
-    private class TestComponent : ViewComponent;
+    private static ActionContext CreateActionContext(Action<ServiceCollection>? configureServices = null)
+    {
+        var services = new ServiceCollection();
+        configureServices?.Invoke(services);
+        var serviceProvider = services.BuildServiceProvider();
 
-    private sealed class TestController : Controller;
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = serviceProvider
+        };
+        httpContext.Response.Body = new MemoryStream();
+
+        return new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+    }
+
+    private static async Task<string> ReadBodyAsync(HttpResponse response)
+    {
+        response.Body.Seek(0, SeekOrigin.Begin);
+        using var reader = new StreamReader(response.Body, leaveOpen: true);
+        return await reader.ReadToEndAsync();
+    }
+
+    private sealed class StaticPartialView : IView
+    {
+        public string Path => "test";
+
+        public Task RenderAsync(ViewContext viewContext)
+        {
+            return viewContext.Writer.WriteAsync("<partial-view/>");
+        }
+    }
+
+    private sealed class RecordingViewComponentHelper : IViewComponentHelper, IViewContextAware
+    {
+        private int _typedInvocationCount;
+        private int _namedInvocationCount;
+
+        public int TypedInvocationCount => _typedInvocationCount;
+
+        public int NamedInvocationCount => _namedInvocationCount;
+
+        public void Contextualize(ViewContext viewContext)
+        {
+        }
+
+        public Task<IHtmlContent> InvokeAsync(Type componentType, object? arguments)
+        {
+            Interlocked.Increment(ref _typedInvocationCount);
+            return Task.FromResult<IHtmlContent>(new HtmlString("<typed-component/>"));
+        }
+
+        public Task<IHtmlContent> InvokeAsync(string name, object? arguments)
+        {
+            Interlocked.Increment(ref _namedInvocationCount);
+            return Task.FromResult<IHtmlContent>(new HtmlString("<named-component/>"));
+        }
+    }
+
+    private class TestComponent : ViewComponent;
 }

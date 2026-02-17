@@ -70,3 +70,6 @@ coverage.xml
 
 # macOS System Files
 .DS_Store
+
+# Tooling output
+.codex-review

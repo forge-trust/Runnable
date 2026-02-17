@@ -1,4 +1,5 @@
 using FakeItEasy;
+using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
@@ -193,6 +194,7 @@ public sealed class SidebarViewComponentTests
         var sanitizer = A.Fake<IHtmlSanitizer>();
         var logger = A.Fake<ILogger<DocAggregator>>();
         var cache = new MemoryCache(new MemoryCacheOptions());
+        var memo = new Memo(cache);
 
         A.CallTo(() => env.ContentRootPath).Returns(Path.GetTempPath());
         A.CallTo(() => sanitizer.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
@@ -204,7 +206,7 @@ public sealed class SidebarViewComponentTests
             new[] { harvester },
             config,
             env,
-            cache,
+            memo,
             sanitizer,
             logger);
 

@@ -1,5 +1,6 @@
 using AngleSharp;
 using FakeItEasy;
+using ForgeTrust.Runnable.Caching;
 using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -18,6 +19,7 @@ public class DocAggregatorTests : IDisposable
     private readonly ILogger<DocAggregator> _loggerFake;
     private readonly IHtmlSanitizer _sanitizerFake;
     private readonly IMemoryCache _cache;
+    private readonly IMemo _memo;
     private readonly DocAggregator _aggregator;
 
     public DocAggregatorTests()
@@ -28,6 +30,7 @@ public class DocAggregatorTests : IDisposable
         _loggerFake = A.Fake<ILogger<DocAggregator>>();
         _sanitizerFake = A.Fake<IHtmlSanitizer>();
         _cache = new MemoryCache(new MemoryCacheOptions());
+        _memo = new Memo(_cache);
 
         A.CallTo(() => _envFake.ContentRootPath).Returns(Path.GetTempPath());
 
@@ -39,7 +42,7 @@ public class DocAggregatorTests : IDisposable
             new[] { _harvesterFake },
             _configFake,
             _envFake,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake
         );
@@ -49,9 +52,10 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocsAsync_ShouldReturnCachedResults_WhenCacheExists()
     {
         // Arrange
-        var cachedDocs =
-            new Dictionary<string, DocNode> { { "path", new DocNode("Cached", "path", "content") } };
-        _cache.Set("HarvestedDocs", cachedDocs);
+        var cachedDocs = new List<DocNode> { new("Cached", "path", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(cachedDocs);
+
+        _ = await _aggregator.GetDocsAsync();
 
         // Act
         var result = (await _aggregator.GetDocsAsync()).ToList();
@@ -59,7 +63,8 @@ public class DocAggregatorTests : IDisposable
         // Assert
         Assert.Single(result);
         Assert.Equal("Cached", result.First().Title);
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -70,14 +75,16 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var result = (await _aggregator.GetDocsAsync()).ToList();
+        var firstResult = (await _aggregator.GetDocsAsync()).ToList();
+        var secondResult = (await _aggregator.GetDocsAsync()).ToList();
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal("Fresh", result.First().Title);
+        Assert.Single(firstResult);
+        Assert.Single(secondResult);
+        Assert.Equal("Fresh", firstResult.First().Title);
+        Assert.Equal("Fresh", secondResult.First().Title);
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
-        Assert.True(_cache.TryGetValue("HarvestedDocs", out _));
     }
 
     [Fact]
@@ -135,7 +142,7 @@ public class DocAggregatorTests : IDisposable
             new[] { failingHarvester, workingHarvester },
             _configFake,
             _envFake,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake
         );
@@ -156,7 +163,7 @@ public class DocAggregatorTests : IDisposable
             Enumerable.Empty<IDocHarvester>(),
             A.Fake<Ext_IConfiguration>(),
             _envFake,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake);
 
@@ -214,7 +221,7 @@ public class DocAggregatorTests : IDisposable
             new[] { _harvesterFake },
             _configFake,
             _envFake,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake);
 
@@ -355,7 +362,7 @@ public class DocAggregatorTests : IDisposable
             new[] { _harvesterFake },
             localConfig,
             localEnv,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake);
 
@@ -426,28 +433,6 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDocsAsync_ShouldFallbackToEmptyDictionary_WhenCacheReturnsNullValue()
-    {
-        // Arrange
-        var nullCache = A.Fake<IMemoryCache>();
-        object? cachedValue = null;
-        A.CallTo(() => nullCache.TryGetValue(A<object>._, out cachedValue)).Returns(true);
-        var aggregator = new DocAggregator(
-            Enumerable.Empty<IDocHarvester>(),
-            _configFake,
-            _envFake,
-            nullCache,
-            _sanitizerFake,
-            _loggerFake);
-
-        // Act
-        var docs = await aggregator.GetDocsAsync();
-
-        // Assert
-        Assert.Empty(docs);
-    }
-
-    [Fact]
     public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenConfigIsMissing()
     {
         // Arrange
@@ -465,7 +450,7 @@ public class DocAggregatorTests : IDisposable
             new[] { _harvesterFake },
             localConfig,
             localEnv,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake);
 
@@ -480,12 +465,8 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocByPathAsync_ShouldUsePathFallback_WhenCachedCanonicalPathIsNull()
     {
         // Arrange
-        _cache.Set(
-            "HarvestedDocs",
-            new Dictionary<string, DocNode>
-            {
-                { "docs/service.cs#DoWork", new DocNode("Method", "docs/service.cs#DoWork", "content") }
-            });
+        var harvestedDocs = new List<DocNode> { new("Method", "docs/service.cs#DoWork", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
         var result = await _aggregator.GetDocByPathAsync("DOCS/service.cs#DoWork");
@@ -538,6 +519,11 @@ public class DocAggregatorTests : IDisposable
 
     public void Dispose()
     {
+        if (_memo is IDisposable disposableMemo)
+        {
+            disposableMemo.Dispose();
+        }
+
         _cache.Dispose();
     }
 }

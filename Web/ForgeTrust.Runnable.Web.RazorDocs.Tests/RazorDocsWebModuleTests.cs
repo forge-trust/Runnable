@@ -7,6 +7,7 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -74,6 +75,7 @@ public class RazorDocsWebModuleTests
         Assert.Contains(
             services,
             s => s.ServiceType == typeof(Ganss.Xss.IHtmlSanitizer) && s.Lifetime == ServiceLifetime.Singleton);
+        Assert.DoesNotContain(services, s => s.ServiceType == typeof(IMemoryCache));
 
         using var serviceProvider = services.BuildServiceProvider();
         var sanitizer = Assert.IsType<Ganss.Xss.HtmlSanitizer>(

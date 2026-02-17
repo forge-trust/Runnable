@@ -498,9 +498,9 @@ public class DocsControllerTests : IDisposable
     [Fact]
     public void PrivateHelpers_ShouldHandleNullAndUnbrokenTextBranches()
     {
-        var normalized = DocsController.NormalizeText(null!);
-        var rootUrl = DocsController.BuildDocUrl(" ");
-        var truncated = DocsController.TruncateAtWordBoundary(new string('a', 260), 220);
+        var normalized = DocAggregator.NormalizeSearchText(null!);
+        var rootUrl = DocAggregator.BuildSearchDocUrl(" ");
+        var truncated = DocAggregator.TruncateSnippetAtWordBoundary(new string('a', 260), 220);
 
         Assert.Equal(string.Empty, normalized);
         Assert.Equal("/docs", rootUrl);
@@ -527,7 +527,7 @@ public class DocsControllerTests : IDisposable
 
     public void Dispose()
     {
-        if (_memo is IDisposable disposableMemo)
+        if (_memo is IDisposable disposableMemo && !ReferenceEquals(disposableMemo, _cache))
         {
             disposableMemo.Dispose();
         }

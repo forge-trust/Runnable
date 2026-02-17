@@ -15,13 +15,16 @@ public class DocAggregator
     // Bound per-document heading volume so search-index size stays predictable for large docs sets.
     private const int MaxHeadingsPerDocument = 24;
     private const int SearchSnippetMaxLength = 220;
+    internal static readonly TimeSpan SnapshotCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan HarvesterTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IEnumerable<IDocHarvester> _harvesters;
     private readonly string _repositoryRoot;
     private readonly IMemo _memo;
     private readonly IHtmlSanitizer _sanitizer;
     private readonly ILogger<DocAggregator> _logger;
-    private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(TimeSpan.FromMinutes(5));
+    private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(SnapshotCacheDuration);
+    private readonly Guid _cacheScope = Guid.NewGuid();
     private int _cacheGeneration;
 
     private static readonly Regex ScriptOrStyleRegex = new(
@@ -153,7 +156,16 @@ public class DocAggregator
     /// </summary>
     public void InvalidateCache()
     {
-        Interlocked.Increment(ref _cacheGeneration);
+        // Keep cache generations bounded to two keys so refreshes cannot accumulate unbounded entries.
+        while (true)
+        {
+            var current = Volatile.Read(ref _cacheGeneration);
+            var next = current == 0 ? 1 : 0;
+            if (Interlocked.CompareExchange(ref _cacheGeneration, next, current) == current)
+            {
+                return;
+            }
+        }
     }
 
     /// <summary>
@@ -164,6 +176,7 @@ public class DocAggregator
     /// Contents are sanitized before being cached. If multiple nodes share the same Path, a warning is logged and the first occurrence is retained.
     /// The search-index payload is generated from the same harvested snapshot.
     /// Caller cancellation does not cancel shared snapshot computation; callers can cancel their own wait.
+    /// Harvester execution is bounded by a timeout so a single slow harvester cannot block snapshot regeneration indefinitely.
     /// The memoized cache entry is created with a 5-minute absolute expiration.
     /// </remarks>
     /// <returns>A cached snapshot containing both docs and search-index payload.</returns>
@@ -171,8 +184,9 @@ public class DocAggregator
     {
         var generation = Volatile.Read(ref _cacheGeneration);
         return await _memo.GetAsync(
+                   _cacheScope,
                    generation,
-                   async (_, _) =>
+                   async (_, _, _) =>
                    {
                        var sw = System.Diagnostics.Stopwatch.StartNew();
                        var allNodes = new List<DocNode>();
@@ -180,11 +194,30 @@ public class DocAggregator
                        {
                            try
                            {
-                               return await harvester.HarvestAsync(_repositoryRoot, CancellationToken.None);
+                               return await harvester
+                                   .HarvestAsync(_repositoryRoot, CancellationToken.None)
+                                   .WaitAsync(HarvesterTimeout);
                            }
-                           catch (OperationCanceledException)
+                           catch (OperationCanceledException ex)
                            {
-                               throw;
+                               _logger.LogWarning(
+                                   ex,
+                                   "Harvester {HarvesterType} canceled at {RepositoryRoot}. Skipping its docs.",
+                                   harvester.GetType().Name,
+                                   _repositoryRoot);
+
+                               return Enumerable.Empty<DocNode>();
+                           }
+                           catch (TimeoutException ex)
+                           {
+                               _logger.LogWarning(
+                                   ex,
+                                   "Harvester {HarvesterType} timed out after {TimeoutSeconds}s at {RepositoryRoot}. Skipping its docs.",
+                                   harvester.GetType().Name,
+                                   HarvesterTimeout.TotalSeconds,
+                                   _repositoryRoot);
+
+                               return Enumerable.Empty<DocNode>();
                            }
                            catch (Exception ex)
                            {
@@ -221,14 +254,15 @@ public class DocAggregator
                            .GroupBy(n => n.Path)
                            .Select(g =>
                            {
-                               if (g.Count() > 1)
+                               var first = g.First();
+                               if (g.Skip(1).Any())
                                {
                                    _logger.LogWarning(
                                        "Duplicate doc path detected: {Path}. Keeping first occurrence.",
                                        g.Key);
                                }
 
-                               return g.First();
+                               return first;
                            })
                            .ToDictionary(n => n.Path, n => n);
 
@@ -240,7 +274,7 @@ public class DocAggregator
                            sw.ElapsedMilliseconds,
                            docsByPath.Count,
                            searchRecordCount,
-                           DocsCachePolicy.AbsoluteExpiration?.TotalMinutes);
+                           SnapshotCacheDuration.TotalMinutes);
 
                        return new CachedDocsSnapshot(docsByPath, searchIndexPayload);
                    },

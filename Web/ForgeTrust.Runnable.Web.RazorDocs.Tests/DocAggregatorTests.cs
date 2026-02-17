@@ -305,12 +305,64 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDocsAsync_ShouldPropagateOperationCanceled_FromHarvester()
+    public async Task GetDocsAsync_ShouldSkipCanceledHarvester_AndContinue()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Throws(new OperationCanceledException());
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _aggregator.GetDocsAsync());
+        var docs = await _aggregator.GetDocsAsync();
+
+        Assert.Empty(docs);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldUseInstanceScopedMemoKeys_WhenMemoIsShared()
+    {
+        using var sharedCache = new MemoryCache(new MemoryCacheOptions());
+        using var sharedMemo = new Memo(sharedCache);
+
+        var sharedConfig = A.Fake<Ext_IConfiguration>();
+        A.CallTo(() => sharedConfig["RepositoryRoot"]).Returns(Path.GetTempPath());
+        var sharedEnv = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => sharedEnv.ContentRootPath).Returns(Path.GetTempPath());
+        var sharedSanitizer = A.Fake<IHtmlSanitizer>();
+        A.CallTo(() => sharedSanitizer.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
+            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        var sharedLogger = A.Fake<ILogger<DocAggregator>>();
+
+        var harvesterA = A.Fake<IDocHarvester>();
+        var harvesterB = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvesterA.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(new[] { new DocNode("DocA", "a", "content") });
+        A.CallTo(() => harvesterB.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(new[] { new DocNode("DocB", "b", "content") });
+
+        var aggregatorA = new DocAggregator(
+            new[] { harvesterA },
+            sharedConfig,
+            sharedEnv,
+            sharedMemo,
+            sharedSanitizer,
+            sharedLogger);
+        var aggregatorB = new DocAggregator(
+            new[] { harvesterB },
+            sharedConfig,
+            sharedEnv,
+            sharedMemo,
+            sharedSanitizer,
+            sharedLogger);
+
+        var docsA = (await aggregatorA.GetDocsAsync()).ToList();
+        var docsB = (await aggregatorB.GetDocsAsync()).ToList();
+
+        Assert.Single(docsA);
+        Assert.Single(docsB);
+        Assert.Equal("DocA", docsA[0].Title);
+        Assert.Equal("DocB", docsB[0].Title);
+        A.CallTo(() => harvesterA.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => harvesterB.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -548,7 +600,7 @@ public class DocAggregatorTests : IDisposable
 
     public void Dispose()
     {
-        if (_memo is IDisposable disposableMemo)
+        if (_memo is IDisposable disposableMemo && !ReferenceEquals(disposableMemo, _cache))
         {
             disposableMemo.Dispose();
         }

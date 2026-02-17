@@ -10,7 +10,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 /// </summary>
 public class DocsController : Controller
 {
-    private static readonly TimeSpan SearchIndexCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan SearchIndexCacheDuration = DocAggregator.SnapshotCacheDuration;
 
     private readonly DocAggregator _aggregator;
     private readonly ILogger<DocsController> _logger;
@@ -117,26 +117,9 @@ public class DocsController : Controller
         // Keep response caching private by default; docs may be served behind auth.
         Response.Headers.CacheControl = $"private,max-age={(int)SearchIndexCacheDuration.TotalSeconds}";
 
-        var payloadTask = _aggregator.GetSearchIndexPayloadAsync(CancellationToken.None);
-
-        var payload = await payloadTask.WaitAsync(HttpContext.RequestAborted);
+        var payload = await _aggregator.GetSearchIndexPayloadAsync(HttpContext.RequestAborted);
 
         return Json(payload);
-    }
-
-    internal static string NormalizeText(string text)
-    {
-        return DocAggregator.NormalizeSearchText(text);
-    }
-
-    internal static string BuildDocUrl(string path)
-    {
-        return DocAggregator.BuildSearchDocUrl(path);
-    }
-
-    internal static string TruncateAtWordBoundary(string text, int maxLength)
-    {
-        return DocAggregator.TruncateSnippetAtWordBoundary(text, maxLength);
     }
 
     private static bool ShouldRefreshCache(IQueryCollection query)

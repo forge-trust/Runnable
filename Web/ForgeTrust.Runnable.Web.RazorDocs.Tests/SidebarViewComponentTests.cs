@@ -17,12 +17,13 @@ public sealed class SidebarViewComponentTests
     [Fact]
     public async Task InvokeAsync_ShouldGroupDocsByDirectory_AndOrderGroups()
     {
-        var (component, cache) = CreateComponent(
+        var (component, cache, memo) = CreateComponent(
             [
                 new DocNode("A", "src/alpha.md", "<p>A</p>"),
                 new DocNode("B", "docs/beta.md", "<p>B</p>"),
                 new DocNode("C", "gamma.md", "<p>C</p>")
             ]);
+        using (memo)
         using (cache)
         {
             var result = await component.InvokeAsync();
@@ -40,11 +41,12 @@ public sealed class SidebarViewComponentTests
     [Fact]
     public async Task InvokeAsync_ShouldGroupRootNamespacesUnderNamespacesGroup()
     {
-        var (component, cache) = CreateComponent(
+        var (component, cache, memo) = CreateComponent(
             [
                 new DocNode("Namespaces", "Namespaces", "<p>Root namespace docs</p>"),
                 new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web namespace docs</p>")
             ]);
+        using (memo)
         using (cache)
         {
             var result = await component.InvokeAsync();
@@ -70,9 +72,10 @@ public sealed class SidebarViewComponentTests
                 })
             .Build();
 
-        var (component, cache) = CreateComponent(
+        var (component, cache, memo) = CreateComponent(
             [new DocNode("Core", "Namespaces/Contoso.Product.Core", "<p>Core docs</p>")],
             config);
+        using (memo)
         using (cache)
         {
             var result = await component.InvokeAsync();
@@ -86,12 +89,13 @@ public sealed class SidebarViewComponentTests
     [Fact]
     public async Task InvokeAsync_ShouldDeriveSharedNamespacePrefix_WhenConfigIsMissing()
     {
-        var (component, cache) = CreateComponent(
+        var (component, cache, memo) = CreateComponent(
             [
                 new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
                 new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
             ],
             A.Fake<IConfiguration>());
+        using (memo)
         using (cache)
         {
             var result = await component.InvokeAsync();
@@ -105,12 +109,13 @@ public sealed class SidebarViewComponentTests
     [Fact]
     public async Task InvokeAsync_ShouldDeriveNoPrefix_WhenNamespacesShareNoRoot()
     {
-        var (component, cache) = CreateComponent(
+        var (component, cache, memo) = CreateComponent(
             [
                 new DocNode("One", "Namespaces/Alpha.One", "<p>Alpha docs</p>"),
                 new DocNode("Two", "Namespaces/Beta.Two", "<p>Beta docs</p>")
             ],
             A.Fake<IConfiguration>());
+        using (memo)
         using (cache)
         {
             var result = await component.InvokeAsync();
@@ -124,9 +129,10 @@ public sealed class SidebarViewComponentTests
     [Fact]
     public async Task InvokeAsync_ShouldDeriveNoPrefix_WhenNoNamespacesExist()
     {
-        var (component, cache) = CreateComponent(
+        var (component, cache, memo) = CreateComponent(
             [new DocNode("Home", "docs/readme.md", "<p>Home docs</p>")],
             A.Fake<IConfiguration>());
+        using (memo)
         using (cache)
         {
             var result = await component.InvokeAsync();
@@ -148,12 +154,13 @@ public sealed class SidebarViewComponentTests
                 })
             .Build();
 
-        var (component, cache) = CreateComponent(
+        var (component, cache, memo) = CreateComponent(
             [
                 new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
                 new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
             ],
             config);
+        using (memo)
         using (cache)
         {
             var result = await component.InvokeAsync();
@@ -168,12 +175,13 @@ public sealed class SidebarViewComponentTests
     public async Task InvokeAsync_ShouldDerivePrefixes_WhenNamespacePrefixSectionIsMissing()
     {
         var config = new ConfigurationBuilder().Build();
-        var (component, cache) = CreateComponent(
+        var (component, cache, memo) = CreateComponent(
             [
                 new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
                 new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
             ],
             config);
+        using (memo)
         using (cache)
         {
             var result = await component.InvokeAsync();
@@ -184,7 +192,7 @@ public sealed class SidebarViewComponentTests
         }
     }
 
-    private static (SidebarViewComponent Component, MemoryCache Cache) CreateComponent(
+    private static (SidebarViewComponent Component, MemoryCache Cache, Memo Memo) CreateComponent(
         IEnumerable<DocNode> docs,
         IConfiguration? configuration = null)
     {
@@ -211,6 +219,6 @@ public sealed class SidebarViewComponentTests
             logger);
 
         var component = new SidebarViewComponent(aggregator, config);
-        return (component, cache);
+        return (component, cache, memo);
     }
 }

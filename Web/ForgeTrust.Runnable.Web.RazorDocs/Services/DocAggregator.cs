@@ -25,7 +25,7 @@ public class DocAggregator
     private readonly ILogger<DocAggregator> _logger;
     private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(SnapshotCacheDuration);
     private readonly Guid _cacheScope = Guid.NewGuid();
-    private int _cacheGeneration;
+    private long _cacheGeneration;
 
     private static readonly Regex ScriptOrStyleRegex = new(
         "<script[^>]*>[\\s\\S]*?</script>|<style[^>]*>[\\s\\S]*?</style>",
@@ -158,18 +158,8 @@ public class DocAggregator
     /// </summary>
     public void InvalidateCache()
     {
-        // Keep cache generations bounded to two keys so refreshes cannot accumulate unbounded entries.
-        // The previous generation may linger until TTL expiry, but new readers switch to the toggled
-        // generation immediately and the stale snapshot ages out on its own.
-        while (true)
-        {
-            var current = Volatile.Read(ref _cacheGeneration);
-            var next = current == 0 ? 1 : 0;
-            if (Interlocked.CompareExchange(ref _cacheGeneration, next, current) == current)
-            {
-                return;
-            }
-        }
+        // Use a monotonic generation so repeated refreshes cannot resurface a still-live pre-refresh snapshot.
+        Interlocked.Increment(ref _cacheGeneration);
     }
 
     /// <summary>
@@ -186,7 +176,7 @@ public class DocAggregator
     /// <returns>A cached snapshot containing both docs and search-index payload.</returns>
     private async Task<CachedDocsSnapshot> GetCachedDocsSnapshotAsync()
     {
-        var generation = Volatile.Read(ref _cacheGeneration);
+        var generation = Interlocked.Read(ref _cacheGeneration);
         return await _memo.GetAsync(
                    _cacheScope,
                    generation,
@@ -196,11 +186,21 @@ public class DocAggregator
                        var allNodes = new List<DocNode>();
                        var tasks = _harvesters.Select(async harvester =>
                        {
+                           using var timeoutCts = new CancellationTokenSource(HarvesterTimeout);
                            try
                            {
-                               return await harvester
-                                   .HarvestAsync(_repositoryRoot, CancellationToken.None)
-                                   .WaitAsync(HarvesterTimeout);
+                               return await harvester.HarvestAsync(_repositoryRoot, timeoutCts.Token);
+                           }
+                           catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested)
+                           {
+                               _logger.LogWarning(
+                                   ex,
+                                   "Harvester {HarvesterType} timed out after {TimeoutSeconds}s at {RepositoryRoot}. Skipping its docs.",
+                                   harvester.GetType().Name,
+                                   HarvesterTimeout.TotalSeconds,
+                                   _repositoryRoot);
+
+                               return Enumerable.Empty<DocNode>();
                            }
                            catch (OperationCanceledException ex)
                            {
@@ -208,17 +208,6 @@ public class DocAggregator
                                    ex,
                                    "Harvester {HarvesterType} canceled at {RepositoryRoot}. Skipping its docs.",
                                    harvester.GetType().Name,
-                                   _repositoryRoot);
-
-                               return Enumerable.Empty<DocNode>();
-                           }
-                           catch (TimeoutException ex)
-                           {
-                               _logger.LogWarning(
-                                   ex,
-                                   "Harvester {HarvesterType} timed out after {TimeoutSeconds}s at {RepositoryRoot}. Skipping its docs.",
-                                   harvester.GetType().Name,
-                                   HarvesterTimeout.TotalSeconds,
                                    _repositoryRoot);
 
                                return Enumerable.Empty<DocNode>();

@@ -366,6 +366,44 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task InvalidateCache_ShouldNotResurfaceOlderSnapshots_AfterMultipleRefreshes()
+    {
+        var harvestCount = 0;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .ReturnsLazily(() =>
+            {
+                harvestCount++;
+                return new[] { new DocNode($"Doc{harvestCount}", $"path-{harvestCount}", "content") };
+            });
+
+        var first = (await _aggregator.GetDocsAsync()).Single();
+        _aggregator.InvalidateCache();
+        var second = (await _aggregator.GetDocsAsync()).Single();
+        _aggregator.InvalidateCache();
+        var third = (await _aggregator.GetDocsAsync()).Single();
+
+        Assert.Equal("Doc1", first.Title);
+        Assert.Equal("Doc2", second.Title);
+        Assert.Equal("Doc3", third.Title);
+        Assert.Equal(3, harvestCount);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldPassTimeoutScopedToken_ToHarvester()
+    {
+        CancellationToken? observedToken = null;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Invokes((string _, CancellationToken ct) => observedToken = ct)
+            .Returns(Enumerable.Empty<DocNode>());
+
+        _ = await _aggregator.GetDocsAsync();
+
+        Assert.NotNull(observedToken);
+        Assert.True(observedToken!.Value.CanBeCanceled);
+        Assert.False(observedToken.Value.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldCancelCallerWait_WithoutPoisoningSharedSnapshot()
     {
         // Arrange
@@ -387,7 +425,8 @@ public class DocAggregatorTests : IDisposable
 
         // Assert
         Assert.NotNull(observedToken);
-        Assert.False(observedToken!.Value.CanBeCanceled);
+        Assert.True(observedToken!.Value.CanBeCanceled);
+        Assert.False(observedToken.Value.IsCancellationRequested);
         Assert.Single(recovered);
         Assert.Equal("Recovered", recovered[0].Title);
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))

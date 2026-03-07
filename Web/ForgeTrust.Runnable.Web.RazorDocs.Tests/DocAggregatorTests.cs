@@ -600,11 +600,7 @@ public class DocAggregatorTests : IDisposable
 
     public void Dispose()
     {
-        if (_memo is IDisposable disposableMemo && !ReferenceEquals(disposableMemo, _cache))
-        {
-            disposableMemo.Dispose();
-        }
-
+        (_memo as IDisposable)?.Dispose();
         _cache.Dispose();
     }
 }

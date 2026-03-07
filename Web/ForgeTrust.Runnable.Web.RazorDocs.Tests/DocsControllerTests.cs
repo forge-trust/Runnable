@@ -429,7 +429,7 @@ public class DocsControllerTests : IDisposable
         Assert.EndsWith("...", snippet);
         Assert.DoesNotContain(" ...", snippet);
         Assert.Equal(snippet.TrimEnd(), snippet);
-        Assert.True(snippet.Length <= 223, $"Snippet length {snippet.Length} exceeds 220 + ellipsis.");
+        Assert.True(snippet.Length <= 220, $"Snippet length {snippet.Length} exceeds 220.");
     }
 
     [Fact]
@@ -504,8 +504,16 @@ public class DocsControllerTests : IDisposable
 
         Assert.Equal(string.Empty, normalized);
         Assert.Equal("/docs", rootUrl);
-        Assert.Equal(223, truncated.Length);
+        Assert.Equal(220, truncated.Length);
         Assert.EndsWith("...", truncated);
+    }
+
+    [Fact]
+    public void TruncateSnippetAtWordBoundary_ShouldRespectTinyLimits()
+    {
+        Assert.Equal("...", DocAggregator.TruncateSnippetAtWordBoundary("abcdef", 3));
+        Assert.Equal(".", DocAggregator.TruncateSnippetAtWordBoundary("abcdef", 1));
+        Assert.Equal(string.Empty, DocAggregator.TruncateSnippetAtWordBoundary("abcdef", 0));
     }
 
     [Fact]
@@ -527,11 +535,7 @@ public class DocsControllerTests : IDisposable
 
     public void Dispose()
     {
-        if (_memo is IDisposable disposableMemo && !ReferenceEquals(disposableMemo, _cache))
-        {
-            disposableMemo.Dispose();
-        }
-
+        (_memo as IDisposable)?.Dispose();
         _cache.Dispose();
     }
 }

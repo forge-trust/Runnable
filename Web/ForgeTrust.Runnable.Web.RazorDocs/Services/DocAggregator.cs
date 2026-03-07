@@ -157,6 +157,8 @@ public class DocAggregator
     public void InvalidateCache()
     {
         // Keep cache generations bounded to two keys so refreshes cannot accumulate unbounded entries.
+        // The previous generation may linger until TTL expiry, but new readers switch to the toggled
+        // generation immediately and the stale snapshot ages out on its own.
         while (true)
         {
             var current = Volatile.Read(ref _cacheGeneration);
@@ -365,15 +367,26 @@ public class DocAggregator
 
     internal static string TruncateSnippetAtWordBoundary(string text, int maxLength)
     {
+        if (maxLength <= 0)
+        {
+            return string.Empty;
+        }
+
         if (text.Length <= maxLength)
         {
             return text;
         }
 
-        var boundary = text.LastIndexOf(' ', maxLength);
-        if (boundary <= maxLength / 2)
+        if (maxLength <= 3)
         {
-            boundary = maxLength;
+            return new string('.', maxLength);
+        }
+
+        var effectiveMax = maxLength - 3;
+        var boundary = text.LastIndexOf(' ', effectiveMax);
+        if (boundary <= effectiveMax / 2)
+        {
+            boundary = effectiveMax;
         }
 
         return text[..boundary].TrimEnd() + "...";

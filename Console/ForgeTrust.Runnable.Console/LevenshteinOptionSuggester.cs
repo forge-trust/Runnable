@@ -18,13 +18,15 @@ public class LevenshteinOptionSuggester : IOptionSuggester
             return Enumerable.Empty<string>();
         }
 
-        // Clean the input option (remove leading dashes) for better matching if needed,
-        // but typically we compare full strings or key names. 
-        // Let's assume we are comparing the full flag token provided (e.g. "--foo") 
-        // with valid flags (e.g. "--food").
-        
+        // Normalize case so that distance calculation is consistent with case-insensitive option matching.
+        var unknownNormalized = unknownOption.ToUpperInvariant();
+
         return validOptions
-            .Select(option => new { Option = option, Distance = ComputeLevenshteinDistance(unknownOption, option) })
+            .Select(option => new
+            {
+                Option = option,
+                Distance = ComputeLevenshteinDistance(unknownNormalized, option?.ToUpperInvariant() ?? string.Empty)
+            })
             .Where(x => x.Distance <= MaxDistance)
             .OrderBy(x => x.Distance)
             .Select(x => x.Option);
@@ -37,6 +39,14 @@ public class LevenshteinOptionSuggester : IOptionSuggester
     {
         if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;
         if (string.IsNullOrEmpty(t)) return s.Length;
+
+        // Early exit optimization: if the length difference already exceeds MaxDistance,
+        // the Levenshtein distance cannot be <= MaxDistance, so we can skip allocation.
+        var lengthDifference = Math.Abs(s.Length - t.Length);
+        if (lengthDifference > MaxDistance)
+        {
+            return lengthDifference;
+        }
 
         var d = new int[s.Length + 1, t.Length + 1];
 

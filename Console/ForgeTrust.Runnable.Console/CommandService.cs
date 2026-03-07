@@ -39,7 +39,9 @@ internal class CommandService : CriticalService
             builder.AddCommand(cmd.GetType());
         }
 
-        var console = PrimaryServiceProvider.GetService<IConsole>() ?? new SystemConsole();
+        var consoleFromDi = PrimaryServiceProvider.GetService<IConsole>();
+        using var createdConsole = consoleFromDi == null ? new SystemConsole() : null;
+        var console = consoleFromDi ?? createdConsole ?? new SystemConsole();
         var app = builder
             .UseTypeActivator(PrimaryServiceProvider)
             .UseConsole(console)
@@ -61,6 +63,35 @@ internal class CommandService : CriticalService
         }
     }
 
+    /// <summary>
+    /// Analyzes the current command-line arguments to detect unknown or mistyped options
+    /// after a command has failed and, when possible, displays suggestions for valid
+    /// alternatives.
+    /// </summary>
+    /// <param name="console">
+    /// The console used to write diagnostic messages and option suggestions to the user.
+    /// </param>
+    /// <remarks>
+    /// This method performs three main steps:
+    /// <list type="number">
+    ///   <item>
+    ///     <description>
+    ///       Resolves the target command type from the parsed arguments and registered commands.
+    ///     </description>
+    ///   </item>
+    ///   <item>
+    ///     <description>
+    ///       Extracts the set of valid option names for the resolved command.
+    ///     </description>
+    ///   </item>
+    ///   <item>
+    ///     <description>
+    ///       Compares the provided arguments against the valid options and uses
+    ///       <see cref="IOptionSuggester"/> to present suggestions for any unknown options.
+    ///     </description>
+    ///   </item>
+    /// </list>
+    /// </remarks>
     private void CheckForUnknownOptions(IConsole console)
     {
         var args = _context.Args;
@@ -73,18 +104,21 @@ internal class CommandService : CriticalService
         if (args.Length > 0)
         {
             var commandName = args[0];
-            var command = _commands.FirstOrDefault(c =>
+            if (!commandName.StartsWith("-"))
             {
-                var attr =
-                    c.GetType().GetCustomAttributes(typeof(CommandAttribute), false).FirstOrDefault() as
-                        CommandAttribute;
+                var command = _commands.FirstOrDefault(c =>
+                {
+                    var attr =
+                        c.GetType().GetCustomAttributes(typeof(CommandAttribute), false).FirstOrDefault() as
+                            CommandAttribute;
 
-                return attr?.Name?.Equals(commandName, StringComparison.OrdinalIgnoreCase) == true;
-            });
+                    return attr?.Name?.Equals(commandName, StringComparison.OrdinalIgnoreCase) == true;
+                });
 
-            if (command != null)
-            {
-                commandType = command.GetType();
+                if (command != null)
+                {
+                    commandType = command.GetType();
+                }
             }
         }
 
@@ -132,10 +166,8 @@ internal class CommandService : CriticalService
 
         // 2. Scan args for unknown options
         // We only care about things starting with '-' that are NOT in validOptions
-        foreach (var arg in args)
+        foreach (var arg in args.Where(a => a.StartsWith("-")))
         {
-            if (!arg.StartsWith("-")) continue;
-
             // Handle --foo=bar syntax
             var token = arg.Split('=', 2)[0];
 
@@ -144,11 +176,20 @@ internal class CommandService : CriticalService
             if (!validOptions.Contains(token))
             {
                 var suggestions = _suggester.GetSuggestions(token, validOptions);
+                const int maxSuggestionsToShow = 2;
+                var shownCount = 0;
+
                 foreach (var suggestion in suggestions)
                 {
                     console.ForegroundColor = ConsoleColor.Yellow;
                     console.Error.WriteLine($"Did you mean '{suggestion}'?");
                     console.ResetColor();
+
+                    shownCount++;
+                    if (shownCount >= maxSuggestionsToShow)
+                    {
+                        break;
+                    }
                 }
             }
         }

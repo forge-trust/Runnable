@@ -22,11 +22,13 @@ internal class CommandService : CriticalService
         _context = context;
     }
 
-    internal static IServiceProvider PrimaryServiceProvider { get; set; } = null!;
+    internal static IServiceProvider? PrimaryServiceProvider { get; set; }
 
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {
         var builder = new CliApplicationBuilder();
+        var serviceProvider = PrimaryServiceProvider;
+        ArgumentNullException.ThrowIfNull(serviceProvider);
 
         foreach (var cmd in _commands)
         {
@@ -34,7 +36,7 @@ internal class CommandService : CriticalService
         }
 
         var exitCode = await builder
-            .UseTypeActivator(PrimaryServiceProvider)
+            .UseTypeActivator(serviceProvider)
             .Build()
             .RunAsync(_context.Args);
 

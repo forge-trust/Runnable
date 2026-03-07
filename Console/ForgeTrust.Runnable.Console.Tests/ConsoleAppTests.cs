@@ -6,6 +6,7 @@ using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+[Collection(CommandServiceStateCollection.Name)]
 public class ConsoleAppTests
 {
     [Fact]

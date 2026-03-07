@@ -33,6 +33,8 @@ public class AspireAppTests
 
             Assert.True(result.ComponentResolved);
             Assert.True(result.ResolvedAsSingleton);
+            Assert.False(result.AbstractComponentRegistered);
+            Assert.False(result.NonComponentRegistered);
 
             // The aspire application will not actually run
             Assert.Equal(-150, Environment.ExitCode);
@@ -70,7 +72,11 @@ public class AspireAppTests
     }
 
 
-    private sealed record ComponentResolutionResult(bool ComponentResolved, bool ResolvedAsSingleton);
+    private sealed record ComponentResolutionResult(
+        bool ComponentResolved,
+        bool ResolvedAsSingleton,
+        bool AbstractComponentRegistered,
+        bool NonComponentRegistered);
 
     [Command("validate")]
     public sealed class ValidateComponentCommand : AspireProfile
@@ -115,7 +121,15 @@ public class AspireAppTests
             var registered = descriptor is not null;
             var singleton = descriptor?.Lifetime == ServiceLifetime.Singleton;
 
-            completion.TrySetResult(new ComponentResolutionResult(registered, singleton));
+            var abstractRegistered = services.Any(sd => sd.ServiceType == typeof(AbstractTestComponent));
+            var nonComponentRegistered = services.Any(sd => sd.ServiceType == typeof(NonComponent));
+
+            completion.TrySetResult(
+                new ComponentResolutionResult(
+                    registered,
+                    singleton,
+                    abstractRegistered,
+                    nonComponentRegistered));
         }
 
         public void RegisterDependentModules(ModuleDependencyBuilder builder)
@@ -127,5 +141,16 @@ public class AspireAppTests
     {
         public IResourceBuilder<IResource> Generate(AspireStartupContext context, IDistributedApplicationBuilder appBuilder) =>
             throw new NotSupportedException("Generate is not expected to be called in this test.");
+    }
+
+    private abstract class AbstractTestComponent : IAspireComponent<IResource>
+    {
+        public abstract IResourceBuilder<IResource> Generate(
+            AspireStartupContext context,
+            IDistributedApplicationBuilder appBuilder);
+    }
+
+    private sealed class NonComponent
+    {
     }
 }

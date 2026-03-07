@@ -177,6 +177,13 @@ public class DocAggregator
     private async Task<CachedDocsSnapshot> GetCachedDocsSnapshotAsync()
     {
         var generation = Interlocked.Read(ref _cacheGeneration);
+        var harvesters = _harvesters;
+        var repositoryRoot = _repositoryRoot;
+        var sanitizer = _sanitizer;
+        var logger = _logger;
+        var harvesterTimeout = HarvesterTimeout;
+        var snapshotCacheDuration = SnapshotCacheDuration;
+
         return await _memo.GetAsync(
                    _cacheScope,
                    generation,
@@ -184,41 +191,41 @@ public class DocAggregator
                    {
                        var sw = System.Diagnostics.Stopwatch.StartNew();
                        var allNodes = new List<DocNode>();
-                       var tasks = _harvesters.Select(async harvester =>
+                       var tasks = harvesters.Select(async harvester =>
                        {
-                           using var timeoutCts = new CancellationTokenSource(HarvesterTimeout);
+                           using var timeoutCts = new CancellationTokenSource(harvesterTimeout);
                            try
                            {
-                               return await harvester.HarvestAsync(_repositoryRoot, timeoutCts.Token);
+                               return await harvester.HarvestAsync(repositoryRoot, timeoutCts.Token);
                            }
                            catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested)
                            {
-                               _logger.LogWarning(
+                               logger.LogWarning(
                                    ex,
                                    "Harvester {HarvesterType} timed out after {TimeoutSeconds}s at {RepositoryRoot}. Skipping its docs.",
                                    harvester.GetType().Name,
-                                   HarvesterTimeout.TotalSeconds,
-                                   _repositoryRoot);
+                                   harvesterTimeout.TotalSeconds,
+                                   repositoryRoot);
 
                                return Enumerable.Empty<DocNode>();
                            }
                            catch (OperationCanceledException ex)
                            {
-                               _logger.LogWarning(
+                               logger.LogWarning(
                                    ex,
                                    "Harvester {HarvesterType} canceled at {RepositoryRoot}. Skipping its docs.",
                                    harvester.GetType().Name,
-                                   _repositoryRoot);
+                                   repositoryRoot);
 
                                return Enumerable.Empty<DocNode>();
                            }
                            catch (Exception ex)
                            {
-                               _logger.LogError(
+                               logger.LogError(
                                    ex,
                                    "Harvester {HarvesterType} failed at {RepositoryRoot}",
                                    harvester.GetType().Name,
-                                   _repositoryRoot);
+                                   repositoryRoot);
 
                                return Enumerable.Empty<DocNode>();
                            }
@@ -235,7 +242,7 @@ public class DocAggregator
                                n => new DocNode(
                                    n.Title,
                                    n.Path,
-                                   _sanitizer.Sanitize(n.Content),
+                                   sanitizer.Sanitize(n.Content),
                                    n.ParentPath,
                                    n.IsDirectory,
                                    BuildCanonicalPath(n.Path)))
@@ -250,7 +257,7 @@ public class DocAggregator
                                var first = g.First();
                                if (g.Skip(1).Any())
                                {
-                                   _logger.LogWarning(
+                                   logger.LogWarning(
                                        "Duplicate doc path detected: {Path}. Keeping first occurrence.",
                                        g.Key);
                                }
@@ -262,12 +269,12 @@ public class DocAggregator
                        var (searchIndexPayload, searchRecordCount) = BuildSearchIndexPayload(docsByPath.Values);
 
                        sw.Stop();
-                       _logger.LogInformation(
+                       logger.LogInformation(
                            "Generated docs snapshot in {ElapsedMs} ms with {DocCount} docs and {SearchRecordCount} search records. Cache TTL: {CacheMinutes} minutes.",
                            sw.ElapsedMilliseconds,
                            docsByPath.Count,
                            searchRecordCount,
-                           SnapshotCacheDuration.TotalMinutes);
+                           snapshotCacheDuration.TotalMinutes);
 
                        return new CachedDocsSnapshot(docsByPath, searchIndexPayload);
                    },

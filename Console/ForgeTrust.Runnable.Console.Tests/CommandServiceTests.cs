@@ -4,6 +4,8 @@ using CliFx.Attributes;
 using CliFx.Infrastructure;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace ForgeTrust.Runnable.Console.Tests;
@@ -15,7 +17,7 @@ public class CommandServiceTests
     {
         [CommandOption("force")] public bool Force { get; set; }
 
-        public System.Threading.Tasks.ValueTask ExecuteAsync(IConsole console) => default;
+        public ValueTask ExecuteAsync(IConsole console) => default;
     }
 
     [Command]
@@ -23,7 +25,7 @@ public class CommandServiceTests
     {
         [CommandOption("output")] public string Output { get; set; } = string.Empty;
 
-        public System.Threading.Tasks.ValueTask ExecuteAsync(IConsole console) => default;
+        public ValueTask ExecuteAsync(IConsole console) => default;
     }
 
     private class TestModule : IRunnableHostModule
@@ -38,13 +40,13 @@ public class CommandServiceTests
 
         public void ConfigureHostBeforeServices(
             StartupContext context,
-            Microsoft.Extensions.Hosting.IHostBuilder builder)
+            IHostBuilder builder)
         {
         }
 
         public void ConfigureHostAfterServices(
             StartupContext context,
-            Microsoft.Extensions.Hosting.IHostBuilder builder)
+            IHostBuilder builder)
         {
         }
     }
@@ -59,7 +61,7 @@ public class CommandServiceTests
         var context = new StartupContext(new[] { "test-cmd", "--farce" }, new TestModule());
 
         var commandService =
-            (CommandService)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(
+            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
                 typeof(CommandService));
         var type = typeof(CommandService);
         type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);
@@ -85,7 +87,7 @@ public class CommandServiceTests
         var context = new StartupContext(new[] { "--otuput=test.txt" }, new TestModule());
 
         var commandService =
-            (CommandService)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(
+            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
                 typeof(CommandService));
         var type = typeof(CommandService);
         type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);

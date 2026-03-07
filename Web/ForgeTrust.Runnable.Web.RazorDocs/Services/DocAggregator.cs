@@ -64,6 +64,8 @@ public class DocAggregator
         IHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
     {
+        ArgumentNullException.ThrowIfNull(memo);
+
         _harvesters = harvesters;
         _memo = memo;
         _sanitizer = sanitizer;

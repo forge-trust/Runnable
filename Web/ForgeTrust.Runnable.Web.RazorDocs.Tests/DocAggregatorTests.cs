@@ -453,6 +453,21 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_ShouldThrow_WhenMemoIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                _configFake,
+                _envFake,
+                null!,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal("memo", ex.ParamName);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldMergeNamespaceReadmeIntoNamespaceNode_AndRemoveReadmeNode()
     {
         // Arrange

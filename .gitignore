@@ -59,3 +59,9 @@ nunit-*.xml
 
 # BenchmarkDotNet Artifacts
 BenchmarkDotNet.Artifacts/
+
+# macOS
+.DS_Store
+
+# Code Coverage output
+coverage.json

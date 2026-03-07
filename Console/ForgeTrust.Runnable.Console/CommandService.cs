@@ -28,22 +28,25 @@ internal class CommandService : CriticalService
         _suggester = suggester;
     }
 
-    internal static IServiceProvider PrimaryServiceProvider { get; set; } = null!;
+    internal static IServiceProvider? PrimaryServiceProvider { get; set; }
 
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {
         var builder = new CliApplicationBuilder();
+        var serviceProvider = PrimaryServiceProvider;
+        ArgumentNullException.ThrowIfNull(serviceProvider);
 
         foreach (var cmd in _commands)
         {
             builder.AddCommand(cmd.GetType());
         }
 
-        var consoleFromDi = PrimaryServiceProvider.GetService<IConsole>();
+        var consoleFromDi = serviceProvider.GetService<IConsole>();
         using var createdConsole = consoleFromDi == null ? new SystemConsole() : null;
         var console = consoleFromDi ?? createdConsole ?? new SystemConsole();
+
         var app = builder
-            .UseTypeActivator(PrimaryServiceProvider)
+            .UseTypeActivator(serviceProvider)
             .UseConsole(console)
             .Build();
 

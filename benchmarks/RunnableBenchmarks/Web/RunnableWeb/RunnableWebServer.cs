@@ -3,10 +3,8 @@ using DependencyInjectionControllers;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using RunnableBenchmarks.Web;
 using ManyDependencyInjectionControllers;
 
 namespace RunnableBenchmarks.Web.RunnableWeb;
@@ -21,12 +19,9 @@ public class RunnableWebServer : IWebBenchmarkServer
             .WithOptions(options =>
             {
                 // Disabling MVC support when testing minimal APIs to avoid any overhead.
-                options.Mvc.MvcSupportLevel = MvcSupport.None;
+                options.Mvc = options.Mvc with { MvcSupportLevel = MvcSupport.None };
 
-                options.MapEndpoints = endpoints =>
-                {
-                    endpoints.MapGet("/hello", () => "Hello World!");
-                };
+                options.MapEndpoints = endpoints => { endpoints.MapGet("/hello", () => "Hello World!"); };
             });
 
         // We need to create the host builder manually to get access to start/stop.
@@ -41,9 +36,12 @@ public class RunnableWebServer : IWebBenchmarkServer
         var startup = new BenchmarkWebStartup<RunnableBenchmarkModule>()
             .WithOptions(options =>
             {
-                options.Mvc.ConfigureMvc = mvc =>
+                options.Mvc = options.Mvc with
                 {
-                    mvc.AddApplicationPart(typeof(SimpleApiController.HelloController).Assembly);
+                    ConfigureMvc = mvc =>
+                    {
+                        mvc.AddApplicationPart(typeof(SimpleApiController.HelloController).Assembly);
+                    }
                 };
             });
 
@@ -59,9 +57,12 @@ public class RunnableWebServer : IWebBenchmarkServer
         var startup = new BenchmarkWebStartup<RunnableDependencyBenchmarkModule>()
             .WithOptions(options =>
             {
-                options.Mvc.ConfigureMvc = mvc =>
+                options.Mvc = options.Mvc with
                 {
-                    mvc.AddApplicationPart(typeof(DependencyInjectionController).Assembly);
+                    ConfigureMvc = mvc =>
+                    {
+                        mvc.AddApplicationPart(typeof(DependencyInjectionController).Assembly);
+                    }
                 };
             });
 
@@ -77,9 +78,9 @@ public class RunnableWebServer : IWebBenchmarkServer
         var startup = new BenchmarkWebStartup<RunnableManyDependencyBenchmarkModule>()
             .WithOptions(options =>
             {
-                options.Mvc.ConfigureMvc = mvc =>
+                options.Mvc = options.Mvc with
                 {
-                    mvc.AddApplicationPart(typeof(ManyInjected01Controller).Assembly);
+                    ConfigureMvc = mvc => { mvc.AddApplicationPart(typeof(ManyInjected01Controller).Assembly); }
                 };
             });
 

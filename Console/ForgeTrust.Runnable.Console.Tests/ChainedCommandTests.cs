@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Console.Tests;
 
+[Collection(CommandServiceStateCollection.Name)]
 public class ChainedCommandTests
 {
     private static IServiceProvider CreateProvider()

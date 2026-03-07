@@ -11,6 +11,12 @@ public class LevenshteinOptionSuggester : IOptionSuggester
 {
     private const int MaxDistance = 3;
 
+    /// <summary>
+    /// Gets a list of suggested options based on their Levenshtein distance to the unknown option.
+    /// </summary>
+    /// <param name="unknownOption">The unknown command line option.</param>
+    /// <param name="validOptions">The list of valid command line options.</param>
+    /// <returns>A collection of suggested options that closely match the unknown option.</returns>
     public IEnumerable<string> GetSuggestions(string unknownOption, IEnumerable<string> validOptions)
     {
         if (string.IsNullOrEmpty(unknownOption))

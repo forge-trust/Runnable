@@ -12,11 +12,16 @@ namespace ForgeTrust.Runnable.Aspire;
 public interface IAspireComponent<out T> : IAspireComponent
     where T : IResource
 {
+    /// <summary>
+    /// Generates and adds a resource to the Aspire distributed application builder.
+    /// </summary>
+    /// <param name="context">The Aspire startup context.</param>
+    /// <param name="appBuilder">The distributed application builder.</param>
+    /// <returns>A resource builder for the generated resource.</returns>
     IResourceBuilder<T> Generate(
         AspireStartupContext context,
         IDistributedApplicationBuilder appBuilder);
 }
-
 
 /// <summary>
 /// The base interface for Aspire components.
@@ -27,5 +32,4 @@ public interface IAspireComponent<out T> : IAspireComponent
 /// </summary>
 public interface IAspireComponent
 {
-
 }

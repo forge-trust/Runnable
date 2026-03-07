@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "Microsoft.OpenApi": {
+        "type": "Transitive",
+        "resolved": "1.6.17",
+        "contentHash": "Le+kehlmrlQfuDFUt1zZ2dVwrhFQtKREdKBo+rexOwaCoYP0/qpgT9tLxCsZjsgR5Itk1UKPcbgO+FyaNid/bA=="
+      },
+      "forgetrust.runnable.core": {
+        "type": "Project"
+      },
+      "forgetrust.runnable.web": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeTrust.Runnable.Core": "[1.0.0, )"
+        }
+      },
+      "forgetrust.runnable.web.openapi": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeTrust.Runnable.Web": "[1.0.0, )",
+          "Microsoft.AspNetCore.OpenApi": "[9.0.8, )"
+        }
+      },
+      "forgetrust.runnable.web.scalar": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeTrust.Runnable.Web.OpenApi": "[1.0.0, )",
+          "Scalar.AspNetCore": "[2.6.8, )"
+        }
+      },
+      "Microsoft.AspNetCore.OpenApi": {
+        "type": "CentralTransitive",
+        "requested": "[9.0.8, )",
+        "resolved": "9.0.8",
+        "contentHash": "BwF9sQCKmvu93C/pmKxJjPhF5fFB23MEcgTsGL+7W3wKLYawS4lyFSL5/qh00IJzuADLf+1SmvxMaphbyZYqQQ==",
+        "dependencies": {
+          "Microsoft.OpenApi": "1.6.17"
+        }
+      },
+      "Scalar.AspNetCore": {
+        "type": "CentralTransitive",
+        "requested": "[2.6.8, )",
+        "resolved": "2.6.8",
+        "contentHash": "2wwNX51ofrsgLNxe6n2bIuLEFcbVqp/le13nRaAs1mAuracL2tbTdIcgT89o3NmtvVa0hfBdxH5vAi1hwATqTw=="
+      }
+    }
+  }
+}

@@ -10,12 +10,14 @@ namespace ForgeTrust.Runnable.Dependency.Autofac;
 /// </summary>
 public abstract class RunnableAutofacModule : Module, IRunnableModule
 {
+    /// <inheritdoc />
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         // This method is intentionally left empty.
         // The services should be configured in the Autofac module itself.
     }
 
+    /// <inheritdoc />
     public virtual void RegisterDependentModules(ModuleDependencyBuilder builder)
     {
         // This method should be overridden in derived classes to register any dependent modules.

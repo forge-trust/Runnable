@@ -1,7 +1,10 @@
-using ForgeTrust.Runnable.Core;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+namespace ForgeTrust.Runnable.Core.Tests;
+
+[Collection("NoParallel")]
 public class RunnableStartupTests
 {
     [Fact]
@@ -32,6 +35,45 @@ public class RunnableStartupTests
 
         var env = host.Services.GetRequiredService<IHostEnvironment>();
         Assert.Equal("CustomApp", env.ApplicationName);
+    }
+
+    [Fact]
+    public void CreateHostBuilder_UsesArgsForConfiguration()
+    {
+        var context = new StartupContext(["--SomeKey", "SomeValue"], new RootModule());
+        var startup = new TestStartup();
+
+        var hostBuilder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = hostBuilder.Build();
+
+        var config = host.Services.GetRequiredService<IConfiguration>();
+        Assert.Equal("SomeValue", config["SomeKey"]);
+    }
+
+    [Fact]
+    public void CreateHostBuilder_UsesPortArgForUrls()
+    {
+        var context = new StartupContext(["--port", "5005"], new RootModule());
+        var startup = new TestStartup();
+
+        var hostBuilder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = hostBuilder.Build();
+
+        var config = host.Services.GetRequiredService<IConfiguration>();
+        Assert.Equal("http://localhost:5005;http://*:5005", config["urls"]);
+    }
+
+    [Fact]
+    public void CreateHostBuilder_UrlsAndPortProvided_PortWins()
+    {
+        var context = new StartupContext(["--urls", "http://localhost:5001", "--port", "5005"], new RootModule());
+        var startup = new TestStartup();
+
+        var hostBuilder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = hostBuilder.Build();
+
+        var config = host.Services.GetRequiredService<IConfiguration>();
+        Assert.Equal("http://localhost:5005;http://*:5005", config["urls"]);
     }
 
     [Fact]
@@ -192,7 +234,7 @@ public class RunnableStartupTests
 
     private class RootModuleThrows : IRunnableHostModule
     {
-        public Exception ExceptionToThrow { get; set; }
+        public Exception ExceptionToThrow { get; set; } = new InvalidOperationException("Default test exception");
 
         public void ConfigureServices(StartupContext context, IServiceCollection services)
         {
@@ -268,4 +310,9 @@ public class RunnableStartupTests
         {
         }
     }
+}
+
+[CollectionDefinition("NoParallel", DisableParallelization = true)]
+public class NoParallelCollectionDefinition
+{
 }

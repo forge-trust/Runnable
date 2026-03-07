@@ -1,0 +1,100 @@
+namespace ForgeTrust.Runnable.Core.Tests;
+
+public class PathUtilsTests : IDisposable
+{
+    private readonly string _testRoot;
+
+    public PathUtilsTests()
+    {
+        _testRoot = Path.Combine(Path.GetTempPath(), "PathUtilsTests", Guid.NewGuid().ToString());
+        Directory.CreateDirectory(_testRoot);
+    }
+
+    [Fact]
+    public void FindRepositoryRoot_ShouldFindRootWithGitFolder()
+    {
+        // Arrange
+        var repoRoot = Path.Combine(_testRoot, "repo");
+        var gitDir = Path.Combine(repoRoot, ".git");
+        var nestedDir = Path.Combine(repoRoot, "src", "sub");
+
+        Directory.CreateDirectory(gitDir);
+        Directory.CreateDirectory(nestedDir);
+
+        // Act
+        var result = PathUtils.FindRepositoryRoot(nestedDir);
+
+        // Assert
+        Assert.Equal(repoRoot, result);
+    }
+
+    [Fact]
+    public void FindRepositoryRoot_ShouldReturnStartPath_WhenNoGitFolderFound()
+    {
+        // Arrange
+        var someDir = Path.Combine(_testRoot, "no-git", "sub");
+        Directory.CreateDirectory(someDir);
+
+        // Act
+        var result = PathUtils.FindRepositoryRoot(someDir);
+
+        // Assert
+        Assert.Equal(someDir, result);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void FindRepositoryRoot_ShouldThrow_OnNullOrWhitespace(string? path)
+    {
+        Assert.Throws<ArgumentException>(() => PathUtils.FindRepositoryRoot(path!));
+    }
+
+    [Fact]
+    public void FindRepositoryRoot_ShouldWalkUpToExistingDirectory_WhenPathDoesNotExist()
+    {
+        // Arrange
+        var repoRoot = Path.Combine(_testRoot, "existing-repo");
+        Directory.CreateDirectory(Path.Combine(repoRoot, ".git"));
+        var nonExistentPath = Path.Combine(repoRoot, "non-existent", "child");
+
+        // Act: repo exists, child does not. It should walk up to repoRoot then find .git.
+        var result = PathUtils.FindRepositoryRoot(nonExistentPath);
+
+        // Assert
+        Assert.Equal(repoRoot, result);
+    }
+
+    [Fact]
+    public void FindRepositoryRoot_ShouldFindRootWithGitFile()
+    {
+        // Arrange
+        var repoRoot = Path.Combine(_testRoot, "git-file-repo");
+        Directory.CreateDirectory(repoRoot);
+        File.WriteAllText(Path.Combine(repoRoot, ".git"), "gitdir: ../something");
+        var nestedDir = Path.Combine(repoRoot, "src");
+        Directory.CreateDirectory(nestedDir);
+
+        // Act
+        var result = PathUtils.FindRepositoryRoot(nestedDir);
+
+        // Assert
+        Assert.Equal(repoRoot, result);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_testRoot))
+        {
+            try
+            {
+                Directory.Delete(_testRoot, true);
+            }
+            catch
+            {
+                // Best effort
+            }
+        }
+    }
+}

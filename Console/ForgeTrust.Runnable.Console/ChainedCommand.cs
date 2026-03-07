@@ -16,18 +16,21 @@ namespace ForgeTrust.Runnable.Console;
 /// </summary>
 public abstract class ChainedCommand : ICommand
 {
+    /// <inheritdoc />
     public async ValueTask ExecuteAsync(IConsole console)
     {
         var builder = new CommandChainBuilder();
         Configure(builder);
         var commandInfos = builder.Build();
         var executable = commandInfos.Where(c => c.ShouldExecute()).ToList();
+        var serviceProvider = CommandService.PrimaryServiceProvider;
+        ArgumentNullException.ThrowIfNull(serviceProvider);
 
         ValidateRequiredParameters(executable);
 
         foreach (var info in executable)
         {
-            var command = (ICommand)CommandService.PrimaryServiceProvider.GetRequiredService(info.CommandType);
+            var command = (ICommand)serviceProvider.GetRequiredService(info.CommandType);
             WireParameters(command);
             await command.ExecuteAsync(console);
         }

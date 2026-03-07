@@ -1,7 +1,3 @@
-using System.Linq;
-using ForgeTrust.Runnable.Console;
-using Xunit;
-
 namespace ForgeTrust.Runnable.Console.Tests;
 
 public class LevenshteinOptionSuggesterTests
@@ -13,7 +9,7 @@ public class LevenshteinOptionSuggesterTests
     {
         var validOptions = new[] { "--help", "--version", "--config", "--force" };
         var suggestions = _suggester.GetSuggestions("--hepl", validOptions).ToList();
-        
+
         Assert.Single(suggestions);
         Assert.Equal("--help", suggestions[0]);
     }
@@ -23,7 +19,7 @@ public class LevenshteinOptionSuggesterTests
     {
         var validOptions = new[] { "--help", "--version" };
         var suggestions = _suggester.GetSuggestions("--something-completely-different", validOptions).ToList();
-        
+
         Assert.Empty(suggestions);
     }
 
@@ -31,7 +27,7 @@ public class LevenshteinOptionSuggesterTests
     public void GetSuggestions_WithEmptyInput_ReturnsEmpty()
     {
         var validOptions = new[] { "--help" };
-        
+
         Assert.Empty(_suggester.GetSuggestions(string.Empty, validOptions));
         Assert.Empty(_suggester.GetSuggestions(null!, validOptions));
     }
@@ -41,7 +37,7 @@ public class LevenshteinOptionSuggesterTests
     {
         var validOptions = new[] { "--help", "--version" };
         var suggestions = _suggester.GetSuggestions("--help", validOptions).ToList();
-        
+
         Assert.Single(suggestions);
         Assert.Equal("--help", suggestions[0]);
     }
@@ -51,7 +47,7 @@ public class LevenshteinOptionSuggesterTests
     {
         var validOptions = new[] { "--help", "--Version" };
         var suggestions = _suggester.GetSuggestions("--HEPL", validOptions).ToList();
-        
+
         Assert.Single(suggestions);
         Assert.Equal("--help", suggestions[0]);
     }

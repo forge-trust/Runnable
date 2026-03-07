@@ -4,8 +4,6 @@ using CliFx.Attributes;
 using CliFx.Infrastructure;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting.Internal;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace ForgeTrust.Runnable.Console.Tests;

@@ -190,19 +190,8 @@ public class CommandServiceTests
 
         try
         {
-            var commandService =
-                (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
-                    typeof(CommandService));
+            var commandService = new CommandService(commands, context, suggester);
             var type = typeof(CommandService);
-            type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-                commandService,
-                commands);
-            type.GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-                commandService,
-                context);
-            type.GetField("_suggester", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-                commandService,
-                suggester);
 
             // Reset global exit code manually here before execution
             Environment.ExitCode = 0;
@@ -238,15 +227,8 @@ public class CommandServiceTests
 
         CommandService.PrimaryServiceProvider = serviceProvider;
 
-        var commandService =
-            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
-                typeof(CommandService));
+        var commandService = new CommandService(commands, context, suggester);
         var type = typeof(CommandService);
-        type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);
-        type.GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, context);
-        type.GetField("_suggester", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-            commandService,
-            suggester);
 
         // Reset exit code just in case
         Environment.ExitCode = 0;

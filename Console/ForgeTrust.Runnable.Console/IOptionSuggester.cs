@@ -13,5 +13,5 @@ public interface IOptionSuggester
     /// <param name="unknownOption">The unknown option provided by the user.</param>
     /// <param name="validOptions">The list of valid options for the current command.</param>
     /// <returns>A collection of suggested options.</returns>
-    IEnumerable<string> GetSuggestions(string unknownOption, IEnumerable<string> validOptions);
+    IEnumerable<string> GetSuggestions(string? unknownOption, IEnumerable<string>? validOptions);
 }

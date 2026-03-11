@@ -154,7 +154,7 @@ internal class CommandService : CriticalService
                     c.GetType().GetCustomAttributes(typeof(CommandAttribute), false).FirstOrDefault() as
                         CommandAttribute;
 
-                return attr?.Name == null;
+                return attr is { Name: null };
             });
             commandType = rootCommand?.GetType();
         }

@@ -136,7 +136,7 @@ public struct TestStructCommand : ICommand
 }
 
 
-public class SharedTestCommandsModule : IRunnableModule
+public class SharedTestCommandsModule : IRunnableHostModule
 {
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {

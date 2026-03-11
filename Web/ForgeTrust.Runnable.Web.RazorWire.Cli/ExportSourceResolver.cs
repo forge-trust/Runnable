@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml;
 using System.Xml.Linq;
+using CliFx.Exceptions;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -76,6 +77,7 @@ public sealed class ExportSourceResolver
         if (request.SourceKind == ExportSourceKind.Url)
         {
             _logger.LogInformation("Using URL source directly: {BaseUrl}", request.SourceValue);
+            await ValidateUrlSourceAsync(request.SourceValue, cancellationToken);
             return new ResolvedExportSource(request.SourceValue, null);
         }
 
@@ -199,6 +201,53 @@ public sealed class ExportSourceResolver
             EnvironmentOverrides = dllEnvironmentOverrides,
             WorkingDirectory = dllDirectory
         };
+    }
+
+    private async Task ValidateUrlSourceAsync(string baseUrl, CancellationToken cancellationToken)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(AppReadyTimeout);
+        using var client = _httpClientFactory.CreateClient("ExportEngine");
+
+        try
+        {
+            // Any HTTP response proves the URL source is reachable enough to begin crawling.
+            using var response = await client.GetAsync(
+                baseUrl,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeoutCts.Token);
+            _logger.LogDebug(
+                "Validated URL source {BaseUrl} with status code {StatusCode}",
+                baseUrl,
+                (int)response.StatusCode);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new CommandException(
+                $"Could not reach --url target '{baseUrl}'. Ensure the application is running and reachable. {ex.Message}");
+        }
+        catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
+        catch (TaskCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            throw new CommandException(BuildUrlSourceTimeoutMessage(baseUrl, AppReadyTimeout));
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested && !timeoutCts.IsCancellationRequested)
+        {
+            var effectiveTimeout = client.Timeout != Timeout.InfiniteTimeSpan
+                ? client.Timeout
+                : AppReadyTimeout;
+            throw new CommandException(BuildUrlSourceTimeoutMessage(baseUrl, effectiveTimeout));
+        }
+    }
+
+    private static string BuildUrlSourceTimeoutMessage(string baseUrl, TimeSpan timeout)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"Timed out while connecting to --url target '{baseUrl}' after {timeout.TotalSeconds:0.###} seconds. Ensure the application is running and reachable.");
     }
 
     private async Task RunCommandOrThrowAsync(

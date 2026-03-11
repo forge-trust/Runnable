@@ -127,18 +127,8 @@ public class CommandServiceTests
         var commands = new ICommand[] { noAttrCommand, new RootTestCommand() };
         var context = new StartupContext(Array.Empty<string>(), new TestModule());
 
-        var commandService =
-            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
-                typeof(CommandService));
-        var type = typeof(CommandService);
-        type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);
-        type.GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, context);
-        type.GetField("_suggester", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-            commandService,
-            suggester);
-
-        var method = type.GetMethod("CheckForUnknownOptions", BindingFlags.NonPublic | BindingFlags.Instance);
-        method!.Invoke(commandService, new object[] { console });
+        var commandService = new CommandService(commands, context, suggester);
+        commandService.CheckForUnknownOptions(console);
 
         Assert.Empty(console.ReadErrorString());
     }

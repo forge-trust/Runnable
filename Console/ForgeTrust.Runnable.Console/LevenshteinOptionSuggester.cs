@@ -1,6 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+
 
 namespace ForgeTrust.Runnable.Console;
 
@@ -28,10 +26,11 @@ public class LevenshteinOptionSuggester : IOptionSuggester
         var unknownNormalized = unknownOption.ToUpperInvariant();
 
         return validOptions
+            .Where(option => option != null)
             .Select(option => new
             {
                 Option = option,
-                Distance = ComputeLevenshteinDistance(unknownNormalized, option?.ToUpperInvariant() ?? string.Empty)
+                Distance = ComputeLevenshteinDistance(unknownNormalized, option.ToUpperInvariant())
             })
             .Where(x => x.Distance <= MaxDistance)
             .OrderBy(x => x.Distance)

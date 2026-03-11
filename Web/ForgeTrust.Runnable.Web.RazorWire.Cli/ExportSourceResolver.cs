@@ -232,9 +232,22 @@ public sealed class ExportSourceResolver
         }
         catch (TaskCanceledException) when (timeoutCts.IsCancellationRequested)
         {
-            throw new CommandException(
-                $"Timed out while connecting to --url target '{baseUrl}' after {AppReadyTimeout.TotalSeconds} seconds. Ensure the application is running and reachable.");
+            throw new CommandException(BuildUrlSourceTimeoutMessage(baseUrl, AppReadyTimeout));
         }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested && !timeoutCts.IsCancellationRequested)
+        {
+            var effectiveTimeout = client.Timeout != Timeout.InfiniteTimeSpan
+                ? client.Timeout
+                : AppReadyTimeout;
+            throw new CommandException(BuildUrlSourceTimeoutMessage(baseUrl, effectiveTimeout));
+        }
+    }
+
+    private static string BuildUrlSourceTimeoutMessage(string baseUrl, TimeSpan timeout)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"Timed out while connecting to --url target '{baseUrl}' after {timeout.TotalSeconds:0.###} seconds. Ensure the application is running and reachable.");
     }
 
     private async Task RunCommandOrThrowAsync(

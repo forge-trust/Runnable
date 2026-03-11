@@ -184,6 +184,31 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_Should_Throw_CommandException_When_HttpClient_Timeout_Fires_First_For_Url_Source()
+    {
+        var createCallCount = 0;
+        var factory = new FakeTargetAppProcessFactory(_ =>
+        {
+            createCallCount++;
+            return new FakeTargetAppProcess();
+        });
+        var resolver = CreateResolver(factory, new ClientTimeoutHttpClientFactory(TimeSpan.FromMilliseconds(50)));
+        resolver.AppReadyTimeout = TimeSpan.FromSeconds(1);
+
+        var request = new ExportSourceRequest(
+            ExportSourceKind.Url,
+            "http://localhost:5233",
+            [],
+            false);
+
+        var ex = await Assert.ThrowsAsync<CommandException>(async () => await resolver.ResolveAsync(request));
+
+        Assert.Contains("Timed out while connecting to --url target", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("0.05 seconds", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(0, createCallCount);
+    }
+
+    [Fact]
     public async Task ResolveAsync_Should_Dispose_Process_And_Throw_When_Url_Timeouts()
     {
         var fakeProcess = new FakeTargetAppProcess();
@@ -773,6 +798,17 @@ public class ExportSourceResolverTests
         public HttpClient CreateClient(string name)
         {
             return new HttpClient(new NeverCompletesHandler());
+        }
+    }
+
+    private sealed class ClientTimeoutHttpClientFactory(TimeSpan timeout) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name)
+        {
+            return new HttpClient(new NeverCompletesHandler())
+            {
+                Timeout = timeout
+            };
         }
     }
 

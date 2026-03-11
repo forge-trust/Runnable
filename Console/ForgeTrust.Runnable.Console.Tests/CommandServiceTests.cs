@@ -99,6 +99,9 @@ public class CommandServiceTests
 
         var commandService = new CommandService(commands, context, suggester);
         commandService.CheckForUnknownOptions(console);
+
+        // Verify no suggestions are emitted when command type cannot be resolved
+        Assert.Empty(console.ReadErrorString());
     }
 
     [Fact]

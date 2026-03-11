@@ -194,14 +194,11 @@ public class CommandServiceTests
         try
         {
             var commandService = new CommandService(commands, context, suggester);
-            var type = typeof(CommandService);
 
             // Reset global exit code manually here before execution
             Environment.ExitCode = 0;
 
-            var runAsyncMethod = type.GetMethod("RunAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-            var task = (Task)runAsyncMethod!.Invoke(commandService, new object[] { default(CancellationToken) })!;
-            await task;
+            await commandService.RunInternalAsync(CancellationToken.None);
 
             // Since we explicitly provided the console, we don't need a SystemConsole.
             // Also it succeeded so exitCode == 0, and CheckForUnknownOptions is not called.
@@ -231,16 +228,13 @@ public class CommandServiceTests
         CommandService.PrimaryServiceProvider = serviceProvider;
 
         var commandService = new CommandService(commands, context, suggester);
-        var type = typeof(CommandService);
 
         // Reset exit code just in case
         Environment.ExitCode = 0;
 
         try
         {
-            var runAsyncMethod = type.GetMethod("RunAsync", BindingFlags.NonPublic | BindingFlags.Instance);
-            var task = (Task)runAsyncMethod!.Invoke(commandService, new object[] { default(CancellationToken) })!;
-            await task;
+            await commandService.RunInternalAsync(CancellationToken.None);
 
             // Command returns error exit code (usually 1 or something else). Check it's not 0.
             Assert.NotEqual(0, Environment.ExitCode);

@@ -45,14 +45,6 @@ public class LevenshteinOptionSuggester : IOptionSuggester
         if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;
         if (string.IsNullOrEmpty(t)) return s.Length;
 
-        // Early exit optimization: if the length difference already exceeds MaxDistance,
-        // the Levenshtein distance cannot be <= MaxDistance, so we can skip allocation.
-        var lengthDifference = Math.Abs(s.Length - t.Length);
-        if (lengthDifference > MaxDistance)
-        {
-            return lengthDifference;
-        }
-
         var d = new int[s.Length + 1, t.Length + 1];
 
         for (var i = 0; i <= s.Length; i++) d[i, 0] = i;

@@ -51,6 +51,8 @@ internal class CommandService : CriticalService
         public void StopApplication() { }
     }
 
+    internal Task RunInternalAsync(CancellationToken stoppingToken) => RunAsync(stoppingToken);
+
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {
         var builder = new CliApplicationBuilder();
@@ -122,6 +124,13 @@ internal class CommandService : CriticalService
 
         // 1. Identify the command and valid options
         var validOptions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var optionRequiresValue = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Allow common help flags unconditionally
+        validOptions.Add("-h");
+        validOptions.Add("--help");
+        validOptions.Add("--version");
+
         Type? commandType = null;
 
         // Basic routing: Check if first arg is a command
@@ -171,48 +180,68 @@ internal class CommandService : CriticalService
                     continue;
                 }
 
+                var requiresArg = prop.PropertyType != typeof(bool);
+
                 if (!string.IsNullOrEmpty(optionAttr.Name))
                 {
                     validOptions.Add("--" + optionAttr.Name);
+                    if (requiresArg) optionRequiresValue.Add("--" + optionAttr.Name);
                 }
 
                 if (optionAttr.ShortName != '\0')
                 {
                     validOptions.Add("-" + optionAttr.ShortName);
+                    if (requiresArg) optionRequiresValue.Add("-" + optionAttr.ShortName);
                 }
             }
-
-            // Allow common help flags
-            validOptions.Add("-h");
-            validOptions.Add("--help");
-            validOptions.Add("--version");
         }
 
         // 2. Scan args for unknown options
-        // We only care about things starting with '-' that are NOT in validOptions
-        foreach (var arg in args.Where(a => a.StartsWith("-")))
+        var optionExpectedValue = false;
+        foreach (var arg in args)
         {
-            // Handle --foo=bar syntax
-            var token = arg.Split('=', 2)[0];
-
-            // Skip checking the command name itself if it happened to start with - (unlikely for command names)
-
-            if (!validOptions.Contains(token))
+            if (arg == "--")
             {
-                var suggestions = _suggester.GetSuggestions(token, validOptions);
-                const int maxSuggestionsToShow = 2;
-                var shownCount = 0;
+                break; // Stop scanning options after standard '--' token
+            }
 
-                foreach (var suggestion in suggestions)
+            if (optionExpectedValue)
+            {
+                // This argument is a consumed value for the previous option
+                optionExpectedValue = false;
+                continue;
+            }
+
+            if (arg.StartsWith("-"))
+            {
+                // Handle --foo=bar syntax
+                var token = arg.Split('=', 2)[0];
+
+                if (!validOptions.Contains(token))
                 {
-                    console.ForegroundColor = ConsoleColor.Yellow;
-                    console.Error.WriteLine($"Did you mean '{suggestion}'?");
-                    console.ResetColor();
+                    var suggestions = _suggester.GetSuggestions(token, validOptions);
+                    const int maxSuggestionsToShow = 2;
+                    var shownCount = 0;
 
-                    shownCount++;
-                    if (shownCount >= maxSuggestionsToShow)
+                    foreach (var suggestion in suggestions)
                     {
-                        break;
+                        console.ForegroundColor = ConsoleColor.Yellow;
+                        console.Error.WriteLine($"Did you mean '{suggestion}'?");
+                        console.ResetColor();
+
+                        shownCount++;
+                        if (shownCount >= maxSuggestionsToShow)
+                        {
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    // If it's a known option without an inline '=', check if it requires a subsequent value
+                    if (!arg.Contains('=') && optionRequiresValue.Contains(token))
+                    {
+                        optionExpectedValue = true;
                     }
                 }
             }

@@ -26,7 +26,7 @@ public class LevenshteinOptionSuggester : IOptionSuggester
         var unknownNormalized = unknownOption.ToUpperInvariant();
 
         return validOptions
-            .Where(option => option != null)
+            .Where(option => !string.IsNullOrEmpty(option))
             .Select(option => new
             {
                 Option = option,

@@ -90,4 +90,12 @@ public class LevenshteinOptionSuggesterTests
         var result2 = LevenshteinOptionSuggester.ComputeLevenshteinDistance(string.Empty, "test");
         Assert.Equal(4, result2);
     }
+
+    [Fact]
+    public void ComputeLevenshteinDistance_WithEmptyT_ReturnsCorrectDistance()
+    {
+        // s is "test", t is empty -> 4
+        var result1 = LevenshteinOptionSuggester.ComputeLevenshteinDistance("test", string.Empty);
+        Assert.Equal(4, result1);
+    }
 }

@@ -42,6 +42,7 @@ internal class CommandService : CriticalService
 
     internal static IServiceProvider? PrimaryServiceProvider { get; set; }
 
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     private sealed class DummyApplicationLifetime : IHostApplicationLifetime
     {
         public CancellationToken ApplicationStarted => CancellationToken.None;

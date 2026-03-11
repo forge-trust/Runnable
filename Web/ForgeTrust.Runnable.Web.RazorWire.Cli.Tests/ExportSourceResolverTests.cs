@@ -1,3 +1,4 @@
+using CliFx.Exceptions;
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
 
@@ -129,6 +130,57 @@ public class ExportSourceResolverTests
         Assert.Equal("http://localhost:5233", result.BaseUrl);
         Assert.Equal(0, createCallCount);
         Assert.False(fakeProcess.Started);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Throw_CommandException_When_Url_Source_Is_Unreachable()
+    {
+        var createCallCount = 0;
+        var factory = new FakeTargetAppProcessFactory(_ =>
+        {
+            createCallCount++;
+            return new FakeTargetAppProcess();
+        });
+        var resolver = CreateResolver(factory, new ThrowingHttpClientFactory());
+        resolver.AppReadyTimeout = TimeSpan.FromMilliseconds(100);
+
+        var request = new ExportSourceRequest(
+            ExportSourceKind.Url,
+            "http://localhost:5233",
+            [],
+            false);
+
+        var ex = await Assert.ThrowsAsync<CommandException>(async () => await resolver.ResolveAsync(request));
+
+        Assert.Contains("--url target 'http://localhost:5233'", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("reachable", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not reachable", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, createCallCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_Should_Throw_CommandException_When_Url_Source_Times_Out()
+    {
+        var createCallCount = 0;
+        var factory = new FakeTargetAppProcessFactory(_ =>
+        {
+            createCallCount++;
+            return new FakeTargetAppProcess();
+        });
+        var resolver = CreateResolver(factory, new NeverCompletesHttpClientFactory());
+        resolver.AppReadyTimeout = TimeSpan.FromMilliseconds(120);
+
+        var request = new ExportSourceRequest(
+            ExportSourceKind.Url,
+            "http://localhost:5233",
+            [],
+            false);
+
+        var ex = await Assert.ThrowsAsync<CommandException>(async () => await resolver.ResolveAsync(request));
+
+        Assert.Contains("Timed out while connecting to --url target", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("running and reachable", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, createCallCount);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-﻿using CliFx;
+using CliFx;
 using CliFx.Attributes;
 using CliFx.Infrastructure;
 using ForgeTrust.Runnable.Core;
@@ -43,7 +43,7 @@ internal class CommandService : CriticalService
 
         var consoleFromDi = serviceProvider.GetService<IConsole>();
         using var createdConsole = consoleFromDi == null ? new SystemConsole() : null;
-        var console = consoleFromDi ?? createdConsole ?? new SystemConsole();
+        var console = consoleFromDi ?? createdConsole!;
 
         var app = builder
             .UseTypeActivator(serviceProvider)

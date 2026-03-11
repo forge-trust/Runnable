@@ -51,4 +51,47 @@ public class LevenshteinOptionSuggesterTests
         Assert.Single(suggestions);
         Assert.Equal("--help", suggestions[0]);
     }
+
+    [Fact]
+    public void GetSuggestions_WithNullValidOption_IgnoresNull()
+    {
+        var validOptions = new string[] { null!, "--help" };
+        var suggestions = _suggester.GetSuggestions("--hepl", validOptions).ToList();
+
+        Assert.Single(suggestions);
+        Assert.Equal("--help", suggestions[0]);
+    }
+
+    [Fact]
+    public void GetSuggestions_WithNullOrEmptyMatchStrings_ReturnsCorrectDistance()
+    {
+        var validOptions = new[] { string.Empty, "a", "abcd" };
+        // "abcd" is distance 4 from string.Empty. Max distance is 3.
+        // "a" is distance 1.
+        // Empty is distance 0.
+        // If unknown is empty, we test it in earlier test, but let's test a very long unknown.
+        var suggestions = _suggester.GetSuggestions("abcdef", validOptions).ToList();
+
+        // length diff empty -> 6 (> 3)
+        // length diff a -> 5 (> 3)
+        // length diff abcd -> 2 (<= 3), levenshtein is 2
+        Assert.Single(suggestions);
+        Assert.Equal("abcd", suggestions[0]);
+    }
+
+    [Fact]
+    public void ComputeLevenshteinDistance_WithEmptyS_ReturnsCorrectDistance()
+    {
+        var method = typeof(LevenshteinOptionSuggester).GetMethod(
+            "ComputeLevenshteinDistance",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        // s is empty, t is empty -> 0
+        var result1 = (int)method!.Invoke(null, new object[] { string.Empty, string.Empty })!;
+        Assert.Equal(0, result1);
+
+        // s is empty, t is "test" -> 4
+        var result2 = (int)method.Invoke(null, new object[] { string.Empty, "test" })!;
+        Assert.Equal(4, result2);
+    }
 }

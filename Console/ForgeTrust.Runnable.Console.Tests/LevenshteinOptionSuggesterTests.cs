@@ -82,16 +82,12 @@ public class LevenshteinOptionSuggesterTests
     [Fact]
     public void ComputeLevenshteinDistance_WithEmptyS_ReturnsCorrectDistance()
     {
-        var method = typeof(LevenshteinOptionSuggester).GetMethod(
-            "ComputeLevenshteinDistance",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-
         // s is empty, t is empty -> 0
-        var result1 = (int)method!.Invoke(null, new object[] { string.Empty, string.Empty })!;
+        var result1 = LevenshteinOptionSuggester.ComputeLevenshteinDistance(string.Empty, string.Empty);
         Assert.Equal(0, result1);
 
         // s is empty, t is "test" -> 4
-        var result2 = (int)method.Invoke(null, new object[] { string.Empty, "test" })!;
+        var result2 = LevenshteinOptionSuggester.ComputeLevenshteinDistance(string.Empty, "test");
         Assert.Equal(4, result2);
     }
 }

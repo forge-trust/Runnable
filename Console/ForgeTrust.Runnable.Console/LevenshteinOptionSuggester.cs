@@ -41,7 +41,7 @@ public class LevenshteinOptionSuggester : IOptionSuggester
     /// <summary>
     ///     Computes the Levenshtein distance between two strings.
     /// </summary>
-    private static int ComputeLevenshteinDistance(string s, string t)
+    internal static int ComputeLevenshteinDistance(string s, string t)
     {
         if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;
         if (string.IsNullOrEmpty(t)) return s.Length;

@@ -28,7 +28,27 @@ internal class CommandService : CriticalService
         _suggester = suggester;
     }
 
+    internal CommandService(
+        IEnumerable<ICommand> commands,
+        StartupContext context,
+        IOptionSuggester suggester) : base(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CommandService>.Instance,
+            new DummyApplicationLifetime())
+    {
+        _commands = commands;
+        _context = context;
+        _suggester = suggester;
+    }
+
     internal static IServiceProvider? PrimaryServiceProvider { get; set; }
+
+    private sealed class DummyApplicationLifetime : IHostApplicationLifetime
+    {
+        public CancellationToken ApplicationStarted => CancellationToken.None;
+        public CancellationToken ApplicationStopping => CancellationToken.None;
+        public CancellationToken ApplicationStopped => CancellationToken.None;
+        public void StopApplication() { }
+    }
 
     protected override async Task RunAsync(CancellationToken stoppingToken)
     {
@@ -95,7 +115,7 @@ internal class CommandService : CriticalService
     ///   </item>
     /// </list>
     /// </remarks>
-    private void CheckForUnknownOptions(IConsole console)
+    internal void CheckForUnknownOptions(IConsole console)
     {
         var args = _context.Args;
 

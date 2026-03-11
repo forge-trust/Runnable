@@ -78,18 +78,8 @@ public class CommandServiceTests
         var commands = new ICommand[] { noAttrCommand, new RootTestCommand(), new TestCommand() };
         var context = new StartupContext(new[] { "test-cmd", "--farce" }, new TestModule());
 
-        var commandService =
-            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
-                typeof(CommandService));
-        var type = typeof(CommandService);
-        type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);
-        type.GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, context);
-        type.GetField("_suggester", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-            commandService,
-            suggester);
-
-        var method = type.GetMethod("CheckForUnknownOptions", BindingFlags.NonPublic | BindingFlags.Instance);
-        method!.Invoke(commandService, new object[] { console });
+        var commandService = new CommandService(commands, context, suggester);
+        commandService.CheckForUnknownOptions(console);
 
         var errorOutput = console.ReadErrorString();
         Assert.Matches("Did you mean", errorOutput);
@@ -107,18 +97,8 @@ public class CommandServiceTests
         var commands = new ICommand[] { noAttrCommand, new TestCommand() };
         var context = new StartupContext(new[] { "unknown-cmd", "--force" }, new TestModule());
 
-        var commandService =
-            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
-                typeof(CommandService));
-        var type = typeof(CommandService);
-        type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);
-        type.GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, context);
-        type.GetField("_suggester", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-            commandService,
-            suggester);
-
-        var method = type.GetMethod("CheckForUnknownOptions", BindingFlags.NonPublic | BindingFlags.Instance);
-        method!.Invoke(commandService, new object[] { console });
+        var commandService = new CommandService(commands, context, suggester);
+        commandService.CheckForUnknownOptions(console);
     }
 
     [Fact]
@@ -130,18 +110,8 @@ public class CommandServiceTests
         var commands = new ICommand[] { new RootTestCommand() };
         var context = new StartupContext(new[] { "--otuput=test.txt" }, new TestModule());
 
-        var commandService =
-            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
-                typeof(CommandService));
-        var type = typeof(CommandService);
-        type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);
-        type.GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, context);
-        type.GetField("_suggester", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-            commandService,
-            suggester);
-
-        var method = type.GetMethod("CheckForUnknownOptions", BindingFlags.NonPublic | BindingFlags.Instance);
-        method!.Invoke(commandService, new object[] { console });
+        var commandService = new CommandService(commands, context, suggester);
+        commandService.CheckForUnknownOptions(console);
 
         var errorOutput = console.ReadErrorString();
         Assert.Contains("Did you mean '--output'", errorOutput);
@@ -183,18 +153,8 @@ public class CommandServiceTests
         var commands = new ICommand[] { new TestCommand() };
         var context = new StartupContext(new[] { "-unknown-flag" }, new TestModule()); // valid command
 
-        var commandService =
-            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
-                typeof(CommandService));
-        var type = typeof(CommandService);
-        type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);
-        type.GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, context);
-        type.GetField("_suggester", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-            commandService,
-            suggester);
-
-        var method = type.GetMethod("CheckForUnknownOptions", BindingFlags.NonPublic | BindingFlags.Instance);
-        method!.Invoke(commandService, new object[] { console });
+        var commandService = new CommandService(commands, context, suggester);
+        commandService.CheckForUnknownOptions(console);
 
         Assert.Empty(console.ReadErrorString()); // Shouldn't suggest because we don't know the command
     }
@@ -209,18 +169,8 @@ public class CommandServiceTests
         var commands = new ICommand[] { new TestCommand() };
         var context = new StartupContext(new[] { "test-cmd", "--f" }, new TestModule());
 
-        var commandService =
-            (CommandService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
-                typeof(CommandService));
-        var type = typeof(CommandService);
-        type.GetField("_commands", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, commands);
-        type.GetField("_context", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(commandService, context);
-        type.GetField("_suggester", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(
-            commandService,
-            suggester);
-
-        var method = type.GetMethod("CheckForUnknownOptions", BindingFlags.NonPublic | BindingFlags.Instance);
-        method!.Invoke(commandService, new object[] { console });
+        var commandService = new CommandService(commands, context, suggester);
+        commandService.CheckForUnknownOptions(console);
 
         var errorOutput = console.ReadErrorString();
         // Since test command has max suggestions set to 2, we just verify it runs cleanly exactly for maximum output checking

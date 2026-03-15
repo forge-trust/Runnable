@@ -9,45 +9,45 @@ public class ExportSourceRequestFactoryTests
     [Fact]
     public void Create_Should_Throw_When_No_Source_Is_Provided()
     {
-        Assert.Throws<CommandException>(() => _sut.Create(null, null, null, [], false));
+        Assert.Throws<CommandException>(() => _sut.Create(null, null, null, null, [], false));
     }
 
     [Fact]
     public void Create_Should_Throw_When_Multiple_Sources_Are_Provided()
     {
-        Assert.Throws<CommandException>(() => _sut.Create("http://localhost:5000", "app.csproj", null, [], false));
+        Assert.Throws<CommandException>(() => _sut.Create("http://localhost:5000", "app.csproj", null, null, [], false));
     }
 
     [Fact]
     public void Create_Should_Throw_When_Url_Is_Invalid()
     {
-        var ex = Assert.Throws<CommandException>(() => _sut.Create("not-a-url", null, null, [], false));
+        var ex = Assert.Throws<CommandException>(() => _sut.Create("not-a-url", null, null, null, [], false));
         Assert.Contains("--url", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Create_Should_Throw_When_Project_File_Is_Missing()
     {
-        Assert.Throws<CommandException>(() => _sut.Create(null, "missing.csproj", null, [], false));
+        Assert.Throws<CommandException>(() => _sut.Create(null, "missing.csproj", null, null, [], false));
     }
 
     [Fact]
     public void Create_Should_Throw_When_Dll_File_Is_Missing()
     {
-        Assert.Throws<CommandException>(() => _sut.Create(null, null, "missing.dll", [], false));
+        Assert.Throws<CommandException>(() => _sut.Create(null, null, "missing.dll", null, [], false));
     }
 
     [Fact]
     public void Create_Should_Throw_When_Project_File_Extension_Is_Invalid()
     {
-        var ex = Assert.Throws<CommandException>(() => _sut.Create(null, "app.txt", null, [], false));
+        var ex = Assert.Throws<CommandException>(() => _sut.Create(null, "app.txt", null, null, [], false));
         Assert.Contains("--project must point to a .csproj file.", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Create_Should_Throw_When_Dll_File_Extension_Is_Invalid()
     {
-        var ex = Assert.Throws<CommandException>(() => _sut.Create(null, null, "app.txt", [], false));
+        var ex = Assert.Throws<CommandException>(() => _sut.Create(null, null, "app.txt", null, [], false));
         Assert.Contains("--dll must point to a .dll file.", ex.Message, StringComparison.Ordinal);
     }
 
@@ -59,10 +59,11 @@ public class ExportSourceRequestFactoryTests
         File.Move(tempPath, projectPath);
         try
         {
-            var request = _sut.Create(null, projectPath, null, ["--foo", "bar"], true);
+            var request = _sut.Create(null, projectPath, null, "net9.0", ["--foo", "bar"], true);
 
             Assert.Equal(ExportSourceKind.Project, request.SourceKind);
             Assert.Equal(Path.GetFullPath(projectPath), request.SourceValue);
+            Assert.Equal("net9.0", request.Framework);
             Assert.Equal(["--foo", "bar"], request.AppArgs);
             Assert.True(request.NoBuild);
         }
@@ -83,10 +84,11 @@ public class ExportSourceRequestFactoryTests
         File.Move(tempPath, dllPath);
         try
         {
-            var request = _sut.Create(null, null, dllPath, ["--foo", "bar"], false);
+            var request = _sut.Create(null, null, dllPath, "net9.0", ["--foo", "bar"], false);
 
             Assert.Equal(ExportSourceKind.Dll, request.SourceKind);
             Assert.Equal(Path.GetFullPath(dllPath), request.SourceValue);
+            Assert.Equal("net9.0", request.Framework);
             Assert.Equal(["--foo", "bar"], request.AppArgs);
             Assert.False(request.NoBuild);
         }

@@ -11,6 +11,7 @@ public class ExportSourceRequestFactory
         string? baseUrl,
         string? projectPath,
         string? dllPath,
+        string? framework,
         IReadOnlyList<string> appArgs,
         bool noBuild)
     {
@@ -43,6 +44,7 @@ public class ExportSourceRequestFactory
             return new ExportSourceRequest(
                 ExportSourceKind.Url,
                 uri.ToString().TrimEnd('/'),
+                framework,
                 appArgs,
                 noBuild);
         }
@@ -50,11 +52,11 @@ public class ExportSourceRequestFactory
         if (!string.IsNullOrWhiteSpace(projectPath))
         {
             var fullPath = ValidateFile(projectPath, ".csproj", "--project");
-            return new ExportSourceRequest(ExportSourceKind.Project, fullPath, appArgs, noBuild);
+            return new ExportSourceRequest(ExportSourceKind.Project, fullPath, framework, appArgs, noBuild);
         }
 
         var dllFullPath = ValidateFile(dllPath!, ".dll", "--dll");
-        return new ExportSourceRequest(ExportSourceKind.Dll, dllFullPath, appArgs, noBuild);
+        return new ExportSourceRequest(ExportSourceKind.Dll, dllFullPath, framework, appArgs, noBuild);
     }
 
     private static string ValidateFile(string filePath, string extension, string optionName)

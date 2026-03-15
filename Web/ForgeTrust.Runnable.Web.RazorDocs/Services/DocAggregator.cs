@@ -79,7 +79,7 @@ public class DocAggregator
     /// </summary>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>An enumerable of all <see cref="DocNode"/> objects ordered by their Path.</returns>
-    public async Task<IEnumerable<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
         var cachedDict = snapshot.DocsByPath;

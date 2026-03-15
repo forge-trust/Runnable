@@ -508,6 +508,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task ResolveLaunchRequestAsync_Should_Inject_Framework_Arg_When_Framework_Specified()
     {
         using var tempDir = new TempDirectory();

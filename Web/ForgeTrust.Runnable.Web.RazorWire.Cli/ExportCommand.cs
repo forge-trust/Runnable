@@ -44,6 +44,12 @@ public class ExportCommand : ICommand
     public string? DllPath { get; init; }
 
     /// <summary>
+    /// Gets or sets an optional target framework for project exports, required for multi-target projects.
+    /// </summary>
+    [CommandOption("framework", 'f', Description = "Target framework (required for multi-target projects).")]
+    public string? Framework { get; init; }
+
+    /// <summary>
     /// Gets or sets app arguments forwarded to the launched target app.
     /// Repeat this option for each token.
     /// </summary>
@@ -120,7 +126,7 @@ public class ExportCommand : ICommand
     /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
     public async ValueTask ExecuteAsync(IConsole console, CancellationToken cancellationToken)
     {
-        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs, NoBuild);
+        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, Framework, AppArgs, NoBuild);
         await using var resolvedSource = await _sourceResolver.ResolveAsync(request, cancellationToken);
 
         _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);

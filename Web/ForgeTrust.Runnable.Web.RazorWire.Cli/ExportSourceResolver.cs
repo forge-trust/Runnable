@@ -29,6 +29,7 @@ public sealed class ExportSourceResolver
     private static readonly Regex ListeningUrlRegex = new(
         @"Now listening on:\s*(https?://\S+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static readonly Regex FrameworkSegmentRegex = new(
         @"^(net(?<major>\d+)(\.(?<minor>\d+))?|netcoreapp(?<major>\d+)(\.(?<minor>\d+))?|netstandard(?<major>\d+)(\.(?<minor>\d+))?)(?:-[A-Za-z0-9][A-Za-z0-9\.-]*)?$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -78,6 +79,7 @@ public sealed class ExportSourceResolver
         {
             _logger.LogInformation("Using URL source directly: {BaseUrl}", request.SourceValue);
             await ValidateUrlSourceAsync(request.SourceValue, cancellationToken);
+
             return new ResolvedExportSource(request.SourceValue, null);
         }
 
@@ -94,8 +96,9 @@ public sealed class ExportSourceResolver
         process.Exited += () =>
         {
             Interlocked.Exchange(ref processExited, 1);
-            boundBaseUrlSource.TrySetException(new InvalidOperationException(
-                $"Target application exited before publishing a listening URL.{Environment.NewLine}{GetRecentLogs(logs)}"));
+            boundBaseUrlSource.TrySetException(
+                new InvalidOperationException(
+                    $"Target application exited before publishing a listening URL.{Environment.NewLine}{GetRecentLogs(logs)}"));
         };
 
         try
@@ -107,18 +110,25 @@ public sealed class ExportSourceResolver
                 AppReadyTimeout.TotalSeconds);
 
             var baseUrl = await WaitForBoundBaseUrlAsync(boundBaseUrlSource, logs, cancellationToken);
-            await WaitForAppReadyAsync(baseUrl, process, () => Volatile.Read(ref processExited) == 1, logs, cancellationToken);
+            await WaitForAppReadyAsync(
+                baseUrl,
+                process,
+                () => Volatile.Read(ref processExited) == 1,
+                logs,
+                cancellationToken);
 
             startupStopwatch.Stop();
             _logger.LogInformation(
                 "Resolved export source URL: {BaseUrl} (startup took {ElapsedMs}ms)",
                 baseUrl,
                 startupStopwatch.ElapsedMilliseconds);
+
             return new ResolvedExportSource(baseUrl, process);
         }
         catch
         {
             await process.DisposeAsync();
+
             throw;
         }
     }
@@ -133,6 +143,13 @@ public sealed class ExportSourceResolver
         }
 
         var projectPath = request.SourceValue;
+
+        if (string.IsNullOrWhiteSpace(request.Framework) && IsMultiTargetProject(projectPath))
+        {
+            throw new CommandException(
+                "The publish target is not supported without specifying a target framework in a multi-target project. Use the --framework option to specify.");
+        }
+
         var projectDirectory = Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory();
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
         var assemblyName = TryResolveAssemblyName(projectPath, projectName);
@@ -144,14 +161,31 @@ public sealed class ExportSourceResolver
             {
                 Directory.Delete(publishOutputDirectory, true);
             }
+
             Directory.CreateDirectory(publishOutputDirectory);
             _logger.LogInformation(
                 "Publishing project for export: {ProjectPath} -> {OutputPath}",
                 projectPath,
                 publishOutputDirectory);
+
+            var publishArgs = new List<string>
+            {
+                "publish",
+                projectPath,
+                "-c",
+                "Release",
+                "-o",
+                publishOutputDirectory
+            };
+            if (!string.IsNullOrWhiteSpace(request.Framework))
+            {
+                publishArgs.Add("-f");
+                publishArgs.Add(request.Framework);
+            }
+
             await RunCommandOrThrowAsync(
                 "dotnet",
-                ["publish", projectPath, "-c", "Release", "-o", publishOutputDirectory],
+                publishArgs,
                 projectDirectory,
                 cancellationToken);
         }
@@ -179,11 +213,12 @@ public sealed class ExportSourceResolver
 
         if (request.SourceKind == ExportSourceKind.Project)
         {
-            throw new InvalidOperationException("Project sources must be resolved to a DLL launch request before building process launch spec.");
+            throw new InvalidOperationException(
+                "Project sources must be resolved to a DLL launch request before building process launch spec.");
         }
 
         var dllDirectory = Path.GetDirectoryName(request.SourceValue)
-            ?? Directory.GetCurrentDirectory();
+                           ?? Directory.GetCurrentDirectory();
         var dllArgs = new List<string> { request.SourceValue };
         dllArgs.AddRange(effectiveAppArgs);
         // Deliberately force production hosting for launched export targets so middleware/static-asset
@@ -234,11 +269,13 @@ public sealed class ExportSourceResolver
         {
             throw new CommandException(BuildUrlSourceTimeoutMessage(baseUrl, AppReadyTimeout));
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested && !timeoutCts.IsCancellationRequested)
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested
+                                            && !timeoutCts.IsCancellationRequested)
         {
             var effectiveTimeout = client.Timeout != Timeout.InfiniteTimeSpan
                 ? client.Timeout
                 : AppReadyTimeout;
+
             throw new CommandException(BuildUrlSourceTimeoutMessage(baseUrl, effectiveTimeout));
         }
     }
@@ -292,12 +329,20 @@ public sealed class ExportSourceResolver
 
             if (!string.IsNullOrWhiteSpace(stdout))
             {
-                _logger.LogDebug("Command output ({FileName}):{NewLine}{Output}", fileName, Environment.NewLine, stdout);
+                _logger.LogDebug(
+                    "Command output ({FileName}):{NewLine}{Output}",
+                    fileName,
+                    Environment.NewLine,
+                    stdout);
             }
 
             if (!string.IsNullOrWhiteSpace(stderr))
             {
-                _logger.LogDebug("Command error output ({FileName}):{NewLine}{Output}", fileName, Environment.NewLine, stderr);
+                _logger.LogDebug(
+                    "Command error output ({FileName}):{NewLine}{Output}",
+                    fileName,
+                    Environment.NewLine,
+                    stderr);
             }
 
             if (process.ExitCode == 0)
@@ -321,7 +366,10 @@ public sealed class ExportSourceResolver
         return ResolveBuiltDllPath(projectDirectory, assemblyName, null);
     }
 
-    internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName, string? explicitPublishDirectory)
+    internal static string ResolveBuiltDllPath(
+        string projectDirectory,
+        string assemblyName,
+        string? explicitPublishDirectory)
     {
         var searchRoots = new List<(string Path, bool RequirePublishSegment)>();
         var explicitPublishPath = string.IsNullOrWhiteSpace(explicitPublishDirectory)
@@ -354,9 +402,9 @@ public sealed class ExportSourceResolver
 
         var candidatePaths = searchRoots
             .SelectMany(tuple => Directory.EnumerateFiles(
-                tuple.Path,
-                $"{assemblyName}.dll",
-                SearchOption.AllDirectories)
+                    tuple.Path,
+                    $"{assemblyName}.dll",
+                    SearchOption.AllDirectories)
                 .Where(path => !IsRefAssemblyPath(path))
                 .Where(path => IsPublishedArtifact(tuple.Path, path, tuple.RequirePublishSegment))
                 .ToList())
@@ -421,9 +469,13 @@ public sealed class ExportSourceResolver
             var document = XDocument.Load(projectPath);
             var assemblyName = document
                 .Descendants()
-                .FirstOrDefault(node => string.Equals(node.Name.LocalName, "AssemblyName", StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault(node => string.Equals(
+                    node.Name.LocalName,
+                    "AssemblyName",
+                    StringComparison.OrdinalIgnoreCase))
                 ?.Value
                 ?.Trim();
+
             return string.IsNullOrWhiteSpace(assemblyName) ? fallbackName : assemblyName;
         }
         catch (IOException)
@@ -448,6 +500,41 @@ public sealed class ExportSourceResolver
         }
     }
 
+    internal static bool IsMultiTargetProject(string projectPath)
+    {
+        try
+        {
+            var document = XDocument.Load(projectPath);
+
+            return document
+                .Descendants()
+                .Any(node => string.Equals(
+                    node.Name.LocalName,
+                    "TargetFrameworks",
+                    StringComparison.OrdinalIgnoreCase));
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (XmlException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     internal static bool IsRefAssemblyPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -456,6 +543,7 @@ public sealed class ExportSourceResolver
         }
 
         var normalized = path.Replace('\\', '/');
+
         return normalized.Contains("/ref/", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -643,6 +731,7 @@ public sealed class ExportSourceResolver
         }
 
         baseUrl = uri.GetLeftPart(UriPartial.Authority);
+
         return true;
     }
 
@@ -721,7 +810,11 @@ public sealed class ExportSourceResolver
             {
                 using var response = await client.GetAsync(baseUrl, timeoutCts.Token);
                 // Any HTTP response proves the app is reachable; we don't require a specific status code.
-                _logger.LogDebug("Readiness probe returned {StatusCode} for {BaseUrl}", (int)response.StatusCode, baseUrl);
+                _logger.LogDebug(
+                    "Readiness probe returned {StatusCode} for {BaseUrl}",
+                    (int)response.StatusCode,
+                    baseUrl);
+
                 return;
             }
             catch (HttpRequestException)

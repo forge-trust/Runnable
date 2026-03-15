@@ -91,6 +91,7 @@ public class ExportSourceResolverTests
         var request = new ExportSourceRequest(
             ExportSourceKind.Dll,
             "/tmp/app.dll",
+            null,
             ["--foo", "bar"],
             false);
 
@@ -122,6 +123,7 @@ public class ExportSourceResolverTests
         var request = new ExportSourceRequest(
             ExportSourceKind.Url,
             "http://localhost:5233",
+            null,
             [],
             false);
 
@@ -147,6 +149,7 @@ public class ExportSourceResolverTests
         var request = new ExportSourceRequest(
             ExportSourceKind.Url,
             "http://localhost:5233",
+            null,
             [],
             false);
 
@@ -173,6 +176,7 @@ public class ExportSourceResolverTests
         var request = new ExportSourceRequest(
             ExportSourceKind.Url,
             "http://localhost:5233",
+            null,
             [],
             false);
 
@@ -198,6 +202,7 @@ public class ExportSourceResolverTests
         var request = new ExportSourceRequest(
             ExportSourceKind.Url,
             "http://localhost:5233",
+            null,
             [],
             false);
 
@@ -219,7 +224,7 @@ public class ExportSourceResolverTests
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         resolver.ListeningUrlTimeout = TimeSpan.FromMilliseconds(100);
 
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", null, [], false);
 
         var ex = await Assert.ThrowsAsync<TimeoutException>(async () => await resolver.ResolveAsync(request));
 
@@ -237,7 +242,7 @@ public class ExportSourceResolverTests
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
         resolver.ListeningUrlTimeout = TimeSpan.FromSeconds(1);
 
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", null, [], false);
         fakeProcess.OnStart = () =>
         {
             fakeProcess.EmitError("failed to bind");
@@ -260,7 +265,7 @@ public class ExportSourceResolverTests
         resolver.AppReadyTimeout = TimeSpan.FromMilliseconds(120);
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
 
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", null, [], false);
         fakeProcess.OnStart = () => fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
 
         await Assert.ThrowsAsync<TimeoutException>(async () => await resolver.ResolveAsync(request));
@@ -279,7 +284,7 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", null, [], false);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await resolver.ResolveAsync(request));
 
@@ -298,7 +303,7 @@ public class ExportSourceResolverTests
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(80));
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", null, [], false);
         fakeProcess.OnStart = () => fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
@@ -315,7 +320,7 @@ public class ExportSourceResolverTests
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.NotFound)));
 
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/site.dll", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/site.dll", null, [], false);
         fakeProcess.OnStart = () => fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
 
         await using var result = await resolver.ResolveAsync(request);
@@ -329,7 +334,7 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/site.csproj", ["--flag"], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Project, "/tmp/site.csproj", null, ["--flag"], false);
 
         var ex = Assert.Throws<InvalidOperationException>(() => resolver.BuildProcessLaunchSpec(request));
         Assert.Contains("resolved to a DLL", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -350,7 +355,7 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], true);
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, null, [], true);
 
         var resolved = await resolver.ResolveLaunchRequestAsync(request);
 
@@ -381,7 +386,7 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], true);
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, null, [], true);
 
         var resolved = await resolver.ResolveLaunchRequestAsync(request);
 
@@ -413,7 +418,7 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, null, [], false);
 
         var resolved = await resolver.ResolveLaunchRequestAsync(request);
 
@@ -432,11 +437,106 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, null, [], false);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => resolver.ResolveLaunchRequestAsync(request));
         Assert.Contains("dotnet publish", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void IsMultiTargetProject_Should_Return_True_When_TargetFrameworks_Exists()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
+        File.WriteAllText(
+            projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        Assert.True(ExportSourceResolver.IsMultiTargetProject(projectPath));
+    }
+
+    [Fact]
+    public void IsMultiTargetProject_Should_Return_False_When_TargetFrameworks_Is_Missing()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
+        File.WriteAllText(
+            projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        Assert.False(ExportSourceResolver.IsMultiTargetProject(projectPath));
+    }
+
+    [Fact]
+    public async Task ResolveLaunchRequestAsync_Should_Throw_When_MultiTarget_Project_And_Framework_Missing()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
+        await File.WriteAllTextAsync(
+            projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, null, [], false);
+
+        var ex = await Assert.ThrowsAsync<CommandException>(
+            () => resolver.ResolveLaunchRequestAsync(request));
+        Assert.Contains("multi-target project", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("--framework", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ResolveLaunchRequestAsync_Should_Inject_Framework_Arg_When_Framework_Specified()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "MySite.csproj");
+        var programPath = Path.Combine(tempDir.FullPath, "Program.cs");
+
+        await File.WriteAllTextAsync(
+            projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <OutputType>Exe</OutputType>
+                <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+              </PropertyGroup>
+            </Project>
+            """);
+        await File.WriteAllTextAsync(programPath, "System.Console.WriteLine(\"hello\");");
+
+        var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var resolver = CreateResolver(
+            factory,
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+        var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, "net10.0", [], false);
+
+        var resolved = await resolver.ResolveLaunchRequestAsync(request);
+
+        Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
+        Assert.True(File.Exists(resolved.SourceValue));
+        Assert.EndsWith("MySite.dll", resolved.SourceValue, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -647,6 +747,7 @@ public class ExportSourceResolverTests
         var request = new ExportSourceRequest(
             ExportSourceKind.Dll,
             "/tmp/site.dll",
+            null,
             ["--urls", "http://127.0.0.1:6001"],
             false);
 
@@ -667,7 +768,7 @@ public class ExportSourceResolverTests
         resolver.AppReadyTimeout = TimeSpan.FromMilliseconds(120);
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
 
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", null, [], false);
         fakeProcess.OnStart = () => fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
 
         var ex = await Assert.ThrowsAsync<TimeoutException>(async () => await resolver.ResolveAsync(request));
@@ -686,7 +787,7 @@ public class ExportSourceResolverTests
         resolver.AppReadyTimeout = TimeSpan.FromSeconds(1);
         resolver.AppReadyPollInterval = TimeSpan.FromMilliseconds(20);
 
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", [], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/app.dll", null, [], false);
         fakeProcess.OnStart = () =>
         {
             fakeProcess.EmitOutput("Now listening on: http://127.0.0.1:5050");
@@ -708,7 +809,7 @@ public class ExportSourceResolverTests
         var resolver = CreateResolver(
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
-        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/site.dll", ["--flag"], false);
+        var request = new ExportSourceRequest(ExportSourceKind.Dll, "/tmp/site.dll", null, ["--flag"], false);
 
         var spec = resolver.BuildProcessLaunchSpec(request);
 

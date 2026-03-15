@@ -19,7 +19,7 @@ public class LevenshteinOptionSuggester : IOptionSuggester
     {
         if (string.IsNullOrEmpty(unknownOption) || validOptions == null)
         {
-            return Enumerable.Empty<string>();
+            return Array.Empty<string>();
         }
 
         // Normalize case so that distance calculation is consistent with case-insensitive option matching.
@@ -34,7 +34,8 @@ public class LevenshteinOptionSuggester : IOptionSuggester
             })
             .Where(x => x.Distance <= MaxDistance)
             .OrderBy(x => x.Distance)
-            .Select(x => x.Option);
+            .Select(x => x.Option)
+            .ToList();
     }
 
     /// <summary>

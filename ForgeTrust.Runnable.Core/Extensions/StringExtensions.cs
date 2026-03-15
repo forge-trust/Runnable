@@ -10,7 +10,7 @@ public static class StringExtensions
     /// </summary>
     /// <param name="input">The string to split.</param>
     /// <returns>An array of substrings delimited by whitespace.</returns>
-    public static string[] SplitOnWhiteSpace(this string input)
+    public static string[] SplitOnWhiteSpace(this string? input)
     {
         if (string.IsNullOrWhiteSpace(input))
         {

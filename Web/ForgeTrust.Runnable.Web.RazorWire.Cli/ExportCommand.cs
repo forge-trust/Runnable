@@ -93,23 +93,8 @@ public class ExportCommand : ICommand
     [ExcludeFromCodeCoverage]
     public async ValueTask ExecuteAsync(IConsole console)
     {
-        using var cts = new CancellationTokenSource();
-        ConsoleCancelEventHandler? handler = null;
-        handler = (_, eventArgs) =>
-        {
-            eventArgs.Cancel = true;
-            cts.Cancel();
-        };
-
-        System.Console.CancelKeyPress += handler;
-        try
-        {
-            await ExecuteAsync(console, cts.Token);
-        }
-        finally
-        {
-            System.Console.CancelKeyPress -= handler;
-        }
+        var cancellationToken = console.RegisterCancellationHandler();
+        await ExecuteAsync(console, cancellationToken);
     }
 
     /// <summary>

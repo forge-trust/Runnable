@@ -1,5 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
+using ForgeTrust.Runnable.Web.Tailwind;
 using ForgeTrust.Runnable.Web.RazorWire;
 
 namespace RazorWireWebExample;
@@ -27,6 +28,7 @@ public class RazorWireExampleModule : IRunnableWebModule
     /// <param name="builder">A builder used to register dependent modules for the application.</param>
     public void RegisterDependentModules(ModuleDependencyBuilder builder)
     {
+        builder.AddModule<RunnableWebTailwindModule>();
         builder.AddModule<RazorWireWebModule>();
     }
 

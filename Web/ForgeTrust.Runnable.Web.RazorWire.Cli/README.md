@@ -12,6 +12,34 @@ dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- [command] [opt
 
 ## Commands
 
+### `tailwind install`
+
+Downloads the Tailwind standalone CLI used by Runnable web apps.
+
+**Options:**
+- **`--version <semver>`**: Tailwind version to use (default: `4.1.18`).
+- **`--executable <path>`**: Use an existing executable instead of downloading one.
+- **`--install-dir <path>`**: Override the cache directory used for downloaded binaries.
+
+### `tailwind build`
+
+Builds a Tailwind stylesheet using the standalone CLI.
+
+**Options:**
+- **`-p|--project <path.csproj>`**: Optional project path used as the base directory for relative paths.
+- **`-i|--input <path>`**: Input CSS file (default: `tailwind.css`).
+- **`-o|--output <path>`**: Output CSS file (default: `wwwroot/css/site.css`).
+- **`-m|--minify`**: Minify the generated stylesheet.
+- **`--version <semver>`**: Tailwind version to use (default: `4.1.18`).
+- **`--executable <path>`**: Use an existing executable instead of downloading one.
+- **`--install-dir <path>`**: Override the cache directory used for downloaded binaries.
+
+### `tailwind watch`
+
+Watches a Tailwind input file and rebuilds on change.
+
+It accepts the same path/version options as `tailwind build`.
+
 
 ### `export`
 
@@ -54,4 +82,14 @@ dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- export -o ./di
 
 ```bash
 dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- export -o ./dist -d ./bin/Release/net10.0/MyApp.dll --app-args --urls --app-args http://127.0.0.1:5009
+```
+
+### Tailwind Example
+
+```bash
+dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- \
+  tailwind build \
+  --project examples/razorwire-mvc/RazorWireWebExample.csproj \
+  --input tailwind.css \
+  --output wwwroot/css/site.css
 ```

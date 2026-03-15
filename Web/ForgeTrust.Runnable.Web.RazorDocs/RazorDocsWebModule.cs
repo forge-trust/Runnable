@@ -1,5 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Caching;
+using ForgeTrust.Runnable.Web.Tailwind;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -24,6 +25,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddMemoryCache();
+        services.Configure<TailwindOptions>(options => options.StylesheetPath = "~/docs/site.css");
         services.AddSingleton<IHtmlSanitizer>(
             _ =>
             {
@@ -54,6 +56,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     public void RegisterDependentModules(ModuleDependencyBuilder builder)
     {
         builder.AddModule<RunnableCachingModule>();
+        builder.AddModule<RunnableWebTailwindModule>();
         builder.AddModule<RazorWireWebModule>();
     }
 

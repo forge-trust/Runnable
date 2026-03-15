@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../Web/ForgeTrust.Runnable.Web.Tailwind/ForgeTrust.Runnable.Web.Tailwind.csproj" />
     <ProjectReference Include="../../Web/ForgeTrust.Runnable.Web.RazorWire/ForgeTrust.Runnable.Web.RazorWire.csproj" />
   </ItemGroup>
 

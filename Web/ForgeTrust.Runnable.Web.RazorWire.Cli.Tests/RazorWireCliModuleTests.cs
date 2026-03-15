@@ -19,7 +19,9 @@ public class RazorWireCliModuleTests
         Assert.NotNull(provider.GetService<ExportEngine>());
         Assert.NotNull(provider.GetService<ExportSourceRequestFactory>());
         Assert.NotNull(provider.GetService<ExportSourceResolver>());
+        Assert.NotNull(provider.GetService<ITailwindExecutableResolver>());
         Assert.NotNull(provider.GetService<ITargetAppProcessFactory>());
+        Assert.NotNull(provider.GetService<IToolProcessRunner>());
         Assert.NotNull(provider.GetService<IHttpClientFactory>());
     }
 

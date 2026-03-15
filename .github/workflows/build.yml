@@ -26,6 +26,25 @@ jobs:
           dotnet-version: |
             10.0.x
 
+      - name: Build Tailwind assets
+        run: |
+          dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj -- \
+            tailwind build \
+            --project Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj \
+            --input tailwind.css \
+            --output wwwroot/docs/site.css
+          dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj -- \
+            tailwind build \
+            --project examples/razorwire-mvc/RazorWireWebExample.csproj \
+            --input tailwind.css \
+            --output wwwroot/css/site.css
+
+      - name: Verify Tailwind outputs are committed
+        run: |
+          git diff --exit-code -- \
+            Web/ForgeTrust.Runnable.Web.RazorDocs/wwwroot/docs/site.css \
+            examples/razorwire-mvc/wwwroot/css/site.css
+
       - name: Build project
         run: dotnet build --configuration Release
 

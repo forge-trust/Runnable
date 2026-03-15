@@ -20,8 +20,15 @@ public class RazorWireCliModule : IRunnableHostModule
         services.AddSingleton<ExportEngine>();
         services.AddSingleton<ExportSourceRequestFactory>();
         services.AddSingleton<ExportSourceResolver>();
+        services.AddSingleton<ITailwindExecutableResolver, TailwindExecutableResolver>();
         services.AddSingleton<ITargetAppProcessFactory, TargetAppProcessFactory>();
+        services.AddSingleton<IToolProcessRunner, ToolProcessRunner>();
         services.AddHttpClient("ExportEngine", client => { client.Timeout = TimeSpan.FromSeconds(60); });
+        services.AddHttpClient("TailwindDownloader", client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(5);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("ForgeTrust.Runnable.Web.RazorWire.Cli");
+        });
 
 
         // Configure logging

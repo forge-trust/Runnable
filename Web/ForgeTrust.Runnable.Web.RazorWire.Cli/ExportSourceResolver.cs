@@ -197,7 +197,8 @@ public sealed class ExportSourceResolver
         var dllPath = ResolveBuiltDllPath(
             projectDirectory,
             assemblyName,
-            request.NoBuild ? null : publishOutputDirectory);
+            request.NoBuild ? null : publishOutputDirectory,
+            request.Framework);
         _logger.LogInformation("Launching published DLL for export: {DllPath}", dllPath);
 
         return request with
@@ -369,7 +370,8 @@ public sealed class ExportSourceResolver
     internal static string ResolveBuiltDllPath(
         string projectDirectory,
         string assemblyName,
-        string? explicitPublishDirectory)
+        string? explicitPublishDirectory,
+        string? requestedFramework = null)
     {
         var searchRoots = new List<(string Path, bool RequirePublishSegment)>();
         var explicitPublishPath = string.IsNullOrWhiteSpace(explicitPublishDirectory)
@@ -431,7 +433,11 @@ public sealed class ExportSourceResolver
                 $"Could not locate published DLL for assembly '{assemblyName}' under '{projectDirectory}'.");
         }
 
-        var preferredFramework = ResolvePreferredFramework(candidatePaths, projectDirectory);
+        var preferredFramework =
+            string.IsNullOrWhiteSpace(explicitPublishPath) &&
+            !string.IsNullOrWhiteSpace(requestedFramework)
+                ? requestedFramework
+                : ResolvePreferredFramework(candidatePaths, projectDirectory);
         if (!string.IsNullOrWhiteSpace(preferredFramework))
         {
             candidatePaths = candidatePaths
@@ -508,10 +514,16 @@ public sealed class ExportSourceResolver
 
             return document
                 .Descendants()
-                .Any(node => string.Equals(
+                .Where(node => string.Equals(
                     node.Name.LocalName,
                     "TargetFrameworks",
-                    StringComparison.OrdinalIgnoreCase));
+                    StringComparison.OrdinalIgnoreCase))
+                .SelectMany(node => node.Value.Split(
+                    ';',
+                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Skip(1)
+                .Any();
         }
         catch (IOException)
         {

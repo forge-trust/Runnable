@@ -538,6 +538,31 @@ public class ExportSourceResolverTests
         Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
         Assert.True(File.Exists(resolved.SourceValue));
         Assert.EndsWith("MySite.dll", resolved.SourceValue, StringComparison.OrdinalIgnoreCase);
+
+        // Prove framework selection by reading the runtimeconfig.json (since `-o` flattens the output directory)
+        var configPath = Path.ChangeExtension(resolved.SourceValue, ".runtimeconfig.json");
+        Assert.True(File.Exists(configPath));
+        var configJson = await File.ReadAllTextAsync(configPath);
+        Assert.Contains("net10.0", configJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveBuiltDllPath_Should_Honor_Requested_Framework_When_Provided()
+    {
+        using var tempDir = new TempDirectory();
+        
+        var net9Dir = Path.Combine(tempDir.FullPath, "bin", "Release", "net9.0", "publish");
+        Directory.CreateDirectory(net9Dir);
+        File.WriteAllBytes(Path.Combine(net9Dir, "MySite.dll"), [1, 2, 3]);
+
+        var net10Dir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
+        Directory.CreateDirectory(net10Dir);
+        File.WriteAllBytes(Path.Combine(net10Dir, "MySite.dll"), [4, 5, 6]);
+
+        // When requestedFramework is net9.0, it should find the net9.0 one instead of falling back to the highest (net10.0).
+        var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite", null, "net9.0");
+
+        Assert.Equal(Path.Combine(net9Dir, "MySite.dll"), resolved);
     }
 
     [Fact]

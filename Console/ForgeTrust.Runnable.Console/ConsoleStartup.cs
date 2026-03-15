@@ -29,6 +29,7 @@ public abstract class ConsoleStartup<TModule> : RunnableStartup<TModule>
             services.AddTransient(commandType);
         }
 
+        services.AddSingleton<IOptionSuggester, LevenshteinOptionSuggester>();
         services.AddHostedService<CommandService>();
     }
 

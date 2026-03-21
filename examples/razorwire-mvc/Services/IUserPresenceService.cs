@@ -24,7 +24,7 @@ public interface IUserPresenceService
     /// Retrieve presence information for users currently considered active.
     /// </summary>
     /// <returns>A collection of UserPresenceInfo objects for users considered active at the time of the call.</returns>
-    IEnumerable<UserPresenceInfo> GetActiveUsers();
+    IReadOnlyList<UserPresenceInfo> GetActiveUsers();
 
     /// <summary>
     /// Advance presence tracking and expire users considered inactive during this pulse.

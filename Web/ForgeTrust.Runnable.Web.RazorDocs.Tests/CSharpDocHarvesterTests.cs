@@ -543,7 +543,7 @@ public class EdgeCases
                     SyntaxFactory.SingletonSeparatedList(typelessParameter)));
 
         // Act: typeless method parameter falls back to object.
-        var signatureResult = CSharpDocHarvester.GetMethodSignatureAndId(typelessMethod, "Test.EdgeCases");
+        var signatureResult = CSharpDocHarvester.GetMethodId(typelessMethod, "Test.EdgeCases");
         var signatureBuilder = new StringBuilder();
         CSharpDocHarvester.AppendHighlightedParameter(signatureBuilder, typelessParameter);
 

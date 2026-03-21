@@ -140,7 +140,7 @@ public class CSharpDocHarvester : IDocHarvester
                         {
                             var method = methodItem.Method;
                             var methodDoc = methodItem.Doc!;
-                            var id = GetMethodSignatureAndId(method, qualifiedTypeName);
+                            var id = GetMethodId(method, qualifiedTypeName);
                             var highlightedDisplaySignature = GetHighlightedDisplaySignature(method);
                             var openAttribute = index == 0 ? " open" : string.Empty;
 
@@ -164,7 +164,7 @@ public class CSharpDocHarvester : IDocHarvester
                     {
                         var property = propertyItem.Property;
                         var propertyDoc = propertyItem.Doc!;
-                        var id = GetPropertySignatureAndId(property, qualifiedTypeName);
+                        var id = GetPropertyId(property, qualifiedTypeName);
                         var highlightedPropertySignature = GetHighlightedPropertySignature(property);
 
                         namespacePage.Content.Append(
@@ -246,12 +246,12 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Computes the method signature and safe ID for use in HTML content and stub nodes.
+    /// Computes the safe ID for a method to be used in HTML content and stub nodes.
     /// </summary>
     /// <param name="method">The method declaration syntax.</param>
     /// <param name="qualifiedTypeName">The qualified name of the containing type.</param>
-    /// <returns>The safe ID for the method documentation section.</returns>
-    internal static string GetMethodSignatureAndId(
+    /// <returns>The safe ID string for the method documentation section.</returns>
+    internal static string GetMethodId(
         MethodDeclarationSyntax method,
         string qualifiedTypeName)
     {
@@ -271,12 +271,12 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Computes the property signature and safe ID for use in HTML content and stub nodes.
+    /// Computes the safe ID for a property to be used in HTML content and stub nodes.
     /// </summary>
     /// <param name="property">The property declaration syntax.</param>
     /// <param name="qualifiedTypeName">The qualified name of the containing type.</param>
-    /// <returns>The safe ID for the property documentation section.</returns>
-    private static string GetPropertySignatureAndId(
+    /// <returns>The safe ID string for the property documentation section.</returns>
+    private static string GetPropertyId(
         PropertyDeclarationSyntax property,
         string qualifiedTypeName)
     {

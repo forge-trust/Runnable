@@ -135,7 +135,7 @@ public class DocsController : Controller
         }
 
         var refresh = refreshValues.ToString();
-        return string.Equals(refresh, "1", StringComparison.OrdinalIgnoreCase)
+        return refresh == "1"
                || string.Equals(refresh, "true", StringComparison.OrdinalIgnoreCase);
     }
 

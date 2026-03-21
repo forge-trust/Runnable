@@ -595,7 +595,6 @@ public class DocAggregator
     /// <returns>The extracted namespace name, or <c>null</c> if it cannot be determined.</returns>
     private static string? ExtractNamespaceNameFromReadmePath(string path, IEnumerable<string>? knownNamespaceNames)
     {
-        var knownNamesList = knownNamespaceNames as IReadOnlyList<string> ?? knownNamespaceNames?.ToList();
         var normalized = NormalizeLookupPath(path);
         if (!IsReadmePath(normalized))
         {
@@ -612,12 +611,13 @@ public class DocAggregator
             .Replace('\\', '/')
             .Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        if (knownNamesList != null)
+        if (knownNamespaceNames != null)
         {
+            var knownNamesSet = new HashSet<string>(knownNamespaceNames, StringComparer.OrdinalIgnoreCase);
             for (var start = 0; start < parts.Length; start++)
             {
                 var candidate = string.Join(".", parts.Skip(start));
-                if (knownNamesList.Any(ns => string.Equals(ns, candidate, StringComparison.OrdinalIgnoreCase)))
+                if (knownNamesSet.Contains(candidate))
                 {
                     return candidate;
                 }

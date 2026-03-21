@@ -39,8 +39,11 @@ public class LevenshteinOptionSuggester : IOptionSuggester
     }
 
     /// <summary>
-    ///     Computes the Levenshtein distance between two strings.
+    /// Computes the Levenshtein distance between two strings using a dynamic programming approach.
     /// </summary>
+    /// <param name="s">The first string to compare.</param>
+    /// <param name="t">The second string to compare.</param>
+    /// <returns>The number of single-character edits (insertions, deletions, or substitutions) required to change one string into the other.</returns>
     internal static int ComputeLevenshteinDistance(string s, string t)
     {
         if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;

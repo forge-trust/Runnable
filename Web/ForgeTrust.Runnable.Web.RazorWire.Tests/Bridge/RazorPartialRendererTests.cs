@@ -63,7 +63,7 @@ public class RazorPartialRendererTests
         A.CallTo(() => _viewEngine.FindView(A<ActionContext>._, viewName, false))
             .Returns(findViewResult);
 
-        A.CallTo(() => _viewEngine.GetView(A<string?>._, A<string>._!, A<bool>._))
+        A.CallTo(() => _viewEngine.GetView(null, viewName, false))
             .Returns(getViewResult);
 
         // Act
@@ -154,7 +154,7 @@ public class RazorPartialRendererTests
         A.CallTo(() => _viewEngine.FindView(A<ActionContext>._, viewName, false))
             .Returns(findViewResult);
 
-        A.CallTo(() => _viewEngine.GetView(A<string?>._, A<string>._!, A<bool>._))
+        A.CallTo(() => _viewEngine.GetView(null, viewName, false))
             .Returns(getViewResult);
 
         A.CallTo(() => view.RenderAsync(A<ViewContext>._))

@@ -21,6 +21,11 @@ public class MarkdownHarvester : IDocHarvester
     {
     }
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="MarkdownHarvester"/> for testing or internal use with a custom file reader.
+    /// </summary>
+    /// <param name="logger">Logger used for recording harvesting events and errors.</param>
+    /// <param name="readAllTextAsync">Delegate used to asynchronously read file contents.</param>
     internal MarkdownHarvester(
         ILogger<MarkdownHarvester> logger,
         Func<string, CancellationToken, Task<string>> readAllTextAsync)

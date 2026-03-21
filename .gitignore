@@ -77,3 +77,6 @@ coverage.xml
 # Tailwind binary
 **/tailwindcss
 **/tailwindcss.exe
+
+# Generated assets
+**/*.gen.css

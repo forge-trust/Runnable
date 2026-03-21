@@ -43,9 +43,11 @@
       <Code Type="Fragment" Language="cs">
         <![CDATA[
         if (File.Exists(ChecksumFile)) {
-            var line = File.ReadLines(ChecksumFile).FirstOrDefault(l => l.Contains(BinaryName));
+            var line = File.ReadLines(ChecksumFile)
+                .Select(l => l.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+                .FirstOrDefault(tokens => tokens.Length >= 2 && tokens[1].Equals(BinaryName, StringComparison.Ordinal));
             if (line != null) {
-                Hash = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                Hash = line[0];
             }
         }
         ]]>
@@ -65,7 +67,7 @@
     </ReadLinesFromFile>
 
     <!-- Force re-download if version changed -->
-    <Delete Files="$(TailwindLocalPath)" Condition="'$(CachedTailwindVersion)' != '$(TailwindVersion)'" />
+    <Delete Files="$(TailwindLocalPath);$(ChecksumFile)" Condition="'$(CachedTailwindVersion)' != '$(TailwindVersion)'" />
 
     <DownloadFile SourceUrl="$(TailwindSumsUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="sha256sums.txt" Condition="!Exists('$(ChecksumFile)')" />
     

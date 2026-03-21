@@ -19,5 +19,5 @@ public class TailwindOptions
     /// <summary>
     /// Gets or sets the path to the output CSS file.
     /// </summary>
-    public string OutputPath { get; set; } = "wwwroot/css/site.css";
+    public string OutputPath { get; set; } = "wwwroot/css/site.gen.css";
 }

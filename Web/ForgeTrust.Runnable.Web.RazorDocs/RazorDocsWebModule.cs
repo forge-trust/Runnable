@@ -1,6 +1,7 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorWire;
+using ForgeTrust.Runnable.Web.Tailwind;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Ganss.Xss;
@@ -44,6 +45,7 @@ public class RazorDocsWebModule : IRunnableWebModule
         services.AddSingleton<IDocHarvester, MarkdownHarvester>();
         services.AddSingleton<IDocHarvester, CSharpDocHarvester>();
         services.AddSingleton<DocAggregator>();
+        services.AddTailwind();
     }
 
     /// <summary>

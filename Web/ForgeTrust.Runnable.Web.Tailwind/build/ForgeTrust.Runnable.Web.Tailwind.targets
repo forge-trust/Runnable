@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <TailwindEnabled Condition="'$(TailwindEnabled)' == ''">true</TailwindEnabled>
+    <TailwindInputPath Condition="'$(TailwindInputPath)' == ''">wwwroot/css/app.css</TailwindInputPath>
+    <TailwindOutputPath Condition="'$(TailwindOutputPath)' == ''">wwwroot/css/site.css</TailwindOutputPath>
+  </PropertyGroup>
+
+  <Target Name="RunTailwindBuild" BeforeTargets="BeforeBuild" Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')">
+    <Message Importance="High" Text="Tailwind CSS: Running build for $(TailwindInputPath) -> $(TailwindOutputPath)" />
+    <!-- 
+      In a real NuGet package, this would use a task from the package to find the binary.
+      For this repository, we'll assume the binary is available via the CliManager logic or PATH.
+    -->
+    <Exec Command="tailwindcss -i $(TailwindInputPath) -o $(TailwindOutputPath) --minify" 
+          IgnoreExitCode="true" 
+          ContinueOnError="true" />
+  </Target>
+</Project>

@@ -41,6 +41,7 @@
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.Scalar/ForgeTrust.Runnable.Web.Scalar.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.Tailwind/ForgeTrust.Runnable.Web.Tailwind.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.Tests/ForgeTrust.Runnable.Web.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj" />
   </Folder>

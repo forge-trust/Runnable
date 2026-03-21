@@ -441,7 +441,9 @@
         "type": "Project",
         "dependencies": {
           "ForgeTrust.Runnable.Caching": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web": "[1.0.0, )",
           "ForgeTrust.Runnable.Web.RazorWire": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web.Tailwind": "[1.0.0, )",
           "HtmlSanitizer": "[9.0.892, )",
           "Markdig": "[0.44.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.0.0, )"
@@ -452,6 +454,12 @@
         "dependencies": {
           "ForgeTrust.Runnable.Web": "[1.0.0, )",
           "Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation": "[10.0.2, )"
+        }
+      },
+      "forgetrust.runnable.web.tailwind": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeTrust.Runnable.Core": "[1.0.0, )"
         }
       },
       "Markdig": {

@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml;
 using System.Xml.Linq;
+using ForgeTrust.Runnable.Core;
 using CliFx.Exceptions;
 using Microsoft.Extensions.Logging;
 
@@ -73,7 +74,7 @@ public sealed class ExportSourceResolver
         ExportSourceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var startupStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startupStopwatch = Stopwatch.StartNew();
 
         if (request.SourceKind == ExportSourceKind.Url)
         {
@@ -183,7 +184,7 @@ public sealed class ExportSourceResolver
                 publishArgs.Add(request.Framework);
             }
 
-            await RunCommandOrThrowAsync(
+            await ExecuteProcessAsync(
                 "dotnet",
                 publishArgs,
                 projectDirectory,
@@ -288,78 +289,13 @@ public sealed class ExportSourceResolver
             $"Timed out while connecting to --url target '{baseUrl}' after {timeout.TotalSeconds:0.###} seconds. Ensure the application is running and reachable.");
     }
 
-    private async Task RunCommandOrThrowAsync(
+    private async Task<CommandResult> ExecuteProcessAsync(
         string fileName,
         IReadOnlyList<string> args,
         string workingDirectory,
         CancellationToken cancellationToken)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        foreach (var arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
-        }
-
-        using var process = new Process { StartInfo = startInfo };
-        var started = false;
-        Task<string>? stdoutTask = null;
-        Task<string>? stderrTask = null;
-        try
-        {
-            started = process.Start();
-            if (!started)
-            {
-                throw new InvalidOperationException($"Failed to start command: {fileName} {string.Join(" ", args)}");
-            }
-
-            stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-
-            if (!string.IsNullOrWhiteSpace(stdout))
-            {
-                _logger.LogDebug(
-                    "Command output ({FileName}):{NewLine}{Output}",
-                    fileName,
-                    Environment.NewLine,
-                    stdout);
-            }
-
-            if (!string.IsNullOrWhiteSpace(stderr))
-            {
-                _logger.LogDebug(
-                    "Command error output ({FileName}):{NewLine}{Output}",
-                    fileName,
-                    Environment.NewLine,
-                    stderr);
-            }
-
-            if (process.ExitCode == 0)
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{stderr}");
-        }
-        finally
-        {
-            TryKillProcess(process, started);
-            await ObserveReadTaskAsync(stdoutTask, "stdout", fileName);
-            await ObserveReadTaskAsync(stderrTask, "stderr", fileName);
-        }
+        return await ProcessUtils.ExecuteProcessAsync(fileName, args, workingDirectory, _logger, cancellationToken);
     }
 
     internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)
@@ -663,46 +599,6 @@ public sealed class ExportSourceResolver
         return new Version(major, minor);
     }
 
-    private void TryKillProcess(Process process, bool started)
-    {
-        if (!started)
-        {
-            return;
-        }
-
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Ignoring process termination exception during cleanup.");
-        }
-    }
-
-    private async Task ObserveReadTaskAsync(Task<string>? readTask, string streamName, string fileName)
-    {
-        if (readTask is null)
-        {
-            return;
-        }
-
-        try
-        {
-            _ = await readTask;
-        }
-        catch (OperationCanceledException)
-        {
-            // Read was canceled along with the command cancellation token.
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Ignoring {StreamName} read exception for command {FileName}", streamName, fileName);
-        }
-    }
 
     internal static IReadOnlyList<string> BuildEffectiveAppArgs(IReadOnlyList<string> appArgs)
     {

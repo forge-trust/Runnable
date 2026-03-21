@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Include the local binary for development/testing -->
+  <ItemGroup>
+    <None Include="tailwindcss" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- This allows the targets file to be bundled in the NuGet package -->
+  <ItemGroup>
+    <None Include="build\ForgeTrust.Runnable.Web.Tailwind.targets" Pack="true" PackagePath="build" />
+  </ItemGroup>
+</Project>

@@ -31,6 +31,12 @@
           "Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation": "[10.0.2, )"
         }
       },
+      "forgetrust.runnable.web.tailwind": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeTrust.Runnable.Core": "[1.0.0, )"
+        }
+      },
       "Microsoft.AspNetCore.Mvc.Razor.Extensions": {
         "type": "CentralTransitive",
         "requested": "[6.0.36, )",

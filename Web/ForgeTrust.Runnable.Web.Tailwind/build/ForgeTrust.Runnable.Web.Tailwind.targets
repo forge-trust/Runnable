@@ -7,10 +7,21 @@
 
   <Target Name="RunTailwindBuild" BeforeTargets="BeforeBuild" Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')">
     <PropertyGroup>
+      <ComputedRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</ComputedRuntimeIdentifier>
+      <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</ComputedRuntimeIdentifier>
+      <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">osx-arm64</ComputedRuntimeIdentifier>
+      <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</ComputedRuntimeIdentifier>
+      <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">linux-arm64</ComputedRuntimeIdentifier>
+      <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</ComputedRuntimeIdentifier>
+
       <!-- Try to find the binary in the package or project relative folder -->
-      <_TailwindToolPath>$(MSBuildThisFileDirectory)../runtimes/$(RuntimeIdentifier)/native/tailwindcss</_TailwindToolPath>
+      <_TailwindToolPath>$(MSBuildThisFileDirectory)../runtimes/$(ComputedRuntimeIdentifier)/native/tailwindcss</_TailwindToolPath>
+      <_TailwindToolPathWin>$(_TailwindToolPath).exe</_TailwindToolPathWin>
+
+      <!-- Re-evaluate status based on suffixed path for Windows -->
+      <_TailwindToolPath Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('$(_TailwindToolPathWin)')">$(_TailwindToolPathWin)</_TailwindToolPath>
       <_TailwindToolPath Condition="!Exists('$(_TailwindToolPath)')">$(MSBuildThisFileDirectory)../tailwindcss</_TailwindToolPath>
-      <_TailwindToolPath Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(_TailwindToolPath).exe</_TailwindToolPath>
+      <_TailwindToolPath Condition="!Exists('$(_TailwindToolPath)') and $([MSBuild]::IsOSPlatform('Windows'))">$(MSBuildThisFileDirectory)../tailwindcss.exe</_TailwindToolPath>
     </PropertyGroup>
 
     <Message Importance="High" Text="Tailwind CSS: Running build for $(TailwindInputPath) -> $(TailwindOutputPath)" />

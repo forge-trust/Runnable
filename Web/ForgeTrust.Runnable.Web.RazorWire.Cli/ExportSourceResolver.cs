@@ -152,7 +152,7 @@ public sealed class ExportSourceResolver
 
         var projectDirectory = Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory();
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
-        var assemblyName = await TryResolveAssemblyNameAsync(projectPath, projectName, cancellationToken);
+        var assemblyName = await TryResolveAssemblyNameAsync(projectPath, projectName, request.Framework, cancellationToken);
         var publishOutputDirectory = Path.Combine(projectDirectory, "bin", ExportPublishFolder);
 
         if (!request.NoBuild)
@@ -376,14 +376,6 @@ public sealed class ExportSourceResolver
             $"Command failed with exit code {result.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{result.Stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{result.Stderr}");
     }
 
-    private async Task<CommandResult> RunCommandAndCaptureAsync(
-        string fileName,
-        IReadOnlyList<string> args,
-        string workingDirectory,
-        CancellationToken cancellationToken)
-    {
-        return await ExecuteProcessAsync(fileName, args, workingDirectory, cancellationToken);
-    }
 
     internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)
     {
@@ -494,13 +486,28 @@ public sealed class ExportSourceResolver
     internal async Task<string> TryResolveAssemblyNameAsync(
         string projectPath,
         string fallbackName,
+        string? framework,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await RunCommandAndCaptureAsync(
+            var msbuildArgs = new List<string>
+            {
+                "msbuild",
+                projectPath,
+                "-getProperty:AssemblyName",
+                "-nologo",
+                "-p:Configuration=Release"
+            };
+
+            if (!string.IsNullOrWhiteSpace(framework))
+            {
+                msbuildArgs.Add($"-p:TargetFramework={framework}");
+            }
+
+            var result = await ExecuteProcessAsync(
                 "dotnet",
-                ["msbuild", projectPath, "-getProperty:AssemblyName", "-nologo"],
+                msbuildArgs,
                 Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory(),
                 cancellationToken);
 
@@ -508,6 +515,15 @@ public sealed class ExportSourceResolver
             {
                 return result.Stdout.Trim();
             }
+
+            _logger.LogWarning(
+                "Failed to resolve assembly name via MSBuild for {ProjectPath} (ExitCode: {ExitCode}). Falling back to XML parsing.{NewLine}Stdout: {Stdout}{NewLine}Stderr: {Stderr}",
+                projectPath,
+                result.ExitCode,
+                Environment.NewLine,
+                result.Stdout,
+                Environment.NewLine,
+                result.Stderr);
         }
         catch (OperationCanceledException)
         {

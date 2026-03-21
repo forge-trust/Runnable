@@ -705,7 +705,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public void TryResolveAssemblyName_Should_Parse_AssemblyName_When_Present()
+    public void TryResolveAssemblyNameFromXml_Should_Parse_AssemblyName_When_Present()
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
@@ -724,7 +724,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public void TryResolveAssemblyName_Should_Fallback_When_AssemblyName_Is_Missing()
+    public void TryResolveAssemblyNameFromXml_Should_Fallback_When_AssemblyName_Is_Missing()
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
@@ -735,7 +735,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public void TryResolveAssemblyName_Should_Fallback_On_Invalid_Xml()
+    public void TryResolveAssemblyNameFromXml_Should_Fallback_On_Invalid_Xml()
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
@@ -746,7 +746,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public void TryResolveAssemblyName_Should_Fallback_On_Missing_Or_Invalid_Path()
+    public void TryResolveAssemblyNameFromXml_Should_Fallback_On_Missing_Or_Invalid_Path()
     {
         using var tempDir = new TempDirectory();
         var missingPath = Path.Combine(tempDir.FullPath, "missing.csproj");
@@ -781,8 +781,35 @@ public class ExportSourceResolverTests
 
         // With the new implementation, this should succeed because it uses MSBuild evaluation.
         var resolver = CreateResolver(A.Fake<ITargetAppProcessFactory>(), A.Fake<IHttpClientFactory>());
-        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", CancellationToken.None);
+        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", null, CancellationToken.None);
         Assert.Equal("MyRealName", resolved);
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task TryResolveAssemblyName_Should_Respect_Conditional_Configuration()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "Main.csproj");
+
+        File.WriteAllText(projectPath,
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <AssemblyName>DebugName</AssemblyName>
+              </PropertyGroup>
+              <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+                <AssemblyName>ReleaseName</AssemblyName>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var resolver = CreateResolver(A.Fake<ITargetAppProcessFactory>(), A.Fake<IHttpClientFactory>());
+        
+        // Should resolve to 'ReleaseName' because we inject Configuration=Release
+        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", null, CancellationToken.None);
+        
+        Assert.Equal("ReleaseName", resolved);
     }
 
     [Fact]

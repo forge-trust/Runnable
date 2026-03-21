@@ -101,6 +101,32 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldPreserveMetadata_WhenSanitizingHarvestedNodes()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Title",
+                "path",
+                "<p>content</p>",
+                Metadata: new DocMetadata
+                {
+                    Summary = "Summary",
+                    PageType = "guide",
+                    HideFromSearch = true
+                })
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+
+        Assert.Equal("Summary", result.Metadata?.Summary);
+        Assert.Equal("guide", result.Metadata?.PageType);
+        Assert.True(result.Metadata?.HideFromSearch);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldHandleDuplicatePaths_ByKeepingFirst()
     {
         // Arrange
@@ -385,6 +411,47 @@ public class DocAggregatorTests : IDisposable
         Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
         Assert.Contains("<p>Namespace intro</p>", namespaceDoc.Content);
         Assert.Contains("</section><section class=\"doc-namespace-intro\">", namespaceDoc.Content);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldMergeNamespaceReadmeMetadataIntoNamespaceNode()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Web",
+                "Namespaces/ForgeTrust.Web",
+                namespaceContent,
+                Metadata: new DocMetadata
+                {
+                    Title = "Web",
+                    PageType = "api-reference",
+                    NavGroup = "API Reference"
+                }),
+            new(
+                "README",
+                "docs/ForgeTrust.Web/README.md",
+                "<p>Namespace intro</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = "ForgeTrust Web",
+                    Summary = "Namespace summary",
+                    Aliases = ["web docs"],
+                    HideFromSearch = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
+
+        Assert.Equal("ForgeTrust Web", namespaceDoc.Title);
+        Assert.Equal("ForgeTrust Web", namespaceDoc.Metadata?.Title);
+        Assert.Equal("Namespace summary", namespaceDoc.Metadata?.Summary);
+        Assert.Equal(["web docs"], namespaceDoc.Metadata?.Aliases);
+        Assert.True(namespaceDoc.Metadata?.HideFromSearch);
+        Assert.Equal("api-reference", namespaceDoc.Metadata?.PageType);
     }
 
     [Fact]

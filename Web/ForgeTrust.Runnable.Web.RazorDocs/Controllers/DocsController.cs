@@ -151,11 +151,14 @@ public class DocsController : Controller
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var docs = await _aggregator.GetDocsAsync(CancellationToken.None);
                 var records = docs
+                    .Where(d => d.Metadata?.HideFromSearch != true)
                     .Select(d =>
                     {
                         var content = d.Content ?? string.Empty;
                         var bodyText = NormalizeText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content, string.Empty), " "));
                         var snippet = TruncateAtWordBoundary(bodyText, 220);
+                        var title = d.Metadata?.Title ?? d.Title;
+                        var summary = d.Metadata?.Summary ?? snippet;
 
                         var headings = H2H3Regex.Matches(content)
                             .Select(m => NormalizeText(TagRegex.Replace(m.Groups[1].Value, " ")))
@@ -168,10 +171,22 @@ public class DocsController : Controller
                         {
                             id = d.Path,
                             path = BuildDocUrl(d.Path),
-                            title = d.Title,
+                            title,
+                            summary,
                             headings,
                             bodyText,
-                            snippet
+                            snippet,
+                            pageType = d.Metadata?.PageType,
+                            audience = d.Metadata?.Audience,
+                            component = d.Metadata?.Component,
+                            aliases = d.Metadata?.Aliases ?? [],
+                            keywords = d.Metadata?.Keywords ?? [],
+                            status = d.Metadata?.Status,
+                            navGroup = d.Metadata?.NavGroup,
+                            order = d.Metadata?.Order,
+                            canonicalSlug = d.Metadata?.CanonicalSlug,
+                            relatedPages = d.Metadata?.RelatedPages ?? [],
+                            breadcrumbs = d.Metadata?.Breadcrumbs ?? []
                         };
                     })
                     .Where(r => !string.IsNullOrWhiteSpace(r.title) || !string.IsNullOrWhiteSpace(r.bodyText))

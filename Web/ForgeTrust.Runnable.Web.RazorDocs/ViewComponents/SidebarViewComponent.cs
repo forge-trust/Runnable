@@ -43,9 +43,11 @@ public class SidebarViewComponent : ViewComponent
     /// </remarks>
     public async Task<IViewComponentResult> InvokeAsync()
     {
-        var docs = await _aggregator.GetDocsAsync();
+        var docs = (await _aggregator.GetDocsAsync())
+            .Where(d => d.Metadata?.HideFromPublicNav != true)
+            .ToList();
         var groupedDocs = docs
-            .GroupBy(d => GetGroupName(d.Path))
+            .GroupBy(GetGroupName)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
 
         var namespacePrefixes = _namespacePrefixes.Length > 0
@@ -53,6 +55,16 @@ public class SidebarViewComponent : ViewComponent
             : GetDerivedNamespacePrefixes(docs);
         ViewData["NamespacePrefixes"] = namespacePrefixes;
         return View(groupedDocs);
+    }
+
+    private static string GetGroupName(DocNode doc)
+    {
+        if (!string.IsNullOrWhiteSpace(doc.Metadata?.NavGroup))
+        {
+            return doc.Metadata.NavGroup!;
+        }
+
+        return GetGroupName(doc.Path);
     }
 
     private static string GetGroupName(string path)

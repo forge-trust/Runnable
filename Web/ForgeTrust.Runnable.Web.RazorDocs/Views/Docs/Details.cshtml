@@ -1,6 +1,8 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode
 @{
-    ViewData["Title"] = Model.Title;
+    var resolvedTitle = Model.Metadata?.Title ?? Model.Title;
+    var summary = Model.Metadata?.Summary;
+    ViewData["Title"] = resolvedTitle;
     var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
     var normalizedPath = Model.Path.Trim().Trim('/');
     var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
@@ -64,7 +66,11 @@
     </nav>
     @if (!isCSharpApiDoc)
     {
-        <h1 class="text-3xl font-bold text-white tracking-tight">@Model.Title</h1>
+        <h1 class="text-3xl font-bold text-white tracking-tight">@resolvedTitle</h1>
+        @if (!string.IsNullOrWhiteSpace(summary))
+        {
+            <p class="mt-3 max-w-3xl text-base text-slate-400">@summary</p>
+        }
     }
 </header>
 

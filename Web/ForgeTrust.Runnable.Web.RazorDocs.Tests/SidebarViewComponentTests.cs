@@ -37,6 +37,43 @@ public sealed class SidebarViewComponentTests
     }
 
     [Fact]
+    public async Task InvokeAsync_ShouldRespectMetadataNavGroup_AndHideFlag()
+    {
+        var (component, cache) = CreateComponent(
+            [
+                new DocNode(
+                    "Quickstart",
+                    "guides/start.md",
+                    "<p>Start</p>",
+                    Metadata: new DocMetadata
+                    {
+                        NavGroup = "Start Here",
+                        Order = 1
+                    }),
+                new DocNode(
+                    "Hidden",
+                    "guides/hidden.md",
+                    "<p>Hidden</p>",
+                    Metadata: new DocMetadata
+                    {
+                        NavGroup = "Start Here",
+                        HideFromPublicNav = true
+                    })
+            ]);
+        using (cache)
+        {
+            var result = await component.InvokeAsync();
+
+            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
+            var grouped = Assert.IsAssignableFrom<IEnumerable<IGrouping<string, DocNode>>>(viewResult.ViewData!.Model).ToList();
+
+            var startHereGroup = grouped.Single(g => g.Key == "Start Here");
+            var visibleDoc = Assert.Single(startHereGroup);
+            Assert.Equal("Quickstart", visibleDoc.Title);
+        }
+    }
+
+    [Fact]
     public async Task InvokeAsync_ShouldGroupRootNamespacesUnderNamespacesGroup()
     {
         var (component, cache) = CreateComponent(

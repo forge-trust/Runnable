@@ -161,7 +161,8 @@ public class DocAggregator
                                    _sanitizer.Sanitize(n.Content),
                                    n.ParentPath,
                                    n.IsDirectory,
-                                   BuildCanonicalPath(n.Path)))
+                                   BuildCanonicalPath(n.Path),
+                                   n.Metadata))
                            .ToList();
 
                        MergeNamespaceReadmes(sanitizedNodes);
@@ -215,16 +216,20 @@ public class DocAggregator
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(readmeNode.Content))
+            if (!string.IsNullOrWhiteSpace(readmeNode.Content) || readmeNode.Metadata != null)
             {
-                var mergedContent = MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
+                var mergedContent = string.IsNullOrWhiteSpace(readmeNode.Content)
+                    ? namespaceNode.Content
+                    : MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
+                var mergedMetadata = DocMetadata.Merge(readmeNode.Metadata, namespaceNode.Metadata);
                 var mergedNamespaceNode = new DocNode(
-                    namespaceNode.Title,
+                    mergedMetadata?.Title ?? namespaceNode.Title,
                     namespaceNode.Path,
                     mergedContent,
                     namespaceNode.ParentPath,
                     namespaceNode.IsDirectory,
-                    namespaceNode.CanonicalPath);
+                    namespaceNode.CanonicalPath,
+                    mergedMetadata);
 
                 var namespaceIndex = nodes.FindIndex(n => string.Equals(n.Path, namespaceNode.Path, StringComparison.OrdinalIgnoreCase));
                 if (namespaceIndex >= 0)

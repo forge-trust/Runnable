@@ -11,7 +11,11 @@
 
 @foreach (var group in Model)
 {
-    var rootItems = group.Where(d => string.IsNullOrEmpty(d.ParentPath)).ToList();
+    var rootItems = group
+        .Where(d => string.IsNullOrEmpty(d.ParentPath))
+        .OrderBy(d => d.Metadata?.Order ?? int.MaxValue)
+        .ThenBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+        .ToList();
     <div class="py-2">
         <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-widest px-2 mb-2">@group.Key</h3>
 
@@ -21,7 +25,8 @@
                 .FirstOrDefault(n => n.Path.Trim().Trim('/').Equals("Namespaces", StringComparison.OrdinalIgnoreCase));
             var namespaceNodes = rootItems
                 .Where(n => n.Path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(n => SidebarDisplayHelper.GetFullNamespaceName(n), StringComparer.OrdinalIgnoreCase)
+                .OrderBy(n => n.Metadata?.Order ?? int.MaxValue)
+                .ThenBy(n => SidebarDisplayHelper.GetFullNamespaceName(n), StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (namespaceRoot != null)
@@ -57,7 +62,8 @@
                                     @{
                                         var typeItems = group
                                             .Where(d => d.ParentPath == namespaceNode.Path && SidebarDisplayHelper.IsTypeAnchorNode(d))
-                                            .OrderBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+                                            .OrderBy(d => d.Metadata?.Order ?? int.MaxValue)
+                                            .ThenBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
                                             .ToList();
 
                                         if (typeItems.Any())
@@ -102,7 +108,8 @@
                         @{
                             var subItems = group
                                 .Where(d => d.ParentPath == docNode.Path && SidebarDisplayHelper.IsTypeAnchorNode(d))
-                                .OrderBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+                                .OrderBy(d => d.Metadata?.Order ?? int.MaxValue)
+                                .ThenBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
                                 .ToList();
 
                             if (subItems.Any())

@@ -115,7 +115,8 @@ public class CSharpDocHarvester : IDocHarvester
                             typeDisplayName,
                             namespacePage.Path + "#" + typeId,
                             string.Empty,
-                            namespacePage.Path));
+                            namespacePage.Path,
+                            Metadata: DocMetadataFactory.CreateApiReferenceMetadata(typeDisplayName, namespacePage.FullNamespace)));
 
                     foreach (var methodGroup in documentedMethods.GroupBy(x => x.Method.Identifier.Text))
                     {
@@ -214,7 +215,8 @@ public class CSharpDocHarvester : IDocHarvester
                                 enumDecl.Identifier.Text,
                                 namespacePage.Path + "#" + enumId,
                                 string.Empty,
-                                namespacePage.Path));
+                                namespacePage.Path,
+                                Metadata: DocMetadataFactory.CreateApiReferenceMetadata(enumDecl.Identifier.Text, namespacePage.FullNamespace)));
                     }
                 }
             }
@@ -237,7 +239,8 @@ public class CSharpDocHarvester : IDocHarvester
                 new DocNode(
                     namespacePage.Title,
                     namespacePage.Path,
-                    namespacePage.Content.ToString()));
+                    namespacePage.Content.ToString(),
+                    Metadata: namespacePage.Metadata));
         }
 
         nodes.AddRange(stubNodes);
@@ -679,7 +682,11 @@ public class CSharpDocHarvester : IDocHarvester
 
         if (!namespacePages.TryGetValue(path, out var page))
         {
-            page = new NamespaceDocPage(normalizedNamespace, path, GetNamespaceTitle(normalizedNamespace));
+            page = new NamespaceDocPage(
+                normalizedNamespace,
+                path,
+                GetNamespaceTitle(normalizedNamespace),
+                DocMetadataFactory.CreateApiReferenceMetadata(GetNamespaceTitle(normalizedNamespace), normalizedNamespace));
             namespacePages[path] = page;
         }
 
@@ -696,7 +703,11 @@ public class CSharpDocHarvester : IDocHarvester
 
         if (!pagesByNamespace.ContainsKey(string.Empty))
         {
-            pagesByNamespace[string.Empty] = new NamespaceDocPage(string.Empty, "Namespaces", "Namespaces");
+            pagesByNamespace[string.Empty] = new NamespaceDocPage(
+                string.Empty,
+                "Namespaces",
+                "Namespaces",
+                DocMetadataFactory.CreateApiReferenceMetadata("Namespaces", string.Empty));
         }
 
         var fullNamespaces = pagesByNamespace.Keys.Where(k => !string.IsNullOrWhiteSpace(k)).ToList();
@@ -711,7 +722,8 @@ public class CSharpDocHarvester : IDocHarvester
                     pagesByNamespace[parentNamespace] = new NamespaceDocPage(
                         parentNamespace,
                         BuildNamespaceDocPath(parentNamespace),
-                        GetNamespaceTitle(parentNamespace));
+                        GetNamespaceTitle(parentNamespace),
+                        DocMetadataFactory.CreateApiReferenceMetadata(GetNamespaceTitle(parentNamespace), parentNamespace));
                 }
             }
         }
@@ -844,11 +856,12 @@ public class CSharpDocHarvester : IDocHarvester
     }
     internal sealed class NamespaceDocPage
     {
-        public NamespaceDocPage(string fullNamespace, string path, string title)
+        public NamespaceDocPage(string fullNamespace, string path, string title, DocMetadata metadata)
         {
             FullNamespace = fullNamespace;
             Title = title;
             Path = path;
+            Metadata = metadata;
         }
 
         public string FullNamespace { get; }
@@ -856,6 +869,8 @@ public class CSharpDocHarvester : IDocHarvester
         public string Title { get; }
 
         public string Path { get; }
+
+        public DocMetadata Metadata { get; }
 
         public StringBuilder Content { get; } = new();
 

@@ -719,7 +719,7 @@ public class ExportSourceResolverTests
             </Project>
             """);
 
-        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        var resolved = ExportSourceResolver.TryResolveAssemblyNameFromXml(projectPath, "Site");
         Assert.Equal("CustomAssembly", resolved);
     }
 
@@ -730,7 +730,7 @@ public class ExportSourceResolverTests
         var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
         File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
 
-        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        var resolved = ExportSourceResolver.TryResolveAssemblyNameFromXml(projectPath, "Site");
         Assert.Equal("Site", resolved);
     }
 
@@ -741,7 +741,7 @@ public class ExportSourceResolverTests
         var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
         File.WriteAllText(projectPath, "<Project><PropertyGroup><AssemblyName>oops");
 
-        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        var resolved = ExportSourceResolver.TryResolveAssemblyNameFromXml(projectPath, "Site");
         Assert.Equal("Site", resolved);
     }
 
@@ -751,8 +751,38 @@ public class ExportSourceResolverTests
         using var tempDir = new TempDirectory();
         var missingPath = Path.Combine(tempDir.FullPath, "missing.csproj");
 
-        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyName(missingPath, "Site"));
-        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyName(tempDir.FullPath, "Site"));
+        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyNameFromXml(missingPath, "Site"));
+        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyNameFromXml(tempDir.FullPath, "Site"));
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task TryResolveAssemblyName_Should_Succeed_To_Find_AssemblyName_In_Imported_File()
+    {
+        using var tempDir = new TempDirectory();
+        var propsPath = Path.Combine(tempDir.FullPath, "Identity.props");
+        var projectPath = Path.Combine(tempDir.FullPath, "Main.csproj");
+
+        File.WriteAllText(propsPath, 
+            """
+            <Project>
+              <PropertyGroup>
+                <AssemblyName>MyRealName</AssemblyName>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        File.WriteAllText(projectPath,
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <Import Project="{propsPath}" />
+            </Project>
+            """);
+
+        // With the new implementation, this should succeed because it uses MSBuild evaluation.
+        var resolver = CreateResolver(A.Fake<ITargetAppProcessFactory>(), A.Fake<IHttpClientFactory>());
+        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", CancellationToken.None);
+        Assert.Equal("MyRealName", resolved);
     }
 
     [Fact]

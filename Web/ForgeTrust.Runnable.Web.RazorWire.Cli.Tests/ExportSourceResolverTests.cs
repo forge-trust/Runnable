@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using CliFx.Exceptions;
 using FakeItEasy;
 using Microsoft.Extensions.Logging;
@@ -781,7 +783,7 @@ public class ExportSourceResolverTests
 
         // With the new implementation, this should succeed because it uses MSBuild evaluation.
         var resolver = CreateResolver(A.Fake<ITargetAppProcessFactory>(), A.Fake<IHttpClientFactory>());
-        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", null, CancellationToken.None);
+        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", "net10.0", CancellationToken.None);
         Assert.Equal("MyRealName", resolved);
     }
 
@@ -804,7 +806,7 @@ public class ExportSourceResolverTests
                 A<CancellationToken>._))
             .Returns(new ExportSourceResolver.CommandResult(0, "ReleaseName", string.Empty));
 
-        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", null, CancellationToken.None);
+        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", "net10.0", CancellationToken.None);
         
         Assert.Equal("ReleaseName", resolved);
     }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -318,10 +319,21 @@ public class ExportSourceResolver
         Task<string>? stderrTask = null;
         try
         {
-            started = process.Start();
-            if (!started)
+            try
             {
-                return new CommandResult(-1, string.Empty, "Failed to start process");
+                started = process.Start();
+                if (!started)
+                {
+                    return new CommandResult(-1, string.Empty, "Failed to start process");
+                }
+            }
+            catch (Exception ex) when (ex is Win32Exception or FileNotFoundException or InvalidOperationException)
+            {
+                return new CommandResult(-1, string.Empty, $"Failed to start process: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult(-1, string.Empty, $"An unexpected error occurred while starting the process: {ex.Message}");
             }
 
             stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);

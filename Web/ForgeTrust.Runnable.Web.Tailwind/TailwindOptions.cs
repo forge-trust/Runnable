@@ -13,13 +13,11 @@ public class TailwindOptions
 
     /// <summary>
     /// Gets or sets the path to the input CSS file.
-    /// Defaults to <c>"wwwroot/css/app.css"</c>.
     /// </summary>
     public string InputPath { get; set; } = "wwwroot/css/app.css";
 
     /// <summary>
-    /// Gets or sets the path where the generated CSS file should be written.
-    /// Defaults to <c>"wwwroot/css/site.css"</c>.
+    /// Gets or sets the path to the output CSS file.
     /// </summary>
     public string OutputPath { get; set; } = "wwwroot/css/site.css";
 }

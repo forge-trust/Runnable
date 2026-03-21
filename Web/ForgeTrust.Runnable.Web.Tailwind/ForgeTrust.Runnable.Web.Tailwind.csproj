@@ -5,6 +5,29 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <TailwindVersion>4.1.18</TailwindVersion>
+    <TailwindBaseUrl>https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TailwindVersion)</TailwindBaseUrl>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Windows'))">tailwindcss-windows-x64.exe</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">tailwindcss-macos-arm64</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-macos-x64</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-linux-x64</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">tailwindcss-linux-arm64</TailwindBinaryName>
+
+    <TailwindDownloadUrl>$(TailwindBaseUrl)/$(TailwindBinaryName)</TailwindDownloadUrl>
+    <TailwindLocalPath>$(MSBuildProjectDirectory)\tailwindcss</TailwindLocalPath>
+    <TailwindLocalPath Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(TailwindLocalPath).exe</TailwindLocalPath>
+  </PropertyGroup>
+
+  <Target Name="ResolveTailwindBinary" BeforeTargets="PrepareForBuild;Pack" Condition="!Exists('$(TailwindLocalPath)')">
+    <Message Importance="high" Text="Downloading Tailwind CLI $(TailwindVersion) for $(TailwindBinaryName)..." />
+    <DownloadFile SourceUrl="$(TailwindDownloadUrl)" DestinationFolder="$(MSBuildProjectDirectory)" DestinationFileName="tailwindcss_download">
+      <Output TaskParameter="DownloadedFile" ItemName="DownloadedTailwindFile" />
+    </DownloadFile>
+    <Move SourceFiles="@(DownloadedTailwindFile)" DestinationFiles="$(TailwindLocalPath)" />
+    <Exec Command="chmod +x &quot;$(TailwindLocalPath)&quot;" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="../../ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj" />
   </ItemGroup>
@@ -13,9 +36,9 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-  <!-- Include the local binary for development/testing -->
+  <!-- Include the downloaded/local binary in the output and package -->
   <ItemGroup>
-    <None Include="tailwindcss" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="tailwindcss*" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes/$(RuntimeIdentifier)/native" Condition="Exists('$(TailwindLocalPath)')" />
   </ItemGroup>
 
   <!-- This allows the targets file to be bundled in the NuGet package -->

@@ -3,17 +3,28 @@ namespace ForgeTrust.Runnable.Web.Tailwind;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
+/// <summary>
+/// Manages the location and execution of the Tailwind CLI binary.
+/// </summary>
 public class TailwindCliManager
 {
     private readonly ILogger<TailwindCliManager> _logger;
     private readonly string _binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "tailwindcss.exe" : "tailwindcss";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TailwindCliManager"/> class.
+    /// </summary>
+    /// <param name="logger">The logger to use.</param>
     public TailwindCliManager(ILogger<TailwindCliManager> logger)
     {
         _logger = logger;
     }
 
-    public string GetTailwindPath()
+    /// <summary>
+    /// Gets the path to the Tailwind CLI binary.
+    /// </summary>
+    /// <returns>The absolute path to the binary, or null if not found.</returns>
+    public string? GetTailwindPath()
     {
         var assemblyLocation = typeof(TailwindCliManager).Assembly.Location;
         var assemblyDir = Path.GetDirectoryName(assemblyLocation);

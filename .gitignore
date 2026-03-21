@@ -73,3 +73,7 @@ coverage.xml
 
 # Tooling output
 .codex-review
+
+# Tailwind binary
+**/tailwindcss
+**/tailwindcss.exe

@@ -9,18 +9,28 @@ namespace ForgeTrust.Runnable.Web.Tailwind;
 public static class TailwindExtensions
 {
     /// <summary>
-    /// Adds Tailwind CSS services to the specified <see cref="IServiceCollection"/>.
+    /// Adds Tailwind CSS services to the service collection.
     /// </summary>
-    /// <param name="services">The service collection to add services to.</param>
-    /// <param name="configure">An optional action to configure <see cref="TailwindOptions"/>.</param>
+    /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddTailwind(this IServiceCollection services, Action<TailwindOptions>? configure = null)
+    public static IServiceCollection AddTailwind(this IServiceCollection services)
     {
-        if (configure != null)
-        {
-            services.Configure(configure);
-        }
+        services.Configure<TailwindOptions>(_ => { });
+        services.AddSingleton<TailwindCliManager>();
+        services.AddHostedService<TailwindWatchService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// Adds Tailwind CSS services with custom configuration to the service collection.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configureOptions">An action to configure the <see cref="TailwindOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddTailwind(this IServiceCollection services, Action<TailwindOptions> configureOptions)
+    {
+        services.Configure(configureOptions);
         services.AddSingleton<TailwindCliManager>();
         services.AddHostedService<TailwindWatchService>();
         

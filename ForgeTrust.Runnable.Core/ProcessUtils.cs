@@ -4,10 +4,30 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
 
+/// <summary>
+/// Represents the result of a command execution.
+/// </summary>
+/// <param name="ExitCode">The exit code returned by the process.</param>
+/// <param name="Stdout">The standard output string.</param>
+/// <param name="Stderr">The standard error string.</param>
 public record CommandResult(int ExitCode, string Stdout, string Stderr);
 
+/// <summary>
+/// Provides utility methods for executing external processes.
+/// </summary>
 public static class ProcessUtils
 {
+    /// <summary>
+    /// Executes a process asynchronously and captures its output.
+    /// </summary>
+    /// <param name="fileName">The path to the executable file.</param>
+    /// <param name="args">The list of arguments to pass to the process.</param>
+    /// <param name="workingDirectory">The working directory for the process.</param>
+    /// <param name="logger">The logger to which output will be sent if <paramref name="streamOutput"/> is true.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+    /// <param name="streamOutput">If true, output will be streamed to the logger in real-time.</param>
+    /// <returns>A <see cref="CommandResult"/> containing the execution details.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the process fails to start or exits with a non-zero code.</exception>
     public static async Task<CommandResult> ExecuteProcessAsync(
         string fileName,
         IReadOnlyList<string> args,

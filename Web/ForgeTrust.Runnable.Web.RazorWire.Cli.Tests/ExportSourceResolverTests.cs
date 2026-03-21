@@ -791,22 +791,19 @@ public class ExportSourceResolverTests
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "Main.csproj");
+        File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
-        File.WriteAllText(projectPath,
-            """
-            <Project Sdk="Microsoft.NET.Sdk">
-              <PropertyGroup>
-                <AssemblyName>DebugName</AssemblyName>
-              </PropertyGroup>
-              <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-                <AssemblyName>ReleaseName</AssemblyName>
-              </PropertyGroup>
-            </Project>
-            """);
+        var resolver = A.Fake<ExportSourceResolver>(builder => builder.WithArgumentsForConstructor(
+            [_logger, A.Fake<ITargetAppProcessFactory>(), A.Fake<IHttpClientFactory>()])
+            .CallsBaseMethods());
 
-        var resolver = CreateResolver(A.Fake<ITargetAppProcessFactory>(), A.Fake<IHttpClientFactory>());
-        
-        // Should resolve to 'ReleaseName' because we inject Configuration=Release
+        A.CallTo(() => resolver.ExecuteProcessAsync(
+                "dotnet",
+                A<IReadOnlyList<string>>.That.Matches(args => args.Contains("-p:Configuration=Release")),
+                A<string>._,
+                A<CancellationToken>._))
+            .Returns(new ExportSourceResolver.CommandResult(0, "ReleaseName", string.Empty));
+
         var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", null, CancellationToken.None);
         
         Assert.Equal("ReleaseName", resolved);

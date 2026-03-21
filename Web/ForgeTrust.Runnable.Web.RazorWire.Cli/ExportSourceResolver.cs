@@ -16,7 +16,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 /// Resolves export sources and, when needed, orchestrates launching a target application for crawling.
 /// </summary>
 [ExcludeFromCodeCoverage]
-public sealed class ExportSourceResolver
+public class ExportSourceResolver
 {
     private readonly ILogger<ExportSourceResolver> _logger;
     private readonly ITargetAppProcessFactory _processFactory;
@@ -73,7 +73,7 @@ public sealed class ExportSourceResolver
         ExportSourceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var startupStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startupStopwatch = Stopwatch.StartNew();
 
         if (request.SourceKind == ExportSourceKind.Url)
         {
@@ -288,9 +288,9 @@ public sealed class ExportSourceResolver
             $"Timed out while connecting to --url target '{baseUrl}' after {timeout.TotalSeconds:0.###} seconds. Ensure the application is running and reachable.");
     }
 
-    private record CommandResult(int ExitCode, string Stdout, string Stderr);
+    internal record CommandResult(int ExitCode, string Stdout, string Stderr);
 
-    private async Task<CommandResult> ExecuteProcessAsync(
+    internal virtual async Task<CommandResult> ExecuteProcessAsync(
         string fileName,
         IReadOnlyList<string> args,
         string workingDirectory,

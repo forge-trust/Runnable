@@ -7,6 +7,8 @@
     <ProjectReference Include="..\..\Caching\ForgeTrust.Runnable.Caching\ForgeTrust.Runnable.Caching.csproj" />
   </ItemGroup>
 
+  <Import Project="..\ForgeTrust.Runnable.Web.Tailwind\build\ForgeTrust.Runnable.Web.Tailwind.targets" Condition="Exists('..\ForgeTrust.Runnable.Web.Tailwind\build\ForgeTrust.Runnable.Web.Tailwind.targets')" />
+
   <ItemGroup>
     <PackageReference Include="HtmlSanitizer" />
     <PackageReference Include="Markdig" />

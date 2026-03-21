@@ -6,13 +6,15 @@
   </PropertyGroup>
 
   <Target Name="RunTailwindBuild" BeforeTargets="BeforeBuild" Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')">
+    <PropertyGroup>
+      <!-- Try to find the binary in the package or project relative folder -->
+      <_TailwindToolPath>$(MSBuildThisFileDirectory)../runtimes/$(RuntimeIdentifier)/native/tailwindcss</_TailwindToolPath>
+      <_TailwindToolPath Condition="!Exists('$(_TailwindToolPath)')">$(MSBuildThisFileDirectory)../tailwindcss</_TailwindToolPath>
+      <_TailwindToolPath Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(_TailwindToolPath).exe</_TailwindToolPath>
+    </PropertyGroup>
+
     <Message Importance="High" Text="Tailwind CSS: Running build for $(TailwindInputPath) -> $(TailwindOutputPath)" />
-    <!-- 
-      In a real NuGet package, this would use a task from the package to find the binary.
-      For this repository, we'll assume the binary is available via the CliManager logic or PATH.
-    -->
-    <Exec Command="tailwindcss -i $(TailwindInputPath) -o $(TailwindOutputPath) --minify" 
-          IgnoreExitCode="true" 
-          ContinueOnError="true" />
+    <Exec Command="&quot;$(_TailwindToolPath)&quot; -i &quot;$(TailwindInputPath)&quot; -o &quot;$(TailwindOutputPath)&quot; --minify" 
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
   </Target>
 </Project>

@@ -295,7 +295,14 @@ public sealed class ExportSourceResolver
         string workingDirectory,
         CancellationToken cancellationToken)
     {
-        return await ProcessUtils.ExecuteProcessAsync(fileName, args, workingDirectory, _logger, cancellationToken);
+        var result = await ProcessUtils.ExecuteProcessAsync(fileName, args, workingDirectory, _logger, cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Command failed with exit code {result.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{result.Stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{result.Stderr}");
+        }
+
+        return result;
     }
 
     internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)

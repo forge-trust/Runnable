@@ -12,4 +12,6 @@
     <ProjectReference Include="../../Web/ForgeTrust.Runnable.Web.Tailwind/ForgeTrust.Runnable.Web.Tailwind.csproj" />
   </ItemGroup>
 
+  <Import Project="..\..\Web\ForgeTrust.Runnable.Web.Tailwind\build\ForgeTrust.Runnable.Web.Tailwind.targets" Condition="Exists('..\..\Web\ForgeTrust.Runnable.Web.Tailwind\build\ForgeTrust.Runnable.Web.Tailwind.targets')" />
+
 </Project>

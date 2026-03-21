@@ -57,14 +57,17 @@ public class TailwindCliManager
         }
 
         throw new FileNotFoundException(
-            $"Tailwind standalone CLI binary '{_binaryName}' not found. " +
-            "Ensure the ForgeTrust.Runnable.Web.Tailwind.Runtime package is installed or tailwindcss is available in your PATH.");
+            $"Tailwind CLI not found at any of the expected locations. Please ensure 'ForgeTrust.Runnable.Web.Tailwind' is added to your project or tailwindcss is on PATH. (Missing: {_binaryName})",
+            _binaryName);
     }
 
     private static string GetCurrentRid()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "win-x64";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return "linux-x64";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+        }
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
 

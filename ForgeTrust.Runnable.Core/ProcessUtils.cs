@@ -26,8 +26,8 @@ public static class ProcessUtils
     /// <param name="logger">The logger to which output will be sent if <paramref name="streamOutput"/> is true.</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <param name="streamOutput">If true, output will be streamed to the logger in real-time.</param>
-    /// <returns>A <see cref="CommandResult"/> containing the execution details.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the process fails to start or exits with a non-zero code.</exception>
+    /// <returns>A <see cref="CommandResult"/> containing the execution details, including the exit code and captured output.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the process fails to start.</exception>
     public static async Task<CommandResult> ExecuteProcessAsync(
         string fileName,
         IReadOnlyList<string> args,

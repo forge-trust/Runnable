@@ -57,7 +57,7 @@ public class TailwindWatchService : BackgroundService
             var result = await ProcessUtils.ExecuteProcessAsync(
                 tailwindPath ?? "tailwindcss",
                 args,
-                Directory.GetCurrentDirectory(),
+                _environment.ContentRootPath,
                 _logger,
                 stoppingToken,
                 streamOutput: true);

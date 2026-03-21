@@ -13,19 +13,58 @@
     <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-macos-x64</TailwindBinaryName>
     <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-linux-x64</TailwindBinaryName>
     <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">tailwindcss-linux-arm64</TailwindBinaryName>
-
     <TailwindDownloadUrl>$(TailwindBaseUrl)/$(TailwindBinaryName)</TailwindDownloadUrl>
     <TailwindLocalPath>$(MSBuildProjectDirectory)\tailwindcss</TailwindLocalPath>
     <TailwindLocalPath Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(TailwindLocalPath).exe</TailwindLocalPath>
   </PropertyGroup>
 
-  <Target Name="ResolveTailwindBinary" BeforeTargets="PrepareForBuild;Pack" Condition="!Exists('$(TailwindLocalPath)')">
-    <Message Importance="high" Text="Downloading Tailwind CLI $(TailwindVersion) for $(TailwindBinaryName)..." />
-    <DownloadFile SourceUrl="$(TailwindDownloadUrl)" DestinationFolder="$(MSBuildProjectDirectory)" DestinationFileName="tailwindcss_download">
+  <PropertyGroup>
+    <TailwindSumsUrl>$(TailwindBaseUrl)/sha256sums.txt</TailwindSumsUrl>
+  </PropertyGroup>
+
+  <Target Name="ResolveTailwindBinary" BeforeTargets="PrepareForBuild;Pack">
+    <PropertyGroup>
+      <ChecksumFile>$(IntermediateOutputPath)sha256sums.txt</ChecksumFile>
+      <DownloadTemp>$(IntermediateOutputPath)tailwindcss_download</DownloadTemp>
+    </PropertyGroup>
+
+    <DownloadFile SourceUrl="$(TailwindSumsUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="sha256sums.txt" Condition="!Exists('$(ChecksumFile)')" />
+    
+    <ReadLinesFromFile File="$(ChecksumFile)">
+      <Output TaskParameter="Lines" ItemName="ChecksumLines" />
+    </ReadLinesFromFile>
+
+    <PropertyGroup>
+      <ExpectedHashLine>%(ChecksumLines.Identity)</ExpectedHashLine>
+      <ExpectedHashLine Condition="$([System.String]::new('%(ChecksumLines.Identity)').Contains('$(TailwindBinaryName)'))">%(ChecksumLines.Identity)</ExpectedHashLine>
+      <ExpectedHash>$([System.String]::new('$(ExpectedHashLine)').Split(' ')[0].Trim())</ExpectedHash>
+    </PropertyGroup>
+
+    <DownloadFile SourceUrl="$(TailwindDownloadUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="tailwindcss_download" Condition="!Exists('$(TailwindLocalPath)')">
       <Output TaskParameter="DownloadedFile" ItemName="DownloadedTailwindFile" />
     </DownloadFile>
-    <Move SourceFiles="@(DownloadedTailwindFile)" DestinationFiles="$(TailwindLocalPath)" />
+
+    <ItemGroup Condition="Exists('$(TailwindLocalPath)')">
+      <DownloadedTailwindFile Include="$(TailwindLocalPath)" />
+    </ItemGroup>
+
+    <GetFileHash Files="@(DownloadedTailwindFile)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="ComputedHashes" />
+    </GetFileHash>
+
+    <PropertyGroup>
+      <ComputedHash>%(ComputedHashes.FileHash)</ComputedHash>
+    </PropertyGroup>
+
+    <Error Text="Tailwind CLI checksum mismatch! Expected: $(ExpectedHash), Computed: $(ComputedHash)" Condition="'$(ExpectedHash)' != '' and '$(ComputedHash)' != '' and '$(ExpectedHash.ToLower())' != '$(ComputedHash.ToLower())'" />
+    <Message Importance="high" Text="Tailwind CLI checksum verified: $(ComputedHash)" Condition="'$(ExpectedHash.ToLower())' == '$(ComputedHash.ToLower())'" />
+
+    <Move SourceFiles="@(DownloadedTailwindFile)" DestinationFiles="$(TailwindLocalPath)" Condition="!Exists('$(TailwindLocalPath)')" />
     <Exec Command="chmod +x &quot;$(TailwindLocalPath)&quot;" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+
+    <ItemGroup>
+      <None Include="$(TailwindLocalPath)" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes/$(RuntimeIdentifier)/native" />
+    </ItemGroup>
   </Target>
 
   <ItemGroup>
@@ -34,11 +73,6 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-
-  <!-- Include the downloaded/local binary in the output and package -->
-  <ItemGroup>
-    <None Include="tailwindcss*" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes/$(RuntimeIdentifier)/native" Condition="Exists('$(TailwindLocalPath)')" />
   </ItemGroup>
 
   <!-- This allows the targets file to be bundled in the NuGet package -->

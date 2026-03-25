@@ -59,26 +59,12 @@ public class SidebarViewComponent : ViewComponent
 
     private static string GetGroupName(DocNode doc)
     {
-        if (!string.IsNullOrWhiteSpace(doc.Metadata?.NavGroup))
-        {
-            return doc.Metadata.NavGroup!;
-        }
-
-        return GetGroupName(doc.Path);
+        return SidebarDisplayHelper.GetGroupName(doc);
     }
 
     private static string GetGroupName(string path)
     {
-        var normalizedPath = path.Trim().Trim('/');
-        if (normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Namespaces";
-        }
-
-        var normalizedPathForOs = normalizedPath.Replace('/', Path.DirectorySeparatorChar);
-        var directory = Path.GetDirectoryName(normalizedPathForOs);
-        return string.IsNullOrWhiteSpace(directory) ? "General" : directory.Replace('\\', '/');
+        return SidebarDisplayHelper.GetGroupName(path);
     }
 
     private static string[] GetDerivedNamespacePrefixes(IEnumerable<DocNode> docs)

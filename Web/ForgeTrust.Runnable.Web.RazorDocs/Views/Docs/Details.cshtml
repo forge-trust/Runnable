@@ -1,6 +1,8 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode
 @{
-    var resolvedTitle = Model.Metadata?.Title ?? Model.Title;
+    var resolvedTitle = string.IsNullOrWhiteSpace(Model.Metadata?.Title)
+        ? Model.Title
+        : Model.Metadata!.Title!.Trim();
     var summary = Model.Metadata?.Summary;
     ViewData["Title"] = resolvedTitle;
     var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);

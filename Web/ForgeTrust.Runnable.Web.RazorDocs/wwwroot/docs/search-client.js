@@ -219,6 +219,17 @@
       .replaceAll("'", '&#39;');
   }
 
+  function getLocationLabel(item) {
+    const context = item?.navGroup || item?.component || '';
+    const path = item?.path || '';
+
+    if (context && path) {
+      return `${context} • ${path}`;
+    }
+
+    return context || path;
+  }
+
   function normalizeQuery(value) {
     return String(value ?? '').trim().slice(0, maxQueryLength);
   }
@@ -440,7 +451,7 @@
       return `<li id="docs-search-option-${index}" role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
         <a href="${escapeHtml(item.path)}" data-turbo-frame="doc-content" data-turbo-action="advance">
           <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
-          <span class="docs-search-option-path">${escapeHtml(item.navGroup || item.path)}</span>
+          <span class="docs-search-option-path">${escapeHtml(getLocationLabel(item))}</span>
         </a>
       </li>`;
     }).join('');
@@ -486,7 +497,7 @@
     pageResults.innerHTML = results.map((item) => `
       <article class="docs-search-result">
         <h2><a href="${escapeHtml(item.path)}">${escapeHtml(item.title)}</a></h2>
-        <p class="docs-search-result-path">${escapeHtml(item.navGroup || item.path)}</p>
+        <p class="docs-search-result-path">${escapeHtml(getLocationLabel(item))}</p>
         <p class="docs-search-result-snippet">${escapeHtml(item.summary || item.snippet || '')}</p>
       </article>
     `).join('');

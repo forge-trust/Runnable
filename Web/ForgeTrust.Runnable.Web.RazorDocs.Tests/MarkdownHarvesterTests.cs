@@ -180,6 +180,20 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public void ExtractSummary_ShouldIgnoreNumberedListsAtStart()
+    {
+        var summary = MarkdownHarvester.ExtractSummary(
+            """
+            1. Install the package
+            2. Configure the service
+
+            This is the first paragraph.
+            """);
+
+        Assert.Equal("This is the first paragraph.", summary);
+    }
+
+    [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
         Assert.Throws<ArgumentNullException>(

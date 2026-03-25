@@ -304,7 +304,7 @@ After the first round of improvements, the site should be run as a measurable pr
 
 ### Phase 3: Advanced discovery
 
-- Introduce a command-palette style search experience for fast keyboard navigation.
+- Introduce a command-palette-style search experience for fast keyboard navigation.
 - Recommend related pages based on shared metadata and reading paths.
 - Promote high-value queries and content gaps into the documentation backlog.
 - Use search telemetry to refine page summaries, titles, and aliases continuously.

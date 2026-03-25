@@ -49,7 +49,9 @@
                     <div class="mt-2">
                         <div class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600">@namespaceFamily.Key</div>
                         <ul class="space-y-1">
-                            @foreach (var namespaceNode in namespaceFamily.OrderBy(n => SidebarDisplayHelper.GetFullNamespaceName(n), StringComparer.OrdinalIgnoreCase))
+                            @foreach (var namespaceNode in namespaceFamily
+                                .OrderBy(n => n.Metadata?.Order ?? int.MaxValue)
+                                .ThenBy(n => SidebarDisplayHelper.GetFullNamespaceName(n), StringComparer.OrdinalIgnoreCase))
                             {
                                 <li>
                                     <a href="/docs/@(namespaceNode.CanonicalPath ?? namespaceNode.Path)"

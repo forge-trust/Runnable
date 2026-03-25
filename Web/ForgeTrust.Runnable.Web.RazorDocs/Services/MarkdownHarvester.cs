@@ -127,6 +127,7 @@ public class MarkdownHarvester : IDocHarvester
             if (trimmed.StartsWith("#", StringComparison.Ordinal)
                 || trimmed.StartsWith("- ", StringComparison.Ordinal)
                 || trimmed.StartsWith("* ", StringComparison.Ordinal)
+                || StartsWithNumberedListMarker(trimmed)
                 || trimmed.StartsWith("> ", StringComparison.Ordinal)
                 || trimmed.StartsWith("<!--", StringComparison.Ordinal))
             {
@@ -142,5 +143,23 @@ public class MarkdownHarvester : IDocHarvester
         }
 
         return summaryLines.Count == 0 ? null : string.Join(" ", summaryLines);
+    }
+
+    private static bool StartsWithNumberedListMarker(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !char.IsDigit(value[0]))
+        {
+            return false;
+        }
+
+        var index = 0;
+        while (index < value.Length && char.IsDigit(value[index]))
+        {
+            index++;
+        }
+
+        return index + 1 < value.Length
+               && value[index] == '.'
+               && value[index + 1] == ' ';
     }
 }

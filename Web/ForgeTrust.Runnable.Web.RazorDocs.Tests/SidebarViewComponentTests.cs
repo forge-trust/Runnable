@@ -74,6 +74,59 @@ public sealed class SidebarViewComponentTests
     }
 
     [Fact]
+    public async Task InvokeAsync_ShouldKeepNamespaceDocsInNamespacesGroup_WhenMetadataUsesApiReferenceNavGroup()
+    {
+        var (component, cache) = CreateComponent(
+            [
+                new DocNode(
+                    "Web",
+                    "Namespaces/ForgeTrust.Runnable.Web",
+                    "<p>Web namespace docs</p>",
+                    Metadata: new DocMetadata
+                    {
+                        NavGroup = "API Reference"
+                    })
+            ]);
+        using (cache)
+        {
+            var result = await component.InvokeAsync();
+
+            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
+            var grouped = Assert.IsAssignableFrom<IEnumerable<IGrouping<string, DocNode>>>(viewResult.ViewData!.Model).ToList();
+
+            var namespacesGroup = Assert.Single(grouped);
+            Assert.Equal("Namespaces", namespacesGroup.Key);
+            Assert.Single(namespacesGroup);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldTrimMetadataNavGroup_WhenGroupingDocs()
+    {
+        var (component, cache) = CreateComponent(
+            [
+                new DocNode(
+                    "Quickstart",
+                    "guides/start.md",
+                    "<p>Start</p>",
+                    Metadata: new DocMetadata
+                    {
+                        NavGroup = " Start Here "
+                    })
+            ]);
+        using (cache)
+        {
+            var result = await component.InvokeAsync();
+
+            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
+            var grouped = Assert.IsAssignableFrom<IEnumerable<IGrouping<string, DocNode>>>(viewResult.ViewData!.Model).ToList();
+
+            var startHereGroup = Assert.Single(grouped);
+            Assert.Equal("Start Here", startHereGroup.Key);
+        }
+    }
+
+    [Fact]
     public async Task InvokeAsync_ShouldGroupRootNamespacesUnderNamespacesGroup()
     {
         var (component, cache) = CreateComponent(

@@ -1,4 +1,5 @@
 @model IEnumerable<ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode>
+@using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents
 @{
     ViewData["Title"] = "Documentation Index";
     var visibleDocs = Model.Where(d => d.Metadata?.HideFromPublicNav != true).ToList();
@@ -17,7 +18,7 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg text-left">
         @foreach (var group in visibleDocs
-            .GroupBy(d => d.Metadata?.NavGroup ?? System.IO.Path.GetDirectoryName(d.Path) ?? "General")
+            .GroupBy(SidebarDisplayHelper.GetGroupName)
             .Take(4))
         {
             <div class="p-4 bg-slate-800/30 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors">

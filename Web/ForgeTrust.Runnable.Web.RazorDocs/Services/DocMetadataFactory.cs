@@ -12,22 +12,39 @@ internal static class DocMetadataFactory
         DocMetadata? explicitMetadata,
         string? derivedSummary)
     {
+        var defaultNavGroup = GetDefaultMarkdownNavGroup(path);
+        var isInternalPath = IsInternalPath(path);
         var defaults = new DocMetadata
         {
+            Title = resolvedTitle,
             Summary = derivedSummary,
             PageType = GetDefaultMarkdownPageType(path),
             Audience = GetDefaultAudience(path),
             Component = DeriveComponentFromPath(path),
-            NavGroup = GetDefaultMarkdownNavGroup(path),
-            HideFromPublicNav = IsInternalPath(path) ? true : null,
-            Breadcrumbs = BuildDefaultBreadcrumbs(path, resolvedTitle)
+            NavGroup = defaultNavGroup,
+            HideFromPublicNav = isInternalPath ? true : null
         };
 
-        return DocMetadata.Merge(explicitMetadata, defaults) ?? new DocMetadata();
+        var merged = DocMetadata.Merge(explicitMetadata, defaults) ?? new DocMetadata();
+        var normalizedNavGroup = NormalizeMetadataValue(merged.NavGroup) ?? defaultNavGroup;
+
+        if (merged.Breadcrumbs is { Count: > 0 })
+        {
+            return string.Equals(merged.NavGroup, normalizedNavGroup, StringComparison.Ordinal)
+                ? merged
+                : merged with { NavGroup = normalizedNavGroup };
+        }
+
+        return merged with
+        {
+            NavGroup = normalizedNavGroup,
+            Breadcrumbs = BuildDefaultBreadcrumbs(normalizedNavGroup, resolvedTitle)
+        };
     }
 
     internal static DocMetadata CreateApiReferenceMetadata(string title, string namespaceName)
     {
+        var isInternalNamespace = IsInternalNamespace(namespaceName);
         return new DocMetadata
         {
             Title = title,
@@ -35,8 +52,8 @@ internal static class DocMetadataFactory
             Audience = "developer",
             Component = DeriveComponentFromNamespace(namespaceName),
             NavGroup = "API Reference",
-            HideFromPublicNav = false,
-            HideFromSearch = false,
+            HideFromPublicNav = isInternalNamespace,
+            HideFromSearch = isInternalNamespace,
             Breadcrumbs = ["API Reference", title]
         };
     }
@@ -105,24 +122,87 @@ internal static class DocMetadataFactory
         {
             var suffix = namespaceName[RunnableNamespacePrefix.Length..];
             var parts = suffix.Split('.', StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length == 0 ? "Runnable" : parts[^1];
+            return parts.Length == 0 ? "Runnable" : GetRunnableComponentName(parts);
         }
 
         var fallbackParts = namespaceName.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        return fallbackParts.Length == 0 ? namespaceName : fallbackParts[^1];
+        return fallbackParts.Length == 0 ? namespaceName : fallbackParts[0];
     }
 
     private static bool IsInternalPath(string path)
     {
-        return path.Contains("benchmarks/", StringComparison.OrdinalIgnoreCase)
-               || path.Contains(".Tests", StringComparison.OrdinalIgnoreCase)
-               || path.Contains("/Tests/", StringComparison.OrdinalIgnoreCase)
-               || path.Contains("/test/", StringComparison.OrdinalIgnoreCase);
+        var normalizedPath = path.Replace('\\', '/');
+        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return false;
+        }
+
+        var segmentCount = Path.HasExtension(segments[^1]) ? segments.Length - 1 : segments.Length;
+        for (var i = 0; i < segmentCount; i++)
+        {
+            if (IsInternalSegment(segments[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    private static IReadOnlyList<string>? BuildDefaultBreadcrumbs(string path, string resolvedTitle)
+    private static bool IsInternalNamespace(string namespaceName)
     {
-        var navGroup = GetDefaultMarkdownNavGroup(path);
+        if (string.IsNullOrWhiteSpace(namespaceName))
+        {
+            return false;
+        }
+
+        var segments = namespaceName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Any(IsInternalSegment)
+               || namespaceName.Contains("Benchmark", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetRunnableComponentName(IReadOnlyList<string> parts)
+    {
+        if (parts.Count == 0)
+        {
+            return "Runnable";
+        }
+
+        if (parts.Count == 1)
+        {
+            return parts[0];
+        }
+
+        return parts[0] switch
+        {
+            "Web" or "Dependency" => parts[1],
+            _ => parts[0]
+        };
+    }
+
+    private static bool IsInternalSegment(string segment)
+    {
+        if (string.IsNullOrWhiteSpace(segment))
+        {
+            return false;
+        }
+
+        return segment.Equals("Tests", StringComparison.OrdinalIgnoreCase)
+               || segment.Equals("Test", StringComparison.OrdinalIgnoreCase)
+               || segment.Equals("benchmarks", StringComparison.OrdinalIgnoreCase)
+               || segment.Contains(".Tests", StringComparison.OrdinalIgnoreCase)
+               || segment.EndsWith("Tests", StringComparison.OrdinalIgnoreCase)
+               || segment.Contains("Benchmark", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeMetadataValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static IReadOnlyList<string>? BuildDefaultBreadcrumbs(string? navGroup, string resolvedTitle)
+    {
         if (string.IsNullOrWhiteSpace(navGroup))
         {
             return null;

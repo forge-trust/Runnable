@@ -9,7 +9,7 @@
     <_TailwindTemplates Include="**/*.cshtml;**/*.html" Exclude="bin\**;obj\**" />
   </ItemGroup>
 
-  <Target Name="RunTailwindBuild" BeforeTargets="BeforeBuild" 
+  <Target Name="RunTailwindBuild" AfterTargets="ResolveProjectReferences" BeforeTargets="PrepareResources;Compile"
           Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')"
           Inputs="$(TailwindInputPath);@(_TailwindTemplates)" 
           Outputs="$(TailwindOutputPath)">
@@ -37,15 +37,9 @@
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathProjBase)')">$(_TailwindToolPathProjBase)</_TailwindToolPath>
     </PropertyGroup>
 
-    <Message Importance="High" Text="Tailwind CSS Debug: _TailwindTargetRid = $(_TailwindTargetRid)" />
-    <Message Importance="High" Text="Tailwind CSS Debug: MSBuildThisFileDirectory = $(MSBuildThisFileDirectory)" />
-    <Message Importance="High" Text="Tailwind CSS Debug: _TailwindToolPathWin = $(_TailwindToolPathWin) (Exists=$(Exists('$(_TailwindToolPathWin)')))" />
-    <Message Importance="High" Text="Tailwind CSS Debug: _TailwindToolPathNix = $(_TailwindToolPathNix) (Exists=$(Exists('$(_TailwindToolPathNix)')))" />
-    <Message Importance="High" Text="Tailwind CSS Debug: _TailwindToolPathProjBase = $(_TailwindToolPathProjBase) (Exists=$(Exists('$(_TailwindToolPathProjBase)')))" />
-    <Message Importance="High" Text="Tailwind CSS Debug: _TailwindToolPath = $(_TailwindToolPath)" />
-
-    <Error Text="Tailwind CLI binary not found. Path searched: '$(_TailwindToolPath)'. Please ensure the 'ForgeTrust.Runnable.Web.Tailwind' package is correctly restored or tailwindcss is available." 
+    <Error Text="Tailwind CLI binary not found. Please ensure the 'ForgeTrust.Runnable.Web.Tailwind' package is correctly restored or tailwindcss is available." 
            Condition="'$(_TailwindToolPath)' == '' or !Exists('$(_TailwindToolPath)')" />
+
 
     <Message Importance="High" Text="Tailwind CSS: Running build for $(TailwindInputPath) -> $(TailwindOutputPath)" />
     <Exec Command="&quot;$(_TailwindToolPath)&quot; -i &quot;$(TailwindInputPath)&quot; -o &quot;$(TailwindOutputPath)&quot; --minify" 

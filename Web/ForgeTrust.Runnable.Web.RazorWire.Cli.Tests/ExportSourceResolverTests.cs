@@ -799,7 +799,14 @@ public class ExportSourceResolverTests
 
         A.CallTo(() => resolver.ExecuteProcessAsync(
                 "dotnet",
-                A<IReadOnlyList<string>>.That.Matches(args => args.Contains("-p:Configuration=Release")),
+                A<IReadOnlyList<string>>.That.Matches(args => 
+                    args.Count >= 6
+                    && args[0] == "msbuild"
+                    && args[1] == projectPath
+                    && args.Contains("-getProperty:AssemblyName")
+                    && args.Contains("-nologo")
+                    && args.Contains("-p:Configuration=Release")
+                    && args.Contains("-p:TargetFramework=net10.0")),
                 A<string>._,
                 A<CancellationToken>._))
             .Returns(new ExportSourceResolver.CommandResult(0, "ReleaseName", string.Empty));

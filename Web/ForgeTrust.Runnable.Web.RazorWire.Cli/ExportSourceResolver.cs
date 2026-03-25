@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -16,7 +17,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 /// Resolves export sources and, when needed, orchestrates launching a target application for crawling.
 /// </summary>
 [ExcludeFromCodeCoverage]
-public sealed class ExportSourceResolver
+public class ExportSourceResolver
 {
     private readonly ILogger<ExportSourceResolver> _logger;
     private readonly ITargetAppProcessFactory _processFactory;
@@ -73,7 +74,7 @@ public sealed class ExportSourceResolver
         ExportSourceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var startupStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startupStopwatch = Stopwatch.StartNew();
 
         if (request.SourceKind == ExportSourceKind.Url)
         {
@@ -152,7 +153,7 @@ public sealed class ExportSourceResolver
 
         var projectDirectory = Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory();
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
-        var assemblyName = TryResolveAssemblyName(projectPath, projectName);
+        var assemblyName = await TryResolveAssemblyNameAsync(projectPath, projectName, request.Framework, cancellationToken);
         var publishOutputDirectory = Path.Combine(projectDirectory, "bin", ExportPublishFolder);
 
         if (!request.NoBuild)
@@ -288,7 +289,9 @@ public sealed class ExportSourceResolver
             $"Timed out while connecting to --url target '{baseUrl}' after {timeout.TotalSeconds:0.###} seconds. Ensure the application is running and reachable.");
     }
 
-    private async Task RunCommandOrThrowAsync(
+    internal record CommandResult(int ExitCode, string Stdout, string Stderr);
+
+    internal virtual async Task<CommandResult> ExecuteProcessAsync(
         string fileName,
         IReadOnlyList<string> args,
         string workingDirectory,
@@ -309,16 +312,28 @@ public sealed class ExportSourceResolver
             startInfo.ArgumentList.Add(arg);
         }
 
-        using var process = new Process { StartInfo = startInfo };
+        using var process = new Process();
+        process.StartInfo = startInfo;
         var started = false;
         Task<string>? stdoutTask = null;
         Task<string>? stderrTask = null;
         try
         {
-            started = process.Start();
-            if (!started)
+            try
             {
-                throw new InvalidOperationException($"Failed to start command: {fileName} {string.Join(" ", args)}");
+                started = process.Start();
+                if (!started)
+                {
+                    return new CommandResult(-1, string.Empty, "Failed to start process");
+                }
+            }
+            catch (Exception ex) when (ex is Win32Exception or FileNotFoundException or InvalidOperationException)
+            {
+                return new CommandResult(-1, string.Empty, $"Failed to start process: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return new CommandResult(-1, string.Empty, $"An unexpected error occurred while starting the process: {ex.Message}");
             }
 
             stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
@@ -328,31 +343,7 @@ public sealed class ExportSourceResolver
             var stdout = await stdoutTask;
             var stderr = await stderrTask;
 
-            if (!string.IsNullOrWhiteSpace(stdout))
-            {
-                _logger.LogDebug(
-                    "Command output ({FileName}):{NewLine}{Output}",
-                    fileName,
-                    Environment.NewLine,
-                    stdout);
-            }
-
-            if (!string.IsNullOrWhiteSpace(stderr))
-            {
-                _logger.LogDebug(
-                    "Command error output ({FileName}):{NewLine}{Output}",
-                    fileName,
-                    Environment.NewLine,
-                    stderr);
-            }
-
-            if (process.ExitCode == 0)
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{stderr}");
+            return new CommandResult(process.ExitCode, stdout, stderr);
         }
         finally
         {
@@ -360,6 +351,41 @@ public sealed class ExportSourceResolver
             await ObserveReadTaskAsync(stdoutTask, "stdout", fileName);
             await ObserveReadTaskAsync(stderrTask, "stderr", fileName);
         }
+    }
+
+    private async Task RunCommandOrThrowAsync(
+        string fileName,
+        IReadOnlyList<string> args,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        var result = await ExecuteProcessAsync(fileName, args, workingDirectory, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(result.Stdout))
+        {
+            _logger.LogDebug(
+                "Command output ({FileName}):{NewLine}{Output}",
+                fileName,
+                Environment.NewLine,
+                result.Stdout);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Stderr))
+        {
+            _logger.LogDebug(
+                "Command error output ({FileName}):{NewLine}{Output}",
+                fileName,
+                Environment.NewLine,
+                result.Stderr);
+        }
+
+        if (result.ExitCode == 0)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Command failed with exit code {result.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{result.Stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{result.Stderr}");
     }
 
     internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)
@@ -468,7 +494,61 @@ public sealed class ExportSourceResolver
         return candidates[0].FullName;
     }
 
-    internal static string TryResolveAssemblyName(string projectPath, string fallbackName)
+    internal async Task<string> TryResolveAssemblyNameAsync(
+        string projectPath,
+        string fallbackName,
+        string? framework,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var msbuildArgs = new List<string>
+            {
+                "msbuild",
+                projectPath,
+                "-getProperty:AssemblyName",
+                "-nologo",
+                "-p:Configuration=Release"
+            };
+
+            if (!string.IsNullOrWhiteSpace(framework))
+            {
+                msbuildArgs.Add($"-p:TargetFramework={framework}");
+            }
+
+            var result = await ExecuteProcessAsync(
+                "dotnet",
+                msbuildArgs,
+                Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory(),
+                cancellationToken);
+
+            if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.Stdout))
+            {
+                return result.Stdout.Trim();
+            }
+
+            _logger.LogWarning(
+                "Failed to resolve assembly name via MSBuild for {ProjectPath} (ExitCode: {ExitCode}). Falling back to XML parsing.{NewLine}Stdout: {Stdout}{NewLine}Stderr: {Stderr}",
+                projectPath,
+                result.ExitCode,
+                Environment.NewLine,
+                result.Stdout,
+                Environment.NewLine,
+                result.Stderr);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to resolve assembly name via MSBuild for {ProjectPath}. Falling back to XML parsing.", projectPath);
+        }
+
+        return TryResolveAssemblyNameFromXml(projectPath, fallbackName);
+    }
+
+    internal static string TryResolveAssemblyNameFromXml(string projectPath, string fallbackName)
     {
         try
         {

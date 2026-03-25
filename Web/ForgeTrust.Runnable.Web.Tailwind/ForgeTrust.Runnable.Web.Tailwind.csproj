@@ -28,7 +28,7 @@
     <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">linux-arm64</ComputedRuntimeIdentifier>
     <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</ComputedRuntimeIdentifier>
     
-    <TailwindLocalPath>$(MSBuildProjectDirectory)\tailwindcss</TailwindLocalPath>
+    <TailwindLocalPath>$(MSBuildProjectDirectory)/tailwindcss</TailwindLocalPath>
     <TailwindLocalPath Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(TailwindLocalPath).exe</TailwindLocalPath>
     <TailwindVersionFile>$(IntermediateOutputPath)tailwind.version</TailwindVersionFile>
   </PropertyGroup>

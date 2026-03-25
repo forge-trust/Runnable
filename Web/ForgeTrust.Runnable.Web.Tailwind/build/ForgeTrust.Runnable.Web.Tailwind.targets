@@ -16,6 +16,7 @@
     <PropertyGroup>
       <!-- Ensure we have a valid RID for path resolution -->
       <_TailwindTargetRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">win-arm64</_TailwindTargetRid>
       <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</_TailwindTargetRid>
       <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">osx-arm64</_TailwindTargetRid>
       <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</_TailwindTargetRid>

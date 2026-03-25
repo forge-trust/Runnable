@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Web.Tailwind;
@@ -15,11 +16,7 @@ public static class TailwindExtensions
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddTailwind(this IServiceCollection services)
     {
-        services.Configure<TailwindOptions>(_ => { });
-        services.AddSingleton<TailwindCliManager>();
-        services.AddHostedService<TailwindWatchService>();
-
-        return services;
+        return services.AddTailwind(_ => { });
     }
 
     /// <summary>
@@ -31,8 +28,8 @@ public static class TailwindExtensions
     public static IServiceCollection AddTailwind(this IServiceCollection services, Action<TailwindOptions> configureOptions)
     {
         services.Configure(configureOptions);
-        services.AddSingleton<TailwindCliManager>();
-        services.AddHostedService<TailwindWatchService>();
+        services.TryAddSingleton<TailwindCliManager>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TailwindWatchService>());
         
         return services;
     }

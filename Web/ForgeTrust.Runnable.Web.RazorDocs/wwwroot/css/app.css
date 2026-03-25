@@ -145,7 +145,7 @@ body {
     color: #e2e8f0;
     font-weight: 500;
     white-space: normal;
-    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 .docs-content .doc-signature .sig-return {
@@ -288,7 +288,7 @@ body {
     padding: 0.9rem;
     border: 1px solid #334155;
     white-space: pre-wrap;
-    word-break: break-word;
+    overflow-wrap: break-word;
     margin: 0.65rem 0 0.85rem;
     overflow-x: auto;
 }

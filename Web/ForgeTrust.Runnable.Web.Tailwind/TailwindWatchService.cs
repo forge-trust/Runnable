@@ -42,6 +42,18 @@ public class TailwindWatchService : BackgroundService
             return;
         }
 
+        if (string.IsNullOrEmpty(_options.InputPath))
+        {
+            _logger.LogError("Tailwind CSS: InputPath is not configured.");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(_options.OutputPath))
+        {
+            _logger.LogError("Tailwind CSS: OutputPath is not configured.");
+            return;
+        }
+
         try
         {
             var tailwindPath = _cliManager.GetTailwindPath();
@@ -55,7 +67,7 @@ public class TailwindWatchService : BackgroundService
             _logger.LogInformation("Starting Tailwind CSS watch mode: {TailwindPath} {Args}", tailwindPath, string.Join(" ", args));
 
             var result = await ProcessUtils.ExecuteProcessAsync(
-                tailwindPath ?? "tailwindcss",
+                tailwindPath,
                 args,
                 _environment.ContentRootPath,
                 _logger,

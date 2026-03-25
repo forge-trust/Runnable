@@ -8,7 +8,8 @@
   <PropertyGroup>
     <TailwindVersion>4.1.18</TailwindVersion>
     <TailwindBaseUrl>https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TailwindVersion)</TailwindBaseUrl>
-    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Windows'))">tailwindcss-windows-x64.exe</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">tailwindcss-windows-arm64.exe</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-windows-x64.exe</TailwindBinaryName>
     <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">tailwindcss-macos-arm64</TailwindBinaryName>
     <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-macos-x64</TailwindBinaryName>
     <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-linux-x64</TailwindBinaryName>
@@ -20,6 +21,7 @@
     <TailwindSumsUrl>$(TailwindBaseUrl)/sha256sums.txt</TailwindSumsUrl>
     <!-- Compute a fallback RID if none is provided (e.g. during local build) -->
     <ComputedRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</ComputedRuntimeIdentifier>
+    <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">win-arm64</ComputedRuntimeIdentifier>
     <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</ComputedRuntimeIdentifier>
     <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">osx-arm64</ComputedRuntimeIdentifier>
     <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</ComputedRuntimeIdentifier>
@@ -45,7 +47,7 @@
         if (File.Exists(ChecksumFile)) {
             var line = File.ReadLines(ChecksumFile)
                 .Select(l => l.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
-                .FirstOrDefault(tokens => tokens.Length >= 2 && tokens[1].Equals(BinaryName, StringComparison.Ordinal));
+                .FirstOrDefault(tokens => tokens.Length >= 2 && (tokens[1].Equals(BinaryName, StringComparison.Ordinal) || tokens[1].Equals("./" + BinaryName, StringComparison.Ordinal)));
             if (line != null) {
                 Hash = line[0];
             }
@@ -74,6 +76,8 @@
     <FindChecksum ChecksumFile="$(ChecksumFile)" BinaryName="$(TailwindBinaryName)">
       <Output TaskParameter="Hash" PropertyName="ExpectedHash" />
     </FindChecksum>
+
+    <Error Text="Could not find expected SHA-256 hash for '$(TailwindBinaryName)' in '$(ChecksumFile)'. Please verify the Tailwind version or binary name." Condition="'$(ExpectedHash)' == ''" />
 
     <DownloadFile SourceUrl="$(TailwindDownloadUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="tailwindcss_download" Condition="!Exists('$(TailwindLocalPath)')">
       <Output TaskParameter="DownloadedFile" ItemName="DownloadedTailwindFile" />

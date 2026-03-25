@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
@@ -54,20 +53,20 @@ public static class ProcessUtils
         using var process = new Process();
         process.StartInfo = startInfo;
         var started = false;
-        Task<string>? stdoutTask = null;
-        Task<string>? stderrTask = null;
+        Task? stdoutTask = null;
+        Task? stderrTask = null;
         try
         {
-            started = process.Start();
-            if (!started)
+            if (!process.Start())
             {
-                return new CommandResult(-1, string.Empty, "Failed to start process");
+                throw new InvalidOperationException($"Failed to start process: {fileName}");
             }
+            started = true;
 
             if (streamOutput)
             {
-                _ = StreamToLoggerAsync(process.StandardOutput, logger, LogLevel.Information, cancellationToken);
-                _ = StreamToLoggerAsync(process.StandardError, logger, LogLevel.Error, cancellationToken);
+                stdoutTask = StreamToLoggerAsync(process.StandardOutput, logger, LogLevel.Information, cancellationToken);
+                stderrTask = StreamToLoggerAsync(process.StandardError, logger, LogLevel.Error, cancellationToken);
             }
             else
             {
@@ -76,20 +75,18 @@ public static class ProcessUtils
             }
 
             await process.WaitForExitAsync(cancellationToken);
-
-            var stdout = stdoutTask != null ? await stdoutTask : string.Empty;
-            var stderr = stderrTask != null ? await stderrTask : string.Empty;
+            
+            var stdout = await ObserveAndGetResultAsync(stdoutTask, "stdout", fileName, logger);
+            var stderr = await ObserveAndGetResultAsync(stderrTask, "stderr", fileName, logger);
 
             return new CommandResult(process.ExitCode, stdout, stderr);
         }
         finally
         {
             TryKillProcess(process, started, logger);
-            if (!streamOutput)
-            {
-                await ObserveReadTaskAsync(stdoutTask, "stdout", fileName, logger);
-                await ObserveReadTaskAsync(stderrTask, "stderr", fileName, logger);
-            }
+            // Ensure tasks are observed even if an exception occurred during the wait
+            await ObserveAndGetResultAsync(stdoutTask, "stdout", fileName, logger);
+            await ObserveAndGetResultAsync(stderrTask, "stderr", fileName, logger);
         }
     }
 
@@ -127,16 +124,23 @@ public static class ProcessUtils
         }
     }
 
-    private static async Task ObserveReadTaskAsync(Task? task, string streamName, string fileName, ILogger logger)
+    private static async Task<string> ObserveAndGetResultAsync(Task? task, string streamName, string fileName, ILogger logger)
     {
-        if (task == null) return;
+        if (task == null) return string.Empty;
         try
         {
+            if (task is Task<string> stringTask)
+            {
+                return await stringTask;
+            }
+
             await task;
+            return string.Empty;
         }
         catch (Exception ex)
         {
             logger.LogDebug(ex, "Failed to complete reading {StreamName} for {FileName}", streamName, fileName);
+            return string.Empty;
         }
     }
 }

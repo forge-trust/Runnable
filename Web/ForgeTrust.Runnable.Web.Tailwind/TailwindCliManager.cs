@@ -1,7 +1,9 @@
-namespace ForgeTrust.Runnable.Web.Tailwind;
-
+using System;
 using System.Runtime.InteropServices;
+using System.IO;
 using Microsoft.Extensions.Logging;
+
+namespace ForgeTrust.Runnable.Web.Tailwind;
 
 /// <summary>
 /// Manages the location and execution of the Tailwind CLI binary.
@@ -24,7 +26,7 @@ public class TailwindCliManager
     /// Gets the path to the Tailwind CLI binary.
     /// </summary>
     /// <returns>The absolute path to the binary, or null if not found.</returns>
-    public string? GetTailwindPath()
+    public string GetTailwindPath()
     {
         var assemblyLocation = typeof(TailwindCliManager).Assembly.Location;
         var assemblyDir = Path.GetDirectoryName(assemblyLocation);
@@ -44,7 +46,7 @@ public class TailwindCliManager
             var localPath = Path.Combine(assemblyDir, _binaryName);
             if (File.Exists(localPath))
             {
-                 _logger.LogDebug("Found Tailwind CLI at local path: {Path}", localPath);
+                _logger.LogDebug("Found Tailwind CLI at local path: {Path}", localPath);
                 return localPath;
             }
         }
@@ -61,15 +63,28 @@ public class TailwindCliManager
             _binaryName);
     }
 
+    /// <summary>
+    /// Gets the current runtime identifier.
+    /// </summary>
+    /// <remarks>
+    /// Must be kept in sync with the RID logic in ForgeTrust.Runnable.Web.Tailwind.csproj and targets.
+    /// </remarks>
     private static string GetCurrentRid()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "win-x64";
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
+        }
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
         }
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
             return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
+        }
 
         return "unknown";
     }

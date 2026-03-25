@@ -39,8 +39,10 @@
 
     <Message Importance="High" Text="Tailwind CSS Debug: _TailwindTargetRid = $(_TailwindTargetRid)" />
     <Message Importance="High" Text="Tailwind CSS Debug: MSBuildThisFileDirectory = $(MSBuildThisFileDirectory)" />
+    <Message Importance="High" Text="Tailwind CSS Debug: _TailwindToolPathWin = $(_TailwindToolPathWin) (Exists=$(Exists('$(_TailwindToolPathWin)')))" />
+    <Message Importance="High" Text="Tailwind CSS Debug: _TailwindToolPathNix = $(_TailwindToolPathNix) (Exists=$(Exists('$(_TailwindToolPathNix)')))" />
+    <Message Importance="High" Text="Tailwind CSS Debug: _TailwindToolPathProjBase = $(_TailwindToolPathProjBase) (Exists=$(Exists('$(_TailwindToolPathProjBase)')))" />
     <Message Importance="High" Text="Tailwind CSS Debug: _TailwindToolPath = $(_TailwindToolPath)" />
-    <Message Importance="High" Text="Tailwind CSS Debug: Exists(_TailwindToolPath) = $([System.IO.File]::Exists('$(_TailwindToolPath)'))" />
 
     <Error Text="Tailwind CLI binary not found. Path searched: '$(_TailwindToolPath)'. Please ensure the 'ForgeTrust.Runnable.Web.Tailwind' package is correctly restored or tailwindcss is available." 
            Condition="'$(_TailwindToolPath)' == '' or !Exists('$(_TailwindToolPath)')" />

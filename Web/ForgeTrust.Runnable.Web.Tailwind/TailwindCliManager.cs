@@ -1,6 +1,4 @@
-using System;
 using System.Runtime.InteropServices;
-using System.IO;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.Tailwind;
@@ -28,14 +26,12 @@ public class TailwindCliManager
     /// <returns>The absolute path to the binary, or null if not found.</returns>
     public string GetTailwindPath()
     {
-        var assemblyLocation = typeof(TailwindCliManager).Assembly.Location;
-        var assemblyDir = Path.GetDirectoryName(assemblyLocation);
-
-        if (assemblyDir != null)
+        var baseDir = AppContext.BaseDirectory;
+        if (!string.IsNullOrEmpty(baseDir))
         {
             var rid = GetCurrentRid();
             // Standard NuGet runtime asset path
-            var runtimePath = Path.Combine(assemblyDir, "runtimes", rid, "native", _binaryName);
+            var runtimePath = Path.Combine(baseDir, "runtimes", rid, "native", _binaryName);
             if (File.Exists(runtimePath))
             {
                 _logger.LogDebug("Found Tailwind CLI at runtime path: {Path}", runtimePath);
@@ -43,7 +39,7 @@ public class TailwindCliManager
             }
 
             // Local development fallback
-            var localPath = Path.Combine(assemblyDir, _binaryName);
+            var localPath = Path.Combine(baseDir, _binaryName);
             if (File.Exists(localPath))
             {
                 _logger.LogDebug("Found Tailwind CLI at local path: {Path}", localPath);

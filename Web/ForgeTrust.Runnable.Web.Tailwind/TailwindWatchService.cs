@@ -76,7 +76,7 @@ public class TailwindWatchService : BackgroundService
 
             if (result.ExitCode != 0 && !stoppingToken.IsCancellationRequested)
             {
-                _logger.LogError("Tailwind CSS watch process exited with code {ExitCode}. Stderr: {Stderr}", result.ExitCode, result.Stderr);
+                _logger.LogError("Tailwind CSS watch process exited with code {ExitCode}. Check previous log entries for details.", result.ExitCode);
             }
         }
         catch (OperationCanceledException)

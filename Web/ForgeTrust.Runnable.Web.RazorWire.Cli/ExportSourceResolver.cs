@@ -388,7 +388,6 @@ public class ExportSourceResolver
             $"Command failed with exit code {result.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{result.Stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{result.Stderr}");
     }
 
-
     internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)
     {
         return ResolveBuiltDllPath(projectDirectory, assemblyName, null);

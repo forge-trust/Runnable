@@ -1,5 +1,3 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using CliFx.Exceptions;
 using FakeItEasy;
 using Microsoft.Extensions.Logging;

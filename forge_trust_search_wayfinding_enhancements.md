@@ -183,12 +183,15 @@ Search quality and navigation quality will only stay good if they are both drive
 ```yaml
 title: RazorWire MVC Example
 summary: Build a reactive ASP.NET Core MVC app with RazorWire.
+canonical_slug: examples/razorwire-mvc
 page_type: example
 audience: implementer
 component: RazorWire
 aliases:
   - turbo streams mvc example
   - html over the wire example
+redirect_aliases:
+  - examples/mvc-razorwire
 keywords:
   - sse
   - islands
@@ -200,8 +203,8 @@ order: 20
 hide_from_public_nav: false
 hide_from_search: false
 related_pages:
-  - Security & Anti-Forgery
-  - RazorWire overview
+  - docs/security/anti-forgery
+  - docs/razorwire/overview
 ```
 
 ### Why metadata matters

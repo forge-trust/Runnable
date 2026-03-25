@@ -12,6 +12,7 @@ public class DocModelsTests
         {
             Title = "Metadata Title",
             Summary = "Summary",
+            SummaryIsDerived = true,
             PageType = "guide",
             Aliases = ["alias-one"]
         };
@@ -28,6 +29,7 @@ public class DocModelsTests
         Assert.Null(node.CanonicalPath);
         Assert.Equal("Metadata Title", node.Metadata?.Title);
         Assert.Equal("Summary", node.Metadata?.Summary);
+        Assert.True(node.Metadata?.SummaryIsDerived);
         Assert.Equal("guide", node.Metadata?.PageType);
         Assert.Equal(["alias-one"], node.Metadata?.Aliases);
     }
@@ -38,6 +40,7 @@ public class DocModelsTests
         var primary = new DocMetadata
         {
             Summary = "Primary",
+            SummaryIsDerived = false,
             Aliases = ["alpha"],
             HideFromSearch = true
         };
@@ -45,6 +48,7 @@ public class DocModelsTests
         {
             Title = "Fallback Title",
             Summary = "Fallback Summary",
+            SummaryIsDerived = true,
             Aliases = ["beta"],
             Keywords = ["keyword"],
             HideFromPublicNav = true
@@ -55,6 +59,7 @@ public class DocModelsTests
         Assert.NotNull(merged);
         Assert.Equal("Fallback Title", merged!.Title);
         Assert.Equal("Primary", merged.Summary);
+        Assert.False(merged.SummaryIsDerived);
         Assert.Equal(["alpha"], merged.Aliases);
         Assert.Equal(["keyword"], merged.Keywords);
         Assert.True(merged.HideFromSearch);

@@ -19,6 +19,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg text-left">
         @foreach (var group in visibleDocs
             .GroupBy(SidebarDisplayHelper.GetGroupName)
+            .OrderBy(g => g.Key, System.StringComparer.OrdinalIgnoreCase)
             .Take(4))
         {
             <div class="p-4 bg-slate-800/30 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors">

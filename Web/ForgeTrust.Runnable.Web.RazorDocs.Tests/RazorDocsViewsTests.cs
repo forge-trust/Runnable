@@ -152,6 +152,51 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldPreferMetadataBreadcrumbLabels_ForNonNamespaceDocs()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["Start Here", "Quickstart"]
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains("Start Here", html);
+        Assert.Contains(">Quickstart</span>", html);
+        Assert.DoesNotContain(">quickstart.md</span>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderDerivedSummaryBlurb()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>This is the first paragraph.</p>",
+            Metadata: new DocMetadata
+            {
+                Summary = "This is the first paragraph.",
+                SummaryIsDerived = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.DoesNotContain("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the first paragraph.</p>", html);
+    }
+
+    [Fact]
     public async Task SearchView_ShouldRenderSearchPageShell()
     {
         using var services = CreateServiceProvider(CreateDocs());

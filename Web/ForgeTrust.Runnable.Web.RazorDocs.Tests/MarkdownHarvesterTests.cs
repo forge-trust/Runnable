@@ -143,6 +143,7 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal("Quickstart", doc.Title);
         Assert.DoesNotContain("page_type", doc.Content, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Build your first app.", doc.Metadata?.Summary);
+        Assert.False(doc.Metadata?.SummaryIsDerived);
         Assert.Equal("guide", doc.Metadata?.PageType);
         Assert.Equal("implementer", doc.Metadata?.Audience);
         Assert.Equal("RazorWire", doc.Metadata?.Component);
@@ -176,6 +177,7 @@ public class MarkdownHarvesterTests : IDisposable
         var doc = Assert.Single(results);
 
         Assert.Equal("This is the first paragraph.", doc.Metadata?.Summary);
+        Assert.True(doc.Metadata?.SummaryIsDerived);
         Assert.Equal("guide", doc.Metadata?.PageType);
     }
 

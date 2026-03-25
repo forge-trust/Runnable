@@ -16,6 +16,11 @@ public sealed record DocMetadata
     public string? Summary { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether <see cref="Summary"/> was derived from page content instead of authored explicitly.
+    /// </summary>
+    public bool? SummaryIsDerived { get; init; }
+
+    /// <summary>
     /// Gets the page type, such as guide, example, api-reference, or troubleshooting.
     /// </summary>
     public string? PageType { get; init; }
@@ -96,6 +101,7 @@ public sealed record DocMetadata
         {
             Title = primary.Title ?? fallback.Title,
             Summary = primary.Summary ?? fallback.Summary,
+            SummaryIsDerived = primary.SummaryIsDerived ?? fallback.SummaryIsDerived,
             PageType = primary.PageType ?? fallback.PageType,
             Audience = primary.Audience ?? fallback.Audience,
             Component = primary.Component ?? fallback.Component,

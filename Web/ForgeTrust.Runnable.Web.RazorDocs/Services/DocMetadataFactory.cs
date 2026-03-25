@@ -18,6 +18,7 @@ internal static class DocMetadataFactory
         {
             Title = resolvedTitle,
             Summary = derivedSummary,
+            SummaryIsDerived = string.IsNullOrWhiteSpace(derivedSummary) ? null : true,
             PageType = GetDefaultMarkdownPageType(path),
             Audience = GetDefaultAudience(path),
             Component = DeriveComponentFromPath(path),
@@ -27,18 +28,18 @@ internal static class DocMetadataFactory
 
         var merged = DocMetadata.Merge(explicitMetadata, defaults) ?? new DocMetadata();
         var normalizedNavGroup = NormalizeMetadataValue(merged.NavGroup) ?? defaultNavGroup;
-
-        if (merged.Breadcrumbs is { Count: > 0 })
-        {
-            return string.Equals(merged.NavGroup, normalizedNavGroup, StringComparison.Ordinal)
-                ? merged
-                : merged with { NavGroup = normalizedNavGroup };
-        }
+        bool? summaryIsDerived = string.IsNullOrWhiteSpace(merged.Summary)
+            ? null
+            : string.IsNullOrWhiteSpace(explicitMetadata?.Summary);
+        var breadcrumbs = merged.Breadcrumbs is { Count: > 0 }
+            ? merged.Breadcrumbs
+            : BuildDefaultBreadcrumbs(normalizedNavGroup, resolvedTitle);
 
         return merged with
         {
             NavGroup = normalizedNavGroup,
-            Breadcrumbs = BuildDefaultBreadcrumbs(normalizedNavGroup, resolvedTitle)
+            SummaryIsDerived = summaryIsDerived,
+            Breadcrumbs = breadcrumbs
         };
     }
 

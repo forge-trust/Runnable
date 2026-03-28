@@ -20,9 +20,13 @@ internal static class DocMetadataFactory
             Summary = derivedSummary,
             SummaryIsDerived = string.IsNullOrWhiteSpace(derivedSummary) ? null : true,
             PageType = GetDefaultMarkdownPageType(path),
+            PageTypeIsDerived = true,
             Audience = GetDefaultAudience(path),
+            AudienceIsDerived = true,
             Component = DeriveComponentFromPath(path),
+            ComponentIsDerived = true,
             NavGroup = defaultNavGroup,
+            NavGroupIsDerived = string.IsNullOrWhiteSpace(defaultNavGroup) ? null : true,
             HideFromPublicNav = isInternalPath ? true : null
         };
 
@@ -50,12 +54,17 @@ internal static class DocMetadataFactory
         {
             Title = title,
             PageType = "api-reference",
+            PageTypeIsDerived = false,
             Audience = "developer",
+            AudienceIsDerived = false,
             Component = DeriveComponentFromNamespace(namespaceName),
+            ComponentIsDerived = false,
             NavGroup = "API Reference",
+            NavGroupIsDerived = false,
             HideFromPublicNav = isInternalNamespace,
             HideFromSearch = isInternalNamespace,
-            Breadcrumbs = ["API Reference", title]
+            Breadcrumbs = BuildApiReferenceBreadcrumbs(title, namespaceName),
+            BreadcrumbsMatchPathTargets = true
         };
     }
 
@@ -212,5 +221,29 @@ internal static class DocMetadataFactory
         return string.Equals(navGroup, resolvedTitle, StringComparison.OrdinalIgnoreCase)
             ? [navGroup]
             : [navGroup, resolvedTitle];
+    }
+
+    private static IReadOnlyList<string> BuildApiReferenceBreadcrumbs(string title, string namespaceName)
+    {
+        var breadcrumbs = new List<string> { "Namespaces" };
+        if (string.IsNullOrWhiteSpace(namespaceName))
+        {
+            if (!string.Equals(title, "Namespaces", StringComparison.OrdinalIgnoreCase))
+            {
+                breadcrumbs.Add(title);
+            }
+
+            return breadcrumbs;
+        }
+
+        breadcrumbs.AddRange(namespaceName.Split('.', StringSplitOptions.RemoveEmptyEntries));
+
+        var finalLabel = breadcrumbs[^1];
+        if (!string.Equals(title, finalLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            breadcrumbs.Add(title);
+        }
+
+        return breadcrumbs;
     }
 }

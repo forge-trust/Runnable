@@ -10,15 +10,15 @@
     var normalizedPath = Model.Path.Trim().Trim('/');
     var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                           || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
-    var breadcrumbs = new List<(string Label, string? Href)>();
     var metadataBreadcrumbs = Model.Metadata?.Breadcrumbs?
         .Where(label => !string.IsNullOrWhiteSpace(label))
         .Select(label => label.Trim())
         .ToList();
+    var parsedBreadcrumbs = new List<(string Label, string? Href)>();
 
     if (isNamespacePath)
     {
-        breadcrumbs.Add(("Namespaces", "/docs/Namespaces.html"));
+        parsedBreadcrumbs.Add(("Namespaces", "/docs/Namespaces.html"));
 
         if (normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
         {
@@ -27,13 +27,13 @@
             for (var i = 0; i < parts.Length; i++)
             {
                 var prefix = string.Join(".", parts.Take(i + 1));
-                breadcrumbs.Add((parts[i], $"/docs/Namespaces/{prefix}.html"));
+                var isLast = i == parts.Length - 1;
+                parsedBreadcrumbs.Add((parts[i], isLast ? null : $"/docs/Namespaces/{prefix}.html"));
             }
         }
     }
     else
     {
-        var parsedBreadcrumbs = new List<(string Label, string? Href)>();
         var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var current = string.Empty;
         for (var i = 0; i < segments.Length; i++)
@@ -44,28 +44,23 @@
             var href = isLast ? null : $"/docs/{current}.html";
             parsedBreadcrumbs.Add((segment, href));
         }
+    }
 
-        if (metadataBreadcrumbs is { Count: > 0 })
+    var breadcrumbs = new List<(string Label, string? Href)>();
+    var canUseMetadataBreadcrumbs = metadataBreadcrumbs is { Count: > 0 }
+                                    && Model.Metadata?.BreadcrumbsMatchPathTargets == true
+                                    && metadataBreadcrumbs.Count == parsedBreadcrumbs.Count;
+
+    if (canUseMetadataBreadcrumbs)
+    {
+        for (var i = 0; i < metadataBreadcrumbs!.Count; i++)
         {
-            if (metadataBreadcrumbs.Count == parsedBreadcrumbs.Count)
-            {
-                for (var i = 0; i < metadataBreadcrumbs.Count; i++)
-                {
-                    breadcrumbs.Add((metadataBreadcrumbs[i], parsedBreadcrumbs[i].Href));
-                }
-            }
-            else
-            {
-                foreach (var breadcrumb in metadataBreadcrumbs)
-                {
-                    breadcrumbs.Add((breadcrumb, null));
-                }
-            }
+            breadcrumbs.Add((metadataBreadcrumbs[i], parsedBreadcrumbs[i].Href));
         }
-        else
-        {
-            breadcrumbs.AddRange(parsedBreadcrumbs);
-        }
+    }
+    else
+    {
+        breadcrumbs.AddRange(parsedBreadcrumbs);
     }
 }
 

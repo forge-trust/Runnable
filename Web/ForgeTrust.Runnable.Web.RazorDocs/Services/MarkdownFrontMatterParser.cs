@@ -42,6 +42,7 @@ internal static partial class MarkdownFrontMatterParser
             Audience = GetString(values, "audience"),
             Component = GetString(values, "component"),
             Aliases = GetStringList(values, "aliases"),
+            RedirectAliases = GetStringList(values, "redirect_aliases"),
             Keywords = GetStringList(values, "keywords"),
             Status = GetString(values, "status"),
             NavGroup = GetString(values, "nav_group"),
@@ -50,7 +51,11 @@ internal static partial class MarkdownFrontMatterParser
             HideFromSearch = GetBool(values, "hide_from_search"),
             RelatedPages = GetStringList(values, "related_pages"),
             CanonicalSlug = GetString(values, "canonical_slug") ?? GetString(values, "slug"),
-            Breadcrumbs = GetStringList(values, "breadcrumbs")
+            Breadcrumbs = GetStringList(values, "breadcrumbs"),
+            PageTypeIsDerived = values.ContainsKey("page_type") ? false : null,
+            AudienceIsDerived = values.ContainsKey("audience") ? false : null,
+            ComponentIsDerived = values.ContainsKey("component") ? false : null,
+            NavGroupIsDerived = values.ContainsKey("nav_group") ? false : null
         };
     }
 

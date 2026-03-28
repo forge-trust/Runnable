@@ -468,7 +468,9 @@ public class DocAggregator
                 var mergedContent = string.IsNullOrWhiteSpace(readmeNode.Content)
                     ? namespaceNode.Content
                     : MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
-                var mergedMetadata = DocMetadata.Merge(readmeNode.Metadata, namespaceNode.Metadata);
+                var mergedMetadata = DocMetadata.Merge(
+                    RemoveDerivedNamespaceReadmeOverrides(readmeNode.Metadata),
+                    namespaceNode.Metadata);
                 var mergedNamespaceNode = new DocNode(
                     mergedMetadata?.Title ?? namespaceNode.Title,
                     namespaceNode.Path,
@@ -489,6 +491,26 @@ public class DocAggregator
 
             nodes.RemoveAll(n => string.Equals(n.Path, readmeNode.Path, StringComparison.OrdinalIgnoreCase));
         }
+    }
+
+    private static DocMetadata? RemoveDerivedNamespaceReadmeOverrides(DocMetadata? metadata)
+    {
+        if (metadata is null)
+        {
+            return null;
+        }
+
+        return metadata with
+        {
+            PageType = metadata.PageTypeIsDerived == true ? null : metadata.PageType,
+            PageTypeIsDerived = metadata.PageTypeIsDerived == true ? null : metadata.PageTypeIsDerived,
+            Audience = metadata.AudienceIsDerived == true ? null : metadata.Audience,
+            AudienceIsDerived = metadata.AudienceIsDerived == true ? null : metadata.AudienceIsDerived,
+            Component = metadata.ComponentIsDerived == true ? null : metadata.Component,
+            ComponentIsDerived = metadata.ComponentIsDerived == true ? null : metadata.ComponentIsDerived,
+            NavGroup = metadata.NavGroupIsDerived == true ? null : metadata.NavGroup,
+            NavGroupIsDerived = metadata.NavGroupIsDerived == true ? null : metadata.NavGroupIsDerived
+        };
     }
 
     /// <summary>

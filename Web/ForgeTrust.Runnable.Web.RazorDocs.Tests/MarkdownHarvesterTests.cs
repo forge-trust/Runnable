@@ -119,6 +119,9 @@ public class MarkdownHarvesterTests : IDisposable
             aliases:
               - getting started
               - first app
+            redirect_aliases:
+              - guides/getting-started
+              - intro/quickstart
             keywords: [turbo, streams]
             nav_group: Start Here
             order: 10
@@ -148,6 +151,7 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal("implementer", doc.Metadata?.Audience);
         Assert.Equal("RazorWire", doc.Metadata?.Component);
         Assert.Equal(["getting started", "first app"], doc.Metadata?.Aliases);
+        Assert.Equal(["guides/getting-started", "intro/quickstart"], doc.Metadata?.RedirectAliases);
         Assert.Equal(["turbo", "streams"], doc.Metadata?.Keywords);
         Assert.Equal("Start Here", doc.Metadata?.NavGroup);
         Assert.Equal(10, doc.Metadata?.Order);

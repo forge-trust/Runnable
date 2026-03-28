@@ -152,7 +152,7 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
-    public async Task DetailsView_ShouldPreferMetadataBreadcrumbLabels_ForNonNamespaceDocs()
+    public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataTargetsCannotBeVerified()
     {
         using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
@@ -169,9 +169,34 @@ public class RazorDocsViewsTests
             "/Views/Docs/Details.cshtml",
             doc);
 
-        Assert.Contains("Start Here", html);
-        Assert.Contains(">Quickstart</span>", html);
-        Assert.DoesNotContain(">quickstart.md</span>", html);
+        Assert.Contains(">guides</a>", html);
+        Assert.Contains(">Quickstart</h1>", html);
+        Assert.Contains(">quickstart.md</span>", html);
+        Assert.DoesNotContain("Start Here", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_WhenTargetsAreKnownToMatch()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Web",
+            "Namespaces/ForgeTrust.Runnable.Web",
+            "<p>Namespace body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["API Reference", "ForgeTrust", "Runnable", "Web"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">API Reference</a>", html);
+        Assert.Contains("href=\"/docs/Namespaces.html\"", html);
+        Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.html\"", html);
     }
 
     [Fact]

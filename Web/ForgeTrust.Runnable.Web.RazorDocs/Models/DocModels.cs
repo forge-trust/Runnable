@@ -41,6 +41,11 @@ public sealed record DocMetadata
     public IReadOnlyList<string>? Aliases { get; init; }
 
     /// <summary>
+    /// Gets alternate route aliases that should redirect to the canonical page when redirect support is enabled.
+    /// </summary>
+    public IReadOnlyList<string>? RedirectAliases { get; init; }
+
+    /// <summary>
     /// Gets search keywords associated with the page.
     /// </summary>
     public IReadOnlyList<string>? Keywords { get; init; }
@@ -85,6 +90,16 @@ public sealed record DocMetadata
     /// </summary>
     public IReadOnlyList<string>? Breadcrumbs { get; init; }
 
+    internal bool? PageTypeIsDerived { get; init; }
+
+    internal bool? AudienceIsDerived { get; init; }
+
+    internal bool? ComponentIsDerived { get; init; }
+
+    internal bool? NavGroupIsDerived { get; init; }
+
+    internal bool? BreadcrumbsMatchPathTargets { get; init; }
+
     internal static DocMetadata? Merge(DocMetadata? primary, DocMetadata? fallback)
     {
         if (primary is null)
@@ -97,24 +112,71 @@ public sealed record DocMetadata
             return primary;
         }
 
+        var (summary, summaryIsDerived) = MergeTextWithFlag(
+            primary.Summary,
+            primary.SummaryIsDerived,
+            fallback.Summary,
+            fallback.SummaryIsDerived);
+        var (pageType, pageTypeIsDerived) = MergeTextWithFlag(
+            primary.PageType,
+            primary.PageTypeIsDerived,
+            fallback.PageType,
+            fallback.PageTypeIsDerived);
+        var (audience, audienceIsDerived) = MergeTextWithFlag(
+            primary.Audience,
+            primary.AudienceIsDerived,
+            fallback.Audience,
+            fallback.AudienceIsDerived);
+        var (component, componentIsDerived) = MergeTextWithFlag(
+            primary.Component,
+            primary.ComponentIsDerived,
+            fallback.Component,
+            fallback.ComponentIsDerived);
+        var (navGroup, navGroupIsDerived) = MergeTextWithFlag(
+            primary.NavGroup,
+            primary.NavGroupIsDerived,
+            fallback.NavGroup,
+            fallback.NavGroupIsDerived);
+        var (breadcrumbs, breadcrumbsMatchPathTargets) = MergeListWithFlag(
+            primary.Breadcrumbs,
+            primary.BreadcrumbsMatchPathTargets,
+            fallback.Breadcrumbs,
+            fallback.BreadcrumbsMatchPathTargets);
+
+        static string? PreferNonBlank(string? preferred, string? fallbackValue)
+        {
+            if (!string.IsNullOrWhiteSpace(preferred))
+            {
+                return preferred.Trim();
+            }
+
+            return string.IsNullOrWhiteSpace(fallbackValue) ? null : fallbackValue.Trim();
+        }
+
         return new DocMetadata
         {
-            Title = primary.Title ?? fallback.Title,
-            Summary = primary.Summary ?? fallback.Summary,
-            SummaryIsDerived = primary.SummaryIsDerived ?? fallback.SummaryIsDerived,
-            PageType = primary.PageType ?? fallback.PageType,
-            Audience = primary.Audience ?? fallback.Audience,
-            Component = primary.Component ?? fallback.Component,
+            Title = PreferNonBlank(primary.Title, fallback.Title),
+            Summary = summary,
+            SummaryIsDerived = summaryIsDerived,
+            PageType = pageType,
+            PageTypeIsDerived = pageTypeIsDerived,
+            Audience = audience,
+            AudienceIsDerived = audienceIsDerived,
+            Component = component,
+            ComponentIsDerived = componentIsDerived,
             Aliases = MergeLists(primary.Aliases, fallback.Aliases),
+            RedirectAliases = MergeLists(primary.RedirectAliases, fallback.RedirectAliases),
             Keywords = MergeLists(primary.Keywords, fallback.Keywords),
-            Status = primary.Status ?? fallback.Status,
-            NavGroup = primary.NavGroup ?? fallback.NavGroup,
+            Status = PreferNonBlank(primary.Status, fallback.Status),
+            NavGroup = navGroup,
+            NavGroupIsDerived = navGroupIsDerived,
             Order = primary.Order ?? fallback.Order,
             HideFromPublicNav = primary.HideFromPublicNav ?? fallback.HideFromPublicNav,
             HideFromSearch = primary.HideFromSearch ?? fallback.HideFromSearch,
             RelatedPages = MergeLists(primary.RelatedPages, fallback.RelatedPages),
-            CanonicalSlug = primary.CanonicalSlug ?? fallback.CanonicalSlug,
-            Breadcrumbs = MergeLists(primary.Breadcrumbs, fallback.Breadcrumbs)
+            CanonicalSlug = PreferNonBlank(primary.CanonicalSlug, fallback.CanonicalSlug),
+            Breadcrumbs = breadcrumbs,
+            BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets
         };
     }
 
@@ -128,6 +190,38 @@ public sealed record DocMetadata
         }
 
         return fallback is { Count: > 0 } ? fallback : null;
+    }
+
+    private static (string? Value, bool? Flag) MergeTextWithFlag(
+        string? primaryValue,
+        bool? primaryFlag,
+        string? fallbackValue,
+        bool? fallbackFlag)
+    {
+        if (!string.IsNullOrWhiteSpace(primaryValue))
+        {
+            return (primaryValue.Trim(), primaryFlag);
+        }
+
+        return !string.IsNullOrWhiteSpace(fallbackValue)
+            ? (fallbackValue.Trim(), fallbackFlag)
+            : (null, null);
+    }
+
+    private static (IReadOnlyList<string>? Value, bool? Flag) MergeListWithFlag(
+        IReadOnlyList<string>? primaryValue,
+        bool? primaryFlag,
+        IReadOnlyList<string>? fallbackValue,
+        bool? fallbackFlag)
+    {
+        if (primaryValue is { Count: > 0 })
+        {
+            return (primaryValue, primaryFlag);
+        }
+
+        return fallbackValue is { Count: > 0 }
+            ? (fallbackValue, fallbackFlag)
+            : (null, null);
     }
 }
 

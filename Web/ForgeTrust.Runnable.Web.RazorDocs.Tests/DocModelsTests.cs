@@ -14,7 +14,8 @@ public class DocModelsTests
             Summary = "Summary",
             SummaryIsDerived = true,
             PageType = "guide",
-            Aliases = ["alias-one"]
+            Aliases = ["alias-one"],
+            RedirectAliases = ["legacy/alias"]
         };
         var node = new DocNode("Title", "path/to/file", "content", Metadata: metadata);
 
@@ -32,6 +33,7 @@ public class DocModelsTests
         Assert.True(node.Metadata?.SummaryIsDerived);
         Assert.Equal("guide", node.Metadata?.PageType);
         Assert.Equal(["alias-one"], node.Metadata?.Aliases);
+        Assert.Equal(["legacy/alias"], node.Metadata?.RedirectAliases);
     }
 
     [Fact]
@@ -42,6 +44,7 @@ public class DocModelsTests
             Summary = "Primary",
             SummaryIsDerived = false,
             Aliases = ["alpha"],
+            RedirectAliases = ["legacy/primary"],
             HideFromSearch = true
         };
         var fallback = new DocMetadata
@@ -61,8 +64,50 @@ public class DocModelsTests
         Assert.Equal("Primary", merged.Summary);
         Assert.False(merged.SummaryIsDerived);
         Assert.Equal(["alpha"], merged.Aliases);
+        Assert.Equal(["legacy/primary"], merged.RedirectAliases);
         Assert.Equal(["keyword"], merged.Keywords);
         Assert.True(merged.HideFromSearch);
         Assert.True(merged.HideFromPublicNav);
+    }
+
+    [Fact]
+    public void Merge_ShouldTreatWhitespaceTitleAsMissing_AndKeepFallbackTitle()
+    {
+        var merged = DocMetadata.Merge(
+            new DocMetadata
+            {
+                Title = "   "
+            },
+            new DocMetadata
+            {
+                Title = "Fallback Title"
+            });
+
+        Assert.NotNull(merged);
+        Assert.Equal("Fallback Title", merged!.Title);
+    }
+
+    [Fact]
+    public void Merge_ShouldKeepFlagStateAlignedWithTheSelectedValueSource()
+    {
+        var merged = DocMetadata.Merge(
+            new DocMetadata
+            {
+                Breadcrumbs = ["Start Here", "Quickstart"],
+                PageTypeIsDerived = true
+            },
+            new DocMetadata
+            {
+                PageType = "api-reference",
+                PageTypeIsDerived = false,
+                Breadcrumbs = ["Namespaces", "Web"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        Assert.NotNull(merged);
+        Assert.Equal("api-reference", merged!.PageType);
+        Assert.False(merged.PageTypeIsDerived);
+        Assert.Equal(["Start Here", "Quickstart"], merged.Breadcrumbs);
+        Assert.Null(merged.BreadcrumbsMatchPathTargets);
     }
 }

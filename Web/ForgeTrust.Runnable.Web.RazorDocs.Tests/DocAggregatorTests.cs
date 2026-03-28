@@ -597,6 +597,76 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldKeepApiClassification_WhenNamespaceReadmeMetadataOnlyProvidesDerivedDefaults()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Web",
+                "Namespaces/ForgeTrust.Runnable.Web",
+                namespaceContent,
+                Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web")),
+            new(
+                "README",
+                "docs/ForgeTrust.Runnable.Web/README.md",
+                "<p>Namespace intro</p>",
+                Metadata: DocMetadataFactory.CreateMarkdownMetadata(
+                    "docs/ForgeTrust.Runnable.Web/README.md",
+                    "ForgeTrust.Runnable.Web",
+                    null,
+                    "Namespace intro."))
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.Equal("api-reference", namespaceDoc.Metadata?.PageType);
+        Assert.Equal("developer", namespaceDoc.Metadata?.Audience);
+        Assert.Equal("API Reference", namespaceDoc.Metadata?.NavGroup);
+        Assert.Equal("Namespace intro.", namespaceDoc.Metadata?.Summary);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldAllowExplicitNamespaceReadmeClassificationOverrides()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Web",
+                "Namespaces/ForgeTrust.Runnable.Web",
+                namespaceContent,
+                Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web")),
+            new(
+                "README",
+                "docs/ForgeTrust.Runnable.Web/README.md",
+                "<p>Namespace intro</p>",
+                Metadata: DocMetadataFactory.CreateMarkdownMetadata(
+                    "docs/ForgeTrust.Runnable.Web/README.md",
+                    "ForgeTrust.Runnable.Web",
+                    new DocMetadata
+                    {
+                        PageType = "concept",
+                        Audience = "implementer",
+                        Component = "Docs",
+                        NavGroup = "Concepts"
+                    },
+                    "Namespace intro."))
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.Equal("concept", namespaceDoc.Metadata?.PageType);
+        Assert.Equal("implementer", namespaceDoc.Metadata?.Audience);
+        Assert.Equal("Docs", namespaceDoc.Metadata?.Component);
+        Assert.Equal("Concepts", namespaceDoc.Metadata?.NavGroup);
+    }
+
+    [Fact]
     public void MergeNamespaceIntroIntoContent_ShouldHandleMalformedNamespaceSections()
     {
         // Act

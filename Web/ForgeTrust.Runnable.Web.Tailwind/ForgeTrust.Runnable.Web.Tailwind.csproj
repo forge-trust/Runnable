@@ -1,0 +1,124 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TailwindVersion>4.1.18</TailwindVersion>
+    <TailwindBaseUrl>https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TailwindVersion)</TailwindBaseUrl>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">tailwindcss-windows-arm64.exe</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-windows-x64.exe</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">tailwindcss-macos-arm64</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-macos-x64</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">tailwindcss-linux-x64</TailwindBinaryName>
+    <TailwindBinaryName Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">tailwindcss-linux-arm64</TailwindBinaryName>
+    <TailwindDownloadUrl>$(TailwindBaseUrl)/$(TailwindBinaryName)</TailwindDownloadUrl>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TailwindSumsUrl>$(TailwindBaseUrl)/sha256sums.txt</TailwindSumsUrl>
+    <!-- Compute a fallback RID if none is provided (e.g. during local build) -->
+    <ComputedRuntimeIdentifier Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</ComputedRuntimeIdentifier>
+    <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">win-arm64</ComputedRuntimeIdentifier>
+    <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</ComputedRuntimeIdentifier>
+    <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">osx-arm64</ComputedRuntimeIdentifier>
+    <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</ComputedRuntimeIdentifier>
+    <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">linux-arm64</ComputedRuntimeIdentifier>
+    <ComputedRuntimeIdentifier Condition="'$(ComputedRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</ComputedRuntimeIdentifier>
+    
+    <TailwindLocalPath>$(MSBuildProjectDirectory)/tailwindcss</TailwindLocalPath>
+    <TailwindLocalPath Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(TailwindLocalPath).exe</TailwindLocalPath>
+    <TailwindVersionFile>$(IntermediateOutputPath)tailwind.version</TailwindVersionFile>
+  </PropertyGroup>
+
+  <UsingTask TaskName="FindChecksum" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <ChecksumFile ParameterType="System.String" Required="true" />
+      <BinaryName ParameterType="System.String" Required="true" />
+      <Hash ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        if (File.Exists(ChecksumFile)) {
+            var line = File.ReadLines(ChecksumFile)
+                .Select(l => l.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+                .FirstOrDefault(tokens => tokens.Length >= 2 && (tokens[1].Equals(BinaryName, StringComparison.Ordinal) || tokens[1].Equals("./" + BinaryName, StringComparison.Ordinal)));
+            if (line != null) {
+                Hash = line[0];
+            }
+        }
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="ResolveTailwindBinary" BeforeTargets="PrepareForBuild;Pack">
+    <PropertyGroup>
+      <ChecksumFile>$(IntermediateOutputPath)sha256sums.txt</ChecksumFile>
+      <DownloadTemp>$(IntermediateOutputPath)tailwindcss_download</DownloadTemp>
+    </PropertyGroup>
+
+    <!-- Check if the cached version matches the desired version -->
+    <ReadLinesFromFile File="$(TailwindVersionFile)" Condition="Exists('$(TailwindVersionFile)')">
+      <Output TaskParameter="Lines" PropertyName="CachedTailwindVersion" />
+    </ReadLinesFromFile>
+
+    <!-- Force re-download if version changed -->
+    <Delete Files="$(TailwindLocalPath);$(ChecksumFile)" Condition="'$(CachedTailwindVersion)' != '$(TailwindVersion)'" />
+
+    <DownloadFile SourceUrl="$(TailwindSumsUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="sha256sums.txt" Condition="!Exists('$(ChecksumFile)')" />
+    
+    <FindChecksum ChecksumFile="$(ChecksumFile)" BinaryName="$(TailwindBinaryName)">
+      <Output TaskParameter="Hash" PropertyName="ExpectedHash" />
+    </FindChecksum>
+
+    <Error Text="Could not find expected SHA-256 hash for '$(TailwindBinaryName)' in '$(ChecksumFile)'. Please verify the Tailwind version or binary name." Condition="'$(ExpectedHash)' == ''" />
+
+    <DownloadFile SourceUrl="$(TailwindDownloadUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="tailwindcss_download" Condition="!Exists('$(TailwindLocalPath)')">
+      <Output TaskParameter="DownloadedFile" ItemName="DownloadedTailwindFile" />
+    </DownloadFile>
+
+    <ItemGroup Condition="Exists('$(TailwindLocalPath)')">
+      <DownloadedTailwindFile Include="$(TailwindLocalPath)" />
+    </ItemGroup>
+
+    <GetFileHash Files="@(DownloadedTailwindFile)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="ComputedHashes" />
+    </GetFileHash>
+
+    <PropertyGroup>
+      <ComputedHash>%(ComputedHashes.FileHash)</ComputedHash>
+    </PropertyGroup>
+
+    <Error Text="Tailwind CLI checksum mismatch! Expected: $(ExpectedHash), Computed: $(ComputedHash)" Condition="'$(ExpectedHash)' != '' and '$(ComputedHash)' != '' and '$(ExpectedHash.ToLower())' != '$(ComputedHash.ToLower())'" />
+    <Message Importance="high" Text="Tailwind CLI checksum verified: $(ComputedHash)" Condition="'$(ExpectedHash.ToLower())' == '$(ComputedHash.ToLower())'" />
+
+    <Move SourceFiles="@(DownloadedTailwindFile)" DestinationFiles="$(TailwindLocalPath)" Condition="!Exists('$(TailwindLocalPath)')" />
+    <Exec Command="chmod +x &quot;$(TailwindLocalPath)&quot;" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+    
+    <!-- Update version stamp only after successful resolution -->
+    <WriteLinesToFile File="$(TailwindVersionFile)" Lines="$(TailwindVersion)" Overwrite="true" />
+
+    <ItemGroup>
+      <None Include="$(TailwindLocalPath)" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes/$(ComputedRuntimeIdentifier)/native" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="../../ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- This allows the targets file to be bundled in the NuGet package -->
+  <ItemGroup>
+    <None Include="build\ForgeTrust.Runnable.Web.Tailwind.targets" Pack="true" PackagePath="build" />
+  </ItemGroup>
+</Project>

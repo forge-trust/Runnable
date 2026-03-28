@@ -1,9 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <ProjectReference Include="..\ForgeTrust.Runnable.Web\ForgeTrust.Runnable.Web.csproj" />
     <ProjectReference Include="..\ForgeTrust.Runnable.Web.RazorWire\ForgeTrust.Runnable.Web.RazorWire.csproj" />
+    <ProjectReference Include="..\ForgeTrust.Runnable.Web.Tailwind\ForgeTrust.Runnable.Web.Tailwind.csproj" />
     <ProjectReference Include="..\..\Caching\ForgeTrust.Runnable.Caching\ForgeTrust.Runnable.Caching.csproj" />
   </ItemGroup>
+
+  <Import Project="..\ForgeTrust.Runnable.Web.Tailwind\build\ForgeTrust.Runnable.Web.Tailwind.targets" Condition="Exists('..\ForgeTrust.Runnable.Web.Tailwind\build\ForgeTrust.Runnable.Web.Tailwind.targets')" />
 
   <ItemGroup>
     <PackageReference Include="HtmlSanitizer" />

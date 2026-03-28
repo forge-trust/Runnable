@@ -1,0 +1,48 @@
+<Project>
+  <PropertyGroup>
+    <TailwindEnabled Condition="'$(TailwindEnabled)' == ''">true</TailwindEnabled>
+    <TailwindInputPath Condition="'$(TailwindInputPath)' == ''">wwwroot/css/app.css</TailwindInputPath>
+    <TailwindOutputPath Condition="'$(TailwindOutputPath)' == ''">wwwroot/css/site.gen.css</TailwindOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <_TailwindTemplates Include="**/*.cshtml;**/*.html" Exclude="bin/**;obj/**" />
+  </ItemGroup>
+
+  <Target Name="RunTailwindBuild" AfterTargets="ResolveProjectReferences" BeforeTargets="PrepareResources;Compile"
+          Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')"
+          Inputs="$(TailwindInputPath);@(_TailwindTemplates)" 
+          Outputs="$(TailwindOutputPath)">
+    <PropertyGroup>
+      <!-- Ensure we have a valid RID for path resolution -->
+      <_TailwindTargetRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">win-arm64</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">osx-arm64</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">linux-arm64</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</_TailwindTargetRid>
+
+      <!-- Try to find the binary in the package or project relative folder -->
+      <_TailwindToolPathWin>$(MSBuildThisFileDirectory)../runtimes/$(_TailwindTargetRid)/native/tailwindcss.exe</_TailwindToolPathWin>
+      <_TailwindToolPathNix>$(MSBuildThisFileDirectory)../runtimes/$(_TailwindTargetRid)/native/tailwindcss</_TailwindToolPathNix>
+
+      <!-- Resolve path with fallback chain -->
+      <_TailwindToolPath Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('$(_TailwindToolPathWin)')">$(_TailwindToolPathWin)</_TailwindToolPath>
+      <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathNix)')">$(_TailwindToolPathNix)</_TailwindToolPath>
+      
+      <!-- Fallback to project root if not in runtimes (e.g. local build) -->
+      <_TailwindToolPathProjBase>$(MSBuildThisFileDirectory)../tailwindcss</_TailwindToolPathProjBase>
+      <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and Exists('$(_TailwindToolPathProjBase).exe')">$(_TailwindToolPathProjBase).exe</_TailwindToolPath>
+      <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathProjBase)')">$(_TailwindToolPathProjBase)</_TailwindToolPath>
+    </PropertyGroup>
+
+    <Error Text="Tailwind CLI binary not found. Please ensure the 'ForgeTrust.Runnable.Web.Tailwind' package is correctly restored or tailwindcss is available." 
+           Condition="'$(_TailwindToolPath)' == '' or !Exists('$(_TailwindToolPath)')" />
+
+
+    <Message Importance="High" Text="Tailwind CSS: Running build for $(TailwindInputPath) -> $(TailwindOutputPath)" />
+    <Exec Command="&quot;$(_TailwindToolPath)&quot; -i &quot;$(TailwindInputPath)&quot; -o &quot;$(TailwindOutputPath)&quot; --minify" 
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+</Project>

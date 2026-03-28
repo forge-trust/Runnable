@@ -161,5 +161,5 @@ public interface IDocHarvester
     /// <param name="rootPath">The filesystem root path to scan for documentation sources.</param>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
     /// <returns>A collection of <see cref="DocNode"/> representing the harvested documentation.</returns>
-    Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default);
 }

@@ -35,7 +35,9 @@ public class CSharpDocHarvester : IDocHarvester
     /// <remarks>
     /// Skips files in excluded directories (for example "node_modules", "bin", "obj", and "Tests") and hidden dot-prefixed directories unless explicitly allowlisted. Dot-prefixed files are included.
     /// </remarks>
-    public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DocNode>> HarvestAsync(
+        string rootPath,
+        CancellationToken cancellationToken = default)
     {
         var nodes = new List<DocNode>();
         var stubNodes = new List<DocNode>();
@@ -66,22 +68,20 @@ public class CSharpDocHarvester : IDocHarvester
                     var doc = ExtractDoc(typeDecl);
                     var documentedMethods = typeDecl.Members
                         .OfType<MethodDeclarationSyntax>()
-                        .Select(
-                            method => new
-                            {
-                                Method = method,
-                                Doc = ExtractDoc(method)
-                            })
+                        .Select(method => new
+                        {
+                            Method = method,
+                            Doc = ExtractDoc(method)
+                        })
                         .Where(x => x.Doc != null)
                         .ToList();
                     var documentedProperties = typeDecl.Members
                         .OfType<PropertyDeclarationSyntax>()
-                        .Select(
-                            property => new
-                            {
-                                Property = property,
-                                Doc = ExtractDoc(property)
-                            })
+                        .Select(property => new
+                        {
+                            Property = property,
+                            Doc = ExtractDoc(property)
+                        })
                         .Where(x => x.Doc != null)
                         .ToList();
 
@@ -141,7 +141,7 @@ public class CSharpDocHarvester : IDocHarvester
                         {
                             var method = methodItem.Method;
                             var methodDoc = methodItem.Doc!;
-                            var (_, id) = GetMethodSignatureAndId(method, qualifiedTypeName);
+                            var id = GetMethodId(method, qualifiedTypeName);
                             var highlightedDisplaySignature = GetHighlightedDisplaySignature(method);
                             var openAttribute = index == 0 ? " open" : string.Empty;
 
@@ -165,7 +165,7 @@ public class CSharpDocHarvester : IDocHarvester
                     {
                         var property = propertyItem.Property;
                         var propertyDoc = propertyItem.Doc!;
-                        var (_, id) = GetPropertySignatureAndId(property, qualifiedTypeName);
+                        var id = GetPropertyId(property, qualifiedTypeName);
                         var highlightedPropertySignature = GetHighlightedPropertySignature(property);
 
                         namespacePage.Content.Append(
@@ -249,12 +249,12 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Computes the method signature and safe ID for use in HTML content and stub nodes.
+    /// Computes the safe ID for a method to be used in HTML content and stub nodes.
     /// </summary>
     /// <param name="method">The method declaration syntax.</param>
     /// <param name="qualifiedTypeName">The qualified name of the containing type.</param>
-    /// <returns>A tuple containing the method signature and the safe ID.</returns>
-    internal static (string Signature, string Id) GetMethodSignatureAndId(
+    /// <returns>The safe ID string for the method documentation section.</returns>
+    internal static string GetMethodId(
         MethodDeclarationSyntax method,
         string qualifiedTypeName)
     {
@@ -270,18 +270,30 @@ public class CSharpDocHarvester : IDocHarvester
 
         var id = StringUtils.ToSafeId($"{qualifiedTypeName}.{signature}");
 
-        return (signature, id);
+        return id;
     }
 
-    private static (string Signature, string Id) GetPropertySignatureAndId(
+    /// <summary>
+    /// Computes the safe ID for a property to be used in HTML content and stub nodes.
+    /// </summary>
+    /// <param name="property">The property declaration syntax.</param>
+    /// <param name="qualifiedTypeName">The qualified name of the containing type.</param>
+    /// <returns>The safe ID string for the property documentation section.</returns>
+    private static string GetPropertyId(
         PropertyDeclarationSyntax property,
         string qualifiedTypeName)
     {
         var signature = $"{property.Type} {property.Identifier.Text}{GetPropertyAccessorSignature(property)}";
         var id = StringUtils.ToSafeId($"{qualifiedTypeName}.{signature}");
-        return (signature, id);
+
+        return id;
     }
 
+    /// <summary>
+    /// Generates a syntax-highlighted HTML string representing a method signature for display.
+    /// </summary>
+    /// <param name="method">The method declaration syntax.</param>
+    /// <returns>An HTML fragment containing the highlighted signature.</returns>
     private static string GetHighlightedDisplaySignature(MethodDeclarationSyntax method)
     {
         var builder = new StringBuilder();
@@ -321,6 +333,11 @@ public class CSharpDocHarvester : IDocHarvester
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Generates a syntax-highlighted HTML string representing a property signature for display.
+    /// </summary>
+    /// <param name="property">The property declaration syntax.</param>
+    /// <returns>An HTML fragment containing the highlighted signature.</returns>
     private static string GetHighlightedPropertySignature(PropertyDeclarationSyntax property)
     {
         var builder = new StringBuilder();
@@ -337,6 +354,11 @@ public class CSharpDocHarvester : IDocHarvester
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Computes the accessors (get/set/init) for a property as a string for inclusion in signatures.
+    /// </summary>
+    /// <param name="property">The property declaration syntax.</param>
+    /// <returns>A string like "{ get; set; }" or "{ get; }".</returns>
     internal static string GetPropertyAccessorSignature(PropertyDeclarationSyntax property)
     {
         if (property.ExpressionBody != null)
@@ -356,6 +378,11 @@ public class CSharpDocHarvester : IDocHarvester
         return "{ " + string.Join(" ", accessors) + " }";
     }
 
+    /// <summary>
+    /// Appends a syntax-highlighted parameter declaration to the provided StringBuilder.
+    /// </summary>
+    /// <param name="builder">The StringBuilder to append to.</param>
+    /// <param name="parameter">The parameter declaration syntax.</param>
     internal static void AppendHighlightedParameter(StringBuilder builder, ParameterSyntax parameter)
     {
         var modifier = parameter.Modifiers.ToString().Trim();
@@ -376,6 +403,11 @@ public class CSharpDocHarvester : IDocHarvester
         }
     }
 
+    /// <summary>
+    /// Gets the display name for a type declaration, including generic type parameter placeholders (e.g., &lt;T&gt;).
+    /// </summary>
+    /// <param name="typeDecl">The type declaration syntax.</param>
+    /// <returns>The display name string.</returns>
     private static string GetDisplayTypeName(TypeDeclarationSyntax typeDecl)
     {
         var typeParams = typeDecl.TypeParameterList?.Parameters;
@@ -385,26 +417,37 @@ public class CSharpDocHarvester : IDocHarvester
         }
 
         var names = string.Join(", ", typeParams.Value.Select(p => p.Identifier.Text));
+
         return $"{typeDecl.Identifier.Text}<{names}>";
     }
 
+    /// <summary>
+    /// Gets the type name for a qualified ID, appending backtick arity for generic types (e.g., MyType`1).
+    /// </summary>
+    /// <param name="typeDecl">The type declaration syntax.</param>
+    /// <returns>The type name string used in safe IDs.</returns>
     private static string GetTypeNameForQualifiedId(TypeDeclarationSyntax typeDecl)
     {
         var arity = typeDecl.TypeParameterList?.Parameters.Count ?? 0;
+
         return arity > 0 ? $"{typeDecl.Identifier.Text}`{arity}" : typeDecl.Identifier.Text;
     }
 
+    /// <summary>
+    /// Determines whether a parameter is a compiler-generated caller information parameter (e.g., [CallerFilePath]).
+    /// </summary>
+    /// <param name="parameter">The parameter declaration syntax.</param>
+    /// <returns><c>true</c> if the parameter should be hidden from documentation; otherwise, <c>false</c>.</returns>
     private static bool IsCompilerGeneratedCallerParameter(ParameterSyntax parameter)
     {
         return parameter.AttributeLists
             .SelectMany(list => list.Attributes)
             .Select(attribute => attribute.Name.ToString())
-            .Any(
-                name =>
-                    name.EndsWith("CallerFilePath", StringComparison.Ordinal)
-                    || name.EndsWith("CallerFilePathAttribute", StringComparison.Ordinal)
-                    || name.EndsWith("CallerLineNumber", StringComparison.Ordinal)
-                    || name.EndsWith("CallerLineNumberAttribute", StringComparison.Ordinal));
+            .Any(name =>
+                name.EndsWith("CallerFilePath", StringComparison.Ordinal)
+                || name.EndsWith("CallerFilePathAttribute", StringComparison.Ordinal)
+                || name.EndsWith("CallerLineNumber", StringComparison.Ordinal)
+                || name.EndsWith("CallerLineNumberAttribute", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -454,6 +497,7 @@ public class CSharpDocHarvester : IDocHarvester
             AppendTextSection(html, "doc-example", root.Element("example"), "Example");
 
             var output = html.ToString();
+
             return string.IsNullOrWhiteSpace(output) ? null : output;
         }
         catch (Exception ex)
@@ -464,7 +508,18 @@ public class CSharpDocHarvester : IDocHarvester
         }
     }
 
-    private static void AppendTextSection(StringBuilder html, string cssClass, XElement? section, string? heading = null)
+    /// <summary>
+    /// Appends a simple text section (like summary or remarks) to the HTML builder.
+    /// </summary>
+    /// <param name="html">The StringBuilder to append to.</param>
+    /// <param name="cssClass">The CSS class name for the section container.</param>
+    /// <param name="section">The XElement containing the documentation section.</param>
+    /// <param name="heading">Optional heading text for the section.</param>
+    private static void AppendTextSection(
+        StringBuilder html,
+        string cssClass,
+        XElement? section,
+        string? heading = null)
     {
         if (section == null)
         {
@@ -488,6 +543,14 @@ public class CSharpDocHarvester : IDocHarvester
         html.Append("</div>");
     }
 
+    /// <summary>
+    /// Appends a list of named entries (like parameters or exceptions) to the HTML builder.
+    /// </summary>
+    /// <param name="html">The StringBuilder to append to.</param>
+    /// <param name="cssClass">The CSS class name for the section container.</param>
+    /// <param name="heading">The heading text for the section.</param>
+    /// <param name="entries">The collection of XElements to process.</param>
+    /// <param name="keySelector">A function that extracts the name or key for each entry.</param>
     private static void AppendNamedListSection(
         StringBuilder html,
         string cssClass,
@@ -496,12 +559,11 @@ public class CSharpDocHarvester : IDocHarvester
         Func<XElement, string?> keySelector)
     {
         var rows = entries
-            .Select(
-                entry => new
-                {
-                    Key = keySelector(entry)?.Trim(),
-                    Description = RenderInlineContent(entry)
-                })
+            .Select(entry => new
+            {
+                Key = keySelector(entry)?.Trim(),
+                Description = RenderInlineContent(entry)
+            })
             .Where(row => !string.IsNullOrWhiteSpace(row.Description))
             .ToList();
 
@@ -530,6 +592,11 @@ public class CSharpDocHarvester : IDocHarvester
         html.Append("</div>");
     }
 
+    /// <summary>
+    /// Renders the content of an XElement as block-level HTML (wrapping in paragraphs if necessary).
+    /// </summary>
+    /// <param name="element">The XElement to render.</param>
+    /// <returns>An HTML fragment string.</returns>
     private static string RenderBlockContent(XElement element)
     {
         var rendered = RenderNodes(element.Nodes(), inlineContext: false).Trim();
@@ -538,17 +605,27 @@ public class CSharpDocHarvester : IDocHarvester
             return string.Empty;
         }
 
-        var hasBlockChildren = element.Elements().Any(
-            e => e.Name.LocalName is "para" or "code" or "list");
+        var hasBlockChildren = element.Elements().Any(e => e.Name.LocalName is "para" or "code" or "list");
 
         return hasBlockChildren ? rendered : $"<p>{rendered}</p>";
     }
 
+    /// <summary>
+    /// Renders the content of an XElement as inline HTML.
+    /// </summary>
+    /// <param name="element">The XElement to render.</param>
+    /// <returns>An HTML fragment string.</returns>
     private static string RenderInlineContent(XElement element)
     {
         return RenderNodes(element.Nodes(), inlineContext: true).Trim();
     }
 
+    /// <summary>
+    /// Renders a collection of XML nodes into HTML strings.
+    /// </summary>
+    /// <param name="nodes">The nodes to render.</param>
+    /// <param name="inlineContext">Indicates whether rendering occurs in an inline context (affects paragraph handling).</param>
+    /// <returns>The combined HTML string.</returns>
     private static string RenderNodes(IEnumerable<XNode> nodes, bool inlineContext)
     {
         var builder = new StringBuilder();
@@ -560,6 +637,12 @@ public class CSharpDocHarvester : IDocHarvester
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Renders a single XML node into its corresponding HTML fragment.
+    /// </summary>
+    /// <param name="node">The node to render.</param>
+    /// <param name="inlineContext">Indicates whether rendering occurs in an inline context.</param>
+    /// <returns>The HTML fragment string.</returns>
     private static string RenderNode(XNode node, bool inlineContext)
     {
         return node switch
@@ -576,82 +659,95 @@ public class CSharpDocHarvester : IDocHarvester
         {
             case "paramref":
             case "typeparamref":
-            {
-                var name = element.Attribute("name")?.Value;
-                return string.IsNullOrWhiteSpace(name)
-                    ? string.Empty
-                    : $"<code>{WebUtility.HtmlEncode(name)}</code>";
-            }
-            case "see":
-            {
-                var langword = element.Attribute("langword")?.Value;
-                var cref = SimplifyCref(element.Attribute("cref")?.Value);
-                var href = element.Attribute("href")?.Value;
-                var displayText = langword ?? cref ?? href ?? RenderNodes(element.Nodes(), inlineContext: true).Trim();
+                {
+                    var name = element.Attribute("name")?.Value;
 
-                return string.IsNullOrWhiteSpace(displayText)
-                    ? string.Empty
-                    : $"<code>{WebUtility.HtmlEncode(displayText)}</code>";
-            }
+                    return string.IsNullOrWhiteSpace(name)
+                        ? string.Empty
+                        : $"<code>{WebUtility.HtmlEncode(name)}</code>";
+                }
+            case "see":
+                {
+                    var langword = element.Attribute("langword")?.Value;
+                    var cref = SimplifyCref(element.Attribute("cref")?.Value);
+                    var href = element.Attribute("href")?.Value;
+                    var displayText =
+                        langword ?? cref ?? href ?? RenderNodes(element.Nodes(), inlineContext: true).Trim();
+
+                    return string.IsNullOrWhiteSpace(displayText)
+                        ? string.Empty
+                        : $"<code>{WebUtility.HtmlEncode(displayText)}</code>";
+                }
             case "c":
                 return $"<code>{RenderNodes(element.Nodes(), inlineContext: true).Trim()}</code>";
             case "code":
                 return $"<pre><code>{WebUtility.HtmlEncode(element.Value.Trim())}</code></pre>";
             case "para":
-            {
-                var paragraph = RenderNodes(element.Nodes(), inlineContext: true).Trim();
-                if (string.IsNullOrWhiteSpace(paragraph))
                 {
-                    return string.Empty;
+                    var paragraph = RenderNodes(element.Nodes(), inlineContext: true).Trim();
+                    if (string.IsNullOrWhiteSpace(paragraph))
+                    {
+                        return string.Empty;
+                    }
+
+                    return inlineContext ? paragraph : $"<p>{paragraph}</p>";
                 }
-
-                return inlineContext ? paragraph : $"<p>{paragraph}</p>";
-            }
             case "list":
-            {
-                var listTag = string.Equals(
-                    element.Attribute("type")?.Value,
-                    "number",
-                    StringComparison.OrdinalIgnoreCase)
-                    ? "ol"
-                    : "ul";
+                {
+                    var listTag = string.Equals(
+                        element.Attribute("type")?.Value,
+                        "number",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "ol"
+                        : "ul";
 
-                var listItems = element.Elements("item")
-                    .Select(
-                        item =>
+                    var listItems = element.Elements("item")
+                        .Select(item =>
                         {
                             var description = item.Element("description");
                             var contentSource = description ?? item;
+
                             return RenderNodes(contentSource.Nodes(), inlineContext: true).Trim();
                         })
-                    .Where(content => !string.IsNullOrWhiteSpace(content))
-                    .ToList();
+                        .Where(content => !string.IsNullOrWhiteSpace(content))
+                        .ToList();
 
-                if (listItems.Count == 0)
-                {
-                    return string.Empty;
+                    if (listItems.Count == 0)
+                    {
+                        return string.Empty;
+                    }
+
+                    var builder = new StringBuilder();
+                    builder.Append($"<{listTag}>");
+                    foreach (var item in listItems)
+                    {
+                        builder.Append($"<li>{item}</li>");
+                    }
+
+                    builder.Append($"</{listTag}>");
+
+                    return builder.ToString();
                 }
-
-                var builder = new StringBuilder();
-                builder.Append($"<{listTag}>");
-                foreach (var item in listItems)
-                {
-                    builder.Append($"<li>{item}</li>");
-                }
-
-                builder.Append($"</{listTag}>");
-                return builder.ToString();
-            }
             default:
                 return RenderNodes(element.Nodes(), inlineContext);
         }
     }
 
+    /// <summary>
+    /// Normalizes whitespace in the provided string by replacing all whitespace sequences with a single space.
+    /// </summary>
+    /// <param name="value">The string to normalize.</param>
+    /// <returns>The normalized string.</returns>
     private static string NormalizeWhitespace(string value)
     {
         return WhitespaceRegex.Replace(value, " ");
     }
 
+    /// <summary>
+    /// Simplifies a "cref" attribute value by removing the type prefix (e.g., "M:", "T:").
+    /// </summary>
+    /// <param name="cref">The cref value to simplify.</param>
+    /// <returns>The simplified string, or <c>null</c> if the input was empty.</returns>
     internal static string? SimplifyCref(string? cref)
     {
         if (string.IsNullOrWhiteSpace(cref))
@@ -668,11 +764,22 @@ public class CSharpDocHarvester : IDocHarvester
         return string.IsNullOrWhiteSpace(simplified) ? null : simplified;
     }
 
+    /// <summary>
+    /// Determines whether a parameter name corresponds to a compiler-generated caller information parameter.
+    /// </summary>
+    /// <param name="parameterName">The name of the parameter to check.</param>
+    /// <returns><c>true</c> if it is a compiler-generated parameter; otherwise, <c>false</c>.</returns>
     private static bool IsCompilerGeneratedDocParameter(string? parameterName)
     {
         return parameterName is "callerFilePath" or "callerLineNumber";
     }
 
+    /// <summary>
+    /// Gets an existing <see cref="NamespaceDocPage"/> for the specified namespace name, or creates a new one if it doesn't exist.
+    /// </summary>
+    /// <param name="namespacePages">The dictionary of existing pages.</param>
+    /// <param name="namespaceName">The dotted namespace name.</param>
+    /// <returns>The retrieved or newly created page.</returns>
     internal static NamespaceDocPage GetOrCreateNamespacePage(
         IDictionary<string, NamespaceDocPage> namespacePages,
         string namespaceName)
@@ -694,8 +801,10 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Ensures parent namespace pages and child links exist, then rebuilds <paramref name="namespacePages"/> in place keyed by <see cref="NamespaceDocPage.Path"/>.
+    /// Builds the hierarchical structure for namespaces, ensuring parent pages exist and child links are added back into the content.
+    /// Rebuilds <paramref name="namespacePages"/> in place keyed by <see cref="NamespaceDocPage.Path"/>.
     /// </summary>
+    /// <param name="namespacePages">The dictionary containing all unique namespace pages encountered during harvesting.</param>
     private static void EnsureNamespaceHierarchy(IDictionary<string, NamespaceDocPage> namespacePages)
     {
         var pagesByNamespace = namespacePages.Values
@@ -751,14 +860,14 @@ public class CSharpDocHarvester : IDocHarvester
 
             var childLinks = page.ChildNamespaces
                 .OrderBy(child => child, StringComparer.OrdinalIgnoreCase)
-                .Select(
-                    child =>
-                    {
-                        var childPath = BuildNamespaceDocPath(child);
-                        var childTitle = GetNamespaceTitle(child);
-                        return
-                            $@"<li><a href=""/docs/{WebUtility.HtmlEncode(childPath)}.html"">{WebUtility.HtmlEncode(childTitle)}</a></li>";
-                    });
+                .Select(child =>
+                {
+                    var childPath = BuildNamespaceDocPath(child);
+                    var childTitle = GetNamespaceTitle(child);
+
+                    return
+                        $@"<li><a href=""/docs/{WebUtility.HtmlEncode(childPath)}.html"">{WebUtility.HtmlEncode(childTitle)}</a></li>";
+                });
 
             var childSection = new StringBuilder();
             childSection.Append("<section class=\"doc-namespace-groups\">");
@@ -782,6 +891,11 @@ public class CSharpDocHarvester : IDocHarvester
         }
     }
 
+    /// <summary>
+    /// Extracts the dotted namespace name for a given syntax node by traversing its ancestors.
+    /// </summary>
+    /// <param name="node">The syntax node to process.</param>
+    /// <returns>The full dotted namespace name, or "Global" if none is found.</returns>
     private static string GetNamespaceName(SyntaxNode node)
     {
         var namespaceParts = node.Ancestors()
@@ -798,11 +912,21 @@ public class CSharpDocHarvester : IDocHarvester
         return string.Join(".", namespaceParts);
     }
 
+    /// <summary>
+    /// Constructs the relative documentation route path for a given namespace name.
+    /// </summary>
+    /// <param name="namespaceName">The dotted namespace name.</param>
+    /// <returns>The relative route path string (e.g., "Namespaces/MyNamespace").</returns>
     internal static string BuildNamespaceDocPath(string namespaceName)
     {
         return string.IsNullOrWhiteSpace(namespaceName) ? "Namespaces" : $"Namespaces/{namespaceName}";
     }
 
+    /// <summary>
+    /// Derives a display title for a namespace name.
+    /// </summary>
+    /// <param name="fullNamespace">The dotted namespace name.</param>
+    /// <returns>The display title; returns the last segment of the namespace or "Namespaces" for the root.</returns>
     internal static string GetNamespaceTitle(string fullNamespace)
     {
         if (string.IsNullOrWhiteSpace(fullNamespace))
@@ -811,12 +935,19 @@ public class CSharpDocHarvester : IDocHarvester
         }
 
         var separatorIndex = fullNamespace.LastIndexOf('.');
+
         return separatorIndex >= 0 ? fullNamespace[(separatorIndex + 1)..] : fullNamespace;
     }
 
+    /// <summary>
+    /// Gets the parent namespace name for a dotted namespace string.
+    /// </summary>
+    /// <param name="namespaceName">The dotted namespace name.</param>
+    /// <returns>The parent namespace name, or an empty string if it is a root namespace.</returns>
     private static string GetParentNamespace(string namespaceName)
     {
         var separatorIndex = namespaceName.LastIndexOf('.');
+
         return separatorIndex < 0 ? string.Empty : namespaceName[..separatorIndex];
     }
 
@@ -854,6 +985,10 @@ public class CSharpDocHarvester : IDocHarvester
 
         return string.Join(".", parts);
     }
+
+    /// <summary>
+    /// Represents a single documentation page for a C# namespace, accumulating content from types within it.
+    /// </summary>
     internal sealed class NamespaceDocPage
     {
         public NamespaceDocPage(string fullNamespace, string path, string title, DocMetadata metadata)

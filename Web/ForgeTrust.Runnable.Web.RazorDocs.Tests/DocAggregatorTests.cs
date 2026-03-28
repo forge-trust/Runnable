@@ -1,5 +1,6 @@
 using AngleSharp;
 using FakeItEasy;
+using ForgeTrust.Runnable.Caching;
 using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -18,6 +19,7 @@ public class DocAggregatorTests : IDisposable
     private readonly ILogger<DocAggregator> _loggerFake;
     private readonly IHtmlSanitizer _sanitizerFake;
     private readonly IMemoryCache _cache;
+    private readonly IMemo _memo;
     private readonly DocAggregator _aggregator;
 
     public DocAggregatorTests()
@@ -28,6 +30,7 @@ public class DocAggregatorTests : IDisposable
         _loggerFake = A.Fake<ILogger<DocAggregator>>();
         _sanitizerFake = A.Fake<IHtmlSanitizer>();
         _cache = new MemoryCache(new MemoryCacheOptions());
+        _memo = new Memo(_cache);
 
         A.CallTo(() => _envFake.ContentRootPath).Returns(Path.GetTempPath());
 
@@ -39,7 +42,7 @@ public class DocAggregatorTests : IDisposable
             new[] { _harvesterFake },
             _configFake,
             _envFake,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake
         );
@@ -49,17 +52,19 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocsAsync_ShouldReturnCachedResults_WhenCacheExists()
     {
         // Arrange
-        var cachedDocs =
-            new Dictionary<string, DocNode> { { "path", new DocNode("Cached", "path", "content") } };
-        _cache.Set("HarvestedDocs", cachedDocs);
+        var cachedDocs = new List<DocNode> { new("Cached", "path", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(cachedDocs);
+
+        _ = await _aggregator.GetDocsAsync();
 
         // Act
-        var result = (await _aggregator.GetDocsAsync()).ToList();
+        var result = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(result);
         Assert.Equal("Cached", result.First().Title);
-        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).MustNotHaveHappened();
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -70,14 +75,16 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var result = (await _aggregator.GetDocsAsync()).ToList();
+        var firstResult = await _aggregator.GetDocsAsync();
+        var secondResult = await _aggregator.GetDocsAsync();
 
         // Assert
-        Assert.Single(result);
-        Assert.Equal("Fresh", result.First().Title);
+        Assert.Single(firstResult);
+        Assert.Single(secondResult);
+        Assert.Equal("Fresh", firstResult.First().Title);
+        Assert.Equal("Fresh", secondResult.First().Title);
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
-        Assert.True(_cache.TryGetValue("HarvestedDocs", out _));
     }
 
     [Fact]
@@ -93,7 +100,7 @@ public class DocAggregatorTests : IDisposable
             .Returns(safeHtml);
 
         // Act
-        var result = (await _aggregator.GetDocsAsync()).ToList();
+        var result = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(result);
@@ -138,7 +145,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var result = (await _aggregator.GetDocsAsync()).ToList();
+        var result = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(result);
@@ -161,13 +168,13 @@ public class DocAggregatorTests : IDisposable
             new[] { failingHarvester, workingHarvester },
             _configFake,
             _envFake,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake
         );
 
         // Act
-        var result = (await aggregator.GetDocsAsync()).ToList();
+        var result = await aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(result);
@@ -182,7 +189,7 @@ public class DocAggregatorTests : IDisposable
             Enumerable.Empty<IDocHarvester>(),
             A.Fake<Ext_IConfiguration>(),
             _envFake,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake);
 
@@ -211,7 +218,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
         var byCanonical = await _aggregator.GetDocByPathAsync("docs/readme.md.html");
         var byCanonicalWithoutAnchor = await _aggregator.GetDocByPathAsync("docs/service.cs.html");
 
@@ -235,12 +242,12 @@ public class DocAggregatorTests : IDisposable
         string? capturedRoot = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string root, CancellationToken _) => capturedRoot = root)
-            .Returns(Enumerable.Empty<DocNode>());
+            .Returns(Array.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
             _configFake,
             _envFake,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake);
 
@@ -263,7 +270,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Contains(docs, d => d.Path == " " && d.CanonicalPath == "index.html");
@@ -324,12 +331,132 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDocsAsync_ShouldPropagateOperationCanceled_FromHarvester()
+    public async Task GetDocsAsync_ShouldSkipCanceledHarvester_AndContinue()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Throws(new OperationCanceledException());
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _aggregator.GetDocsAsync());
+        var docs = await _aggregator.GetDocsAsync();
+
+        Assert.Empty(docs);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldUseInstanceScopedMemoKeys_WhenMemoIsShared()
+    {
+        using var sharedCache = new MemoryCache(new MemoryCacheOptions());
+        using var sharedMemo = new Memo(sharedCache);
+
+        var sharedConfig = A.Fake<Ext_IConfiguration>();
+        A.CallTo(() => sharedConfig["RepositoryRoot"]).Returns(Path.GetTempPath());
+        var sharedEnv = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => sharedEnv.ContentRootPath).Returns(Path.GetTempPath());
+        var sharedSanitizer = A.Fake<IHtmlSanitizer>();
+        A.CallTo(() => sharedSanitizer.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
+            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        var sharedLogger = A.Fake<ILogger<DocAggregator>>();
+
+        var harvesterA = A.Fake<IDocHarvester>();
+        var harvesterB = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvesterA.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(new[] { new DocNode("DocA", "a", "content") });
+        A.CallTo(() => harvesterB.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(new[] { new DocNode("DocB", "b", "content") });
+
+        var aggregatorA = new DocAggregator(
+            new[] { harvesterA },
+            sharedConfig,
+            sharedEnv,
+            sharedMemo,
+            sharedSanitizer,
+            sharedLogger);
+        var aggregatorB = new DocAggregator(
+            new[] { harvesterB },
+            sharedConfig,
+            sharedEnv,
+            sharedMemo,
+            sharedSanitizer,
+            sharedLogger);
+
+        var docsA = await aggregatorA.GetDocsAsync();
+        var docsB = await aggregatorB.GetDocsAsync();
+
+        Assert.Single(docsA);
+        Assert.Single(docsB);
+        Assert.Equal("DocA", docsA[0].Title);
+        Assert.Equal("DocB", docsB[0].Title);
+        A.CallTo(() => harvesterA.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+        A.CallTo(() => harvesterB.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public async Task InvalidateCache_ShouldNotResurfaceOlderSnapshots_AfterMultipleRefreshes()
+    {
+        var harvestCount = 0;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .ReturnsLazily(() =>
+            {
+                harvestCount++;
+                return new[] { new DocNode($"Doc{harvestCount}", $"path-{harvestCount}", "content") };
+            });
+
+        var first = (await _aggregator.GetDocsAsync()).Single();
+        _aggregator.InvalidateCache();
+        var second = (await _aggregator.GetDocsAsync()).Single();
+        _aggregator.InvalidateCache();
+        var third = (await _aggregator.GetDocsAsync()).Single();
+
+        Assert.Equal("Doc1", first.Title);
+        Assert.Equal("Doc2", second.Title);
+        Assert.Equal("Doc3", third.Title);
+        Assert.Equal(3, harvestCount);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldPassTimeoutScopedToken_ToHarvester()
+    {
+        CancellationToken? observedToken = null;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Invokes((string _, CancellationToken ct) => observedToken = ct)
+            .Returns(Array.Empty<DocNode>());
+
+        _ = await _aggregator.GetDocsAsync();
+
+        Assert.NotNull(observedToken);
+        Assert.True(observedToken!.Value.CanBeCanceled);
+        Assert.False(observedToken.Value.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldCancelCallerWait_WithoutPoisoningSharedSnapshot()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode> { new("Recovered", "path", "content") };
+        var releaseHarvester = new TaskCompletionSource<IReadOnlyList<DocNode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken? observedToken = null;
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Invokes((string _, CancellationToken ct) => observedToken = ct)
+            .ReturnsLazily(() => releaseHarvester.Task);
+
+        using var cts = new CancellationTokenSource();
+        var canceledCall = _aggregator.GetDocsAsync(cts.Token);
+
+        // Act
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => _ = (await canceledCall).ToList());
+        releaseHarvester.SetResult(harvestedDocs);
+        var recovered = await _aggregator.GetDocsAsync();
+
+        // Assert
+        Assert.NotNull(observedToken);
+        Assert.True(observedToken!.Value.CanBeCanceled);
+        Assert.False(observedToken.Value.IsCancellationRequested);
+        Assert.Single(recovered);
+        Assert.Equal("Recovered", recovered[0].Title);
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]
@@ -341,7 +468,7 @@ public class DocAggregatorTests : IDisposable
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         Assert.Contains(docs, d => d.Title == "RootFile" && d.CanonicalPath == "readme.md.html");
     }
@@ -357,7 +484,7 @@ public class DocAggregatorTests : IDisposable
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         Assert.Contains(docs, d => d.Path == "docs/readme.md" && d.CanonicalPath == "docs/readme.md.html");
         Assert.Contains(docs, d => d.Path == "docs/readme_md.md" && d.CanonicalPath == "docs/readme_md.md.html");
@@ -376,18 +503,33 @@ public class DocAggregatorTests : IDisposable
         string? capturedRoot = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string root, CancellationToken _) => capturedRoot = root)
-            .Returns(Enumerable.Empty<DocNode>());
+            .Returns(Array.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
             localConfig,
             localEnv,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake);
 
         _ = await aggregator.GetDocsAsync();
 
         Assert.Equal(configuredRoot, capturedRoot);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenMemoIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                _configFake,
+                _envFake,
+                null!,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal("memo", ex.ParamName);
     }
 
     [Fact]
@@ -403,7 +545,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         // Assert
         var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
@@ -493,28 +635,6 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
-    public async Task GetDocsAsync_ShouldFallbackToEmptyDictionary_WhenCacheReturnsNullValue()
-    {
-        // Arrange
-        var nullCache = A.Fake<IMemoryCache>();
-        object? cachedValue = null;
-        A.CallTo(() => nullCache.TryGetValue(A<object>._, out cachedValue)).Returns(true);
-        var aggregator = new DocAggregator(
-            Enumerable.Empty<IDocHarvester>(),
-            _configFake,
-            _envFake,
-            nullCache,
-            _sanitizerFake,
-            _loggerFake);
-
-        // Act
-        var docs = await aggregator.GetDocsAsync();
-
-        // Assert
-        Assert.Empty(docs);
-    }
-
-    [Fact]
     public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenConfigIsMissing()
     {
         // Arrange
@@ -527,12 +647,12 @@ public class DocAggregatorTests : IDisposable
         string? capturedRoot = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string root, CancellationToken _) => capturedRoot = root)
-            .Returns(Enumerable.Empty<DocNode>());
+            .Returns(Array.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
             localConfig,
             localEnv,
-            _cache,
+            _memo,
             _sanitizerFake,
             _loggerFake);
 
@@ -547,12 +667,8 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocByPathAsync_ShouldUsePathFallback_WhenCachedCanonicalPathIsNull()
     {
         // Arrange
-        _cache.Set(
-            "HarvestedDocs",
-            new Dictionary<string, DocNode>
-            {
-                { "docs/service.cs#DoWork", new DocNode("Method", "docs/service.cs#DoWork", "content") }
-            });
+        var harvestedDocs = new List<DocNode> { new("Method", "docs/service.cs#DoWork", "content") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
         var result = await _aggregator.GetDocByPathAsync("DOCS/service.cs#DoWork");
@@ -574,7 +690,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Contains(docs, d => d.Path == "docs/page.html" && d.CanonicalPath == "docs/page.html");
@@ -595,7 +711,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         // Assert
         var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
@@ -605,6 +721,7 @@ public class DocAggregatorTests : IDisposable
 
     public void Dispose()
     {
+        (_memo as IDisposable)?.Dispose();
         _cache.Dispose();
     }
 }

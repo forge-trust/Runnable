@@ -54,7 +54,7 @@ public class InMemoryUserPresenceService : IUserPresenceService
     /// Lists users whose last recorded activity falls within the current ActiveWindow.
     /// </summary>
     /// <returns>A collection of UserPresenceInfo for users with last activity at or after (now - ActiveWindow), ordered by Username.</returns>
-    public IEnumerable<UserPresenceInfo> GetActiveUsers()
+    public IReadOnlyList<UserPresenceInfo> GetActiveUsers()
     {
         var cutoff = DateTimeOffset.UtcNow - ActiveWindow;
 

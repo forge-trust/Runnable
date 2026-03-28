@@ -245,7 +245,8 @@ public class DocAggregator
                                    sanitizer.Sanitize(n.Content),
                                    n.ParentPath,
                                    n.IsDirectory,
-                                   BuildCanonicalPath(n.Path)))
+                                   BuildCanonicalPath(n.Path),
+                                   n.Metadata))
                            .ToList();
 
                        MergeNamespaceReadmes(sanitizedNodes);
@@ -290,12 +291,17 @@ public class DocAggregator
     private static (object Payload, int RecordCount) BuildSearchIndexPayload(IEnumerable<DocNode> docs)
     {
         var records = docs
+            .Where(d => d.Metadata?.HideFromSearch != true)
             .Select(
                 d =>
                 {
                     var content = d.Content;
                     var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content ?? string.Empty, string.Empty), " "));
                     var snippet = TruncateSnippetAtWordBoundary(bodyText, SearchSnippetMaxLength);
+                    var title = string.IsNullOrWhiteSpace(d.Metadata?.Title)
+                        ? d.Title
+                        : d.Metadata!.Title!.Trim();
+                    var summary = d.Metadata?.Summary ?? snippet;
 
                     var headings = H2H3Regex.Matches(content ?? string.Empty)
                         .Select(m => NormalizeSearchText(TagRegex.Replace(m.Groups[1].Value, " ")))
@@ -308,10 +314,22 @@ public class DocAggregator
                     {
                         id = d.Path,
                         path = BuildSearchDocUrl(d.Path),
-                        title = d.Title,
+                        title,
+                        summary,
                         headings,
                         bodyText,
-                        snippet
+                        snippet,
+                        pageType = d.Metadata?.PageType,
+                        audience = d.Metadata?.Audience,
+                        component = d.Metadata?.Component,
+                        aliases = d.Metadata?.Aliases ?? [],
+                        keywords = d.Metadata?.Keywords ?? [],
+                        status = d.Metadata?.Status,
+                        navGroup = d.Metadata?.NavGroup,
+                        order = d.Metadata?.Order,
+                        canonicalSlug = d.Metadata?.CanonicalSlug,
+                        relatedPages = d.Metadata?.RelatedPages ?? [],
+                        breadcrumbs = d.Metadata?.Breadcrumbs ?? []
                     };
                 })
             .Where(r => !string.IsNullOrWhiteSpace(r.title) || !string.IsNullOrWhiteSpace(r.bodyText))
@@ -445,16 +463,22 @@ public class DocAggregator
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(readmeNode.Content))
+            if (!string.IsNullOrWhiteSpace(readmeNode.Content) || readmeNode.Metadata != null)
             {
-                var mergedContent = MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
+                var mergedContent = string.IsNullOrWhiteSpace(readmeNode.Content)
+                    ? namespaceNode.Content
+                    : MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
+                var mergedMetadata = DocMetadata.Merge(
+                    RemoveDerivedNamespaceReadmeOverrides(readmeNode.Metadata),
+                    namespaceNode.Metadata);
                 var mergedNamespaceNode = new DocNode(
-                    namespaceNode.Title,
+                    mergedMetadata?.Title ?? namespaceNode.Title,
                     namespaceNode.Path,
                     mergedContent,
                     namespaceNode.ParentPath,
                     namespaceNode.IsDirectory,
-                    namespaceNode.CanonicalPath);
+                    namespaceNode.CanonicalPath,
+                    mergedMetadata);
 
                 var namespaceIndex = nodes.FindIndex(n => string.Equals(n.Path, namespaceNode.Path, StringComparison.OrdinalIgnoreCase));
                 if (namespaceIndex >= 0)
@@ -467,6 +491,26 @@ public class DocAggregator
 
             nodes.RemoveAll(n => string.Equals(n.Path, readmeNode.Path, StringComparison.OrdinalIgnoreCase));
         }
+    }
+
+    private static DocMetadata? RemoveDerivedNamespaceReadmeOverrides(DocMetadata? metadata)
+    {
+        if (metadata is null)
+        {
+            return null;
+        }
+
+        return metadata with
+        {
+            PageType = metadata.PageTypeIsDerived == true ? null : metadata.PageType,
+            PageTypeIsDerived = metadata.PageTypeIsDerived == true ? null : metadata.PageTypeIsDerived,
+            Audience = metadata.AudienceIsDerived == true ? null : metadata.Audience,
+            AudienceIsDerived = metadata.AudienceIsDerived == true ? null : metadata.AudienceIsDerived,
+            Component = metadata.ComponentIsDerived == true ? null : metadata.Component,
+            ComponentIsDerived = metadata.ComponentIsDerived == true ? null : metadata.ComponentIsDerived,
+            NavGroup = metadata.NavGroupIsDerived == true ? null : metadata.NavGroup,
+            NavGroupIsDerived = metadata.NavGroupIsDerived == true ? null : metadata.NavGroupIsDerived
+        };
     }
 
     /// <summary>

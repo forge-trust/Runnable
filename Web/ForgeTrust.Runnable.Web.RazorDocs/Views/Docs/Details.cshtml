@@ -1,15 +1,24 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode
 @{
-    ViewData["Title"] = Model.Title;
+    var resolvedTitle = string.IsNullOrWhiteSpace(Model.Metadata?.Title)
+        ? Model.Title
+        : Model.Metadata!.Title!.Trim();
+    var summary = Model.Metadata?.Summary;
+    var showSummary = !string.IsNullOrWhiteSpace(summary) && Model.Metadata?.SummaryIsDerived != true;
+    ViewData["Title"] = resolvedTitle;
     var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
     var normalizedPath = Model.Path.Trim().Trim('/');
     var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                           || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
-    var breadcrumbs = new List<(string Label, string? Href)>();
+    var metadataBreadcrumbs = Model.Metadata?.Breadcrumbs?
+        .Where(label => !string.IsNullOrWhiteSpace(label))
+        .Select(label => label.Trim())
+        .ToList();
+    var parsedBreadcrumbs = new List<(string Label, string? Href)>();
 
     if (isNamespacePath)
     {
-        breadcrumbs.Add(("Namespaces", "/docs/Namespaces.html"));
+        parsedBreadcrumbs.Add(("Namespaces", "/docs/Namespaces.html"));
 
         if (normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
         {
@@ -18,7 +27,8 @@
             for (var i = 0; i < parts.Length; i++)
             {
                 var prefix = string.Join(".", parts.Take(i + 1));
-                breadcrumbs.Add((parts[i], $"/docs/Namespaces/{prefix}.html"));
+                var isLast = i == parts.Length - 1;
+                parsedBreadcrumbs.Add((parts[i], isLast ? null : $"/docs/Namespaces/{prefix}.html"));
             }
         }
     }
@@ -32,8 +42,25 @@
             current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
             var isLast = i == segments.Length - 1;
             var href = isLast ? null : $"/docs/{current}.html";
-            breadcrumbs.Add((segment, href));
+            parsedBreadcrumbs.Add((segment, href));
         }
+    }
+
+    var breadcrumbs = new List<(string Label, string? Href)>();
+    var canUseMetadataBreadcrumbs = metadataBreadcrumbs is { Count: > 0 }
+                                    && Model.Metadata?.BreadcrumbsMatchPathTargets == true
+                                    && metadataBreadcrumbs.Count == parsedBreadcrumbs.Count;
+
+    if (canUseMetadataBreadcrumbs)
+    {
+        for (var i = 0; i < metadataBreadcrumbs!.Count; i++)
+        {
+            breadcrumbs.Add((metadataBreadcrumbs[i], parsedBreadcrumbs[i].Href));
+        }
+    }
+    else
+    {
+        breadcrumbs.AddRange(parsedBreadcrumbs);
     }
 }
 
@@ -64,7 +91,11 @@
     </nav>
     @if (!isCSharpApiDoc)
     {
-        <h1 class="text-3xl font-bold text-white tracking-tight">@Model.Title</h1>
+        <h1 class="text-3xl font-bold text-white tracking-tight">@resolvedTitle</h1>
+        @if (showSummary)
+        {
+            <p class="mt-3 max-w-3xl text-base text-slate-400">@summary</p>
+        }
     }
 </header>
 

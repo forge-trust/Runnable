@@ -156,6 +156,30 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldAttachApiReferenceMetadataDefaults()
+    {
+        var code = """
+            namespace ForgeTrust.Runnable.Web.RazorWire;
+
+            /// <summary>Bridge docs.</summary>
+            public class RazorWireBridge {}
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Bridge.cs"), code);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/ForgeTrust.Runnable.Web.RazorWire");
+        var typeStub = results.Single(n => n.Title == "RazorWireBridge" && n.ParentPath == namespaceNode.Path);
+
+        Assert.Equal("api-reference", namespaceNode.Metadata?.PageType);
+        Assert.Equal("developer", namespaceNode.Metadata?.Audience);
+        Assert.Equal("RazorWire", namespaceNode.Metadata?.Component);
+        Assert.Equal("API Reference", namespaceNode.Metadata?.NavGroup);
+
+        Assert.Equal("api-reference", typeStub.Metadata?.PageType);
+        Assert.Equal("RazorWire", typeStub.Metadata?.Component);
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldHandleMalformedXmlGracefully()
     {
         // Arrange

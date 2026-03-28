@@ -107,6 +107,99 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldParseFrontMatterMetadata_AndRemoveItFromRenderedHtml()
+    {
+        var content = """
+            ---
+            title: Quickstart
+            summary: Build your first app.
+            page_type: guide
+            audience: implementer
+            component: RazorWire
+            aliases:
+              - getting started
+              - first app
+            redirect_aliases:
+              - guides/getting-started
+              - intro/quickstart
+            keywords: [turbo, streams]
+            nav_group: Start Here
+            order: 10
+            hide_from_public_nav: true
+            hide_from_search: false
+            related_pages:
+              - Security & Anti-Forgery
+            canonical_slug: start/quickstart
+            breadcrumbs:
+              - Start Here
+              - Quickstart
+            ---
+            # Hello World
+
+            This is a guide.
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), content);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = Assert.Single(results);
+
+        Assert.Equal("Quickstart", doc.Title);
+        Assert.DoesNotContain("page_type", doc.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Build your first app.", doc.Metadata?.Summary);
+        Assert.False(doc.Metadata?.SummaryIsDerived);
+        Assert.Equal("guide", doc.Metadata?.PageType);
+        Assert.Equal("implementer", doc.Metadata?.Audience);
+        Assert.Equal("RazorWire", doc.Metadata?.Component);
+        Assert.Equal(["getting started", "first app"], doc.Metadata?.Aliases);
+        Assert.Equal(["guides/getting-started", "intro/quickstart"], doc.Metadata?.RedirectAliases);
+        Assert.Equal(["turbo", "streams"], doc.Metadata?.Keywords);
+        Assert.Equal("Start Here", doc.Metadata?.NavGroup);
+        Assert.Equal(10, doc.Metadata?.Order);
+        Assert.True(doc.Metadata?.HideFromPublicNav);
+        Assert.False(doc.Metadata?.HideFromSearch);
+        Assert.Equal(["Security & Anti-Forgery"], doc.Metadata?.RelatedPages);
+        Assert.Equal("start/quickstart", doc.Metadata?.CanonicalSlug);
+        Assert.Equal(["Start Here", "Quickstart"], doc.Metadata?.Breadcrumbs);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldDeriveSummary_WhenFrontMatterSummaryIsMissing()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "Guide.md"),
+            """
+            # Heading
+
+            This is the first paragraph.
+
+            ## Next
+
+            More content.
+            """);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = Assert.Single(results);
+
+        Assert.Equal("This is the first paragraph.", doc.Metadata?.Summary);
+        Assert.True(doc.Metadata?.SummaryIsDerived);
+        Assert.Equal("guide", doc.Metadata?.PageType);
+    }
+
+    [Fact]
+    public void ExtractSummary_ShouldIgnoreNumberedListsAtStart()
+    {
+        var summary = MarkdownHarvester.ExtractSummary(
+            """
+            1. Install the package
+            2. Configure the service
+
+            This is the first paragraph.
+            """);
+
+        Assert.Equal("This is the first paragraph.", summary);
+    }
+
+    [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
         Assert.Throws<ArgumentNullException>(

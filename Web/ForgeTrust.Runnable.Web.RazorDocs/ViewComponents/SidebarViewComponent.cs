@@ -42,9 +42,11 @@ public class SidebarViewComponent : ViewComponent
     /// </remarks>
     public async Task<IViewComponentResult> InvokeAsync()
     {
-        var docs = await _aggregator.GetDocsAsync();
+        var docs = (await _aggregator.GetDocsAsync())
+            .Where(d => d.Metadata?.HideFromPublicNav != true)
+            .ToList();
         var groupedDocs = docs
-            .GroupBy(d => GetGroupName(d.Path))
+            .GroupBy(GetGroupName)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
 
         var namespacePrefixes = _namespacePrefixes.Length > 0
@@ -55,22 +57,23 @@ public class SidebarViewComponent : ViewComponent
     }
 
     /// <summary>
+    /// Determines a display group name for a given documentation node.
+    /// </summary>
+    /// <param name="doc">The documentation node to classify.</param>
+    /// <returns>A string representing the group (for example, "Namespaces", "General", or a directory name).</returns>
+    private static string GetGroupName(DocNode doc)
+    {
+        return SidebarDisplayHelper.GetGroupName(doc);
+    }
+
+    /// <summary>
     /// Determines a display group name for a given documentation path.
     /// </summary>
     /// <param name="path">The relative documentation path.</param>
     /// <returns>A string representing the group (e.g., "Namespaces", "General", or a directory name).</returns>
     private static string GetGroupName(string path)
     {
-        var normalizedPath = path.Trim().Trim('/');
-        if (normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Namespaces";
-        }
-
-        var normalizedPathForOs = normalizedPath.Replace('/', Path.DirectorySeparatorChar);
-        var directory = Path.GetDirectoryName(normalizedPathForOs);
-        return string.IsNullOrWhiteSpace(directory) ? "General" : directory.Replace('\\', '/');
+        return SidebarDisplayHelper.GetGroupName(path);
     }
 
     /// <summary>

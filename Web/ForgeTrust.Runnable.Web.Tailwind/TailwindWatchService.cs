@@ -66,13 +66,11 @@ public class TailwindWatchService : BackgroundService
 
             _logger.LogInformation("Starting Tailwind CSS watch mode: {TailwindPath} {Args}", tailwindPath, string.Join(" ", args));
 
-            var result = await ProcessUtils.ExecuteProcessAsync(
+            var result = await ExecuteTailwindProcessAsync(
                 tailwindPath,
                 args,
                 _environment.ContentRootPath,
-                _logger,
-                stoppingToken,
-                streamOutput: true);
+                stoppingToken);
 
             if (result.ExitCode != 0 && !stoppingToken.IsCancellationRequested)
             {
@@ -87,5 +85,26 @@ public class TailwindWatchService : BackgroundService
         {
             _logger.LogError(ex, "Failed to start Tailwind CSS watch process.");
         }
+    }
+
+    /// <summary>
+    /// Executes the Tailwind CLI process.
+    /// </summary>
+    /// <remarks>
+    /// Internal virtual to allow mocking in unit tests.
+    /// </remarks>
+    internal virtual Task<CommandResult> ExecuteTailwindProcessAsync(
+        string fileName,
+        IReadOnlyList<string> args,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        return ProcessUtils.ExecuteProcessAsync(
+            fileName,
+            args,
+            workingDirectory,
+            _logger,
+            cancellationToken,
+            streamOutput: true);
     }
 }

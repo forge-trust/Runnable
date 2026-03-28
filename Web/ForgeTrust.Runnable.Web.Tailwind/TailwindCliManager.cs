@@ -1,5 +1,9 @@
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+
+[assembly: InternalsVisibleTo("ForgeTrust.Runnable.Web.Tailwind.Tests")]
+[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
 
 namespace ForgeTrust.Runnable.Web.Tailwind;
 
@@ -21,12 +25,17 @@ public class TailwindCliManager
     }
 
     /// <summary>
+    /// Gets or sets a directory to override <see cref="AppContext.BaseDirectory"/> for testing.
+    /// </summary>
+    internal string? BaseDirectoryOverride { get; set; }
+
+    /// <summary>
     /// Gets the path to the Tailwind CLI binary.
     /// </summary>
     /// <returns>The absolute path to the binary, or null if not found.</returns>
-    public string GetTailwindPath()
+    public virtual string GetTailwindPath()
     {
-        var baseDir = AppContext.BaseDirectory;
+        var baseDir = BaseDirectoryOverride ?? AppContext.BaseDirectory;
         if (!string.IsNullOrEmpty(baseDir))
         {
             var rid = GetCurrentRid();

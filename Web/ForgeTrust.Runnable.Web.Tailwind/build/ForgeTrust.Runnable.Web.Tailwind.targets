@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <_TailwindTemplates Include="**/*.cshtml;**/*.html" Exclude="bin\**;obj\**" />
+    <_TailwindTemplates Include="**/*.cshtml;**/*.html" Exclude="bin/**;obj/**" />
   </ItemGroup>
 
   <Target Name="RunTailwindBuild" AfterTargets="ResolveProjectReferences" BeforeTargets="PrepareResources;Compile"

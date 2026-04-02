@@ -124,6 +124,15 @@ public static class ProcessUtils
         }
     }
 
+    /// <summary>
+    /// Observes a task and returns its result if it is a Task&lt;string&gt;.
+    /// Ensures any exceptions are caught and logged.
+    /// </summary>
+    /// <param name="task">The task to observe.</param>
+    /// <param name="streamName">The name of the stream (e.g., "stdout").</param>
+    /// <param name="fileName">The file name of the process being executed.</param>
+    /// <param name="logger">The logger for debugging.</param>
+    /// <returns>The string result if available, otherwise an empty string.</returns>
     private static async Task<string> ObserveAndGetResultAsync(Task? task, string streamName, string fileName, ILogger logger)
     {
         if (task == null) return string.Empty;

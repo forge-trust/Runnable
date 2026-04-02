@@ -32,7 +32,8 @@ public class TailwindCliManager
     /// <summary>
     /// Gets the path to the Tailwind CLI binary.
     /// </summary>
-    /// <returns>The absolute path to the binary, or null if not found.</returns>
+    /// <returns>The absolute path to the tailwindcss executable.</returns>
+    /// <exception cref="FileNotFoundException">Thrown if the binary cannot be found in runtimes, local directory, or PATH.</exception>
     public virtual string GetTailwindPath()
     {
         var baseDir = BaseDirectoryOverride ?? AppContext.BaseDirectory;
@@ -87,12 +88,13 @@ public class TailwindCliManager
     }
 
     /// <summary>
-    /// Gets the current runtime identifier.
+    /// Gets the Runtime Identifier (RID) for the current platform.
     /// </summary>
+    /// <returns>The RID string (e.g., "win-x64", "linux-arm64").</returns>
     /// <remarks>
     /// Must be kept in sync with the RID logic in runtime projects and targets.
     /// </remarks>
-    internal static string GetCurrentRid()
+    public static string GetCurrentRid()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {

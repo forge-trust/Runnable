@@ -6,8 +6,7 @@ namespace ForgeTrust.Runnable.Web.Tailwind;
 public class TailwindOptions
 {
     /// <summary>
-    /// Gets or sets whether the Tailwind CSS integration is enabled.
-    /// Defaults to <c>true</c>.
+    /// Gets or sets a value indicating whether Tailwind CSS integration is enabled.
     /// </summary>
     public bool Enabled { get; set; } = true;
 

@@ -1,0 +1,31 @@
+<Project>
+  <PropertyGroup>
+    <TailwindVersion>4.1.18</TailwindVersion>
+    <TailwindBaseUrl>https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TailwindVersion)</TailwindBaseUrl>
+    <TailwindSumsUrl>$(TailwindBaseUrl)/sha256sums.txt</TailwindSumsUrl>
+  </PropertyGroup>
+
+  <UsingTask TaskName="FindChecksum" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <ChecksumFile ParameterType="System.String" Required="true" />
+      <BinaryName ParameterType="System.String" Required="true" />
+      <Hash ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        if (File.Exists(ChecksumFile)) {
+            var line = File.ReadLines(ChecksumFile)
+                .Select(l => l.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+                .FirstOrDefault(tokens => tokens.Length >= 2 && (tokens[1].Equals(BinaryName, StringComparison.Ordinal) || tokens[1].Equals("./" + BinaryName, StringComparison.Ordinal)));
+            if (line != null) {
+                Hash = line[0];
+            }
+        }
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+</Project>

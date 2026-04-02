@@ -34,7 +34,7 @@ public class TailwindCliManagerTests : IDisposable
     public void GetTailwindPath_ReturnsRuntimePath_IfFound()
     {
         // Arrange
-        var rid = GetCurrentRid();
+        var rid = TailwindCliManager.GetCurrentRid();
         var runtimeNativeDir = Path.Combine(_tempPath, "runtimes", rid, "native");
         Directory.CreateDirectory(runtimeNativeDir);
         var expectedPath = Path.Combine(runtimeNativeDir, _binaryName);
@@ -68,23 +68,4 @@ public class TailwindCliManagerTests : IDisposable
         Assert.Throws<FileNotFoundException>(() => _manager.GetTailwindPath());
     }
 
-    private static string GetCurrentRid()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
-        }
-
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
-        }
-
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
-        }
-
-        return "unknown";
-    }
 }

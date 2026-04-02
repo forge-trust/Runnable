@@ -39,7 +39,8 @@ public class TailwindCliManager
         if (!string.IsNullOrEmpty(baseDir))
         {
             var rid = GetCurrentRid();
-            // Standard NuGet runtime asset path
+            
+            // 1. Check standard NuGet runtime asset path (for published apps or project-local runtimes folder)
             var runtimePath = Path.Combine(baseDir, "runtimes", rid, "native", _binaryName);
             if (File.Exists(runtimePath))
             {
@@ -47,16 +48,33 @@ public class TailwindCliManager
                 return runtimePath;
             }
 
-            // Local development fallback
+            // 2. Check AppContext.BaseDirectory directly (for single-file or non-standard deployments)
             var localPath = Path.Combine(baseDir, _binaryName);
             if (File.Exists(localPath))
             {
-                _logger.LogDebug("Found Tailwind CLI at local path: {Path}", localPath);
+                _logger.LogDebug("Found Tailwind CLI at base path: {Path}", localPath);
                 return localPath;
+            }
+
+            // 3. Check for the binary in any runtimes folder relative to the assembly
+            // This handles cases where runtime packages are present but not yet deployed to a flat bin folder
+            var assemblyLocation = typeof(TailwindCliManager).Assembly.Location;
+            if (!string.IsNullOrEmpty(assemblyLocation))
+            {
+                var assemblyDir = Path.GetDirectoryName(assemblyLocation);
+                if (!string.IsNullOrEmpty(assemblyDir))
+                {
+                    var fallbackRuntimePath = Path.Combine(assemblyDir, "runtimes", rid, "native", _binaryName);
+                    if (File.Exists(fallbackRuntimePath))
+                    {
+                        _logger.LogDebug("Found Tailwind CLI at fallback runtime path: {Path}", fallbackRuntimePath);
+                        return fallbackRuntimePath;
+                    }
+                }
             }
         }
 
-        // Check system PATH
+        // 4. Check system PATH
         if (TryGetFromPath(_binaryName, out var path))
         {
             _logger.LogDebug("Found Tailwind CLI in PATH: {Path}", path);
@@ -64,7 +82,7 @@ public class TailwindCliManager
         }
 
         throw new FileNotFoundException(
-            $"Tailwind CLI not found at any of the expected locations. Please ensure 'ForgeTrust.Runnable.Web.Tailwind' is added to your project or tailwindcss is on PATH. (Missing: {_binaryName})",
+            $"Tailwind CLI not found. Please ensure a 'ForgeTrust.Runnable.Web.Tailwind.Runtime.*' package for your platform is installed or tailwindcss is on PATH. (Missing: {_binaryName})",
             _binaryName);
     }
 
@@ -72,23 +90,38 @@ public class TailwindCliManager
     /// Gets the current runtime identifier.
     /// </summary>
     /// <remarks>
-    /// Must be kept in sync with the RID logic in ForgeTrust.Runnable.Web.Tailwind.csproj and targets.
+    /// Must be kept in sync with the RID logic in runtime projects and targets.
     /// </remarks>
-    private static string GetCurrentRid()
+    internal static string GetCurrentRid()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
+            return RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64 => "win-x64",
+                Architecture.Arm64 => "win-x64", // Use x64 emulation as no native arm64 binary exists for Windows
+                _ => "unknown"
+            };
         }
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+            return RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64 => "linux-x64",
+                Architecture.Arm64 => "linux-arm64",
+                _ => "unknown"
+            };
         }
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64";
+            return RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64 => "osx-x64",
+                Architecture.Arm64 => "osx-arm64",
+                _ => "unknown"
+            };
         }
 
         return "unknown";

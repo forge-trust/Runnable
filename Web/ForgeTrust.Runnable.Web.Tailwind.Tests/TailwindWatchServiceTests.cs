@@ -24,7 +24,7 @@ public class TailwindWatchServiceTests
             InputPath = "input.css",
             OutputPath = "output.css"
         };
-        _options = Microsoft.Extensions.Options.Options.Create(_tailwindOptions);
+        _options = Options.Create(_tailwindOptions);
         _logger = A.Fake<ILogger<TailwindWatchService>>();
         _environment = A.Fake<IHostEnvironment>();
         
@@ -96,7 +96,9 @@ public class TailwindWatchServiceTests
         // Assert
         Assert.True(service.ProcessExecuted);
         A.CallTo(_logger)
-            .Where(call => call.Method.Name == "Log" && (LogLevel)call.Arguments[0] == LogLevel.Error)
+            .Where(call => call.Method.Name == "Log" 
+                && call.Arguments.Count > 0 
+                && Equals(call.Arguments[0], LogLevel.Error))
             .MustHaveHappened();
     }
 

@@ -15,8 +15,8 @@
     <Project Path="Caching/ForgeTrust.Runnable.Caching.Tests/ForgeTrust.Runnable.Caching.Tests.csproj" />
   </Folder>
   <Folder Name="/Config/">
-    <Project Path="Config/ForgeTrust.Runnable.Config.Tests/ForgeTrust.Runnable.Config.Tests.csproj" Type="Classic C#" />
-    <Project Path="Config/ForgeTrust.Runnable.Config/ForgeTrust.Runnable.Config.csproj" Type="Classic C#" />
+    <Project Path="Config/ForgeTrust.Runnable.Config.Tests/ForgeTrust.Runnable.Config.Tests.csproj" />
+    <Project Path="Config/ForgeTrust.Runnable.Config/ForgeTrust.Runnable.Config.csproj" />
   </Folder>
   <Folder Name="/Console/">
     <Project Path="Console/ForgeTrust.Runnable.Console.Tests/ForgeTrust.Runnable.Console.Tests.csproj" />
@@ -45,6 +45,14 @@
     <Project Path="Web/ForgeTrust.Runnable.Web.Tailwind.Tests/ForgeTrust.Runnable.Web.Tailwind.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.Tests/ForgeTrust.Runnable.Web.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj" />
+  </Folder>
+  <Folder Name="/Web/ForgeTrust.Runnable.Web.Tailwind/" />
+  <Folder Name="/Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/">
+    <Project Path="Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.linux-arm64.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.linux-x64.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-x64.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.win-x64.csproj" />
   </Folder>
   <Project Path="ForgeTrust.Runnable.Core.Tests/ForgeTrust.Runnable.Core.Tests.csproj" />
   <Project Path="ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj" />

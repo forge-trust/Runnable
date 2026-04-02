@@ -23,8 +23,14 @@ public static class RazorDocsServiceCollectionExtensions
             .PostConfigure<IConfiguration>(
                 (options, configuration) =>
                 {
-                    options.Source.RepositoryRoot = NormalizeOrNull(options.Source.RepositoryRoot)
-                                                    ?? NormalizeOrNull(configuration["RepositoryRoot"]);
+                    if (options.Source.RepositoryRoot is null)
+                    {
+                        options.Source.RepositoryRoot = NormalizeOrNull(configuration["RepositoryRoot"]);
+                    }
+                    else
+                    {
+                        options.Source.RepositoryRoot = options.Source.RepositoryRoot.Trim();
+                    }
 
                     options.Bundle.Path = NormalizeOrNull(options.Bundle.Path);
                     options.Sidebar.NamespacePrefixes = options.Sidebar.NamespacePrefixes

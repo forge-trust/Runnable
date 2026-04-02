@@ -48,8 +48,8 @@ This approach aims to:
 - [**ForgeTrust.Runnable.Web**](./Web/ForgeTrust.Runnable.Web/README.md) – Bootstraps ASP.NET Core minimal API apps and lets modules register middleware, endpoints, and perform additional host configuration.
 - [**ForgeTrust.Runnable.Web.OpenApi**](./Web/ForgeTrust.Runnable.Web.OpenApi/README.md) – Optional module that adds OpenAPI generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
 - [**ForgeTrust.Runnable.Web.RazorWire**](./Web/ForgeTrust.Runnable.Web.RazorWire/README.md) – Adds reactive Razor-based streaming, islands, and export tooling for server-rendered web apps.
-- **ForgeTrust.Runnable.Web.RazorDocs** – Reusable Razor Class Library package that serves documentation from harvested source content.
-- **ForgeTrust.Runnable.Web.RazorDocs.Standalone** – Thin runnable host for exporting or serving RazorDocs as an application.
+- [**ForgeTrust.Runnable.Web.RazorDocs**](./Web/ForgeTrust.Runnable.Web.RazorDocs/README.md) – Reusable Razor Class Library package that serves documentation from harvested source content.
+- [**ForgeTrust.Runnable.Web.RazorDocs.Standalone**](./Web/ForgeTrust.Runnable.Web.RazorDocs.Standalone/README.md) – Thin runnable host for exporting or serving RazorDocs as an application.
 - [**ForgeTrust.Runnable.Web.Scalar**](./Web/ForgeTrust.Runnable.Web.Scalar/README.md) – Optional module that serves the Scalar API reference UI and depends on the OpenAPI module.
 
 ### [Dependency](./Dependency/README.md)

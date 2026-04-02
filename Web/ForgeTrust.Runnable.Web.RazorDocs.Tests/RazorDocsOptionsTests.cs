@@ -72,6 +72,32 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldRejectExplicitWhitespaceSourceRepositoryRoot()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Source:RepositoryRoot"] = "   ",
+                        ["RepositoryRoot"] = "/tmp/legacy-root"
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+
+        var ex = Assert.Throws<OptionsValidationException>(
+            () => _ = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value);
+
+        Assert.Contains(
+            ex.Failures,
+            failure => failure.Contains("RepositoryRoot cannot be whitespace", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validator_ShouldRejectUnsupportedModeValue()
     {
         var validator = new RazorDocsOptionsValidator();

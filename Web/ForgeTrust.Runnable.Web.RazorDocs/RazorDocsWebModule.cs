@@ -9,8 +9,16 @@ namespace ForgeTrust.Runnable.Web.RazorDocs;
 /// </summary>
 public class RazorDocsWebModule : IRunnableWebModule
 {
+    private const string RazorDocsStaticAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";
+
     /// <inheritdoc />
     public bool IncludeAsApplicationPart => true;
+
+    /// <inheritdoc />
+    public void ConfigureWebOptions(StartupContext context, WebOptions options)
+    {
+        options.StaticFiles.EnableStaticWebAssets = true;
+    }
 
     /// <summary>
     /// Registers services required by the RazorDocs module into the provided service collection.
@@ -67,6 +75,29 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <param name="endpoints">Endpoint route builder used to map the module's routes.</param>
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
+        // Preserve the historical /docs asset URLs even though the assets now live in the RazorDocs RCL package.
+        endpoints.MapGet(
+            "/docs/search.css",
+            context =>
+            {
+                context.Response.Redirect($"{RazorDocsStaticAssetBasePath}/search.css", permanent: false);
+                return Task.CompletedTask;
+            });
+        endpoints.MapGet(
+            "/docs/minisearch.min.js",
+            context =>
+            {
+                context.Response.Redirect($"{RazorDocsStaticAssetBasePath}/minisearch.min.js", permanent: false);
+                return Task.CompletedTask;
+            });
+        endpoints.MapGet(
+            "/docs/search-client.js",
+            context =>
+            {
+                context.Response.Redirect($"{RazorDocsStaticAssetBasePath}/search-client.js", permanent: false);
+                return Task.CompletedTask;
+            });
+
         // Index route MUST come before catch-all to be matched first
         endpoints.MapControllerRoute(
             name: "razordocs_index",

@@ -10,5 +10,6 @@ internal enum ExportSourceKind
 internal sealed record ExportSourceRequest(
     ExportSourceKind SourceKind,
     string SourceValue,
+    string? Framework,
     IReadOnlyList<string> AppArgs,
     bool NoBuild);

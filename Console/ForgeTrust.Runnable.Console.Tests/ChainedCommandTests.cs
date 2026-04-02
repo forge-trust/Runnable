@@ -53,6 +53,32 @@ public class ChainedCommandTests
     }
 
     [Fact]
+    public async Task MissingRequiredCommandParameter_ThrowsBeforeExecution()
+    {
+        var provider = CreateProvider();
+        var tracker = provider.GetRequiredService<ExecutionTracker>();
+        var cmd = provider.GetRequiredService<CompositeWithParamCommand>();
+
+        await Assert.ThrowsAsync<CommandException>(async () => await cmd.ExecuteAsync(new FakeConsole()));
+        Assert.False(tracker.ThirdExecuted);
+    }
+
+    [Fact]
+    public async Task ExecutesAllChildCommands_WithWiredCommandParameters()
+    {
+        var provider = CreateProvider();
+        var tracker = provider.GetRequiredService<ExecutionTracker>();
+        var cmd = provider.GetRequiredService<CompositeWithParamCommand>();
+
+        cmd.Baz = "baz";
+
+        await cmd.ExecuteAsync(new FakeConsole());
+
+        Assert.True(tracker.ThirdExecuted);
+        Assert.Equal("baz", tracker.ThirdBaz);
+    }
+
+    [Fact]
     public async Task ConditionalCommands_SkipWhenPredicateFalse()
     {
         var provider = CreateProvider();

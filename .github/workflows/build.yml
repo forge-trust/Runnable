@@ -76,7 +76,7 @@ jobs:
           dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj -c Release -- \
             export \
             --output "$RUNNER_TEMP/razordocs-pages" \
-            --project Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj
+            --project Web/ForgeTrust.Runnable.Web.RazorDocs.Standalone/ForgeTrust.Runnable.Web.RazorDocs.Standalone.csproj
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4

@@ -7,7 +7,6 @@ using Ganss.Xss;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ViewComponents;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -62,19 +61,17 @@ public sealed class SidebarViewComponentTests
     [Fact]
     public async Task InvokeAsync_ShouldExposeConfiguredNamespacePrefixes_WhenProvided()
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["RazorDocs:Sidebar:NamespacePrefixes:0"] = " ",
-                    ["RazorDocs:Sidebar:NamespacePrefixes:1"] = "Contoso.Product.",
-                    ["RazorDocs:Sidebar:NamespacePrefixes:2"] = "Contoso.Product"
-                })
-            .Build();
+        var options = new RazorDocsOptions
+        {
+            Sidebar = new RazorDocsSidebarOptions
+            {
+                NamespacePrefixes = [" ", "Contoso.Product.", "Contoso.Product"]
+            }
+        };
 
         var (component, cache, memo) = CreateComponent(
             [new DocNode("Core", "Namespaces/Contoso.Product.Core", "<p>Core docs</p>")],
-            config);
+            options);
         using (memo)
         using (cache)
         {
@@ -93,8 +90,7 @@ public sealed class SidebarViewComponentTests
             [
                 new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
                 new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
-            ],
-            A.Fake<IConfiguration>());
+            ]);
         using (memo)
         using (cache)
         {
@@ -113,8 +109,7 @@ public sealed class SidebarViewComponentTests
             [
                 new DocNode("One", "Namespaces/Alpha.One", "<p>Alpha docs</p>"),
                 new DocNode("Two", "Namespaces/Beta.Two", "<p>Beta docs</p>")
-            ],
-            A.Fake<IConfiguration>());
+            ]);
         using (memo)
         using (cache)
         {
@@ -130,8 +125,7 @@ public sealed class SidebarViewComponentTests
     public async Task InvokeAsync_ShouldDeriveNoPrefix_WhenNoNamespacesExist()
     {
         var (component, cache, memo) = CreateComponent(
-            [new DocNode("Home", "docs/readme.md", "<p>Home docs</p>")],
-            A.Fake<IConfiguration>());
+            [new DocNode("Home", "docs/readme.md", "<p>Home docs</p>")]);
         using (memo)
         using (cache)
         {
@@ -146,20 +140,15 @@ public sealed class SidebarViewComponentTests
     [Fact]
     public async Task InvokeAsync_ShouldDerivePrefixes_WhenNamespacePrefixSectionIsPresentButEmpty()
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["RazorDocs:Sidebar:NamespacePrefixes"] = string.Empty
-                })
-            .Build();
-
         var (component, cache, memo) = CreateComponent(
             [
                 new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
                 new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
             ],
-            config);
+            new RazorDocsOptions
+            {
+                Sidebar = new RazorDocsSidebarOptions { NamespacePrefixes = [] }
+            });
         using (memo)
         using (cache)
         {
@@ -174,13 +163,11 @@ public sealed class SidebarViewComponentTests
     [Fact]
     public async Task InvokeAsync_ShouldDerivePrefixes_WhenNamespacePrefixSectionIsMissing()
     {
-        var config = new ConfigurationBuilder().Build();
         var (component, cache, memo) = CreateComponent(
             [
                 new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
                 new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
-            ],
-            config);
+            ]);
         using (memo)
         using (cache)
         {
@@ -194,15 +181,15 @@ public sealed class SidebarViewComponentTests
 
     private static (SidebarViewComponent Component, MemoryCache Cache, Memo Memo) CreateComponent(
         IEnumerable<DocNode> docs,
-        IConfiguration? configuration = null)
+        RazorDocsOptions? options = null)
     {
         var harvester = A.Fake<IDocHarvester>();
-        var config = configuration ?? A.Fake<IConfiguration>();
         var env = A.Fake<IWebHostEnvironment>();
         var sanitizer = A.Fake<IHtmlSanitizer>();
         var logger = A.Fake<ILogger<DocAggregator>>();
         var cache = new MemoryCache(new MemoryCacheOptions());
         var memo = new Memo(cache);
+        var docsOptions = options ?? new RazorDocsOptions();
 
         A.CallTo(() => env.ContentRootPath).Returns(Path.GetTempPath());
         A.CallTo(() => sanitizer.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
@@ -212,13 +199,13 @@ public sealed class SidebarViewComponentTests
 
         var aggregator = new DocAggregator(
             new[] { harvester },
-            config,
+            docsOptions,
             env,
             memo,
             sanitizer,
             logger);
 
-        var component = new SidebarViewComponent(aggregator, config);
+        var component = new SidebarViewComponent(aggregator, docsOptions);
         return (component, cache, memo);
     }
 }

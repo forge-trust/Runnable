@@ -31,7 +31,7 @@ public class DocsControllerTests : IDisposable
         _harvesterFake = A.Fake<IDocHarvester>();
         var loggerFake = A.Fake<ILogger<DocAggregator>>();
         var controllerLoggerFake = A.Fake<ILogger<DocsController>>();
-        var configFake = A.Fake<Microsoft.Extensions.Configuration.IConfiguration>();
+        var options = new RazorDocsOptions();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
         var sanitizerFake = A.Fake<IHtmlSanitizer>();
@@ -44,7 +44,7 @@ public class DocsControllerTests : IDisposable
         // Since Controller takes concrete DocAggregator, we instantiate it.
         _aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            configFake,
+            options,
             envFake,
             _memo,
             sanitizerFake,

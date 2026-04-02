@@ -51,27 +51,34 @@ public class DocAggregator
     /// Initializes a new instance of <see cref="DocAggregator"/> with the provided dependencies and determines the repository root.
     /// </summary>
     /// <param name="harvesters">Collection of <see cref="IDocHarvester"/> instances used to harvest documentation nodes.</param>
-    /// <param name="configuration">Application configuration; the constructor reads the "RepositoryRoot" key to set the repository root if present.</param>
-    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when configuration does not provide it.</param>
+    /// <param name="options">Typed RazorDocs options that determine the active source mode and optional repository root override.</param>
+    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when options do not provide it.</param>
     /// <param name="memo">Memoized cache used to store harvested documentation.</param>
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
     /// <param name="logger">Logger used for recording aggregation events and errors.</param>
     public DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
-        IConfiguration configuration,
+        RazorDocsOptions options,
         IWebHostEnvironment environment,
         IMemo memo,
         IHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
     {
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(memo);
 
         _harvesters = harvesters;
         _memo = memo;
         _sanitizer = sanitizer;
         _logger = logger;
-        _repositoryRoot = configuration["RepositoryRoot"]
-                          ?? PathUtils.FindRepositoryRoot(environment.ContentRootPath);
+        _repositoryRoot = options.Mode switch
+        {
+            RazorDocsMode.Source => options.Source.RepositoryRoot
+                                    ?? PathUtils.FindRepositoryRoot(environment.ContentRootPath),
+            RazorDocsMode.Bundle => throw new NotSupportedException(
+                "RazorDocs bundle mode is not implemented yet. Use RazorDocs:Mode=Source for Slice 1."),
+            _ => throw new NotSupportedException($"Unsupported RazorDocs mode '{options.Mode}'.")
+        };
     }
 
     /// <summary>

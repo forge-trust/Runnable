@@ -7,9 +7,11 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -60,6 +62,7 @@ public class RazorDocsWebModuleTests
         var envFake = A.Fake<IEnvironmentProvider>();
         var context = new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
         var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
 
         // Act
         _module.ConfigureServices(context, services);
@@ -80,6 +83,8 @@ public class RazorDocsWebModuleTests
         using var serviceProvider = services.BuildServiceProvider();
         var sanitizer = Assert.IsType<Ganss.Xss.HtmlSanitizer>(
             serviceProvider.GetRequiredService<Ganss.Xss.IHtmlSanitizer>());
+        Assert.NotNull(serviceProvider.GetService<IOptions<RazorDocsOptions>>());
+        Assert.NotNull(serviceProvider.GetService<RazorDocsOptions>());
         Assert.Contains("section", sanitizer.AllowedTags);
         Assert.Contains("article", sanitizer.AllowedTags);
         Assert.Contains("header", sanitizer.AllowedTags);

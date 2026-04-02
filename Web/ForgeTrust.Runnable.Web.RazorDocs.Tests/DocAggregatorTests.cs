@@ -7,14 +7,13 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using Ext_IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
 public class DocAggregatorTests : IDisposable
 {
     private readonly IDocHarvester _harvesterFake;
-    private readonly Ext_IConfiguration _configFake;
+    private readonly RazorDocsOptions _options;
     private readonly IWebHostEnvironment _envFake;
     private readonly ILogger<DocAggregator> _loggerFake;
     private readonly IHtmlSanitizer _sanitizerFake;
@@ -25,7 +24,7 @@ public class DocAggregatorTests : IDisposable
     public DocAggregatorTests()
     {
         _harvesterFake = A.Fake<IDocHarvester>();
-        _configFake = A.Fake<Ext_IConfiguration>();
+        _options = new RazorDocsOptions();
         _envFake = A.Fake<IWebHostEnvironment>();
         _loggerFake = A.Fake<ILogger<DocAggregator>>();
         _sanitizerFake = A.Fake<IHtmlSanitizer>();
@@ -40,7 +39,7 @@ public class DocAggregatorTests : IDisposable
 
         _aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            _configFake,
+            _options,
             _envFake,
             _memo,
             _sanitizerFake,
@@ -140,7 +139,7 @@ public class DocAggregatorTests : IDisposable
 
         var aggregator = new DocAggregator(
             new[] { failingHarvester, workingHarvester },
-            _configFake,
+            _options,
             _envFake,
             _memo,
             _sanitizerFake,
@@ -161,7 +160,7 @@ public class DocAggregatorTests : IDisposable
         // Arrange
         var aggregator = new DocAggregator(
             Enumerable.Empty<IDocHarvester>(),
-            A.Fake<Ext_IConfiguration>(),
+            new RazorDocsOptions(),
             _envFake,
             _memo,
             _sanitizerFake,
@@ -212,14 +211,17 @@ public class DocAggregatorTests : IDisposable
     {
         // Arrange
         var configuredRoot = Path.Combine(Path.GetTempPath(), "repo-root");
-        A.CallTo(() => _configFake["RepositoryRoot"]).Returns(configuredRoot);
+        var options = new RazorDocsOptions
+        {
+            Source = new RazorDocsSourceOptions { RepositoryRoot = configuredRoot }
+        };
         string? capturedRoot = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string root, CancellationToken _) => capturedRoot = root)
             .Returns(Enumerable.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            _configFake,
+            options,
             _envFake,
             _memo,
             _sanitizerFake,
@@ -321,8 +323,6 @@ public class DocAggregatorTests : IDisposable
         using var sharedCache = new MemoryCache(new MemoryCacheOptions());
         using var sharedMemo = new Memo(sharedCache);
 
-        var sharedConfig = A.Fake<Ext_IConfiguration>();
-        A.CallTo(() => sharedConfig["RepositoryRoot"]).Returns(Path.GetTempPath());
         var sharedEnv = A.Fake<IWebHostEnvironment>();
         A.CallTo(() => sharedEnv.ContentRootPath).Returns(Path.GetTempPath());
         var sharedSanitizer = A.Fake<IHtmlSanitizer>();
@@ -337,16 +337,21 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => harvesterB.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(new[] { new DocNode("DocB", "b", "content") });
 
+        var sharedOptions = new RazorDocsOptions
+        {
+            Source = new RazorDocsSourceOptions { RepositoryRoot = Path.GetTempPath() }
+        };
+
         var aggregatorA = new DocAggregator(
             new[] { harvesterA },
-            sharedConfig,
+            sharedOptions,
             sharedEnv,
             sharedMemo,
             sharedSanitizer,
             sharedLogger);
         var aggregatorB = new DocAggregator(
             new[] { harvesterB },
-            sharedConfig,
+            sharedOptions,
             sharedEnv,
             sharedMemo,
             sharedSanitizer,
@@ -470,8 +475,10 @@ public class DocAggregatorTests : IDisposable
     public async Task Constructor_ShouldPreferConfiguredRoot_OverEnvironmentFallback()
     {
         var configuredRoot = Path.Combine(Path.GetTempPath(), "configured-root");
-        var localConfig = A.Fake<Ext_IConfiguration>();
-        A.CallTo(() => localConfig["RepositoryRoot"]).Returns(configuredRoot);
+        var localOptions = new RazorDocsOptions
+        {
+            Source = new RazorDocsSourceOptions { RepositoryRoot = configuredRoot }
+        };
         var localEnv = A.Fake<IWebHostEnvironment>();
         A.CallTo(() => localEnv.ContentRootPath).Returns("/definitely/not/used");
         string? capturedRoot = null;
@@ -480,7 +487,7 @@ public class DocAggregatorTests : IDisposable
             .Returns(Enumerable.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            localConfig,
+            localOptions,
             localEnv,
             _memo,
             _sanitizerFake,
@@ -497,7 +504,7 @@ public class DocAggregatorTests : IDisposable
         var ex = Assert.Throws<ArgumentNullException>(
             () => new DocAggregator(
                 new[] { _harvesterFake },
-                _configFake,
+                _options,
                 _envFake,
                 null!,
                 _sanitizerFake,
@@ -568,11 +575,10 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
-    public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenConfigIsMissing()
+    public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenSourceRootIsMissing()
     {
         // Arrange
-        var localConfig = A.Fake<Ext_IConfiguration>();
-        A.CallTo(() => localConfig["RepositoryRoot"]).Returns(null);
+        var localOptions = new RazorDocsOptions();
         var localEnv = A.Fake<IWebHostEnvironment>();
         var contentRoot = Path.Combine(Path.GetTempPath(), "repo-fallback-root");
         A.CallTo(() => localEnv.ContentRootPath).Returns(contentRoot);
@@ -583,7 +589,7 @@ public class DocAggregatorTests : IDisposable
             .Returns(Enumerable.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            localConfig,
+            localOptions,
             localEnv,
             _memo,
             _sanitizerFake,
@@ -594,6 +600,27 @@ public class DocAggregatorTests : IDisposable
 
         // Assert
         Assert.Equal(expectedRoot, capturedRoot);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenBundleModeIsRequestedBeforeItIsImplemented()
+    {
+        var options = new RazorDocsOptions
+        {
+            Mode = RazorDocsMode.Bundle,
+            Bundle = new RazorDocsBundleOptions { Path = "/tmp/docs.bundle.json" }
+        };
+
+        var ex = Assert.Throws<NotSupportedException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Contains("bundle mode", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

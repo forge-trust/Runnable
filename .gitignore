@@ -67,9 +67,11 @@ BenchmarkDotNet.Artifacts/
 *.cobertura.xml
 coverage.json
 coverage.xml
+junit.xml
 
 # macOS System Files
 .DS_Store
 
 # Tooling output
 .codex-review
+.gstack/

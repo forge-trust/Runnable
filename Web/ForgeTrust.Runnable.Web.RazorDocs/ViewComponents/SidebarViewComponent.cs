@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
-using Microsoft.Extensions.Configuration;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 
@@ -55,6 +54,11 @@ public class SidebarViewComponent : ViewComponent
         return View(groupedDocs);
     }
 
+    /// <summary>
+    /// Determines a display group name for a given documentation path.
+    /// </summary>
+    /// <param name="path">The relative documentation path.</param>
+    /// <returns>A string representing the group (e.g., "Namespaces", "General", or a directory name).</returns>
     private static string GetGroupName(string path)
     {
         var normalizedPath = path.Trim().Trim('/');
@@ -69,6 +73,11 @@ public class SidebarViewComponent : ViewComponent
         return string.IsNullOrWhiteSpace(directory) ? "General" : directory.Replace('\\', '/');
     }
 
+    /// <summary>
+    /// Automatically derives common namespace prefixes from the set of harvested documentation nodes to simplify sidebar display.
+    /// </summary>
+    /// <param name="docs">The collection of documentation nodes to analyze.</param>
+    /// <returns>An array of strings representing common namespace prefixes encountered.</returns>
     private static string[] GetDerivedNamespacePrefixes(IEnumerable<DocNode> docs)
     {
         var namespaces = docs

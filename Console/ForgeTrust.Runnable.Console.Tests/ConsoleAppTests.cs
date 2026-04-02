@@ -101,6 +101,7 @@ public class ConsoleAppTests
         {
             _callback();
             _lifetime.StopApplication();
+
             return Task.CompletedTask;
         }
 

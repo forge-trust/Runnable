@@ -490,9 +490,9 @@ public class RazorDocsViewsTests
             _docs = docs;
         }
 
-        public Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IEnumerable<DocNode>>(_docs);
+            return Task.FromResult<IReadOnlyList<DocNode>>(_docs);
         }
     }
 

@@ -122,6 +122,11 @@ public class DocsController : Controller
         return Json(payload);
     }
 
+    /// <summary>
+    /// Determines whether the search index cache should be refreshed based on the presence of a "refresh" query parameter.
+    /// </summary>
+    /// <param name="query">The collection of query parameters from the HTTP request.</param>
+    /// <returns><c>true</c> if the cache should be refreshed; otherwise, <c>false</c>.</returns>
     private static bool ShouldRefreshCache(IQueryCollection query)
     {
         if (!query.TryGetValue("refresh", out StringValues refreshValues))
@@ -130,10 +135,14 @@ public class DocsController : Controller
         }
 
         var refresh = refreshValues.ToString();
-        return string.Equals(refresh, "1", StringComparison.OrdinalIgnoreCase)
+        return refresh == "1"
                || string.Equals(refresh, "true", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Checks whether the current user has permission to initiate a cache refresh. 
+    /// </summary>
+    /// <returns><c>true</c> if the user is authenticated; otherwise, <c>false</c>.</returns>
     internal bool CanRefreshCache()
     {
         return User?.Identity?.IsAuthenticated == true;

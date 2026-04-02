@@ -78,8 +78,8 @@ public class DocAggregator
     /// Retrieves all harvested documentation nodes sorted by their Path.
     /// </summary>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
-    /// <returns>An enumerable of all <see cref="DocNode"/> objects ordered by their Path.</returns>
-    public async Task<IEnumerable<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
+    /// <returns>A read-only list of all <see cref="DocNode"/> objects ordered by their Path.</returns>
+    public async Task<IReadOnlyList<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
         var cachedDict = snapshot.DocsByPath;
@@ -279,22 +279,25 @@ public class DocAggregator
                        return new CachedDocsSnapshot(docsByPath, searchIndexPayload);
                    },
                    DocsCachePolicy,
-                   cancellationToken: CancellationToken.None) ?? new CachedDocsSnapshot(
-                       new Dictionary<string, DocNode>(),
-                       BuildSearchIndexPayload(Enumerable.Empty<DocNode>()).Payload);
+                   cancellationToken: CancellationToken.None);
     }
 
+    /// <summary>
+    /// Builds the search-index payload from the harvested documentation nodes.
+    /// </summary>
+    /// <param name="docs">The documentation nodes to index.</param>
+    /// <returns>A tuple containing the serializable payload and the number of records indexed.</returns>
     private static (object Payload, int RecordCount) BuildSearchIndexPayload(IEnumerable<DocNode> docs)
     {
         var records = docs
             .Select(
                 d =>
                 {
-                    var content = d.Content ?? string.Empty;
-                    var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content, string.Empty), " "));
+                    var content = d.Content;
+                    var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content ?? string.Empty, string.Empty), " "));
                     var snippet = TruncateSnippetAtWordBoundary(bodyText, SearchSnippetMaxLength);
 
-                    var headings = H2H3Regex.Matches(content)
+                    var headings = H2H3Regex.Matches(content ?? string.Empty)
                         .Select(m => NormalizeSearchText(TagRegex.Replace(m.Groups[1].Value, " ")))
                         .Where(h => !string.IsNullOrWhiteSpace(h))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -331,12 +334,22 @@ public class DocAggregator
         return (payload, records.Count);
     }
 
-    internal static string NormalizeSearchText(string text)
+    /// <summary>
+    /// Decodes HTML entities and normalizes whitespace in the provided text for search indexing.
+    /// </summary>
+    /// <param name="text">The text to normalize.</param>
+    /// <returns>The normalized text.</returns>
+    internal static string NormalizeSearchText(string? text)
     {
         var decoded = WebUtility.HtmlDecode(text ?? string.Empty);
         return MultiSpaceRegex.Replace(decoded, " ").Trim();
     }
 
+    /// <summary>
+    /// Constructs a browser-facing URL for a documentation path.
+    /// </summary>
+    /// <param name="path">The relative documentation path.</param>
+    /// <returns>A URL string starting with "/docs".</returns>
     internal static string BuildSearchDocUrl(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -363,6 +376,12 @@ public class DocAggregator
         return url;
     }
 
+    /// <summary>
+    /// Truncates a text snippet at the last word boundary before the maximum length is exceeded.
+    /// </summary>
+    /// <param name="text">The text to truncate.</param>
+    /// <param name="maxLength">The maximum allowed length of the snippet.</param>
+    /// <returns>The truncated text with an ellipsis if it was shortened.</returns>
     internal static string TruncateSnippetAtWordBoundary(string text, int maxLength)
     {
         if (maxLength <= 0)
@@ -390,6 +409,10 @@ public class DocAggregator
         return text[..boundary].TrimEnd() + "...";
     }
 
+    /// <summary>
+    /// Merges README content into the corresponding namespace overview pages.
+    /// </summary>
+    /// <param name="nodes">The list of documentation nodes to process; README nodes used for merging are removed from this list.</param>
     private static void MergeNamespaceReadmes(List<DocNode> nodes)
     {
         var namespaceNodes = nodes
@@ -446,6 +469,12 @@ public class DocAggregator
         }
     }
 
+    /// <summary>
+    /// Inserts README content into a namespace overview page after the auto-generated namespace groups.
+    /// </summary>
+    /// <param name="namespaceContent">The auto-generated HTML content for the namespace page.</param>
+    /// <param name="readmeContent">The HTML content from the README file.</param>
+    /// <returns>The merged HTML content.</returns>
     internal static string MergeNamespaceIntroIntoContent(string namespaceContent, string readmeContent)
     {
         var introSection = $"<section class=\"doc-namespace-intro\">{readmeContent}</section>";
@@ -479,6 +508,12 @@ public class DocAggregator
         return namespaceContent.Insert(insertAt, introSection);
     }
 
+    /// <summary>
+    /// Finds the index of the closing &lt;/section&gt; tag that matches a &lt;section&gt; tag starting at the specified index.
+    /// </summary>
+    /// <param name="content">The HTML content to search.</param>
+    /// <param name="sectionStart">The starting index of the &lt;section&gt; tag.</param>
+    /// <returns>The index of the closing tag, or -1 if no match is found.</returns>
     private static int FindMatchingSectionEnd(string content, int sectionStart)
     {
         var depth = 0;
@@ -519,6 +554,11 @@ public class DocAggregator
         return -1;
     }
 
+    /// <summary>
+    /// Determines whether the specified path points to a documentation README file.
+    /// </summary>
+    /// <param name="path">The path to check.</param>
+    /// <returns><c>true</c> if the path identifies a README.md file; otherwise, <c>false</c>.</returns>
     private static bool IsReadmePath(string path)
     {
         var normalized = NormalizeLookupPath(path);
@@ -526,17 +566,33 @@ public class DocAggregator
         return string.Equals(fileName, "README.md", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Extracts the dotted namespace name from a documentation path under the "Namespaces/" directory.
+    /// </summary>
+    /// <param name="path">The path to process.</param>
+    /// <returns>The extracted namespace name.</returns>
     private static string ExtractNamespaceNameFromNamespacePath(string path)
     {
         var normalized = NormalizeLookupPath(path);
         return normalized["Namespaces/".Length..];
     }
 
+    /// <summary>
+    /// Attempts to extract a namespace name from a README path by looking at the parent directory name.
+    /// </summary>
+    /// <param name="path">The README path to process.</param>
+    /// <returns>The extracted namespace name, or <c>null</c> if it cannot be determined.</returns>
     internal static string? ExtractNamespaceNameFromReadmePath(string path)
     {
         return ExtractNamespaceNameFromReadmePath(path, null);
     }
 
+    /// <summary>
+    /// Extracts a namespace name from a README path, optionally matching against a list of known namespaces.
+    /// </summary>
+    /// <param name="path">The README path to process.</param>
+    /// <param name="knownNamespaceNames">Optional list of known namespaces to match directory segments against.</param>
+    /// <returns>The extracted namespace name, or <c>null</c> if it cannot be determined.</returns>
     private static string? ExtractNamespaceNameFromReadmePath(string path, IEnumerable<string>? knownNamespaceNames)
     {
         var normalized = NormalizeLookupPath(path);
@@ -557,10 +613,11 @@ public class DocAggregator
 
         if (knownNamespaceNames != null)
         {
+            var knownNamesSet = new HashSet<string>(knownNamespaceNames, StringComparer.OrdinalIgnoreCase);
             for (var start = 0; start < parts.Length; start++)
             {
                 var candidate = string.Join(".", parts.Skip(start));
-                if (knownNamespaceNames.Any(ns => string.Equals(ns, candidate, StringComparison.OrdinalIgnoreCase)))
+                if (knownNamesSet.Contains(candidate))
                 {
                     return candidate;
                 }
@@ -570,6 +627,11 @@ public class DocAggregator
         return parts.LastOrDefault();
     }
 
+    /// <summary>
+    /// Normalizes a documentation path for lookup by trimming slashes and removing fragment anchors.
+    /// </summary>
+    /// <param name="path">The path to normalize.</param>
+    /// <returns>The normalized lookup path.</returns>
     private static string NormalizeLookupPath(string path)
     {
         var sanitized = path.Trim().Trim('/');
@@ -582,11 +644,21 @@ public class DocAggregator
         return sanitized;
     }
 
+    /// <summary>
+    /// Normalizes a documentation path for canonicalization by trimming slashes and normalizing separators.
+    /// </summary>
+    /// <param name="path">The path to normalize.</param>
+    /// <returns>The normalized canonical path.</returns>
     private static string NormalizeCanonicalPath(string path)
     {
         return path.Trim().Trim('/').Replace('\\', '/');
     }
 
+    /// <summary>
+    /// Extracts the fragment anchor (after the '#') from a documentation path.
+    /// </summary>
+    /// <param name="path">The path to process.</param>
+    /// <returns>The fragment string, or <c>null</c> if no fragment is present.</returns>
     private static string? GetFragment(string path)
     {
         var canonical = NormalizeCanonicalPath(path);
@@ -599,6 +671,11 @@ public class DocAggregator
         return canonical[(hashIndex + 1)..];
     }
 
+    /// <summary>
+    /// Constructs a canonical browser-facing path (e.g., with .html extension) for a given documentation source path.
+    /// </summary>
+    /// <param name="sourcePath">The relative path to the documentation source.</param>
+    /// <returns>The canonical browser-facing path.</returns>
     private static string BuildCanonicalPath(string sourcePath)
     {
         var hashIndex = sourcePath.IndexOf('#');

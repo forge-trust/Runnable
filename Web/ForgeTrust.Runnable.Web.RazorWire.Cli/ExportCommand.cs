@@ -44,6 +44,12 @@ public class ExportCommand : ICommand
     public string? DllPath { get; init; }
 
     /// <summary>
+    /// Gets or sets an optional target framework for project exports, required for multi-target projects.
+    /// </summary>
+    [CommandOption("framework", 'f', Description = "Target framework (required for multi-target projects).")]
+    public string? Framework { get; init; }
+
+    /// <summary>
     /// Gets or sets app arguments forwarded to the launched target app.
     /// Repeat this option for each token.
     /// </summary>
@@ -93,23 +99,8 @@ public class ExportCommand : ICommand
     [ExcludeFromCodeCoverage]
     public async ValueTask ExecuteAsync(IConsole console)
     {
-        using var cts = new CancellationTokenSource();
-        ConsoleCancelEventHandler? handler = null;
-        handler = (_, eventArgs) =>
-        {
-            eventArgs.Cancel = true;
-            cts.Cancel();
-        };
-
-        System.Console.CancelKeyPress += handler;
-        try
-        {
-            await ExecuteAsync(console, cts.Token);
-        }
-        finally
-        {
-            System.Console.CancelKeyPress -= handler;
-        }
+        var cancellationToken = console.RegisterCancellationHandler();
+        await ExecuteAsync(console, cancellationToken);
     }
 
     /// <summary>
@@ -120,7 +111,7 @@ public class ExportCommand : ICommand
     /// <returns>A <see cref="ValueTask"/> that completes when the export operation finishes.</returns>
     public async ValueTask ExecuteAsync(IConsole console, CancellationToken cancellationToken)
     {
-        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, AppArgs, NoBuild);
+        var request = _requestFactory.Create(BaseUrl, ProjectPath, DllPath, Framework, AppArgs, NoBuild);
         await using var resolvedSource = await _sourceResolver.ResolveAsync(request, cancellationToken);
 
         _logger.LogInformation("Exporting to {OutputPath}...", OutputPath);

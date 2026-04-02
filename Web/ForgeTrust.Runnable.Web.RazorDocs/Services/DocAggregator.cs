@@ -118,7 +118,7 @@ public class DocAggregator
         var canonicalCandidates = cachedDict.Values
             .Where(
                 doc => string.Equals(
-                    NormalizeLookupPath(doc.CanonicalPath ?? doc.Path),
+                    NormalizeLookupPath(GetSnapshotCanonicalPath(doc)),
                     lookupPath,
                     StringComparison.OrdinalIgnoreCase)
                        || string.Equals(
@@ -134,7 +134,7 @@ public class DocAggregator
 
         var exactCanonicalMatch = canonicalCandidates.FirstOrDefault(
             doc => string.Equals(
-                NormalizeCanonicalPath(doc.CanonicalPath ?? doc.Path),
+                NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
                 lookupCanonicalPath,
                 StringComparison.OrdinalIgnoreCase));
         if (exactCanonicalMatch != null)
@@ -143,7 +143,7 @@ public class DocAggregator
         }
 
         return canonicalCandidates
-            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(doc.CanonicalPath ?? doc.Path)) ? 0 : 1)
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
             .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
             .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
@@ -660,6 +660,8 @@ public class DocAggregator
     {
         return path.Trim().Trim('/').Replace('\\', '/');
     }
+
+    private static string GetSnapshotCanonicalPath(DocNode doc) => doc.CanonicalPath!;
 
     /// <summary>
     /// Extracts the fragment anchor (after the '#') from a documentation path.

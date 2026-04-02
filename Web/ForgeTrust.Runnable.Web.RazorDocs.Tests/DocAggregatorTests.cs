@@ -624,6 +624,26 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_ShouldThrow_WhenModeIsUnsupported()
+    {
+        var options = new RazorDocsOptions
+        {
+            Mode = (RazorDocsMode)999
+        };
+
+        var ex = Assert.Throws<NotSupportedException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Contains("Unsupported RazorDocs mode", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GetDocByPathAsync_ShouldUsePathFallback_WhenCachedCanonicalPathIsNull()
     {
         // Arrange
@@ -636,6 +656,18 @@ public class DocAggregatorTests : IDisposable
         // Assert
         Assert.NotNull(result);
         Assert.Equal("Method", result!.Title);
+    }
+
+    [Fact]
+    public async Task GetDocByPathAsync_ShouldMatchNormalizedSourcePath_WhenCanonicalPathDoesNotMatch()
+    {
+        var harvestedDocs = new List<DocNode> { new("Guide", "docs/guide.md", "<p>Guide</p>") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = await _aggregator.GetDocByPathAsync("/DOCS/guide.md/");
+
+        Assert.NotNull(result);
+        Assert.Equal("Guide", result!.Title);
     }
 
     [Fact]

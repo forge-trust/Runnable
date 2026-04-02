@@ -13,11 +13,6 @@ public sealed class RazorDocsOptions
     public const string SectionName = "RazorDocs";
 
     /// <summary>
-    /// Gets a default instance of <see cref="RazorDocsOptions"/>.
-    /// </summary>
-    public static RazorDocsOptions Default { get; } = new();
-
-    /// <summary>
     /// Gets or sets the active docs source mode.
     /// </summary>
     public RazorDocsMode Mode { get; set; } = RazorDocsMode.Source;

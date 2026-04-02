@@ -51,6 +51,27 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldTrimConfiguredBundlePath()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Bundle:Path"] = " /tmp/docs.bundle.json "
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("/tmp/docs.bundle.json", options.Bundle.Path);
+    }
+
+    [Fact]
     public void Validator_ShouldRejectBundleModeBeforeSliceTwo()
     {
         var validator = new RazorDocsOptionsValidator();

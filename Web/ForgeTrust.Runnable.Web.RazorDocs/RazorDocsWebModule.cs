@@ -130,9 +130,7 @@ public class RazorDocsWebModule : IRunnableWebModule
             [HttpMethods.Get, HttpMethods.Head],
             context =>
             {
-                var redirectPath = context.Request.QueryString.HasValue
-                    ? $"{targetPath}{context.Request.QueryString.Value}"
-                    : targetPath;
+                var redirectPath = $"{context.Request.PathBase}{targetPath}{context.Request.QueryString}";
 
                 context.Response.Redirect(redirectPath, permanent: false);
                 return Task.CompletedTask;

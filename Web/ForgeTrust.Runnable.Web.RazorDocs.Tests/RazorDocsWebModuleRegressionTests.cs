@@ -74,6 +74,49 @@ public class RazorDocsWebModuleRegressionTests
         }
     }
 
+    [Fact]
+    public async Task ConfigureEndpoints_Issue001_PreservesPathBaseInLegacyAssetRedirects()
+    {
+        var module = new RazorDocsWebModule();
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+
+        using var app = builder.Build();
+        app.UsePathBase("/some-base");
+        module.ConfigureEndpoints(context, app);
+
+        await app.StartAsync();
+
+        try
+        {
+            var server = app.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            await AssertRedirectAsync(
+                client,
+                "/some-base/docs/search.css?v=42",
+                $"/some-base{PackagedAssetBasePath}/search.css?v=42");
+            await AssertRedirectAsync(
+                client,
+                HttpMethod.Head,
+                "/some-base/docs/search-client.js?cache=abc",
+                $"/some-base{PackagedAssetBasePath}/search-client.js?cache=abc");
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
     private static async Task AssertRedirectAsync(HttpClient client, string requestPath, string expectedLocation)
     {
         await AssertRedirectAsync(client, HttpMethod.Get, requestPath, expectedLocation);

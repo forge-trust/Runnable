@@ -77,12 +77,34 @@ public class DocAggregator
         _logger = logger;
         _repositoryRoot = options.Mode switch
         {
-            RazorDocsMode.Source => (options.Source ?? throw new ArgumentNullException(nameof(options.Source))).RepositoryRoot
-                                    ?? PathUtils.FindRepositoryRoot(environment.ContentRootPath),
+            RazorDocsMode.Source => ResolveRepositoryRoot(
+                options.Source ?? throw new ArgumentNullException(nameof(options.Source)),
+                environment.ContentRootPath),
             RazorDocsMode.Bundle => throw new NotSupportedException(
                 "RazorDocs bundle mode is not implemented yet. Use RazorDocs:Mode=Source for Slice 1."),
             _ => throw new NotSupportedException($"Unsupported RazorDocs mode '{options.Mode}'.")
         };
+    }
+
+    private static string ResolveRepositoryRoot(RazorDocsSourceOptions sourceOptions, string contentRootPath)
+    {
+        ArgumentNullException.ThrowIfNull(sourceOptions);
+        ArgumentNullException.ThrowIfNull(contentRootPath);
+
+        if (sourceOptions.RepositoryRoot is null)
+        {
+            return PathUtils.FindRepositoryRoot(contentRootPath);
+        }
+
+        var normalizedRepositoryRoot = sourceOptions.RepositoryRoot.Trim();
+        if (normalizedRepositoryRoot.Length == 0)
+        {
+            throw new ArgumentException(
+                "RazorDocs Source RepositoryRoot cannot be whitespace when explicitly configured.",
+                nameof(RazorDocsSourceOptions.RepositoryRoot));
+        }
+
+        return normalizedRepositoryRoot;
     }
 
     /// <summary>

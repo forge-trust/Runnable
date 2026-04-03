@@ -213,7 +213,7 @@ public class DocAggregatorTests : IDisposable
         var configuredRoot = Path.Combine(Path.GetTempPath(), "repo-root");
         var options = new RazorDocsOptions
         {
-            Source = new RazorDocsSourceOptions { RepositoryRoot = configuredRoot }
+            Source = new RazorDocsSourceOptions { RepositoryRoot = $"  {configuredRoot}  " }
         };
         string? capturedRoot = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
@@ -660,6 +660,27 @@ public class DocAggregatorTests : IDisposable
 
         // Assert
         Assert.Equal(expectedRoot, capturedRoot);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenConfiguredRepositoryRootIsWhitespace()
+    {
+        var options = new RazorDocsOptions
+        {
+            Source = new RazorDocsSourceOptions { RepositoryRoot = "   " }
+        };
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal(nameof(RazorDocsSourceOptions.RepositoryRoot), ex.ParamName);
+        Assert.Contains("whitespace", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

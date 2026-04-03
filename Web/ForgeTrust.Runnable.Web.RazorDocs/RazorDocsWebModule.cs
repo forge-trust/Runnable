@@ -130,7 +130,11 @@ public class RazorDocsWebModule : IRunnableWebModule
             [HttpMethods.Get, HttpMethods.Head],
             context =>
             {
-                context.Response.Redirect(targetPath, permanent: false);
+                var redirectPath = context.Request.QueryString.HasValue
+                    ? $"{targetPath}{context.Request.QueryString.Value}"
+                    : targetPath;
+
+                context.Response.Redirect(redirectPath, permanent: false);
                 return Task.CompletedTask;
             });
     }

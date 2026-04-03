@@ -60,9 +60,13 @@ public class RazorDocsWebModuleTests
         // Arrange
         var rootModuleFake = A.Fake<IRunnableHostModule>();
         var envFake = A.Fake<IEnvironmentProvider>();
+        var webHostEnvironment = A.Fake<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
+        A.CallTo(() => webHostEnvironment.ContentRootPath).Returns(Path.GetTempPath());
         var context = new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton(webHostEnvironment);
+        services.AddLogging();
 
         // Act
         _module.ConfigureServices(context, services);
@@ -78,13 +82,17 @@ public class RazorDocsWebModuleTests
         Assert.Contains(
             services,
             s => s.ServiceType == typeof(Ganss.Xss.IHtmlSanitizer) && s.Lifetime == ServiceLifetime.Singleton);
-        Assert.DoesNotContain(services, s => s.ServiceType == typeof(IMemoryCache));
+        Assert.Contains(services, s => s.ServiceType == typeof(IMemoryCache));
+        Assert.Contains(services, s => s.ServiceType == typeof(IMemo));
 
         using var serviceProvider = services.BuildServiceProvider();
         var sanitizer = Assert.IsType<Ganss.Xss.HtmlSanitizer>(
             serviceProvider.GetRequiredService<Ganss.Xss.IHtmlSanitizer>());
         Assert.NotNull(serviceProvider.GetService<IOptions<RazorDocsOptions>>());
         Assert.NotNull(serviceProvider.GetService<RazorDocsOptions>());
+        Assert.NotNull(serviceProvider.GetRequiredService<IMemoryCache>());
+        Assert.NotNull(serviceProvider.GetRequiredService<IMemo>());
+        Assert.NotNull(serviceProvider.GetRequiredService<DocAggregator>());
         Assert.Contains("section", sanitizer.AllowedTags);
         Assert.Contains("article", sanitizer.AllowedTags);
         Assert.Contains("header", sanitizer.AllowedTags);

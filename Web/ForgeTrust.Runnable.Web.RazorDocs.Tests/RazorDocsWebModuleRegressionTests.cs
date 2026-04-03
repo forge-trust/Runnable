@@ -58,9 +58,15 @@ public class RazorDocsWebModuleRegressionTests
             await AssertRedirectAsync(client, "/docs/search.css", $"{PackagedAssetBasePath}/search.css");
             await AssertRedirectAsync(client, "/docs/minisearch.min.js", $"{PackagedAssetBasePath}/minisearch.min.js");
             await AssertRedirectAsync(client, "/docs/search-client.js", $"{PackagedAssetBasePath}/search-client.js");
+            await AssertRedirectAsync(client, "/docs/search.css?v=42", $"{PackagedAssetBasePath}/search.css?v=42");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/search.css", $"{PackagedAssetBasePath}/search.css");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/minisearch.min.js", $"{PackagedAssetBasePath}/minisearch.min.js");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/search-client.js", $"{PackagedAssetBasePath}/search-client.js");
+            await AssertRedirectAsync(
+                client,
+                HttpMethod.Head,
+                "/docs/search-client.js?cache=abc",
+                $"{PackagedAssetBasePath}/search-client.js?cache=abc");
         }
         finally
         {

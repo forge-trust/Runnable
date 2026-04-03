@@ -14,6 +14,55 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 public sealed class SidebarViewComponentTests
 {
     [Fact]
+    public void Constructor_ShouldThrow_WhenAggregatorIsNull()
+    {
+        var options = new RazorDocsOptions();
+
+        Assert.Throws<ArgumentNullException>(() => new SidebarViewComponent(null!, options));
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenOptionsIsNull()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        using var memo = new Memo(cache);
+        var harvester = A.Fake<IDocHarvester>();
+        var env = A.Fake<IWebHostEnvironment>();
+        var sanitizer = A.Fake<IHtmlSanitizer>();
+        var logger = A.Fake<ILogger<DocAggregator>>();
+        A.CallTo(() => env.ContentRootPath).Returns(Path.GetTempPath());
+        A.CallTo(() => sanitizer.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
+            .ReturnsLazily((string html, string _, AngleSharp.IMarkupFormatter _) => html);
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(Array.Empty<DocNode>());
+
+        var aggregator = new DocAggregator(new[] { harvester }, new RazorDocsOptions(), env, memo, sanitizer, logger);
+
+        Assert.Throws<ArgumentNullException>(() => new SidebarViewComponent(aggregator, null!));
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenSidebarConfigurationIsNull()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        using var memo = new Memo(cache);
+        var harvester = A.Fake<IDocHarvester>();
+        var env = A.Fake<IWebHostEnvironment>();
+        var sanitizer = A.Fake<IHtmlSanitizer>();
+        var logger = A.Fake<ILogger<DocAggregator>>();
+        A.CallTo(() => env.ContentRootPath).Returns(Path.GetTempPath());
+        A.CallTo(() => sanitizer.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
+            .ReturnsLazily((string html, string _, AngleSharp.IMarkupFormatter _) => html);
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(Array.Empty<DocNode>());
+
+        var aggregator = new DocAggregator(new[] { harvester }, new RazorDocsOptions(), env, memo, sanitizer, logger);
+        var options = new RazorDocsOptions { Sidebar = null! };
+
+        Assert.Throws<ArgumentNullException>(() => new SidebarViewComponent(aggregator, options));
+    }
+
+    [Fact]
     public async Task InvokeAsync_ShouldGroupDocsByDirectory_AndOrderGroups()
     {
         var (component, cache, memo) = CreateComponent(

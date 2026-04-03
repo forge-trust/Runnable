@@ -20,6 +20,11 @@ public class SidebarViewComponent : ViewComponent
     /// <param name="options">Typed RazorDocs options used for optional namespace prefix simplification settings.</param>
     public SidebarViewComponent(DocAggregator aggregator, RazorDocsOptions options)
     {
+        ArgumentNullException.ThrowIfNull(aggregator);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.Sidebar);
+        ArgumentNullException.ThrowIfNull(options.Sidebar.NamespacePrefixes);
+
         _aggregator = aggregator;
         _namespacePrefixes = options.Sidebar.NamespacePrefixes
             .Where(prefix => !string.IsNullOrWhiteSpace(prefix))

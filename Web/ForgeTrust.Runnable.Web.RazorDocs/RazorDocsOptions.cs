@@ -94,15 +94,37 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         ArgumentNullException.ThrowIfNull(options);
 
         List<string> failures = [];
+        var source = options.Source;
+        var bundle = options.Bundle;
+        var sidebar = options.Sidebar;
 
         if (!Enum.IsDefined(options.Mode))
         {
             failures.Add($"Unsupported RazorDocs mode '{options.Mode}'.");
         }
 
+        if (source is null)
+        {
+            failures.Add("RazorDocs:Source must not be null.");
+        }
+
+        if (bundle is null)
+        {
+            failures.Add("RazorDocs:Bundle must not be null.");
+        }
+
+        if (sidebar is null)
+        {
+            failures.Add("RazorDocs:Sidebar must not be null.");
+        }
+        else if (sidebar.NamespacePrefixes is null)
+        {
+            failures.Add("RazorDocs:Sidebar:NamespacePrefixes must not be null.");
+        }
+
         if (options.Mode == RazorDocsMode.Bundle)
         {
-            if (string.IsNullOrWhiteSpace(options.Bundle.Path))
+            if (bundle is null || string.IsNullOrWhiteSpace(bundle.Path))
             {
                 failures.Add("RazorDocs bundle mode requires RazorDocs:Bundle:Path.");
             }
@@ -111,8 +133,8 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         }
 
         if (options.Mode == RazorDocsMode.Source
-            && options.Source.RepositoryRoot is not null
-            && string.IsNullOrWhiteSpace(options.Source.RepositoryRoot))
+            && source?.RepositoryRoot is not null
+            && string.IsNullOrWhiteSpace(source.RepositoryRoot))
         {
             failures.Add("RazorDocs:Source:RepositoryRoot cannot be whitespace.");
         }

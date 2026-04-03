@@ -64,8 +64,12 @@ public class DocAggregator
         IHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
     {
+        ArgumentNullException.ThrowIfNull(harvesters);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(memo);
+        ArgumentNullException.ThrowIfNull(sanitizer);
+        ArgumentNullException.ThrowIfNull(logger);
 
         _harvesters = harvesters;
         _memo = memo;
@@ -73,7 +77,7 @@ public class DocAggregator
         _logger = logger;
         _repositoryRoot = options.Mode switch
         {
-            RazorDocsMode.Source => options.Source.RepositoryRoot
+            RazorDocsMode.Source => (options.Source ?? throw new ArgumentNullException(nameof(options.Source))).RepositoryRoot
                                     ?? PathUtils.FindRepositoryRoot(environment.ContentRootPath),
             RazorDocsMode.Bundle => throw new NotSupportedException(
                 "RazorDocs bundle mode is not implemented yet. Use RazorDocs:Mode=Source for Slice 1."),

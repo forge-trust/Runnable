@@ -514,6 +514,66 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_ShouldThrow_WhenHarvestersIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                null!,
+                _options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal("harvesters", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenEnvironmentIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                _options,
+                null!,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal("environment", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenSanitizerIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                _options,
+                _envFake,
+                _memo,
+                null!,
+                _loggerFake));
+
+        Assert.Equal("sanitizer", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenLoggerIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                _options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                null!));
+
+        Assert.Equal("logger", ex.ParamName);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldMergeNamespaceReadmeIntoNamespaceNode_AndRemoveReadmeNode()
     {
         // Arrange
@@ -641,6 +701,26 @@ public class DocAggregatorTests : IDisposable
                 _loggerFake));
 
         Assert.Contains("Unsupported RazorDocs mode", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenSourceOptionsAreNullInSourceMode()
+    {
+        var options = new RazorDocsOptions
+        {
+            Source = null!
+        };
+
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal("Source", ex.ParamName);
     }
 
     [Fact]

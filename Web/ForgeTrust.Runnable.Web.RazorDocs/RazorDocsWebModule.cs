@@ -76,27 +76,9 @@ public class RazorDocsWebModule : IRunnableWebModule
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
         // Preserve the historical /docs asset URLs even though the assets now live in the RazorDocs RCL package.
-        endpoints.MapGet(
-            "/docs/search.css",
-            context =>
-            {
-                context.Response.Redirect($"{RazorDocsStaticAssetBasePath}/search.css", permanent: false);
-                return Task.CompletedTask;
-            });
-        endpoints.MapGet(
-            "/docs/minisearch.min.js",
-            context =>
-            {
-                context.Response.Redirect($"{RazorDocsStaticAssetBasePath}/minisearch.min.js", permanent: false);
-                return Task.CompletedTask;
-            });
-        endpoints.MapGet(
-            "/docs/search-client.js",
-            context =>
-            {
-                context.Response.Redirect($"{RazorDocsStaticAssetBasePath}/search-client.js", permanent: false);
-                return Task.CompletedTask;
-            });
+        MapLegacyAssetRedirect(endpoints, "/docs/search.css", $"{RazorDocsStaticAssetBasePath}/search.css");
+        MapLegacyAssetRedirect(endpoints, "/docs/minisearch.min.js", $"{RazorDocsStaticAssetBasePath}/minisearch.min.js");
+        MapLegacyAssetRedirect(endpoints, "/docs/search-client.js", $"{RazorDocsStaticAssetBasePath}/search-client.js");
 
         // Index route MUST come before catch-all to be matched first
         endpoints.MapControllerRoute(
@@ -139,5 +121,17 @@ public class RazorDocsWebModule : IRunnableWebModule
         endpoints.MapControllerRoute(
             name: "razordocs_default",
             pattern: "{controller=Docs}/{action=Index}/{path?}");
+    }
+
+    private static void MapLegacyAssetRedirect(IEndpointRouteBuilder endpoints, string route, string targetPath)
+    {
+        endpoints.MapMethods(
+            route,
+            [HttpMethods.Get, HttpMethods.Head],
+            context =>
+            {
+                context.Response.Redirect(targetPath, permanent: false);
+                return Task.CompletedTask;
+            });
     }
 }

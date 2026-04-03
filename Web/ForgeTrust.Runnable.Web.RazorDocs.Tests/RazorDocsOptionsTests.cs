@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System.Text;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -98,6 +99,38 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldRehydrateNullNestedOptionsObjects()
+    {
+        var services = new ServiceCollection();
+        using var configStream = new MemoryStream(
+            Encoding.UTF8.GetBytes(
+                """
+                {
+                  "RazorDocs": {
+                    "Source": null,
+                    "Bundle": null,
+                    "Sidebar": null
+                  }
+                }
+                """));
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddJsonStream(configStream)
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.NotNull(options.Source);
+        Assert.NotNull(options.Bundle);
+        Assert.NotNull(options.Sidebar);
+        Assert.NotNull(options.Sidebar.NamespacePrefixes);
+        Assert.Empty(options.Sidebar.NamespacePrefixes);
+    }
+
+    [Fact]
     public void Validator_ShouldRejectUnsupportedModeValue()
     {
         var validator = new RazorDocsOptionsValidator();
@@ -110,6 +143,43 @@ public sealed class RazorDocsOptionsTests
 
         Assert.True(result.Failed);
         Assert.Contains(result.Failures, failure => failure.Contains("Unsupported RazorDocs mode", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectNullNestedOptionObjects()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Source = null!,
+            Bundle = null!,
+            Sidebar = null!
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Source must not be null.", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Bundle must not be null.", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Sidebar must not be null.", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectNullNamespacePrefixes()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Sidebar = new RazorDocsSidebarOptions
+            {
+                NamespacePrefixes = null!
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("NamespacePrefixes must not be null", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

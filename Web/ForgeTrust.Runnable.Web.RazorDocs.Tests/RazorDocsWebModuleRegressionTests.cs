@@ -58,6 +58,9 @@ public class RazorDocsWebModuleRegressionTests
             await AssertRedirectAsync(client, "/docs/search.css", $"{PackagedAssetBasePath}/search.css");
             await AssertRedirectAsync(client, "/docs/minisearch.min.js", $"{PackagedAssetBasePath}/minisearch.min.js");
             await AssertRedirectAsync(client, "/docs/search-client.js", $"{PackagedAssetBasePath}/search-client.js");
+            await AssertRedirectAsync(client, HttpMethod.Head, "/docs/search.css", $"{PackagedAssetBasePath}/search.css");
+            await AssertRedirectAsync(client, HttpMethod.Head, "/docs/minisearch.min.js", $"{PackagedAssetBasePath}/minisearch.min.js");
+            await AssertRedirectAsync(client, HttpMethod.Head, "/docs/search-client.js", $"{PackagedAssetBasePath}/search-client.js");
         }
         finally
         {
@@ -67,7 +70,13 @@ public class RazorDocsWebModuleRegressionTests
 
     private static async Task AssertRedirectAsync(HttpClient client, string requestPath, string expectedLocation)
     {
-        using var response = await client.GetAsync(requestPath);
+        await AssertRedirectAsync(client, HttpMethod.Get, requestPath, expectedLocation);
+    }
+
+    private static async Task AssertRedirectAsync(HttpClient client, HttpMethod method, string requestPath, string expectedLocation)
+    {
+        using var request = new HttpRequestMessage(method, requestPath);
+        using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);
         Assert.Equal(expectedLocation, response.Headers.Location?.OriginalString);

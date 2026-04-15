@@ -3,7 +3,6 @@ using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
-using Ganss.Xss;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ViewComponents;
 using Microsoft.Extensions.Caching.Memory;
@@ -28,11 +27,11 @@ public sealed class SidebarViewComponentTests
         using var memo = new Memo(cache);
         var harvester = A.Fake<IDocHarvester>();
         var env = A.Fake<IWebHostEnvironment>();
-        var sanitizer = A.Fake<IHtmlSanitizer>();
+        var sanitizer = A.Fake<IRazorDocsHtmlSanitizer>();
         var logger = A.Fake<ILogger<DocAggregator>>();
         A.CallTo(() => env.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizer.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string html, string _, AngleSharp.IMarkupFormatter _) => html);
+        A.CallTo(() => sanitizer.Sanitize(A<string>._))
+            .ReturnsLazily((string html) => html);
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(Array.Empty<DocNode>());
 
@@ -48,11 +47,11 @@ public sealed class SidebarViewComponentTests
         using var memo = new Memo(cache);
         var harvester = A.Fake<IDocHarvester>();
         var env = A.Fake<IWebHostEnvironment>();
-        var sanitizer = A.Fake<IHtmlSanitizer>();
+        var sanitizer = A.Fake<IRazorDocsHtmlSanitizer>();
         var logger = A.Fake<ILogger<DocAggregator>>();
         A.CallTo(() => env.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizer.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string html, string _, AngleSharp.IMarkupFormatter _) => html);
+        A.CallTo(() => sanitizer.Sanitize(A<string>._))
+            .ReturnsLazily((string html) => html);
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(Array.Empty<DocNode>());
 
@@ -234,15 +233,15 @@ public sealed class SidebarViewComponentTests
     {
         var harvester = A.Fake<IDocHarvester>();
         var env = A.Fake<IWebHostEnvironment>();
-        var sanitizer = A.Fake<IHtmlSanitizer>();
+        var sanitizer = A.Fake<IRazorDocsHtmlSanitizer>();
         var logger = A.Fake<ILogger<DocAggregator>>();
         var cache = new MemoryCache(new MemoryCacheOptions());
         var memo = new Memo(cache);
         var docsOptions = options ?? new RazorDocsOptions();
 
         A.CallTo(() => env.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizer.Sanitize(A<string>._, A<string>.Ignored, A<AngleSharp.IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string html, string _, AngleSharp.IMarkupFormatter _) => html);
+        A.CallTo(() => sanitizer.Sanitize(A<string>._))
+            .ReturnsLazily((string html) => html);
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(docs.ToArray());
 

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -27,6 +28,45 @@ public class RazorDocsWebModuleRegressionTests
         module.ConfigureWebOptions(CreateStartupContext(), options);
 
         Assert.True(options.StaticFiles.EnableStaticWebAssets);
+    }
+
+    [Fact]
+    public async Task ConfigureWebOptions_Issue001_ServesLegacySearchCssEndToEnd()
+    {
+        var module = new RazorDocsWebModule();
+        var startup = new TestRazorDocsStartup(module);
+        var context = new StartupContext([], module);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+        builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        try
+        {
+            var server = host.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            using var response = await client.GetAsync("/docs/search.css");
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("/docs/search.css", response.RequestMessage?.RequestUri?.AbsolutePath);
+            Assert.Equal("text/css", response.Content.Headers.ContentType?.MediaType);
+            Assert.False(string.IsNullOrWhiteSpace(body));
+            Assert.Contains("#docs-search-shell", body);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
     }
 
     [Fact]
@@ -136,5 +176,17 @@ public class RazorDocsWebModuleRegressionTests
         var rootModule = A.Fake<IRunnableHostModule>();
         var environmentProvider = A.Fake<IEnvironmentProvider>();
         return new StartupContext(Array.Empty<string>(), rootModule, "TestApp", environmentProvider);
+    }
+
+    private sealed class TestRazorDocsStartup : WebStartup<RazorDocsWebModule>
+    {
+        private readonly RazorDocsWebModule _module;
+
+        public TestRazorDocsStartup(RazorDocsWebModule module)
+        {
+            _module = module;
+        }
+
+        protected override RazorDocsWebModule CreateRootModule() => _module;
     }
 }

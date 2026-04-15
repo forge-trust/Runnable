@@ -1,7 +1,6 @@
 using AngleSharp;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
-using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -34,10 +33,10 @@ public class DocsControllerTests : IDisposable
         var options = new RazorDocsOptions();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
-        var sanitizerFake = A.Fake<IHtmlSanitizer>();
+        var sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
         A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        A.CallTo(() => sanitizerFake.Sanitize(A<string>._))
+            .ReturnsLazily((string input) => input);
         _memo = new Memo(_cache);
 
         // Use real Aggregator with fake dependencies (or we could fake Aggregator but it's a concrete class)

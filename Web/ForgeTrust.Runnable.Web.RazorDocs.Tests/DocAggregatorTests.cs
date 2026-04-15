@@ -1,7 +1,6 @@
 using AngleSharp;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
-using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.AspNetCore.Hosting;
@@ -16,7 +15,7 @@ public class DocAggregatorTests : IDisposable
     private readonly RazorDocsOptions _options;
     private readonly IWebHostEnvironment _envFake;
     private readonly ILogger<DocAggregator> _loggerFake;
-    private readonly IHtmlSanitizer _sanitizerFake;
+    private readonly IRazorDocsHtmlSanitizer _sanitizerFake;
     private readonly IMemoryCache _cache;
     private readonly IMemo _memo;
     private readonly DocAggregator _aggregator;
@@ -27,15 +26,15 @@ public class DocAggregatorTests : IDisposable
         _options = new RazorDocsOptions();
         _envFake = A.Fake<IWebHostEnvironment>();
         _loggerFake = A.Fake<ILogger<DocAggregator>>();
-        _sanitizerFake = A.Fake<IHtmlSanitizer>();
+        _sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
         _cache = new MemoryCache(new MemoryCacheOptions());
         _memo = new Memo(_cache);
 
         A.CallTo(() => _envFake.ContentRootPath).Returns(Path.GetTempPath());
 
         // Default: just return input for sanitization in most tests
-        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._))
+            .ReturnsLazily((string input) => input);
 
         _aggregator = new DocAggregator(
             new[] { _harvesterFake },
@@ -95,7 +94,7 @@ public class DocAggregatorTests : IDisposable
         var harvestedDocs = new List<DocNode> { new DocNode("Title", "path", unsafeHtml) };
 
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
-        A.CallTo(() => _sanitizerFake.Sanitize(unsafeHtml, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
+        A.CallTo(() => _sanitizerFake.Sanitize(unsafeHtml))
             .Returns(safeHtml);
 
         // Act
@@ -325,9 +324,9 @@ public class DocAggregatorTests : IDisposable
 
         var sharedEnv = A.Fake<IWebHostEnvironment>();
         A.CallTo(() => sharedEnv.ContentRootPath).Returns(Path.GetTempPath());
-        var sharedSanitizer = A.Fake<IHtmlSanitizer>();
-        A.CallTo(() => sharedSanitizer.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        var sharedSanitizer = A.Fake<IRazorDocsHtmlSanitizer>();
+        A.CallTo(() => sharedSanitizer.Sanitize(A<string>._))
+            .ReturnsLazily((string input) => input);
         var sharedLogger = A.Fake<ILogger<DocAggregator>>();
 
         var harvesterA = A.Fake<IDocHarvester>();

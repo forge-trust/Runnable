@@ -1,7 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
-using Ganss.Xss;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -21,7 +20,7 @@ public class DocAggregator
     private readonly IEnumerable<IDocHarvester> _harvesters;
     private readonly string _repositoryRoot;
     private readonly IMemo _memo;
-    private readonly IHtmlSanitizer _sanitizer;
+    private readonly IRazorDocsHtmlSanitizer _sanitizer;
     private readonly ILogger<DocAggregator> _logger;
     private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(SnapshotCacheDuration);
     private readonly Guid _cacheScope = Guid.NewGuid();
@@ -61,7 +60,7 @@ public class DocAggregator
         RazorDocsOptions options,
         IWebHostEnvironment environment,
         IMemo memo,
-        IHtmlSanitizer sanitizer,
+        IRazorDocsHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
     {
         ArgumentNullException.ThrowIfNull(harvesters);

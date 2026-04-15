@@ -1,7 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
-using Ganss.Xss;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -21,7 +20,7 @@ public class DocAggregator
     private readonly IEnumerable<IDocHarvester> _harvesters;
     private readonly string _repositoryRoot;
     private readonly IMemo _memo;
-    private readonly IHtmlSanitizer _sanitizer;
+    private readonly IRazorDocsHtmlSanitizer _sanitizer;
     private readonly ILogger<DocAggregator> _logger;
     private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(SnapshotCacheDuration);
     private readonly Guid _cacheScope = Guid.NewGuid();
@@ -51,27 +50,60 @@ public class DocAggregator
     /// Initializes a new instance of <see cref="DocAggregator"/> with the provided dependencies and determines the repository root.
     /// </summary>
     /// <param name="harvesters">Collection of <see cref="IDocHarvester"/> instances used to harvest documentation nodes.</param>
-    /// <param name="configuration">Application configuration; the constructor reads the "RepositoryRoot" key to set the repository root if present.</param>
-    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when configuration does not provide it.</param>
+    /// <param name="options">Typed RazorDocs options that determine the active source mode and optional repository root override.</param>
+    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when options do not provide it.</param>
     /// <param name="memo">Memoized cache used to store harvested documentation.</param>
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
     /// <param name="logger">Logger used for recording aggregation events and errors.</param>
     public DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
-        IConfiguration configuration,
+        RazorDocsOptions options,
         IWebHostEnvironment environment,
         IMemo memo,
-        IHtmlSanitizer sanitizer,
+        IRazorDocsHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
     {
+        ArgumentNullException.ThrowIfNull(harvesters);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(memo);
+        ArgumentNullException.ThrowIfNull(sanitizer);
+        ArgumentNullException.ThrowIfNull(logger);
 
         _harvesters = harvesters;
         _memo = memo;
         _sanitizer = sanitizer;
         _logger = logger;
-        _repositoryRoot = configuration["RepositoryRoot"]
-                          ?? PathUtils.FindRepositoryRoot(environment.ContentRootPath);
+        _repositoryRoot = options.Mode switch
+        {
+            RazorDocsMode.Source => ResolveRepositoryRoot(
+                options.Source ?? throw new ArgumentNullException(nameof(options.Source)),
+                environment.ContentRootPath),
+            RazorDocsMode.Bundle => throw new NotSupportedException(
+                "RazorDocs bundle mode is not implemented yet. Use RazorDocs:Mode=Source for Slice 1."),
+            _ => throw new NotSupportedException($"Unsupported RazorDocs mode '{options.Mode}'.")
+        };
+    }
+
+    private static string ResolveRepositoryRoot(RazorDocsSourceOptions sourceOptions, string contentRootPath)
+    {
+        ArgumentNullException.ThrowIfNull(sourceOptions);
+        ArgumentNullException.ThrowIfNull(contentRootPath);
+
+        if (sourceOptions.RepositoryRoot is null)
+        {
+            return PathUtils.FindRepositoryRoot(contentRootPath);
+        }
+
+        var normalizedRepositoryRoot = sourceOptions.RepositoryRoot.Trim();
+        if (normalizedRepositoryRoot.Length == 0)
+        {
+            throw new ArgumentException(
+                "RazorDocs Source RepositoryRoot cannot be whitespace when explicitly configured.",
+                nameof(RazorDocsSourceOptions.RepositoryRoot));
+        }
+
+        return normalizedRepositoryRoot;
     }
 
     /// <summary>
@@ -111,7 +143,7 @@ public class DocAggregator
         var canonicalCandidates = cachedDict.Values
             .Where(
                 doc => string.Equals(
-                    NormalizeLookupPath(doc.CanonicalPath ?? doc.Path),
+                    NormalizeLookupPath(GetSnapshotCanonicalPath(doc)),
                     lookupPath,
                     StringComparison.OrdinalIgnoreCase)
                        || string.Equals(
@@ -127,7 +159,7 @@ public class DocAggregator
 
         var exactCanonicalMatch = canonicalCandidates.FirstOrDefault(
             doc => string.Equals(
-                NormalizeCanonicalPath(doc.CanonicalPath ?? doc.Path),
+                NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
                 lookupCanonicalPath,
                 StringComparison.OrdinalIgnoreCase));
         if (exactCanonicalMatch != null)
@@ -136,7 +168,7 @@ public class DocAggregator
         }
 
         return canonicalCandidates
-            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(doc.CanonicalPath ?? doc.Path)) ? 0 : 1)
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
             .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
             .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
@@ -653,6 +685,8 @@ public class DocAggregator
     {
         return path.Trim().Trim('/').Replace('\\', '/');
     }
+
+    private static string GetSnapshotCanonicalPath(DocNode doc) => doc.CanonicalPath!;
 
     /// <summary>
     /// Extracts the fragment anchor (after the '#') from a documentation path.

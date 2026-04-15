@@ -3,7 +3,6 @@ using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
-using Ganss.Xss;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -15,8 +14,9 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using System.Diagnostics;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -337,19 +337,20 @@ public class RazorDocsViewsTests
             }
         }
 
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(configValues).Build();
+
         var services = new ServiceCollection();
         services.AddLogging();
         var diagnosticListener = new DiagnosticListener("RazorDocsViewsTests");
         services.AddSingleton<DiagnosticSource>(diagnosticListener);
         services.AddSingleton(diagnosticListener);
         services.AddSingleton<IWebHostEnvironment>(new TestWebHostEnvironment(webRoot));
-        services.AddSingleton<IConfiguration>(
-            _ => new ConfigurationBuilder().AddInMemoryCollection(configValues).Build());
+        services.AddSingleton<IConfiguration>(_ => configuration);
         services.AddMemoryCache();
         services.AddSingleton<IMemo, Memo>();
-        services.AddSingleton<IHtmlSanitizer, HtmlSanitizer>();
+        services.AddRazorDocs();
+        services.RemoveAll<IDocHarvester>();
         services.AddSingleton<IDocHarvester>(_ => new StaticDocHarvester(docs));
-        services.AddSingleton<DocAggregator>();
         services.AddControllersWithViews()
             .AddApplicationPart(typeof(DocsController).Assembly);
 

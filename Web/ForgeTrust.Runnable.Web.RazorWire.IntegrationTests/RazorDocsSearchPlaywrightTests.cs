@@ -189,12 +189,12 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
         var projectPath = Path.Combine(
             repoRoot,
             "Web",
-            "ForgeTrust.Runnable.Web.RazorDocs",
-            "ForgeTrust.Runnable.Web.RazorDocs.csproj");
+            "ForgeTrust.Runnable.Web.RazorDocs.Standalone",
+            "ForgeTrust.Runnable.Web.RazorDocs.Standalone.csproj");
 
         if (!File.Exists(projectPath))
         {
-            throw new FileNotFoundException("Could not find RazorDocs project.", projectPath);
+            throw new FileNotFoundException("Could not find RazorDocs standalone host project.", projectPath);
         }
 
         var startInfo = new ProcessStartInfo
@@ -211,7 +211,8 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
         startInfo.Environment["ASPNETCORE_URLS"] = baseUrl;
         startInfo.Environment["DOTNET_ENVIRONMENT"] = "Development";
         startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
-        startInfo.Environment["RepositoryRoot"] = repoRoot;
+        startInfo.Environment["RazorDocs__Mode"] = "Source";
+        startInfo.Environment["RazorDocs__Source__RepositoryRoot"] = repoRoot;
 
         var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         process.OutputDataReceived += (_, args) => CaptureAppLog(args.Data);

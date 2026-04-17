@@ -3,10 +3,12 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.Tests.SharedErrorPagesFixture;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -116,6 +118,26 @@ public sealed class ConventionalNotFoundPageTests
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.DoesNotContain("Runnable default 404", body);
+    }
+
+    [Fact]
+    public async Task HtmlRequests_ToNon404Responses_DoNotReExecuteConventionalNotFoundPage()
+    {
+        await using var runningApp = await StartHostAsync(
+            new NonNotFoundHtmlResponseWebModule(),
+            options => { options.Mvc = options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews }; },
+            typeof(WebApplication).Assembly);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/html-401");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+
+        using var response = await runningApp.Client.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(string.Empty, body);
+        Assert.False(response.Headers.Contains("X-Runnable-Reexecuted"));
     }
 
     [Fact]
@@ -234,6 +256,36 @@ public sealed class ConventionalNotFoundPageTests
         public override void RegisterDependentModules(ModuleDependencyBuilder builder)
         {
             builder.AddModule<SharedErrorPagesFixtureModule>();
+        }
+    }
+
+    private sealed class NonNotFoundHtmlResponseWebModule : BaseTestWebModule
+    {
+        public override void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+        {
+            app.Use(
+                async (httpContext, next) =>
+                {
+                    var reExecuteFeature = httpContext.Features.Get<IStatusCodeReExecuteFeature>();
+                    if (reExecuteFeature?.OriginalStatusCode == StatusCodes.Status401Unauthorized)
+                    {
+                        httpContext.Response.Headers["X-Runnable-Reexecuted"] = "true";
+                    }
+
+                    await next();
+                });
+        }
+
+        public override void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
+        {
+            endpoints.MapGet(
+                "/html-401",
+                httpContext =>
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    httpContext.Response.ContentType = "text/html";
+                    return Task.CompletedTask;
+                });
         }
     }
 

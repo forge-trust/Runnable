@@ -12,8 +12,15 @@ using Microsoft.Extensions.Logging;
 namespace ForgeTrust.Runnable.Web;
 
 /// <summary>
-/// Resolves and renders Runnable's conventional not-found page.
+/// Resolves and renders Runnable's conventional not-found page view.
 /// </summary>
+/// <remarks>
+/// View resolution prefers <see cref="ConventionalNotFoundPageDefaults.AppViewPath"/> first so apps and
+/// shared Razor Class Libraries can override the page conventionally. If that view is missing, the renderer
+/// falls back to <see cref="ConventionalNotFoundPageDefaults.FrameworkFallbackViewPath"/>. The resolved path
+/// is cached after the first successful lookup. Concurrent first-use calls may resolve the view more than
+/// once, but they converge on the same immutable path and are safe.
+/// </remarks>
 internal sealed class ConventionalNotFoundPageRenderer
 {
     private readonly IActionResultExecutor<ViewResult> _executor;
@@ -23,6 +30,13 @@ internal sealed class ConventionalNotFoundPageRenderer
 
     private string? _resolvedViewPath;
 
+    /// <summary>
+    /// Initializes a renderer with the MVC services required to validate and execute the conventional 404 view.
+    /// </summary>
+    /// <param name="executor">Executes the resolved <see cref="ViewResult"/> into the current response.</param>
+    /// <param name="viewEngine">Resolves the app override view first, then the framework fallback view.</param>
+    /// <param name="metadataProvider">Creates the <see cref="ViewDataDictionary"/> used for the not-found model.</param>
+    /// <param name="logger">Records which conventional 404 view path was selected.</param>
     public ConventionalNotFoundPageRenderer(
         IActionResultExecutor<ViewResult> executor,
         ICompositeViewEngine viewEngine,
@@ -35,11 +49,29 @@ internal sealed class ConventionalNotFoundPageRenderer
         _logger = logger;
     }
 
+    /// <summary>
+    /// Performs eager validation of the configured conventional 404 view.
+    /// </summary>
+    /// <remarks>
+    /// Call this during startup to fail fast if neither the conventional app/shared view nor the framework
+    /// fallback view can be resolved. Runtime rendering also resolves lazily, but this method turns a missing
+    /// view into a predictable startup error instead of a request-time failure.
+    /// </remarks>
     public void ValidateConfiguredViews()
     {
         _ = ResolveViewPath();
     }
 
+    /// <summary>
+    /// Renders the resolved conventional 404 view into the current HTTP response.
+    /// </summary>
+    /// <param name="httpContext">The current request context used to build the model and execute the Razor view.</param>
+    /// <remarks>
+    /// The rendered model is always a <see cref="NotFoundPageModel"/>. Its status defaults to 404 when the
+    /// request is a direct render without a re-execute feature or reserved-route status code. This method does
+    /// not change <see cref="HttpResponse.StatusCode"/> itself, which lets direct requests keep their existing
+    /// 200 response and re-executed 404 requests preserve their original 404 status.
+    /// </remarks>
     public async Task RenderAsync(HttpContext httpContext)
     {
         var viewData = new ViewDataDictionary(_metadataProvider, new ModelStateDictionary())

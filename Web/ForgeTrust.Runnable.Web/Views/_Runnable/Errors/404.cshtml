@@ -46,6 +46,17 @@
             line-height: 1.6;
         }
 
+        a.recovery-link {
+            color: #1d4ed8;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        a.recovery-link:hover,
+        a.recovery-link:focus-visible {
+            text-decoration: underline;
+        }
+
         code {
             padding: 0.2rem 0.45rem;
             border-radius: 999px;
@@ -59,6 +70,7 @@
     <p>Runnable default 404</p>
     <h1>Page not found</h1>
     <p>We couldn't find <code>@missingPath</code>.</p>
+    <p><a class="recovery-link" href="/">Return to home</a></p>
     <p>Add <code>@ConventionalNotFoundPageDefaults.AppViewPath</code> in your app or a shared Razor Class Library to replace this fallback page.</p>
 </main>
 </body>

@@ -30,6 +30,14 @@ public record WebOptions
     /// <summary>
     /// Gets or sets configuration options for conventional framework error pages.
     /// </summary>
+    /// <remarks>
+    /// The default value is <see cref="ErrorPagesOptions.Default"/>, which leaves the not-found mode in
+    /// <see cref="ConventionalNotFoundPageMode.Auto"/>. In that mode, Runnable only enables the conventional
+    /// browser 404 experience when MVC support already includes views. Use explicit modes when an app must
+    /// always force or always suppress the conventional page. When enabled, Runnable reserves
+    /// <c>/_runnable/errors/404</c> for direct rendering and export tooling, and ignores that path when deciding
+    /// whether to apply browser-oriented status-page middleware.
+    /// </remarks>
     public ErrorPagesOptions Errors { get; set; } = ErrorPagesOptions.Default;
 
     /// <summary>

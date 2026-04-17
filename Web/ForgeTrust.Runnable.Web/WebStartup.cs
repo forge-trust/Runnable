@@ -1,10 +1,12 @@
 using ForgeTrust.Runnable.Core;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Routing;
 
 namespace ForgeTrust.Runnable.Web;
 
@@ -241,7 +243,19 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
             app.UseWhen(
                 ShouldApplyConventionalNotFoundPage,
-                branch => { branch.UseStatusCodePagesWithReExecute(ConventionalNotFoundPageDefaults.ReservedRouteFormat); });
+                branch =>
+                {
+                    branch.UseStatusCodePages(
+                        async statusCodeContext =>
+                        {
+                            if (statusCodeContext.HttpContext.Response.StatusCode != StatusCodes.Status404NotFound)
+                            {
+                                return;
+                            }
+
+                            await ReExecuteConventionalNotFoundPageAsync(statusCodeContext);
+                        });
+                });
         }
 
         foreach (var module in _modules)
@@ -313,7 +327,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             return false;
         }
 
-        if (httpContext.Request.Path.StartsWithSegments("/_runnable/errors"))
+        if (httpContext.Request.Path.StartsWithSegments(ConventionalNotFoundPageDefaults.ReservedRouteBase))
         {
             return false;
         }
@@ -326,6 +340,56 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             ?? false;
 
         return acceptsHtml;
+    }
+
+    private static async Task ReExecuteConventionalNotFoundPageAsync(StatusCodeContext statusCodeContext)
+    {
+        var httpContext = statusCodeContext.HttpContext;
+        var originalPath = httpContext.Request.Path;
+        var originalQueryString = httpContext.Request.QueryString;
+        var originalEndpoint = httpContext.GetEndpoint();
+        var originalRouteValues = new RouteValueDictionary(httpContext.Request.RouteValues);
+        var originalReExecuteFeature = httpContext.Features.Get<IStatusCodeReExecuteFeature>();
+        var statusCodePagesFeature = httpContext.Features.Get<IStatusCodePagesFeature>();
+        var originalStatusCodePagesEnabled = statusCodePagesFeature?.Enabled;
+
+        httpContext.Features.Set<IStatusCodeReExecuteFeature>(
+            new ConventionalNotFoundPageReExecuteFeature(
+                httpContext.Request.PathBase.Value ?? string.Empty,
+                originalPath.Value ?? string.Empty,
+                originalQueryString.Value ?? string.Empty,
+                httpContext.Response.StatusCode,
+                originalEndpoint,
+                new RouteValueDictionary(originalRouteValues)));
+
+        if (statusCodePagesFeature is not null)
+        {
+            statusCodePagesFeature.Enabled = false;
+        }
+
+        httpContext.Request.Path = new PathString(ConventionalNotFoundPageDefaults.ReservedNotFoundRoute);
+        httpContext.Request.QueryString = QueryString.Empty;
+        httpContext.Request.RouteValues = new RouteValueDictionary();
+        httpContext.SetEndpoint(null);
+
+        try
+        {
+            await statusCodeContext.Next(httpContext);
+        }
+        finally
+        {
+            httpContext.Request.Path = originalPath;
+            httpContext.Request.QueryString = originalQueryString;
+            httpContext.Request.RouteValues = originalRouteValues;
+            httpContext.SetEndpoint(originalEndpoint);
+
+            if (statusCodePagesFeature is not null && originalStatusCodePagesEnabled.HasValue)
+            {
+                statusCodePagesFeature.Enabled = originalStatusCodePagesEnabled.Value;
+            }
+
+            httpContext.Features.Set(originalReExecuteFeature);
+        }
     }
 
     private static int? GetReservedRouteStatusCode(HttpContext httpContext)
@@ -341,5 +405,36 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             string stringValue when int.TryParse(stringValue, out var parsed) => parsed,
             _ => null
         };
+    }
+
+    private sealed class ConventionalNotFoundPageReExecuteFeature : IStatusCodeReExecuteFeature
+    {
+        public ConventionalNotFoundPageReExecuteFeature(
+            string originalPathBase,
+            string originalPath,
+            string? originalQueryString,
+            int originalStatusCode,
+            Endpoint? endpoint,
+            RouteValueDictionary routeValues)
+        {
+            OriginalPathBase = originalPathBase;
+            OriginalPath = originalPath;
+            OriginalQueryString = originalQueryString;
+            OriginalStatusCode = originalStatusCode;
+            Endpoint = endpoint;
+            RouteValues = routeValues;
+        }
+
+        public string OriginalPathBase { get; set; }
+
+        public string OriginalPath { get; set; }
+
+        public string? OriginalQueryString { get; set; }
+
+        public int OriginalStatusCode { get; set; }
+
+        public Endpoint? Endpoint { get; set; }
+
+        public RouteValueDictionary RouteValues { get; set; }
     }
 }

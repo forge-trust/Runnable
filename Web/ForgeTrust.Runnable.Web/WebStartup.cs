@@ -298,7 +298,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                         async httpContext =>
                         {
                             var statusCode = GetReservedRouteStatusCode(httpContext);
-                            var isDirectRequest = httpContext.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>() is null;
+                            var isDirectRequest = httpContext.Features.Get<IStatusCodeReExecuteFeature>() is null;
 
                             if (statusCode != StatusCodes.Status404NotFound)
                             {

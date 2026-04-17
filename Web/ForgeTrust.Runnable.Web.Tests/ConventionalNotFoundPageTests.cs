@@ -141,6 +141,84 @@ public sealed class ConventionalNotFoundPageTests
     }
 
     [Fact]
+    public async Task HtmlRequests_ToEmptyNon404Responses_DoNotReExecuteConventionalNotFoundPage()
+    {
+        await using var runningApp = await StartHostAsync(
+            new NonNotFoundHtmlResponseWebModule(),
+            options => { options.Mvc = options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews }; },
+            typeof(WebApplication).Assembly);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/empty-401");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+
+        using var response = await runningApp.Client.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(string.Empty, body);
+        Assert.False(response.Headers.Contains("X-Runnable-Reexecuted"));
+    }
+
+    [Fact]
+    public async Task DirectRequests_ToReservedNon404Routes_Return404WithoutRenderingFallback()
+    {
+        await using var runningApp = await StartHostAsync(
+            new PlainWebModule(),
+            options => { options.Mvc = options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews }; },
+            typeof(WebApplication).Assembly);
+
+        using var response = await runningApp.Client.GetAsync("/_runnable/errors/401");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(string.Empty, body);
+    }
+
+    [Fact]
+    public void ShouldApplyConventionalNotFoundPage_ReturnsFalse_ForNonGetRequests()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = HttpMethods.Post;
+        httpContext.Request.Headers.Accept = "text/html";
+
+        var shouldApply = InvokeShouldApplyConventionalNotFoundPage(httpContext);
+
+        Assert.False(shouldApply);
+    }
+
+    [Fact]
+    public void GetReservedRouteStatusCode_ReturnsNull_WhenRouteValueMissing()
+    {
+        var httpContext = new DefaultHttpContext();
+
+        var statusCode = InvokeGetReservedRouteStatusCode(httpContext);
+
+        Assert.Null(statusCode);
+    }
+
+    [Fact]
+    public void GetReservedRouteStatusCode_ReturnsInt_WhenRouteValueIsAlreadyAnInt()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.RouteValues["statusCode"] = 404;
+
+        var statusCode = InvokeGetReservedRouteStatusCode(httpContext);
+
+        Assert.Equal(StatusCodes.Status404NotFound, statusCode);
+    }
+
+    [Fact]
+    public void GetReservedRouteStatusCode_ReturnsNull_ForUnsupportedRouteValueTypes()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.RouteValues["statusCode"] = new object();
+
+        var statusCode = InvokeGetReservedRouteStatusCode(httpContext);
+
+        Assert.Null(statusCode);
+    }
+
+    [Fact]
     public async Task SharedRclView_IsUsed_WhenAppOverrideIsMissing()
     {
         await using var runningApp = await StartHostAsync(
@@ -201,6 +279,24 @@ public sealed class ConventionalNotFoundPageTests
 
         var baseUrl = Assert.Single(addresses);
         return new RunningAppHandle(host, baseUrl);
+    }
+
+    private static bool InvokeShouldApplyConventionalNotFoundPage(HttpContext httpContext)
+    {
+        var method = typeof(WebStartup<PlainWebModule>)
+            .GetMethod("ShouldApplyConventionalNotFoundPage", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        return Assert.IsType<bool>(method.Invoke(null, [httpContext]));
+    }
+
+    private static int? InvokeGetReservedRouteStatusCode(HttpContext httpContext)
+    {
+        var method = typeof(WebStartup<PlainWebModule>)
+            .GetMethod("GetReservedRouteStatusCode", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        return (int?)method.Invoke(null, [httpContext]);
     }
 
     private sealed class TestWebStartup<TModule> : WebStartup<TModule>
@@ -284,6 +380,14 @@ public sealed class ConventionalNotFoundPageTests
                 {
                     httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
                     httpContext.Response.ContentType = "text/html";
+                    return Task.CompletedTask;
+                });
+
+            endpoints.MapGet(
+                "/empty-401",
+                httpContext =>
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
                     return Task.CompletedTask;
                 });
         }

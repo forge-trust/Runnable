@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Reflection;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.Tests.SharedErrorPagesFixture;
 using Microsoft.AspNetCore.Diagnostics;
@@ -195,6 +194,18 @@ public sealed class ConventionalNotFoundPageTests
     }
 
     [Fact]
+    public void ShouldApplyConventionalNotFoundPage_ReturnsTrue_ForHeadRequestsAcceptingHtml()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = HttpMethods.Head;
+        httpContext.Request.Headers.Accept = "text/html";
+
+        var shouldApply = WebStartup<PlainWebModule>.ShouldApplyConventionalNotFoundPage(httpContext);
+
+        Assert.True(shouldApply);
+    }
+
+    [Fact]
     public void ShouldApplyConventionalNotFoundPage_ReturnsFalse_ForReservedRoutes()
     {
         var httpContext = new DefaultHttpContext();
@@ -374,7 +385,7 @@ public sealed class ConventionalNotFoundPageTests
     private static async Task<RunningAppHandle> StartHostAsync<TModule>(
         TModule module,
         Action<WebOptions> configureOptions,
-        Assembly? entryPointAssembly = null)
+        System.Reflection.Assembly? entryPointAssembly = null)
         where TModule : class, IRunnableWebModule, new()
     {
         var startup = new TestWebStartup<TModule>(module);

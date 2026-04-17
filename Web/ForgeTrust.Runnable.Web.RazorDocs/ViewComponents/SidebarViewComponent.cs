@@ -1,7 +1,6 @@
-using Microsoft.AspNetCore.Mvc;
-using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
-using Microsoft.Extensions.Configuration;
+using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 
@@ -18,16 +17,18 @@ public class SidebarViewComponent : ViewComponent
     /// Initializes a new instance of the <see cref="SidebarViewComponent"/> class.
     /// </summary>
     /// <param name="aggregator">The documentation aggregator used to retrieve document nodes.</param>
-    /// <param name="configuration">Application configuration used for optional namespace prefix simplification settings.</param>
-    public SidebarViewComponent(DocAggregator aggregator, IConfiguration configuration)
+    /// <param name="options">Typed RazorDocs options used for optional namespace prefix simplification settings.</param>
+    public SidebarViewComponent(DocAggregator aggregator, RazorDocsOptions options)
     {
+        ArgumentNullException.ThrowIfNull(aggregator);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.Sidebar);
+        ArgumentNullException.ThrowIfNull(options.Sidebar.NamespacePrefixes);
+
         _aggregator = aggregator;
-        var prefixSection = configuration.GetSection("RazorDocs:Sidebar:NamespacePrefixes");
-        _namespacePrefixes = prefixSection
-            .GetChildren()
-            .Select(child => child.Value)
+        _namespacePrefixes = options.Sidebar.NamespacePrefixes
             .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
-            .Select(prefix => prefix!.Trim())
+            .Select(prefix => prefix.Trim())
             .ToArray();
     }
 
@@ -43,9 +44,11 @@ public class SidebarViewComponent : ViewComponent
     /// </remarks>
     public async Task<IViewComponentResult> InvokeAsync()
     {
-        var docs = await _aggregator.GetDocsAsync();
+        var docs = (await _aggregator.GetDocsAsync())
+            .Where(d => d.Metadata?.HideFromPublicNav != true)
+            .ToList();
         var groupedDocs = docs
-            .GroupBy(d => GetGroupName(d.Path))
+            .GroupBy(GetGroupName)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
 
         var namespacePrefixes = _namespacePrefixes.Length > 0
@@ -55,20 +58,31 @@ public class SidebarViewComponent : ViewComponent
         return View(groupedDocs);
     }
 
-    private static string GetGroupName(string path)
+    /// <summary>
+    /// Determines a display group name for a given documentation node.
+    /// </summary>
+    /// <param name="doc">The documentation node to classify.</param>
+    /// <returns>A string representing the group (for example, "Namespaces", "General", or a directory name).</returns>
+    private static string GetGroupName(DocNode doc)
     {
-        var normalizedPath = path.Trim().Trim('/');
-        if (normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Namespaces";
-        }
-
-        var normalizedPathForOs = normalizedPath.Replace('/', Path.DirectorySeparatorChar);
-        var directory = Path.GetDirectoryName(normalizedPathForOs);
-        return string.IsNullOrWhiteSpace(directory) ? "General" : directory.Replace('\\', '/');
+        return SidebarDisplayHelper.GetGroupName(doc);
     }
 
+    /// <summary>
+    /// Determines a display group name for a given documentation path.
+    /// </summary>
+    /// <param name="path">The relative documentation path.</param>
+    /// <returns>A string representing the group (e.g., "Namespaces", "General", or a directory name).</returns>
+    private static string GetGroupName(string path)
+    {
+        return SidebarDisplayHelper.GetGroupName(path);
+    }
+
+    /// <summary>
+    /// Automatically derives common namespace prefixes from the set of harvested documentation nodes to simplify sidebar display.
+    /// </summary>
+    /// <param name="docs">The collection of documentation nodes to analyze.</param>
+    /// <returns>An array of strings representing common namespace prefixes encountered.</returns>
     private static string[] GetDerivedNamespacePrefixes(IEnumerable<DocNode> docs)
     {
         var namespaces = docs

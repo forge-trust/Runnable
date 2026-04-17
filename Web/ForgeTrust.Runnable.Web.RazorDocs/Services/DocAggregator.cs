@@ -1,7 +1,8 @@
+using System.Net;
+using System.Text.RegularExpressions;
+using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
-using Ganss.Xss;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
@@ -10,46 +11,110 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// </summary>
 public class DocAggregator
 {
+    // Bound per-document heading volume so search-index size stays predictable for large docs sets.
+    private const int MaxHeadingsPerDocument = 24;
+    private const int SearchSnippetMaxLength = 220;
+    internal static readonly TimeSpan SnapshotCacheDuration = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan HarvesterTimeout = TimeSpan.FromSeconds(30);
+
     private readonly IEnumerable<IDocHarvester> _harvesters;
     private readonly string _repositoryRoot;
-    private readonly IMemoryCache _cache;
-    private readonly IHtmlSanitizer _sanitizer;
+    private readonly IMemo _memo;
+    private readonly IRazorDocsHtmlSanitizer _sanitizer;
     private readonly ILogger<DocAggregator> _logger;
-    private const string CacheKey = "HarvestedDocs";
+    private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(SnapshotCacheDuration);
+    private readonly Guid _cacheScope = Guid.NewGuid();
+    private long _cacheGeneration;
+
+    private static readonly Regex ScriptOrStyleRegex = new(
+        "<script[^>]*>[\\s\\S]*?</script>|<style[^>]*>[\\s\\S]*?</style>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.NonBacktracking);
+
+    private static readonly Regex TagRegex = new(
+        "<[^>]+>",
+        RegexOptions.NonBacktracking);
+
+    private static readonly Regex H2H3Regex = new(
+        "<h[23][^>]*>(.*?)</h[23]>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.NonBacktracking);
+
+    private static readonly Regex MultiSpaceRegex = new(
+        "\\s+",
+        RegexOptions.NonBacktracking);
+
+    private sealed record CachedDocsSnapshot(
+        Dictionary<string, DocNode> DocsByPath,
+        object SearchIndexPayload);
 
     /// <summary>
     /// Initializes a new instance of <see cref="DocAggregator"/> with the provided dependencies and determines the repository root.
     /// </summary>
     /// <param name="harvesters">Collection of <see cref="IDocHarvester"/> instances used to harvest documentation nodes.</param>
-    /// <param name="configuration">Application configuration; the constructor reads the "RepositoryRoot" key to set the repository root if present.</param>
-    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when configuration does not provide it.</param>
-    /// <param name="cache">Memory cache used to store harvested documentation.</param>
+    /// <param name="options">Typed RazorDocs options that determine the active source mode and optional repository root override.</param>
+    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when options do not provide it.</param>
+    /// <param name="memo">Memoized cache used to store harvested documentation.</param>
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
     /// <param name="logger">Logger used for recording aggregation events and errors.</param>
     public DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
-        IConfiguration configuration,
+        RazorDocsOptions options,
         IWebHostEnvironment environment,
-        IMemoryCache cache,
-        IHtmlSanitizer sanitizer,
+        IMemo memo,
+        IRazorDocsHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
     {
+        ArgumentNullException.ThrowIfNull(harvesters);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(memo);
+        ArgumentNullException.ThrowIfNull(sanitizer);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _harvesters = harvesters;
-        _cache = cache;
+        _memo = memo;
         _sanitizer = sanitizer;
         _logger = logger;
-        _repositoryRoot = configuration["RepositoryRoot"]
-                          ?? PathUtils.FindRepositoryRoot(environment.ContentRootPath);
+        _repositoryRoot = options.Mode switch
+        {
+            RazorDocsMode.Source => ResolveRepositoryRoot(
+                options.Source ?? throw new ArgumentNullException(nameof(options.Source)),
+                environment.ContentRootPath),
+            RazorDocsMode.Bundle => throw new NotSupportedException(
+                "RazorDocs bundle mode is not implemented yet. Use RazorDocs:Mode=Source for Slice 1."),
+            _ => throw new NotSupportedException($"Unsupported RazorDocs mode '{options.Mode}'.")
+        };
+    }
+
+    private static string ResolveRepositoryRoot(RazorDocsSourceOptions sourceOptions, string contentRootPath)
+    {
+        ArgumentNullException.ThrowIfNull(sourceOptions);
+        ArgumentNullException.ThrowIfNull(contentRootPath);
+
+        if (sourceOptions.RepositoryRoot is null)
+        {
+            return PathUtils.FindRepositoryRoot(contentRootPath);
+        }
+
+        var normalizedRepositoryRoot = sourceOptions.RepositoryRoot.Trim();
+        if (normalizedRepositoryRoot.Length == 0)
+        {
+            throw new ArgumentException(
+                "RazorDocs Source RepositoryRoot cannot be whitespace when explicitly configured.",
+                nameof(RazorDocsSourceOptions.RepositoryRoot));
+        }
+
+        return normalizedRepositoryRoot;
     }
 
     /// <summary>
     /// Retrieves all harvested documentation nodes sorted by their Path.
     /// </summary>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
-    /// <returns>An enumerable of all <see cref="DocNode"/> objects ordered by their Path.</returns>
-    public async Task<IEnumerable<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
+    /// <returns>A read-only list of all <see cref="DocNode"/> objects ordered by their Path.</returns>
+    public async Task<IReadOnlyList<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
     {
-        var cachedDict = await GetCachedDocsAsync(cancellationToken);
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
+        var cachedDict = snapshot.DocsByPath;
 
         return cachedDict.Values.OrderBy(n => n.Path).ToList();
     }
@@ -64,7 +129,8 @@ public class DocAggregator
     {
         ArgumentNullException.ThrowIfNull(path);
 
-        var cachedDict = await GetCachedDocsAsync(cancellationToken);
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
+        var cachedDict = snapshot.DocsByPath;
 
         var lookupPath = NormalizeLookupPath(path);
         var lookupCanonicalPath = NormalizeCanonicalPath(path);
@@ -77,9 +143,13 @@ public class DocAggregator
         var canonicalCandidates = cachedDict.Values
             .Where(
                 doc => string.Equals(
-                    NormalizeLookupPath(doc.CanonicalPath ?? doc.Path),
+                    NormalizeLookupPath(GetSnapshotCanonicalPath(doc)),
                     lookupPath,
-                    StringComparison.OrdinalIgnoreCase))
+                    StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(
+                           NormalizeLookupPath(doc.Path),
+                           lookupPath,
+                           StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (canonicalCandidates.Count == 0)
@@ -89,7 +159,7 @@ public class DocAggregator
 
         var exactCanonicalMatch = canonicalCandidates.FirstOrDefault(
             doc => string.Equals(
-                NormalizeCanonicalPath(doc.CanonicalPath ?? doc.Path),
+                NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
                 lookupCanonicalPath,
                 StringComparison.OrdinalIgnoreCase));
         if (exactCanonicalMatch != null)
@@ -98,50 +168,96 @@ public class DocAggregator
         }
 
         return canonicalCandidates
-            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(doc.CanonicalPath ?? doc.Path)) ? 0 : 1)
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
             .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
             .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
     }
 
     /// <summary>
-    /// Retrieves harvested documentation nodes from the cache, harvesting and caching them if absent.
+    /// Returns the docs search-index payload generated during docs aggregation.
     /// </summary>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
+    /// <returns>A JSON-serializable payload containing index metadata and documents.</returns>
+    public async Task<object> GetSearchIndexPayloadAsync(CancellationToken cancellationToken = default)
+    {
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
+        return snapshot.SearchIndexPayload;
+    }
+
+    /// <summary>
+    /// Invalidates the cached docs snapshot so docs and search-index are rebuilt on next access.
+    /// </summary>
+    public void InvalidateCache()
+    {
+        // Use a monotonic generation so repeated refreshes cannot resurface a still-live pre-refresh snapshot.
+        Interlocked.Increment(ref _cacheGeneration);
+    }
+
+    /// <summary>
+    /// Retrieves the cached docs snapshot, harvesting docs and generating the search-index payload when absent.
+    /// </summary>
     /// <remarks>
     /// When harvesting, each configured harvester is invoked; failures from individual harvesters are caught and logged. 
     /// Contents are sanitized before being cached. If multiple nodes share the same Path, a warning is logged and the first occurrence is retained.
-    /// The cache entry is created with a 5-minute absolute expiration.
+    /// The search-index payload is generated from the same harvested snapshot.
+    /// Caller cancellation does not cancel shared snapshot computation; callers can cancel their own wait.
+    /// Harvester execution is bounded by a timeout so a single slow harvester cannot block snapshot regeneration indefinitely.
+    /// The memoized cache entry is created with a 5-minute absolute expiration.
     /// </remarks>
-    /// <returns>
-    /// A dictionary mapping each documentation Path to its corresponding sanitized <see cref="DocNode"/>. Returns an empty dictionary if no documents are available.
-    /// </returns>
-    private async Task<Dictionary<string, DocNode>> GetCachedDocsAsync(CancellationToken cancellationToken = default)
+    /// <returns>A cached snapshot containing both docs and search-index payload.</returns>
+    private async Task<CachedDocsSnapshot> GetCachedDocsSnapshotAsync()
     {
-        return await _cache.GetOrCreateAsync(
-                   CacheKey,
-                   async entry =>
-                   {
-                       entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+        var generation = Interlocked.Read(ref _cacheGeneration);
+        var harvesters = _harvesters;
+        var repositoryRoot = _repositoryRoot;
+        var sanitizer = _sanitizer;
+        var logger = _logger;
+        var harvesterTimeout = HarvesterTimeout;
+        var snapshotCacheDuration = SnapshotCacheDuration;
 
+        return await _memo.GetAsync(
+                   _cacheScope,
+                   generation,
+                   async (_, _, _) =>
+                   {
+                       var sw = System.Diagnostics.Stopwatch.StartNew();
                        var allNodes = new List<DocNode>();
-                       var tasks = _harvesters.Select(async harvester =>
+                       var tasks = harvesters.Select(async harvester =>
                        {
+                           using var timeoutCts = new CancellationTokenSource(harvesterTimeout);
                            try
                            {
-                               return await harvester.HarvestAsync(_repositoryRoot, cancellationToken);
+                               return await harvester.HarvestAsync(repositoryRoot, timeoutCts.Token);
                            }
-                           catch (OperationCanceledException)
+                           catch (OperationCanceledException ex) when (timeoutCts.IsCancellationRequested)
                            {
-                               throw;
+                               logger.LogWarning(
+                                   ex,
+                                   "Harvester {HarvesterType} timed out after {TimeoutSeconds}s at {RepositoryRoot}. Skipping its docs.",
+                                   harvester.GetType().Name,
+                                   harvesterTimeout.TotalSeconds,
+                                   repositoryRoot);
+
+                               return Enumerable.Empty<DocNode>();
+                           }
+                           catch (OperationCanceledException ex)
+                           {
+                               logger.LogWarning(
+                                   ex,
+                                   "Harvester {HarvesterType} canceled at {RepositoryRoot}. Skipping its docs.",
+                                   harvester.GetType().Name,
+                                   repositoryRoot);
+
+                               return Enumerable.Empty<DocNode>();
                            }
                            catch (Exception ex)
                            {
-                               _logger.LogError(
+                               logger.LogError(
                                    ex,
                                    "Harvester {HarvesterType} failed at {RepositoryRoot}",
                                    harvester.GetType().Name,
-                                   _repositoryRoot);
+                                   repositoryRoot);
 
                                return Enumerable.Empty<DocNode>();
                            }
@@ -158,31 +274,195 @@ public class DocAggregator
                                n => new DocNode(
                                    n.Title,
                                    n.Path,
-                                   _sanitizer.Sanitize(n.Content),
+                                   sanitizer.Sanitize(n.Content),
                                    n.ParentPath,
                                    n.IsDirectory,
-                                   BuildCanonicalPath(n.Path)))
+                                   BuildCanonicalPath(n.Path),
+                                   n.Metadata))
                            .ToList();
 
                        MergeNamespaceReadmes(sanitizedNodes);
 
-                       return sanitizedNodes
+                       var docsByPath = sanitizedNodes
                            .GroupBy(n => n.Path)
                            .Select(g =>
                            {
-                               if (g.Count() > 1)
+                               var first = g.First();
+                               if (g.Skip(1).Any())
                                {
-                                   _logger.LogWarning(
+                                   logger.LogWarning(
                                        "Duplicate doc path detected: {Path}. Keeping first occurrence.",
                                        g.Key);
                                }
 
-                               return g.First();
+                               return first;
                            })
                            .ToDictionary(n => n.Path, n => n);
-                   }) ?? new Dictionary<string, DocNode>();
+
+                       var (searchIndexPayload, searchRecordCount) = BuildSearchIndexPayload(docsByPath.Values);
+
+                       sw.Stop();
+                       logger.LogInformation(
+                           "Generated docs snapshot in {ElapsedMs} ms with {DocCount} docs and {SearchRecordCount} search records. Cache TTL: {CacheMinutes} minutes.",
+                           sw.ElapsedMilliseconds,
+                           docsByPath.Count,
+                           searchRecordCount,
+                           snapshotCacheDuration.TotalMinutes);
+
+                       return new CachedDocsSnapshot(docsByPath, searchIndexPayload);
+                   },
+                   DocsCachePolicy,
+                   cancellationToken: CancellationToken.None);
     }
 
+    /// <summary>
+    /// Builds the search-index payload from the harvested documentation nodes.
+    /// </summary>
+    /// <param name="docs">The documentation nodes to index.</param>
+    /// <returns>A tuple containing the serializable payload and the number of records indexed.</returns>
+    private static (object Payload, int RecordCount) BuildSearchIndexPayload(IEnumerable<DocNode> docs)
+    {
+        var records = docs
+            .Where(d => d.Metadata?.HideFromSearch != true)
+            .Select(
+                d =>
+                {
+                    var content = d.Content;
+                    var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content ?? string.Empty, string.Empty), " "));
+                    var snippet = TruncateSnippetAtWordBoundary(bodyText, SearchSnippetMaxLength);
+                    var title = string.IsNullOrWhiteSpace(d.Metadata?.Title)
+                        ? d.Title
+                        : d.Metadata!.Title!.Trim();
+                    var summary = d.Metadata?.Summary ?? snippet;
+
+                    var headings = H2H3Regex.Matches(content ?? string.Empty)
+                        .Select(m => NormalizeSearchText(TagRegex.Replace(m.Groups[1].Value, " ")))
+                        .Where(h => !string.IsNullOrWhiteSpace(h))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Take(MaxHeadingsPerDocument)
+                        .ToList();
+
+                    return new
+                    {
+                        id = d.Path,
+                        path = BuildSearchDocUrl(d.Path),
+                        title,
+                        summary,
+                        headings,
+                        bodyText,
+                        snippet,
+                        pageType = d.Metadata?.PageType,
+                        audience = d.Metadata?.Audience,
+                        component = d.Metadata?.Component,
+                        aliases = d.Metadata?.Aliases ?? [],
+                        keywords = d.Metadata?.Keywords ?? [],
+                        status = d.Metadata?.Status,
+                        navGroup = d.Metadata?.NavGroup,
+                        order = d.Metadata?.Order,
+                        canonicalSlug = d.Metadata?.CanonicalSlug,
+                        relatedPages = d.Metadata?.RelatedPages ?? [],
+                        breadcrumbs = d.Metadata?.Breadcrumbs ?? []
+                    };
+                })
+            .Where(r => !string.IsNullOrWhiteSpace(r.title) || !string.IsNullOrWhiteSpace(r.bodyText))
+            .GroupBy(r => r.path, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(r => r.path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var payload = (object)new
+        {
+            metadata = new
+            {
+                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+                version = "1",
+                engine = "minisearch"
+            },
+            documents = records
+        };
+
+        return (payload, records.Count);
+    }
+
+    /// <summary>
+    /// Decodes HTML entities and normalizes whitespace in the provided text for search indexing.
+    /// </summary>
+    /// <param name="text">The text to normalize.</param>
+    /// <returns>The normalized text.</returns>
+    internal static string NormalizeSearchText(string? text)
+    {
+        var decoded = WebUtility.HtmlDecode(text ?? string.Empty);
+        return MultiSpaceRegex.Replace(decoded, " ").Trim();
+    }
+
+    /// <summary>
+    /// Constructs a browser-facing URL for a documentation path.
+    /// </summary>
+    /// <param name="path">The relative documentation path.</param>
+    /// <returns>A URL string starting with "/docs".</returns>
+    internal static string BuildSearchDocUrl(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "/docs";
+        }
+
+        var fragmentSeparator = path.IndexOf('#');
+        var pathPart = fragmentSeparator >= 0 ? path[..fragmentSeparator] : path;
+        var fragmentPart = fragmentSeparator >= 0 ? path[(fragmentSeparator + 1)..] : string.Empty;
+
+        var encodedPath = string.Join(
+            "/",
+            pathPart
+                .Split('/', StringSplitOptions.RemoveEmptyEntries)
+                .Select(Uri.EscapeDataString));
+
+        var url = string.IsNullOrEmpty(encodedPath) ? "/docs" : $"/docs/{encodedPath}";
+        if (!string.IsNullOrWhiteSpace(fragmentPart))
+        {
+            url += $"#{Uri.EscapeDataString(fragmentPart)}";
+        }
+
+        return url;
+    }
+
+    /// <summary>
+    /// Truncates a text snippet at the last word boundary before the maximum length is exceeded.
+    /// </summary>
+    /// <param name="text">The text to truncate.</param>
+    /// <param name="maxLength">The maximum allowed length of the snippet.</param>
+    /// <returns>The truncated text with an ellipsis if it was shortened.</returns>
+    internal static string TruncateSnippetAtWordBoundary(string text, int maxLength)
+    {
+        if (maxLength <= 0)
+        {
+            return string.Empty;
+        }
+
+        if (text.Length <= maxLength)
+        {
+            return text;
+        }
+
+        if (maxLength <= 3)
+        {
+            return new string('.', maxLength);
+        }
+
+        var effectiveMax = maxLength - 3;
+        var boundary = text.LastIndexOf(' ', effectiveMax);
+        if (boundary <= effectiveMax / 2)
+        {
+            boundary = effectiveMax;
+        }
+
+        return text[..boundary].TrimEnd() + "...";
+    }
+
+    /// <summary>
+    /// Merges README content into the corresponding namespace overview pages.
+    /// </summary>
+    /// <param name="nodes">The list of documentation nodes to process; README nodes used for merging are removed from this list.</param>
     private static void MergeNamespaceReadmes(List<DocNode> nodes)
     {
         var namespaceNodes = nodes
@@ -215,16 +495,22 @@ public class DocAggregator
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(readmeNode.Content))
+            if (!string.IsNullOrWhiteSpace(readmeNode.Content) || readmeNode.Metadata != null)
             {
-                var mergedContent = MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
+                var mergedContent = string.IsNullOrWhiteSpace(readmeNode.Content)
+                    ? namespaceNode.Content
+                    : MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
+                var mergedMetadata = DocMetadata.Merge(
+                    RemoveDerivedNamespaceReadmeOverrides(readmeNode.Metadata),
+                    namespaceNode.Metadata);
                 var mergedNamespaceNode = new DocNode(
-                    namespaceNode.Title,
+                    mergedMetadata?.Title ?? namespaceNode.Title,
                     namespaceNode.Path,
                     mergedContent,
                     namespaceNode.ParentPath,
                     namespaceNode.IsDirectory,
-                    namespaceNode.CanonicalPath);
+                    namespaceNode.CanonicalPath,
+                    mergedMetadata);
 
                 var namespaceIndex = nodes.FindIndex(n => string.Equals(n.Path, namespaceNode.Path, StringComparison.OrdinalIgnoreCase));
                 if (namespaceIndex >= 0)
@@ -239,6 +525,32 @@ public class DocAggregator
         }
     }
 
+    private static DocMetadata? RemoveDerivedNamespaceReadmeOverrides(DocMetadata? metadata)
+    {
+        if (metadata is null)
+        {
+            return null;
+        }
+
+        return metadata with
+        {
+            PageType = metadata.PageTypeIsDerived == true ? null : metadata.PageType,
+            PageTypeIsDerived = metadata.PageTypeIsDerived == true ? null : metadata.PageTypeIsDerived,
+            Audience = metadata.AudienceIsDerived == true ? null : metadata.Audience,
+            AudienceIsDerived = metadata.AudienceIsDerived == true ? null : metadata.AudienceIsDerived,
+            Component = metadata.ComponentIsDerived == true ? null : metadata.Component,
+            ComponentIsDerived = metadata.ComponentIsDerived == true ? null : metadata.ComponentIsDerived,
+            NavGroup = metadata.NavGroupIsDerived == true ? null : metadata.NavGroup,
+            NavGroupIsDerived = metadata.NavGroupIsDerived == true ? null : metadata.NavGroupIsDerived
+        };
+    }
+
+    /// <summary>
+    /// Inserts README content into a namespace overview page after the auto-generated namespace groups.
+    /// </summary>
+    /// <param name="namespaceContent">The auto-generated HTML content for the namespace page.</param>
+    /// <param name="readmeContent">The HTML content from the README file.</param>
+    /// <returns>The merged HTML content.</returns>
     internal static string MergeNamespaceIntroIntoContent(string namespaceContent, string readmeContent)
     {
         var introSection = $"<section class=\"doc-namespace-intro\">{readmeContent}</section>";
@@ -272,6 +584,12 @@ public class DocAggregator
         return namespaceContent.Insert(insertAt, introSection);
     }
 
+    /// <summary>
+    /// Finds the index of the closing &lt;/section&gt; tag that matches a &lt;section&gt; tag starting at the specified index.
+    /// </summary>
+    /// <param name="content">The HTML content to search.</param>
+    /// <param name="sectionStart">The starting index of the &lt;section&gt; tag.</param>
+    /// <returns>The index of the closing tag, or -1 if no match is found.</returns>
     private static int FindMatchingSectionEnd(string content, int sectionStart)
     {
         var depth = 0;
@@ -312,6 +630,11 @@ public class DocAggregator
         return -1;
     }
 
+    /// <summary>
+    /// Determines whether the specified path points to a documentation README file.
+    /// </summary>
+    /// <param name="path">The path to check.</param>
+    /// <returns><c>true</c> if the path identifies a README.md file; otherwise, <c>false</c>.</returns>
     private static bool IsReadmePath(string path)
     {
         var normalized = NormalizeLookupPath(path);
@@ -319,17 +642,33 @@ public class DocAggregator
         return string.Equals(fileName, "README.md", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Extracts the dotted namespace name from a documentation path under the "Namespaces/" directory.
+    /// </summary>
+    /// <param name="path">The path to process.</param>
+    /// <returns>The extracted namespace name.</returns>
     private static string ExtractNamespaceNameFromNamespacePath(string path)
     {
         var normalized = NormalizeLookupPath(path);
         return normalized["Namespaces/".Length..];
     }
 
+    /// <summary>
+    /// Attempts to extract a namespace name from a README path by looking at the parent directory name.
+    /// </summary>
+    /// <param name="path">The README path to process.</param>
+    /// <returns>The extracted namespace name, or <c>null</c> if it cannot be determined.</returns>
     internal static string? ExtractNamespaceNameFromReadmePath(string path)
     {
         return ExtractNamespaceNameFromReadmePath(path, null);
     }
 
+    /// <summary>
+    /// Extracts a namespace name from a README path, optionally matching against a list of known namespaces.
+    /// </summary>
+    /// <param name="path">The README path to process.</param>
+    /// <param name="knownNamespaceNames">Optional list of known namespaces to match directory segments against.</param>
+    /// <returns>The extracted namespace name, or <c>null</c> if it cannot be determined.</returns>
     private static string? ExtractNamespaceNameFromReadmePath(string path, IEnumerable<string>? knownNamespaceNames)
     {
         var normalized = NormalizeLookupPath(path);
@@ -350,10 +689,11 @@ public class DocAggregator
 
         if (knownNamespaceNames != null)
         {
+            var knownNamesSet = new HashSet<string>(knownNamespaceNames, StringComparer.OrdinalIgnoreCase);
             for (var start = 0; start < parts.Length; start++)
             {
                 var candidate = string.Join(".", parts.Skip(start));
-                if (knownNamespaceNames.Any(ns => string.Equals(ns, candidate, StringComparison.OrdinalIgnoreCase)))
+                if (knownNamesSet.Contains(candidate))
                 {
                     return candidate;
                 }
@@ -363,6 +703,11 @@ public class DocAggregator
         return parts.LastOrDefault();
     }
 
+    /// <summary>
+    /// Normalizes a documentation path for lookup by trimming slashes and removing fragment anchors.
+    /// </summary>
+    /// <param name="path">The path to normalize.</param>
+    /// <returns>The normalized lookup path.</returns>
     private static string NormalizeLookupPath(string path)
     {
         var sanitized = path.Trim().Trim('/');
@@ -375,11 +720,23 @@ public class DocAggregator
         return sanitized;
     }
 
+    /// <summary>
+    /// Normalizes a documentation path for canonicalization by trimming slashes and normalizing separators.
+    /// </summary>
+    /// <param name="path">The path to normalize.</param>
+    /// <returns>The normalized canonical path.</returns>
     private static string NormalizeCanonicalPath(string path)
     {
         return path.Trim().Trim('/').Replace('\\', '/');
     }
 
+    private static string GetSnapshotCanonicalPath(DocNode doc) => doc.CanonicalPath!;
+
+    /// <summary>
+    /// Extracts the fragment anchor (after the '#') from a documentation path.
+    /// </summary>
+    /// <param name="path">The path to process.</param>
+    /// <returns>The fragment string, or <c>null</c> if no fragment is present.</returns>
     private static string? GetFragment(string path)
     {
         var canonical = NormalizeCanonicalPath(path);
@@ -392,6 +749,11 @@ public class DocAggregator
         return canonical[(hashIndex + 1)..];
     }
 
+    /// <summary>
+    /// Constructs a canonical browser-facing path (e.g., with .html extension) for a given documentation source path.
+    /// </summary>
+    /// <param name="sourcePath">The relative path to the documentation source.</param>
+    /// <returns>The canonical browser-facing path.</returns>
     private static string BuildCanonicalPath(string sourcePath)
     {
         var hashIndex = sourcePath.IndexOf('#');

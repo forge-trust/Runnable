@@ -28,6 +28,13 @@ This approach aims to:
 6.  **Convention over Configuration**: Sensible defaults are provided so only minimal configuration is required.
 7.  **Secure By Default**: Security best practices are applied automatically where appropriate.
 
+## Caching Conventions
+
+- Use `IMemo` for application and service-layer caching (for example, web modules and domain services).
+- Use direct `IMemoryCache` only inside caching infrastructure (the `ForgeTrust.Runnable.Caching` package) or framework integration points where `IMemo` cannot be injected.
+- If a module depends on `RunnableCachingModule`, do not call `AddMemoryCache()` again in that module.
+- Prefer one cache boundary per data snapshot. In RazorDocs, `DocAggregator` owns both docs aggregation and search-index payload caching so downstream controllers consume one shared snapshot.
+
 
 ## Project Structure
 
@@ -40,6 +47,9 @@ This approach aims to:
 ### [Web](./Web/README.md)
 - [**ForgeTrust.Runnable.Web**](./Web/ForgeTrust.Runnable.Web/README.md) – Bootstraps ASP.NET Core minimal API apps and lets modules register middleware, endpoints, and perform additional host configuration.
 - [**ForgeTrust.Runnable.Web.OpenApi**](./Web/ForgeTrust.Runnable.Web.OpenApi/README.md) – Optional module that adds OpenAPI generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
+- [**ForgeTrust.Runnable.Web.RazorWire**](./Web/ForgeTrust.Runnable.Web.RazorWire/README.md) – Adds reactive Razor-based streaming, islands, and export tooling for server-rendered web apps.
+- [**ForgeTrust.Runnable.Web.RazorDocs**](./Web/ForgeTrust.Runnable.Web.RazorDocs/README.md) – Reusable Razor Class Library package that serves documentation from harvested source content.
+- [**ForgeTrust.Runnable.Web.RazorDocs.Standalone**](./Web/ForgeTrust.Runnable.Web.RazorDocs.Standalone/README.md) – Thin runnable host for exporting or serving RazorDocs as an application.
 - [**ForgeTrust.Runnable.Web.Scalar**](./Web/ForgeTrust.Runnable.Web.Scalar/README.md) – Optional module that serves the Scalar API reference UI and depends on the OpenAPI module.
 
 ### [Dependency](./Dependency/README.md)

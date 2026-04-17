@@ -1,19 +1,19 @@
+using System.Security.Claims;
+using System.Text.Json;
 using AngleSharp;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
-using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
+using Ganss.Xss;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-using System.Security.Claims;
-using System.Text.Json;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -31,27 +31,27 @@ public class DocsControllerTests : IDisposable
         _harvesterFake = A.Fake<IDocHarvester>();
         var loggerFake = A.Fake<ILogger<DocAggregator>>();
         var controllerLoggerFake = A.Fake<ILogger<DocsController>>();
-        var configFake = A.Fake<Microsoft.Extensions.Configuration.IConfiguration>();
+        var options = new RazorDocsOptions();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
-        var sanitizerFake = A.Fake<IHtmlSanitizer>();
+        var sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
         A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        A.CallTo(() => sanitizerFake.Sanitize(A<string>._))
+            .ReturnsLazily((string input) => input);
+        _memo = new Memo(_cache);
 
         // Use real Aggregator with fake dependencies (or we could fake Aggregator but it's a concrete class)
         // Since Controller takes concrete DocAggregator, we instantiate it.
         _aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            configFake,
+            options,
             envFake,
-            _cache,
+            _memo,
             sanitizerFake,
             loggerFake
         );
 
-        _memo = new Memo(_cache);
-        _controller = new DocsController(_aggregator, _memo, controllerLoggerFake)
+        _controller = new DocsController(_aggregator, controllerLoggerFake)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -177,20 +177,13 @@ public class DocsControllerTests : IDisposable
     public void Constructor_ShouldThrow_WhenAggregatorIsNull()
     {
         var logger = A.Fake<ILogger<DocsController>>();
-        Assert.Throws<ArgumentNullException>(() => new DocsController(null!, _memo, logger));
-    }
-
-    [Fact]
-    public void Constructor_ShouldThrow_WhenMemoIsNull()
-    {
-        var logger = A.Fake<ILogger<DocsController>>();
-        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, null!, logger));
+        Assert.Throws<ArgumentNullException>(() => new DocsController(null!, logger));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, _memo, null!));
+        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, null!));
     }
 
     [Fact]
@@ -213,7 +206,19 @@ public class DocsControllerTests : IDisposable
     {
         var docs = new List<DocNode>
         {
-            new("Getting Started", "guides/start", "<h2>Install</h2><p>First steps.</p>")
+            new(
+                "Getting Started",
+                "guides/start",
+                "<h2>Install</h2><p>First steps.</p>",
+                Metadata: new DocMetadata
+                {
+                    Summary = "Get started quickly.",
+                    PageType = "guide",
+                    Component = "Runnable",
+                    Aliases = ["quickstart"],
+                    Keywords = ["install"],
+                    NavGroup = "Start Here"
+                })
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 
@@ -223,7 +228,13 @@ public class DocsControllerTests : IDisposable
         var payload = JsonSerializer.Serialize(json.Value);
         using var doc = JsonDocument.Parse(payload);
         var documents = doc.RootElement.GetProperty("documents");
-        Assert.Single(documents.EnumerateArray());
+        var document = Assert.Single(documents.EnumerateArray());
+        Assert.Equal("Get started quickly.", document.GetProperty("summary").GetString());
+        Assert.Equal("guide", document.GetProperty("pageType").GetString());
+        Assert.Equal("Runnable", document.GetProperty("component").GetString());
+        Assert.Equal("Start Here", document.GetProperty("navGroup").GetString());
+        Assert.Equal("quickstart", document.GetProperty("aliases").EnumerateArray().Single().GetString());
+        Assert.Equal("install", document.GetProperty("keywords").EnumerateArray().Single().GetString());
     }
 
     [Fact]
@@ -436,7 +447,7 @@ public class DocsControllerTests : IDisposable
         Assert.EndsWith("...", snippet);
         Assert.DoesNotContain(" ...", snippet);
         Assert.Equal(snippet.TrimEnd(), snippet);
-        Assert.True(snippet.Length <= 223, $"Snippet length {snippet.Length} exceeds 220 + ellipsis.");
+        Assert.True(snippet.Length <= 220, $"Snippet length {snippet.Length} exceeds 220.");
     }
 
     [Fact]
@@ -456,6 +467,32 @@ public class DocsControllerTests : IDisposable
         var items = document.RootElement.GetProperty("documents").EnumerateArray().ToList();
         Assert.Single(items);
         Assert.Equal("/docs/guides/kept", items[0].GetProperty("path").GetString());
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldExcludeDocumentsHiddenFromSearch()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Hidden",
+                "guides/hidden",
+                "<p>Body</p>",
+                Metadata: new DocMetadata
+                {
+                    HideFromSearch = true
+                }),
+            new("Visible", "guides/visible", "<p>Body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var document = JsonDocument.Parse(payload);
+
+        var items = document.RootElement.GetProperty("documents").EnumerateArray().ToList();
+        Assert.Single(items);
+        Assert.Equal("Visible", items[0].GetProperty("title").GetString());
     }
 
     [Fact]
@@ -505,14 +542,22 @@ public class DocsControllerTests : IDisposable
     [Fact]
     public void PrivateHelpers_ShouldHandleNullAndUnbrokenTextBranches()
     {
-        var normalized = DocsController.NormalizeText(null!);
-        var rootUrl = DocsController.BuildDocUrl(" ");
-        var truncated = DocsController.TruncateAtWordBoundary(new string('a', 260), 220);
+        var normalized = DocAggregator.NormalizeSearchText(null!);
+        var rootUrl = DocAggregator.BuildSearchDocUrl(" ");
+        var truncated = DocAggregator.TruncateSnippetAtWordBoundary(new string('a', 260), 220);
 
         Assert.Equal(string.Empty, normalized);
         Assert.Equal("/docs", rootUrl);
-        Assert.Equal(223, truncated.Length);
+        Assert.Equal(220, truncated.Length);
         Assert.EndsWith("...", truncated);
+    }
+
+    [Fact]
+    public void TruncateSnippetAtWordBoundary_ShouldRespectTinyLimits()
+    {
+        Assert.Equal("...", DocAggregator.TruncateSnippetAtWordBoundary("abcdef", 3));
+        Assert.Equal(".", DocAggregator.TruncateSnippetAtWordBoundary("abcdef", 1));
+        Assert.Equal(string.Empty, DocAggregator.TruncateSnippetAtWordBoundary("abcdef", 0));
     }
 
     [Fact]
@@ -534,11 +579,7 @@ public class DocsControllerTests : IDisposable
 
     public void Dispose()
     {
-        if (_memo is IDisposable disposableMemo)
-        {
-            disposableMemo.Dispose();
-        }
-
+        (_memo as IDisposable)?.Dispose();
         _cache.Dispose();
     }
 }

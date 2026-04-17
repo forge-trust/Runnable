@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Routing;
@@ -147,7 +148,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                     mvcBuilder.AddApplicationPart(frameworkAssembly);
                 }
 
-                services.AddSingleton<ConventionalNotFoundPageRenderer>();
+                services.TryAddSingleton<ConventionalNotFoundPageRenderer>();
             }
 
             mvcOpts.ConfigureMvc?.Invoke(mvcBuilder);

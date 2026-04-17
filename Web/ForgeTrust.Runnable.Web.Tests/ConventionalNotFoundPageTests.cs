@@ -9,9 +9,17 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.ViewEngines;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ForgeTrust.Runnable.Web.Tests;
 
@@ -136,7 +144,7 @@ public sealed class ConventionalNotFoundPageTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(string.Empty, body);
+        Assert.Equal(NonNotFoundHtmlResponseWebModule.OriginalUnauthorizedHtmlBody, body);
         Assert.False(response.Headers.Contains("X-Runnable-Reexecuted"));
     }
 
@@ -181,7 +189,32 @@ public sealed class ConventionalNotFoundPageTests
         httpContext.Request.Method = HttpMethods.Post;
         httpContext.Request.Headers.Accept = "text/html";
 
-        var shouldApply = InvokeShouldApplyConventionalNotFoundPage(httpContext);
+        var shouldApply = WebStartup<PlainWebModule>.ShouldApplyConventionalNotFoundPage(httpContext);
+
+        Assert.False(shouldApply);
+    }
+
+    [Fact]
+    public void ShouldApplyConventionalNotFoundPage_ReturnsFalse_ForReservedRoutes()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = HttpMethods.Get;
+        httpContext.Request.Path = ConventionalNotFoundPageDefaults.ReservedNotFoundRoute;
+        httpContext.Request.Headers.Accept = "text/html";
+
+        var shouldApply = WebStartup<PlainWebModule>.ShouldApplyConventionalNotFoundPage(httpContext);
+
+        Assert.False(shouldApply);
+    }
+
+    [Fact]
+    public void ShouldApplyConventionalNotFoundPage_ReturnsFalse_WhenRequestDoesNotPreferHtml()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = HttpMethods.Get;
+        httpContext.Request.Headers.Accept = "application/json";
+
+        var shouldApply = WebStartup<PlainWebModule>.ShouldApplyConventionalNotFoundPage(httpContext);
 
         Assert.False(shouldApply);
     }
@@ -191,7 +224,7 @@ public sealed class ConventionalNotFoundPageTests
     {
         var httpContext = new DefaultHttpContext();
 
-        var statusCode = InvokeGetReservedRouteStatusCode(httpContext);
+        var statusCode = WebStartup<PlainWebModule>.GetReservedRouteStatusCode(httpContext);
 
         Assert.Null(statusCode);
     }
@@ -202,7 +235,7 @@ public sealed class ConventionalNotFoundPageTests
         var httpContext = new DefaultHttpContext();
         httpContext.Request.RouteValues["statusCode"] = 404;
 
-        var statusCode = InvokeGetReservedRouteStatusCode(httpContext);
+        var statusCode = WebStartup<PlainWebModule>.GetReservedRouteStatusCode(httpContext);
 
         Assert.Equal(StatusCodes.Status404NotFound, statusCode);
     }
@@ -213,9 +246,20 @@ public sealed class ConventionalNotFoundPageTests
         var httpContext = new DefaultHttpContext();
         httpContext.Request.RouteValues["statusCode"] = new object();
 
-        var statusCode = InvokeGetReservedRouteStatusCode(httpContext);
+        var statusCode = WebStartup<PlainWebModule>.GetReservedRouteStatusCode(httpContext);
 
         Assert.Null(statusCode);
+    }
+
+    [Fact]
+    public void GetReservedRouteStatusCode_ReturnsParsedInt_WhenRouteValueIsAString()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.RouteValues["statusCode"] = "404";
+
+        var statusCode = WebStartup<PlainWebModule>.GetReservedRouteStatusCode(httpContext);
+
+        Assert.Equal(StatusCodes.Status404NotFound, statusCode);
     }
 
     [Fact]
@@ -247,6 +291,84 @@ public sealed class ConventionalNotFoundPageTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Local test assembly 404", html);
         Assert.DoesNotContain("Shared fixture 404", html);
+    }
+
+    [Fact]
+    public void ValidateConfiguredViews_ThrowsWithSearchedLocations_WhenNoViewsResolve()
+    {
+        var renderer = CreateRenderer(
+            new StubCompositeViewEngine(
+                appResult: ViewEngineResult.NotFound(ConventionalNotFoundPageDefaults.AppViewPath, ["/Views/Shared/404.cshtml"]),
+                frameworkResult: ViewEngineResult.NotFound(ConventionalNotFoundPageDefaults.FrameworkFallbackViewPath, ["/Views/_Runnable/Errors/404.cshtml"])));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => renderer.ValidateConfiguredViews());
+
+        Assert.Contains("/Views/Shared/404.cshtml", exception.Message);
+        Assert.Contains("/Views/_Runnable/Errors/404.cshtml", exception.Message);
+    }
+
+    [Fact]
+    public void ValidateConfiguredViews_ThrowsFallbackMessage_WhenViewEngineReportsNoLocations()
+    {
+        var renderer = CreateRenderer(
+            new StubCompositeViewEngine(
+                appResult: ViewEngineResult.NotFound(ConventionalNotFoundPageDefaults.AppViewPath, []),
+                frameworkResult: ViewEngineResult.NotFound(ConventionalNotFoundPageDefaults.FrameworkFallbackViewPath, [])));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => renderer.ValidateConfiguredViews());
+
+        Assert.Contains("No Razor view locations were reported.", exception.Message);
+    }
+
+    [Fact]
+    public async Task RenderAsync_UsesDefault404Status_WhenNoRouteStatusExists()
+    {
+        var executor = new CapturingViewResultExecutor();
+        var renderer = CreateRenderer(
+            new StubCompositeViewEngine(
+                appResult: ViewEngineResult.Found(ConventionalNotFoundPageDefaults.AppViewPath, new StubView(ConventionalNotFoundPageDefaults.AppViewPath))),
+            executor);
+        var httpContext = new DefaultHttpContext();
+
+        await renderer.RenderAsync(httpContext);
+
+        Assert.Equal(StatusCodes.Status404NotFound, executor.Model?.StatusCode);
+    }
+
+    [Fact]
+    public async Task RenderAsync_UsesIntRouteStatusCode_WhenPresent()
+    {
+        var executor = new CapturingViewResultExecutor();
+        var renderer = CreateRenderer(
+            new StubCompositeViewEngine(
+                appResult: ViewEngineResult.Found(ConventionalNotFoundPageDefaults.AppViewPath, new StubView(ConventionalNotFoundPageDefaults.AppViewPath))),
+            executor);
+        var httpContext = new DefaultHttpContext();
+        var routeData = new RouteData();
+        routeData.Values["statusCode"] = StatusCodes.Status401Unauthorized;
+        httpContext.Features.Set<IRoutingFeature>(new StubRoutingFeature(routeData));
+
+        await renderer.RenderAsync(httpContext);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, executor.Model?.StatusCode);
+    }
+
+    [Fact]
+    public async Task RenderAsync_FallsBackTo404_WhenRouteStatusTypeIsUnsupported()
+    {
+        var executor = new CapturingViewResultExecutor();
+        var renderer = CreateRenderer(
+            new StubCompositeViewEngine(
+                appResult: ViewEngineResult.Found(ConventionalNotFoundPageDefaults.AppViewPath, new StubView(ConventionalNotFoundPageDefaults.AppViewPath))),
+            executor);
+        var httpContext = new DefaultHttpContext();
+        var routeData = new RouteData();
+        routeData.Values["statusCode"] = new object();
+        httpContext.Features.Set<IRoutingFeature>(new StubRoutingFeature(routeData));
+
+        await renderer.RenderAsync(httpContext);
+
+        Assert.Equal(StatusCodes.Status404NotFound, executor.Model?.StatusCode);
     }
 
     private static async Task<RunningAppHandle> StartHostAsync<TModule>(
@@ -281,22 +403,15 @@ public sealed class ConventionalNotFoundPageTests
         return new RunningAppHandle(host, baseUrl);
     }
 
-    private static bool InvokeShouldApplyConventionalNotFoundPage(HttpContext httpContext)
+    private static ConventionalNotFoundPageRenderer CreateRenderer(
+        ICompositeViewEngine viewEngine,
+        IActionResultExecutor<ViewResult>? executor = null)
     {
-        var method = typeof(WebStartup<PlainWebModule>)
-            .GetMethod("ShouldApplyConventionalNotFoundPage", BindingFlags.NonPublic | BindingFlags.Static);
-
-        Assert.NotNull(method);
-        return Assert.IsType<bool>(method.Invoke(null, [httpContext]));
-    }
-
-    private static int? InvokeGetReservedRouteStatusCode(HttpContext httpContext)
-    {
-        var method = typeof(WebStartup<PlainWebModule>)
-            .GetMethod("GetReservedRouteStatusCode", BindingFlags.NonPublic | BindingFlags.Static);
-
-        Assert.NotNull(method);
-        return (int?)method.Invoke(null, [httpContext]);
+        return new ConventionalNotFoundPageRenderer(
+            executor ?? new CapturingViewResultExecutor(),
+            viewEngine,
+            new EmptyModelMetadataProvider(),
+            NullLogger<ConventionalNotFoundPageRenderer>.Instance);
     }
 
     private sealed class TestWebStartup<TModule> : WebStartup<TModule>
@@ -357,6 +472,8 @@ public sealed class ConventionalNotFoundPageTests
 
     private sealed class NonNotFoundHtmlResponseWebModule : BaseTestWebModule
     {
+        public const string OriginalUnauthorizedHtmlBody = "<p>original 401 body</p>";
+
         public override void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
         {
             app.Use(
@@ -380,7 +497,7 @@ public sealed class ConventionalNotFoundPageTests
                 {
                     httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
                     httpContext.Response.ContentType = "text/html";
-                    return Task.CompletedTask;
+                    return httpContext.Response.WriteAsync(OriginalUnauthorizedHtmlBody);
                 });
 
             endpoints.MapGet(
@@ -427,5 +544,59 @@ public sealed class ConventionalNotFoundPageTests
             await Host.StopAsync();
             Host.Dispose();
         }
+    }
+
+    private sealed class CapturingViewResultExecutor : IActionResultExecutor<ViewResult>
+    {
+        public NotFoundPageModel? Model { get; private set; }
+
+        public Task ExecuteAsync(ActionContext context, ViewResult result)
+        {
+            Model = Assert.IsType<NotFoundPageModel>(result.ViewData?.Model);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubCompositeViewEngine : ICompositeViewEngine
+    {
+        private readonly ViewEngineResult _appResult;
+        private readonly ViewEngineResult _frameworkResult;
+
+        public StubCompositeViewEngine(ViewEngineResult appResult, ViewEngineResult? frameworkResult = null)
+        {
+            _appResult = appResult;
+            _frameworkResult = frameworkResult ?? ViewEngineResult.NotFound(
+                ConventionalNotFoundPageDefaults.FrameworkFallbackViewPath,
+                []);
+        }
+
+        public IReadOnlyList<IViewEngine> ViewEngines => [];
+
+        public ViewEngineResult FindView(ActionContext context, string viewName, bool isMainPage)
+        {
+            return ViewEngineResult.NotFound(viewName, []);
+        }
+
+        public ViewEngineResult GetView(string? executingFilePath, string viewPath, bool isMainPage)
+        {
+            return viewPath switch
+            {
+                var path when path == ConventionalNotFoundPageDefaults.AppViewPath => _appResult,
+                var path when path == ConventionalNotFoundPageDefaults.FrameworkFallbackViewPath => _frameworkResult,
+                _ => ViewEngineResult.NotFound(viewPath, [])
+            };
+        }
+    }
+
+    private sealed class StubView(string path) : IView
+    {
+        public string Path { get; } = path;
+
+        public Task RenderAsync(ViewContext context) => Task.CompletedTask;
+    }
+
+    private sealed class StubRoutingFeature(RouteData routeData) : IRoutingFeature
+    {
+        public RouteData? RouteData { get; set; } = routeData;
     }
 }

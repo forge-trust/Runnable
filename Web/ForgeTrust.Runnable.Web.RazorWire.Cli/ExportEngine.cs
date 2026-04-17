@@ -83,12 +83,12 @@ public class ExportEngine
     }
 
     /// <summary>
-    /// Crawls the site starting from configured seed routes (or the root) and exports discovered pages and frame sources to the output path.
+    /// Crawls the site starting from configured seed routes (or the root), writes the conventional reserved 404 page when available, and exports discovered pages and frame sources to the output path.
     /// </summary>
     /// <param name="context">Export configuration and runtime state including base URL, output path, queue, and visited set.</param>
     /// <param name="cancellationToken">Token to observe for cooperative cancellation of the crawl and export operations.</param>
     /// <remarks>
-    /// If <see cref="ExportContext.SeedRoutesPath"/> is provided, the file is read and each line is validated and normalized to a root-relative route; invalid seeds are logged. If the seed file exists but yields no valid routes, the root path ("/") is enqueued. If no seed file is provided, the root path is enqueued. Discovered internal links and frame sources are queued and processed until the queue is exhausted or the operation is cancelled.
+    /// If <see cref="ExportContext.SeedRoutesPath"/> is provided, the file is read and each line is validated and normalized to a root-relative route; invalid seeds are logged. If the seed file exists but yields no valid routes, the root path ("/") is enqueued. If no seed file is provided, the root path is enqueued. Before crawl processing begins, the engine probes Runnable's reserved conventional 404 route and writes <c>404.html</c> when the route returns a successful HTML response. Discovered internal links and frame sources are queued and processed until the queue is exhausted or the operation is cancelled.
     /// </remarks>
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
     /// <exception cref="FileNotFoundException">Thrown when <see cref="ExportContext.SeedRoutesPath"/> is specified but the file does not exist.</exception>

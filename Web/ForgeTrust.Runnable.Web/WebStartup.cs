@@ -321,7 +321,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         });
     }
 
-    private static bool ShouldApplyConventionalNotFoundPage(HttpContext httpContext)
+    internal static bool ShouldApplyConventionalNotFoundPage(HttpContext httpContext)
     {
         if (!HttpMethods.IsGet(httpContext.Request.Method) && !HttpMethods.IsHead(httpContext.Request.Method))
         {
@@ -393,7 +393,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         }
     }
 
-    private static int? GetReservedRouteStatusCode(HttpContext httpContext)
+    internal static int? GetReservedRouteStatusCode(HttpContext httpContext)
     {
         if (httpContext.Request.RouteValues.TryGetValue("statusCode", out var routeValue) != true)
         {

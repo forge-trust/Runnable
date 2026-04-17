@@ -6,6 +6,9 @@
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="ForgeTrust.Runnable.Web.Tests"/>
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj"/>
   </ItemGroup>
   <ItemGroup>

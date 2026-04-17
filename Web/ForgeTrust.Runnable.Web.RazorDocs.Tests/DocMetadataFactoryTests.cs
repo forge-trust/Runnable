@@ -33,6 +33,22 @@ public sealed class DocMetadataFactoryTests
         Assert.Equal("internals", metadata.PageType);
         Assert.Equal("contributor", metadata.Audience);
         Assert.True(metadata.HideFromPublicNav);
+        Assert.True(metadata.HideFromSearch);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldAllowExplicitSearchVisibilityOverrideForInternalPaths()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "Tests/guide.md",
+            "Guide",
+            new DocMetadata
+            {
+                HideFromSearch = false
+            },
+            null);
+
+        Assert.False(metadata.HideFromSearch);
     }
 
     [Theory]

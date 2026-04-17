@@ -9,6 +9,7 @@
     <PackageReference Include="HtmlSanitizer" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 
   <PropertyGroup>

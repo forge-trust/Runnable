@@ -1,12 +1,16 @@
-using System.Text.RegularExpressions;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using YamlDotNet.Core;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
-internal static partial class MarkdownFrontMatterParser
+internal static class MarkdownFrontMatterParser
 {
-    [GeneratedRegex(@"\A---\r?\n(?<frontMatter>[\s\S]*?)\r?\n(?:---|\.\.\.)\r?\n?", RegexOptions.NonBacktracking)]
-    private static partial Regex FrontMatterRegex();
+    private static readonly IDeserializer Deserializer = new DeserializerBuilder()
+        .WithNamingConvention(UnderscoredNamingConvention.Instance)
+        .IgnoreUnmatchedProperties()
+        .Build();
 
     internal static (string Markdown, DocMetadata? Metadata) Extract(string markdown)
     {
@@ -15,172 +19,143 @@ internal static partial class MarkdownFrontMatterParser
             return (markdown, null);
         }
 
-        var match = FrontMatterRegex().Match(markdown);
-        if (!match.Success)
+        if (!TrySplitFrontMatter(markdown, out var frontMatter, out var body))
         {
             return (markdown, null);
         }
 
-        var frontMatter = match.Groups["frontMatter"].Value;
-        var body = markdown[match.Length..];
-        return (body, Parse(frontMatter));
+        try
+        {
+            return (body, Parse(frontMatter));
+        }
+        catch (YamlException)
+        {
+            // Preserve the original markdown when front matter is invalid so the
+            // malformed header remains visible instead of silently changing meaning.
+            return (markdown, null);
+        }
     }
 
     private static DocMetadata? Parse(string frontMatter)
     {
-        var values = ParseValues(frontMatter);
-        if (values.Count == 0)
+        var document = Deserializer.Deserialize<FrontMatterDocument>(frontMatter);
+        if (document is null)
         {
             return null;
         }
 
         return new DocMetadata
         {
-            Title = GetString(values, "title"),
-            Summary = GetString(values, "summary"),
-            PageType = GetString(values, "page_type"),
-            Audience = GetString(values, "audience"),
-            Component = GetString(values, "component"),
-            Aliases = GetStringList(values, "aliases"),
-            RedirectAliases = GetStringList(values, "redirect_aliases"),
-            Keywords = GetStringList(values, "keywords"),
-            Status = GetString(values, "status"),
-            NavGroup = GetString(values, "nav_group"),
-            Order = GetInt(values, "order"),
-            HideFromPublicNav = GetBool(values, "hide_from_public_nav"),
-            HideFromSearch = GetBool(values, "hide_from_search"),
-            RelatedPages = GetStringList(values, "related_pages"),
-            CanonicalSlug = GetString(values, "canonical_slug") ?? GetString(values, "slug"),
-            Breadcrumbs = GetStringList(values, "breadcrumbs"),
-            PageTypeIsDerived = values.ContainsKey("page_type") ? false : null,
-            AudienceIsDerived = values.ContainsKey("audience") ? false : null,
-            ComponentIsDerived = values.ContainsKey("component") ? false : null,
-            NavGroupIsDerived = values.ContainsKey("nav_group") ? false : null
+            Title = Normalize(document.Title),
+            Summary = Normalize(document.Summary),
+            PageType = Normalize(document.PageType),
+            Audience = Normalize(document.Audience),
+            Component = Normalize(document.Component),
+            Aliases = NormalizeList(document.Aliases),
+            RedirectAliases = NormalizeList(document.RedirectAliases),
+            Keywords = NormalizeList(document.Keywords),
+            Status = Normalize(document.Status),
+            NavGroup = Normalize(document.NavGroup),
+            Order = document.Order,
+            HideFromPublicNav = document.HideFromPublicNav,
+            HideFromSearch = document.HideFromSearch,
+            RelatedPages = NormalizeList(document.RelatedPages),
+            CanonicalSlug = Normalize(document.CanonicalSlug) ?? Normalize(document.Slug),
+            Breadcrumbs = NormalizeList(document.Breadcrumbs),
+            PageTypeIsDerived = document.PageType is not null ? false : null,
+            AudienceIsDerived = document.Audience is not null ? false : null,
+            ComponentIsDerived = document.Component is not null ? false : null,
+            NavGroupIsDerived = document.NavGroup is not null ? false : null
         };
     }
 
-    private static Dictionary<string, object?> ParseValues(string frontMatter)
+    private static bool TrySplitFrontMatter(string markdown, out string frontMatter, out string body)
     {
-        var values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        string? activeListKey = null;
-        List<string>? activeList = null;
+        frontMatter = string.Empty;
+        body = markdown;
 
-        using var reader = new StringReader(frontMatter);
-        string? line;
-        while ((line = reader.ReadLine()) != null)
+        if (!markdown.StartsWith("---", StringComparison.Ordinal))
         {
-            var trimmed = line.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (trimmed.StartsWith("- ", StringComparison.Ordinal) && activeListKey != null && activeList != null)
-            {
-                activeList.Add(Unquote(trimmed[2..].Trim()));
-                continue;
-            }
-
-            activeListKey = null;
-            activeList = null;
-
-            var separatorIndex = trimmed.IndexOf(':');
-            if (separatorIndex <= 0)
-            {
-                continue;
-            }
-
-            var key = NormalizeKey(trimmed[..separatorIndex]);
-            var rawValue = trimmed[(separatorIndex + 1)..].Trim();
-
-            if (string.IsNullOrEmpty(rawValue))
-            {
-                activeListKey = key;
-                activeList = [];
-                values[key] = activeList;
-                continue;
-            }
-
-            values[key] = ParseScalarOrList(rawValue);
+            return false;
         }
 
-        return values;
-    }
-
-    private static object ParseScalarOrList(string rawValue)
-    {
-        if (rawValue.StartsWith("[", StringComparison.Ordinal) && rawValue.EndsWith("]", StringComparison.Ordinal))
+        var normalized = markdown.Replace("\r\n", "\n", StringComparison.Ordinal);
+        if (!normalized.StartsWith("---\n", StringComparison.Ordinal))
         {
-            return rawValue[1..^1]
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(Unquote)
-                .ToArray();
+            return false;
         }
 
-        return Unquote(rawValue);
+        var endMarkerIndex = normalized.IndexOf("\n---\n", 4, StringComparison.Ordinal);
+        var alternativeMarkerIndex = normalized.IndexOf("\n...\n", 4, StringComparison.Ordinal);
+
+        var markerIndex = endMarkerIndex >= 0
+            ? endMarkerIndex
+            : alternativeMarkerIndex;
+        if (markerIndex < 0)
+        {
+            return false;
+        }
+
+        frontMatter = normalized[4..markerIndex];
+        body = normalized[(markerIndex + 5)..];
+        return true;
     }
 
-    private static string NormalizeKey(string key)
+    private static string? Normalize(string? value)
     {
-        return key.Trim().Replace('-', '_').ToLowerInvariant();
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
-    private static string? GetString(Dictionary<string, object?> values, string key)
+    private static IReadOnlyList<string>? NormalizeList(List<string>? values)
     {
-        if (!values.TryGetValue(key, out var value))
+        if (values is not { Count: > 0 })
         {
             return null;
         }
 
-        return value switch
-        {
-            string stringValue when !string.IsNullOrWhiteSpace(stringValue) => stringValue,
-            string[] stringArray when stringArray.Length > 0 => stringArray[0],
-            List<string> list when list.Count > 0 => list[0],
-            _ => null
-        };
+        var normalized = values
+            .Select(Normalize)
+            .Where(value => value is not null)
+            .Cast<string>()
+            .ToArray();
+
+        return normalized.Length == 0 ? null : normalized;
     }
 
-    private static IReadOnlyList<string>? GetStringList(Dictionary<string, object?> values, string key)
+    private sealed class FrontMatterDocument
     {
-        if (!values.TryGetValue(key, out var value))
-        {
-            return null;
-        }
+        public string? Title { get; init; }
 
-        return value switch
-        {
-            string stringValue when !string.IsNullOrWhiteSpace(stringValue) => [stringValue],
-            string[] stringArray when stringArray.Length > 0 => stringArray,
-            List<string> list when list.Count > 0 => list.ToArray(),
-            _ => null
-        };
-    }
+        public string? Summary { get; init; }
 
-    private static int? GetInt(Dictionary<string, object?> values, string key)
-    {
-        var raw = GetString(values, key);
-        return int.TryParse(raw, out var parsed) ? parsed : null;
-    }
+        public string? PageType { get; init; }
 
-    private static bool? GetBool(Dictionary<string, object?> values, string key)
-    {
-        var raw = GetString(values, key);
-        return bool.TryParse(raw, out var parsed) ? parsed : null;
-    }
+        public string? Audience { get; init; }
 
-    private static string Unquote(string value)
-    {
-        var trimmed = value.Trim();
-        if (trimmed.Length >= 2)
-        {
-            if ((trimmed[0] == '"' && trimmed[^1] == '"')
-                || (trimmed[0] == '\'' && trimmed[^1] == '\''))
-            {
-                return trimmed[1..^1];
-            }
-        }
+        public string? Component { get; init; }
 
-        return trimmed;
+        public List<string>? Aliases { get; init; }
+
+        public List<string>? RedirectAliases { get; init; }
+
+        public List<string>? Keywords { get; init; }
+
+        public string? Status { get; init; }
+
+        public string? NavGroup { get; init; }
+
+        public int? Order { get; init; }
+
+        public bool? HideFromPublicNav { get; init; }
+
+        public bool? HideFromSearch { get; init; }
+
+        public List<string>? RelatedPages { get; init; }
+
+        public string? CanonicalSlug { get; init; }
+
+        public string? Slug { get; init; }
+
+        public List<string>? Breadcrumbs { get; init; }
     }
 }

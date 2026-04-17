@@ -27,7 +27,8 @@ internal static class DocMetadataFactory
             ComponentIsDerived = true,
             NavGroup = defaultNavGroup,
             NavGroupIsDerived = string.IsNullOrWhiteSpace(defaultNavGroup) ? null : true,
-            HideFromPublicNav = isInternalPath ? true : null
+            HideFromPublicNav = isInternalPath ? true : null,
+            HideFromSearch = isInternalPath ? true : null
         };
 
         var merged = DocMetadata.Merge(explicitMetadata, defaults) ?? new DocMetadata();

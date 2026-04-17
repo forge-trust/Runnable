@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using System.Text.Json;
 using AngleSharp;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
@@ -5,14 +7,13 @@ using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
+using Ganss.Xss;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-using System.Security.Claims;
-using System.Text.Json;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -205,7 +206,19 @@ public class DocsControllerTests : IDisposable
     {
         var docs = new List<DocNode>
         {
-            new("Getting Started", "guides/start", "<h2>Install</h2><p>First steps.</p>")
+            new(
+                "Getting Started",
+                "guides/start",
+                "<h2>Install</h2><p>First steps.</p>",
+                Metadata: new DocMetadata
+                {
+                    Summary = "Get started quickly.",
+                    PageType = "guide",
+                    Component = "Runnable",
+                    Aliases = ["quickstart"],
+                    Keywords = ["install"],
+                    NavGroup = "Start Here"
+                })
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 
@@ -215,7 +228,13 @@ public class DocsControllerTests : IDisposable
         var payload = JsonSerializer.Serialize(json.Value);
         using var doc = JsonDocument.Parse(payload);
         var documents = doc.RootElement.GetProperty("documents");
-        Assert.Single(documents.EnumerateArray());
+        var document = Assert.Single(documents.EnumerateArray());
+        Assert.Equal("Get started quickly.", document.GetProperty("summary").GetString());
+        Assert.Equal("guide", document.GetProperty("pageType").GetString());
+        Assert.Equal("Runnable", document.GetProperty("component").GetString());
+        Assert.Equal("Start Here", document.GetProperty("navGroup").GetString());
+        Assert.Equal("quickstart", document.GetProperty("aliases").EnumerateArray().Single().GetString());
+        Assert.Equal("install", document.GetProperty("keywords").EnumerateArray().Single().GetString());
     }
 
     [Fact]
@@ -448,6 +467,32 @@ public class DocsControllerTests : IDisposable
         var items = document.RootElement.GetProperty("documents").EnumerateArray().ToList();
         Assert.Single(items);
         Assert.Equal("/docs/guides/kept", items[0].GetProperty("path").GetString());
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldExcludeDocumentsHiddenFromSearch()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Hidden",
+                "guides/hidden",
+                "<p>Body</p>",
+                Metadata: new DocMetadata
+                {
+                    HideFromSearch = true
+                }),
+            new("Visible", "guides/visible", "<p>Body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var document = JsonDocument.Parse(payload);
+
+        var items = document.RootElement.GetProperty("documents").EnumerateArray().ToList();
+        Assert.Single(items);
+        Assert.Equal("Visible", items[0].GetProperty("title").GetString());
     }
 
     [Fact]

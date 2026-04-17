@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -13,11 +14,10 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
-using System.Diagnostics;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -131,6 +131,119 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldFallbackToModelTitle_WhenMetadataTitleIsWhitespace()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Fallback Title",
+            "guides/whitespace.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Title = "   "
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">Fallback Title</h1>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataTargetsCannotBeVerified()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["Start Here", "Quickstart"]
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">guides</a>", html);
+        Assert.Contains(">Quickstart</h1>", html);
+        Assert.Contains(">quickstart.md</span>", html);
+        Assert.DoesNotContain("Start Here", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_WhenTargetsAreKnownToMatch()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Web",
+            "Namespaces/ForgeTrust.Runnable.Web",
+            "<p>Namespace body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["API Reference", "ForgeTrust", "Runnable", "Web"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">API Reference</a>", html);
+        Assert.Contains("href=\"/docs/Namespaces.html\"", html);
+        Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.html\"", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderDerivedSummaryBlurb()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>This is the first paragraph.</p>",
+            Metadata: new DocMetadata
+            {
+                Summary = "This is the first paragraph.",
+                SummaryIsDerived = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.DoesNotContain("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the first paragraph.</p>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderExplicitSummaryBlurb()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Summary = "This is the summary paragraph.",
+                SummaryIsDerived = false
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
+    }
+
+    [Fact]
     public async Task SearchView_ShouldRenderSearchPageShell()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -157,6 +270,53 @@ public class RazorDocsViewsTests
         Assert.DoesNotContain("href=\"/docs/Namespaces.html\"", html);
         Assert.Contains("ForgeTrust", html);
         Assert.Contains("Runnable.Web", html);
+    }
+
+    [Fact]
+    public async Task SidebarView_ShouldHonorMetadataOrder_ForNamespaceEntries()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Namespaces", "Namespaces", "<p>root</p>"),
+            new(
+                "One",
+                "Namespaces/Contoso.Product.Feature.One",
+                "<p>one</p>",
+                Metadata: new DocMetadata
+                {
+                    Order = 2
+                }),
+            new(
+                "Two",
+                "Namespaces/Contoso.Product.Feature.Two",
+                "<p>two</p>",
+                Metadata: new DocMetadata
+                {
+                    Order = 1
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var grouped = CreateGroupedSidebarModel(
+            ("Namespaces", docs[0]),
+            ("Namespaces", docs[1]),
+            ("Namespaces", docs[2]));
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Shared/Components/Sidebar/Default.cshtml",
+            grouped,
+            viewData =>
+            {
+                viewData["NamespacePrefixes"] = new[] { "Contoso.Product." };
+            });
+
+        var twoIndex = html.IndexOf("href=\"/docs/Namespaces/Contoso.Product.Feature.Two\"", StringComparison.Ordinal);
+        var oneIndex = html.IndexOf("href=\"/docs/Namespaces/Contoso.Product.Feature.One\"", StringComparison.Ordinal);
+
+        Assert.NotEqual(-1, twoIndex);
+        Assert.NotEqual(-1, oneIndex);
+        Assert.True(twoIndex < oneIndex);
     }
 
     [Fact]

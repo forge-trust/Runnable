@@ -444,7 +444,8 @@
           "ForgeTrust.Runnable.Web.RazorWire": "[1.0.0, )",
           "HtmlSanitizer": "[9.0.892, )",
           "Markdig": "[0.44.0, )",
-          "Microsoft.CodeAnalysis.CSharp": "[5.0.0, )"
+          "Microsoft.CodeAnalysis.CSharp": "[5.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
       },
       "forgetrust.runnable.web.razorwire": {
@@ -569,6 +570,12 @@
           "Microsoft.Extensions.Logging.Configuration": "9.0.6",
           "Microsoft.Extensions.Options": "9.0.6"
         }
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     }
   }

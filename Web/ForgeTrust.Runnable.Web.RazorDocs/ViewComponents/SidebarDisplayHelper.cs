@@ -4,6 +4,38 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 
 internal static class SidebarDisplayHelper
 {
+    internal static string GetGroupName(DocNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        var pathGroup = GetGroupName(node.Path);
+        if (string.Equals(pathGroup, "Namespaces", StringComparison.Ordinal))
+        {
+            return pathGroup;
+        }
+
+        return NormalizeGroupName(node.Metadata?.NavGroup) ?? pathGroup;
+    }
+
+    internal static string GetGroupName(string path)
+    {
+        var normalizedPath = path.Trim().Trim('/');
+        if (normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Namespaces";
+        }
+
+        var normalizedPathForOs = normalizedPath.Replace('/', Path.DirectorySeparatorChar);
+        var directory = Path.GetDirectoryName(normalizedPathForOs);
+        return string.IsNullOrWhiteSpace(directory) ? "General" : directory.Replace('\\', '/');
+    }
+
+    internal static string? NormalizeGroupName(string? groupName)
+    {
+        return string.IsNullOrWhiteSpace(groupName) ? null : groupName.Trim();
+    }
+
     internal static bool IsTypeAnchorNode(DocNode node)
     {
         return !string.IsNullOrWhiteSpace(node.ParentPath)

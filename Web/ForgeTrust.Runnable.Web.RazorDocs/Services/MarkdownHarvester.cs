@@ -66,7 +66,8 @@ public class MarkdownHarvester : IDocHarvester
                 }
 
                 var content = await _readAllTextAsync(file, cancellationToken);
-                var html = Markdown.ToHtml(content, _pipeline);
+                var (markdownBody, frontMatterMetadata) = MarkdownFrontMatterParser.Extract(content);
+                var html = Markdown.ToHtml(markdownBody, _pipeline);
                 var title = Path.GetFileNameWithoutExtension(file);
 
                 if (title.Equals("README", StringComparison.OrdinalIgnoreCase))
@@ -75,7 +76,14 @@ public class MarkdownHarvester : IDocHarvester
                     title = string.IsNullOrEmpty(parentDir) ? "Home" : Path.GetFileName(parentDir);
                 }
 
-                nodes.Add(new DocNode(title, relativePath, html));
+                var resolvedTitle = frontMatterMetadata?.Title ?? title;
+                var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+                    relativePath,
+                    resolvedTitle,
+                    frontMatterMetadata,
+                    ExtractSummary(markdownBody));
+
+                nodes.Add(new DocNode(resolvedTitle, relativePath, html, Metadata: metadata));
             }
             catch (OperationCanceledException)
             {
@@ -88,5 +96,75 @@ public class MarkdownHarvester : IDocHarvester
         }
 
         return nodes;
+    }
+
+    internal static string? ExtractSummary(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return null;
+        }
+
+        var lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var summaryLines = new List<string>();
+        var inCodeFence = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+
+            if (inCodeFence || string.IsNullOrWhiteSpace(trimmed))
+            {
+                if (summaryLines.Count > 0)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (trimmed.StartsWith("#", StringComparison.Ordinal)
+                || trimmed.StartsWith("- ", StringComparison.Ordinal)
+                || trimmed.StartsWith("* ", StringComparison.Ordinal)
+                || StartsWithNumberedListMarker(trimmed)
+                || trimmed.StartsWith("> ", StringComparison.Ordinal)
+                || trimmed.StartsWith("<!--", StringComparison.Ordinal))
+            {
+                if (summaryLines.Count > 0)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            summaryLines.Add(trimmed);
+        }
+
+        return summaryLines.Count == 0 ? null : string.Join(" ", summaryLines);
+    }
+
+    private static bool StartsWithNumberedListMarker(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !char.IsDigit(value[0]))
+        {
+            return false;
+        }
+
+        var index = 0;
+        while (index < value.Length && char.IsDigit(value[index]))
+        {
+            index++;
+        }
+
+        return index + 1 < value.Length
+               && value[index] == '.'
+               && value[index + 1] == ' ';
     }
 }

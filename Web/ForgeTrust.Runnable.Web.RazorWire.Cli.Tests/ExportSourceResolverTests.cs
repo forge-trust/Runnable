@@ -6,7 +6,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli.Tests;
 
 public class ExportSourceResolverTests
 {
-    private readonly ILogger<ExportSourceResolver> _logger = A.Fake<ILogger<ExportSourceResolver>>();
+    private readonly ILoggerFactory _loggerFactory = A.Fake<ILoggerFactory>();
 
     [Fact]
     public void BuildEffectiveAppArgs_Should_Inject_Ephemeral_Urls_When_Absent()
@@ -70,10 +70,12 @@ public class ExportSourceResolverTests
     {
         var processFactory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
         var httpFactory = new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK));
+        var razorWireExecutor = A.Fake<ICommandExecutor>();
 
         Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(null!, processFactory, httpFactory));
-        Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(_logger, null!, httpFactory));
-        Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(_logger, processFactory, null!));
+        Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(_loggerFactory, null!, httpFactory, razorWireExecutor));
+        Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(_loggerFactory, processFactory, null!, razorWireExecutor));
+        Assert.Throws<ArgumentNullException>(() => new ExportSourceResolver(_loggerFactory, processFactory, httpFactory, null!));
     }
 
     [Fact]
@@ -360,7 +362,7 @@ public class ExportSourceResolverTests
         var resolved = await resolver.ResolveLaunchRequestAsync(request);
 
         Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
-        Assert.Equal(expectedDllPath, resolved.SourceValue);
+        Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(expectedDllPath), resolved.SourceValue);
     }
 
     [Fact]
@@ -391,7 +393,7 @@ public class ExportSourceResolverTests
         var resolved = await resolver.ResolveLaunchRequestAsync(request);
 
         Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
-        Assert.Equal(expectedDllPath, resolved.SourceValue);
+        Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(expectedDllPath), resolved.SourceValue);
     }
 
     [Fact]
@@ -415,16 +417,49 @@ public class ExportSourceResolverTests
         await File.WriteAllTextAsync(programPath, "System.Console.WriteLine(\"hello\");");
 
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var mockRazorWireExecutor = A.Fake<ICommandExecutor>();
         var resolver = CreateResolver(
             factory,
-            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)),
+            mockRazorWireExecutor);
         var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, null, [], false);
+
+        var expectedPath = Path.GetFullPath(Path.Combine(tempDir.FullPath, "bin", "runnable-export", "MySite.dll"));
+        IReadOnlyList<string>? capturedPublishArgs = null;
+        A.CallTo(() => mockRazorWireExecutor.ExecuteCommandAsync(
+                A<string>._,
+                A<IReadOnlyList<string>>._,
+                A<string>._,
+                A<CancellationToken>._))
+            .ReturnsLazily((string _, IReadOnlyList<string> args, string _, CancellationToken _) =>
+            {
+                if (args.Contains("-getProperty:AssemblyName"))
+                {
+                    return new ProcessResult(0, "MySite", string.Empty);
+                }
+
+                if (args.Count > 0 && args[0] == "publish")
+                {
+                    capturedPublishArgs = args.ToArray();
+                    Directory.CreateDirectory(Path.GetDirectoryName(expectedPath)!);
+                    File.WriteAllText(expectedPath, string.Empty);
+                }
+
+                return new ProcessResult(0, string.Empty, string.Empty);
+            });
 
         var resolved = await resolver.ResolveLaunchRequestAsync(request);
 
         Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
         Assert.True(File.Exists(resolved.SourceValue));
-        Assert.EndsWith("MySite.dll", resolved.SourceValue, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(expectedPath), resolved.SourceValue);
+        Assert.NotNull(capturedPublishArgs);
+        Assert.Equal("publish", capturedPublishArgs[0]);
+        Assert.Contains(projectPath, capturedPublishArgs);
+        Assert.Contains("-c", capturedPublishArgs);
+        Assert.Contains("Release", capturedPublishArgs);
+        Assert.Contains("-o", capturedPublishArgs);
+        Assert.Contains(Path.Combine(tempDir.FullPath, "bin", "runnable-export"), capturedPublishArgs);
     }
 
     [Fact]
@@ -434,9 +469,27 @@ public class ExportSourceResolverTests
         var projectPath = Path.Combine(tempDir.FullPath, "Missing.csproj");
 
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var mockExecutor = A.Fake<ICommandExecutor>();
         var resolver = CreateResolver(
             factory,
-            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)),
+            mockExecutor);
+
+        A.CallTo(() => mockExecutor.ExecuteCommandAsync(
+                A<string>._,
+                A<IReadOnlyList<string>>._,
+                A<string>._,
+                A<CancellationToken>._))
+            .ReturnsLazily((string _, IReadOnlyList<string> args, string _, CancellationToken _) =>
+            {
+                if (args.Count > 0 && args[0] == "publish")
+                {
+                    return new ProcessResult(1, string.Empty, "publish error");
+                }
+
+                return new ProcessResult(0, "Missing", string.Empty);
+            });
+
         var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, null, [], false);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -528,22 +581,47 @@ public class ExportSourceResolverTests
         await File.WriteAllTextAsync(programPath, "System.Console.WriteLine(\"hello\");");
 
         var factory = new FakeTargetAppProcessFactory(_ => new FakeTargetAppProcess());
+        var mockRazorWireExecutor = A.Fake<ICommandExecutor>();
         var resolver = CreateResolver(
             factory,
-            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)));
+            new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)),
+            mockRazorWireExecutor);
         var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, "net10.0", [], false);
+
+        var expectedPath = Path.Combine(tempDir.FullPath, "bin", "runnable-export", "MySite.dll");
+        IReadOnlyList<string>? capturedPublishArgs = null;
+        A.CallTo(() => mockRazorWireExecutor.ExecuteCommandAsync(
+                A<string>._,
+                A<IReadOnlyList<string>>._,
+                A<string>._,
+                A<CancellationToken>._))
+            .ReturnsLazily((string _, IReadOnlyList<string> args, string _, CancellationToken _) =>
+            {
+                if (args.Contains("-getProperty:AssemblyName"))
+                {
+                    return new ProcessResult(0, "MySite", string.Empty);
+                }
+
+                if (args.Count > 0 && args[0] == "publish")
+                {
+                    capturedPublishArgs = args.ToArray();
+                    Directory.CreateDirectory(Path.GetDirectoryName(expectedPath)!);
+                    File.WriteAllText(expectedPath, string.Empty);
+                }
+
+                return new ProcessResult(0, string.Empty, string.Empty);
+            });
 
         var resolved = await resolver.ResolveLaunchRequestAsync(request);
 
         Assert.Equal(ExportSourceKind.Dll, resolved.SourceKind);
         Assert.True(File.Exists(resolved.SourceValue));
-        Assert.EndsWith("MySite.dll", resolved.SourceValue, StringComparison.OrdinalIgnoreCase);
-
-        // Prove framework selection by reading the runtimeconfig.json (since `-o` flattens the output directory)
-        var configPath = Path.ChangeExtension(resolved.SourceValue, ".runtimeconfig.json");
-        Assert.True(File.Exists(configPath));
-        var configJson = await File.ReadAllTextAsync(configPath);
-        Assert.Contains("net10.0", configJson, StringComparison.OrdinalIgnoreCase);
+        var normalizedExpected = ExportSourceResolver.NormalizePathForMacOS(
+            Path.Combine(tempDir.FullPath, "bin", "runnable-export", "MySite.dll"));
+        Assert.Equal(normalizedExpected, resolved.SourceValue);
+        Assert.NotNull(capturedPublishArgs);
+        Assert.Contains("-f", capturedPublishArgs);
+        Assert.Contains("net10.0", capturedPublishArgs);
     }
 
     [Fact]
@@ -562,7 +640,7 @@ public class ExportSourceResolverTests
         // When requestedFramework is net9.0, it should find the net9.0 one instead of falling back to the highest (net10.0).
         var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite", null, "net9.0");
 
-        Assert.Equal(Path.Combine(net9Dir, "MySite.dll"), resolved);
+        Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(Path.Combine(net9Dir, "MySite.dll")), resolved);
     }
 
     [Fact]
@@ -585,7 +663,23 @@ public class ExportSourceResolverTests
 
         var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite", explicitPublishDir);
 
-        Assert.Equal(Path.Combine(explicitPublishDir, "MySite.dll"), resolved);
+        Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(Path.Combine(explicitPublishDir, "MySite.dll")), resolved);
+    }
+
+    [Fact]
+    public void ResolveBuiltDllPath_Should_Throw_When_Explicit_Publish_Directory_Does_Not_Contain_Dll()
+    {
+        using var tempDir = new TempDirectory();
+        var explicitPublishDir = Path.Combine(tempDir.FullPath, "custom-output");
+        Directory.CreateDirectory(explicitPublishDir);
+
+        var staleDllDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
+        Directory.CreateDirectory(staleDllDir);
+        File.WriteAllBytes(Path.Combine(staleDllDir, "MySite.dll"), [1, 2, 3]);
+
+        var ex = Assert.Throws<FileNotFoundException>(
+            () => ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite", explicitPublishDir));
+        Assert.Contains("Could not locate published DLL", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -612,7 +706,28 @@ public class ExportSourceResolverTests
         File.WriteAllBytes(Path.Combine(net10, "MySite.dll"), [2]);
 
         var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite");
-        Assert.Equal(Path.Combine(net10, "MySite.dll"), resolved);
+        Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(Path.Combine(net10, "MySite.dll")), resolved);
+    }
+
+    [Fact]
+    public void ResolveBuiltDllPath_Should_Prefer_Release_Publish_Over_Debug_Publish_When_Both_Exist()
+    {
+        using var tempDir = new TempDirectory();
+        var releaseDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
+        var debugDir = Path.Combine(tempDir.FullPath, "bin", "Debug", "net10.0", "publish");
+        Directory.CreateDirectory(releaseDir);
+        Directory.CreateDirectory(debugDir);
+
+        var releaseDllPath = Path.Combine(releaseDir, "MySite.dll");
+        var debugDllPath = Path.Combine(debugDir, "MySite.dll");
+        File.WriteAllBytes(releaseDllPath, [1]);
+        File.WriteAllBytes(debugDllPath, [2]);
+        File.SetLastWriteTimeUtc(releaseDllPath, DateTime.UtcNow.AddMinutes(-5));
+        File.SetLastWriteTimeUtc(debugDllPath, DateTime.UtcNow);
+
+        var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite");
+
+        Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(releaseDllPath), resolved);
     }
 
     [Fact]
@@ -705,7 +820,7 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
-    public void TryResolveAssemblyName_Should_Parse_AssemblyName_When_Present()
+    public void TryResolveAssemblyNameFromXml_Should_Parse_AssemblyName_When_Present()
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
@@ -719,40 +834,136 @@ public class ExportSourceResolverTests
             </Project>
             """);
 
-        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        var resolved = ExportSourceResolver.TryResolveAssemblyNameFromXml(projectPath, "Site");
         Assert.Equal("CustomAssembly", resolved);
     }
 
     [Fact]
-    public void TryResolveAssemblyName_Should_Fallback_When_AssemblyName_Is_Missing()
+    public void TryResolveAssemblyNameFromXml_Should_Fallback_When_AssemblyName_Is_Missing()
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
         File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
 
-        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        var resolved = ExportSourceResolver.TryResolveAssemblyNameFromXml(projectPath, "Site");
         Assert.Equal("Site", resolved);
     }
 
     [Fact]
-    public void TryResolveAssemblyName_Should_Fallback_On_Invalid_Xml()
+    public void TryResolveAssemblyNameFromXml_Should_Fallback_On_Invalid_Xml()
     {
         using var tempDir = new TempDirectory();
         var projectPath = Path.Combine(tempDir.FullPath, "Site.csproj");
         File.WriteAllText(projectPath, "<Project><PropertyGroup><AssemblyName>oops");
 
-        var resolved = ExportSourceResolver.TryResolveAssemblyName(projectPath, "Site");
+        var resolved = ExportSourceResolver.TryResolveAssemblyNameFromXml(projectPath, "Site");
         Assert.Equal("Site", resolved);
     }
 
     [Fact]
-    public void TryResolveAssemblyName_Should_Fallback_On_Missing_Or_Invalid_Path()
+    public void TryResolveAssemblyNameFromXml_Should_Fallback_On_Missing_Or_Invalid_Path()
     {
         using var tempDir = new TempDirectory();
         var missingPath = Path.Combine(tempDir.FullPath, "missing.csproj");
 
-        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyName(missingPath, "Site"));
-        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyName(tempDir.FullPath, "Site"));
+        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyNameFromXml(missingPath, "Site"));
+        Assert.Equal("Site", ExportSourceResolver.TryResolveAssemblyNameFromXml(tempDir.FullPath, "Site"));
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task TryResolveAssemblyName_Should_Succeed_To_Find_AssemblyName_In_Imported_File()
+    {
+        using var tempDir = new TempDirectory();
+        var propsPath = Path.Combine(tempDir.FullPath, "Identity.props");
+        var projectPath = Path.Combine(tempDir.FullPath, "Main.csproj");
+
+        File.WriteAllText(propsPath,
+            """
+            <Project>
+              <PropertyGroup>
+                <AssemblyName>MyRealName</AssemblyName>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        File.WriteAllText(projectPath,
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <Import Project="{propsPath}" />
+            </Project>
+            """);
+
+        // With the new implementation, this should succeed because it uses MSBuild evaluation.
+        var mockRazorWireExecutor = A.Fake<ICommandExecutor>();
+        var resolver = CreateResolver(A.Fake<ITargetAppProcessFactory>(), A.Fake<IHttpClientFactory>(), mockRazorWireExecutor);
+
+        string? capturedFileName = null;
+        IReadOnlyList<string>? capturedArgs = null;
+        A.CallTo(() => mockRazorWireExecutor.ExecuteCommandAsync(
+                A<string>._,
+                A<IReadOnlyList<string>>._,
+                A<string>._,
+                A<CancellationToken>._))
+            .Invokes((string fileName, IReadOnlyList<string> args, string _, CancellationToken _) =>
+            {
+                capturedFileName = fileName;
+                capturedArgs = args;
+            })
+            .Returns(new ProcessResult(0, "MyRealName", string.Empty));
+
+        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", "net10.0", CancellationToken.None);
+
+        Assert.Equal("MyRealName", resolved);
+        Assert.Equal("dotnet", capturedFileName);
+        Assert.NotNull(capturedArgs);
+        Assert.Equal("msbuild", capturedArgs[0]);
+        Assert.Equal(projectPath, capturedArgs[1]);
+        Assert.Contains("-getProperty:AssemblyName", capturedArgs);
+        Assert.Contains("-nologo", capturedArgs);
+        Assert.Contains("-p:Configuration=Release", capturedArgs);
+        Assert.Contains("-p:TargetFramework=net10.0", capturedArgs);
+    }
+
+    [Trait("Category", "Integration")]
+    [Fact]
+    public async Task TryResolveAssemblyName_Should_Invoke_Msbuild_With_Release_Configuration_And_TargetFramework()
+    {
+        using var tempDir = new TempDirectory();
+        var projectPath = Path.Combine(tempDir.FullPath, "Main.csproj");
+        File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+
+        var mockRazorWireExecutor = A.Fake<ICommandExecutor>();
+        var resolver = CreateResolver(
+            A.Fake<ITargetAppProcessFactory>(),
+            A.Fake<IHttpClientFactory>(),
+            mockRazorWireExecutor);
+
+        string? capturedFileName = null;
+        IReadOnlyList<string>? capturedArgs = null;
+        A.CallTo(() => mockRazorWireExecutor.ExecuteCommandAsync(
+                A<string>._,
+                A<IReadOnlyList<string>>._,
+                A<string>._,
+                A<CancellationToken>._))
+            .Invokes((string fileName, IReadOnlyList<string> args, string _, CancellationToken _) =>
+            {
+                capturedFileName = fileName;
+                capturedArgs = args;
+            })
+            .Returns(new ProcessResult(0, "ReleaseName", string.Empty));
+
+        var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", "net10.0", CancellationToken.None);
+
+        Assert.Equal("ReleaseName", resolved);
+        Assert.Equal("dotnet", capturedFileName);
+        Assert.NotNull(capturedArgs);
+        Assert.Equal("msbuild", capturedArgs[0]);
+        Assert.Equal(projectPath, capturedArgs[1]);
+        Assert.Contains("-getProperty:AssemblyName", capturedArgs);
+        Assert.Contains("-nologo", capturedArgs);
+        Assert.Contains("-p:Configuration=Release", capturedArgs);
+        Assert.Contains("-p:TargetFramework=net10.0", capturedArgs);
     }
 
     [Fact]
@@ -851,9 +1062,14 @@ public class ExportSourceResolverTests
 
     private ExportSourceResolver CreateResolver(
         ITargetAppProcessFactory processFactory,
-        IHttpClientFactory clientFactory)
+        IHttpClientFactory clientFactory,
+        ICommandExecutor? razorWireExecutor = null)
     {
-        return new ExportSourceResolver(_logger, processFactory, clientFactory);
+        return new ExportSourceResolver(
+            _loggerFactory,
+            processFactory,
+            clientFactory,
+            razorWireExecutor ?? A.Fake<ICommandExecutor>());
     }
 
     private sealed class FakeTargetAppProcessFactory : ITargetAppProcessFactory
@@ -952,10 +1168,11 @@ public class ExportSourceResolverTests
 
     private sealed class TempDirectory : IDisposable
     {
-        public string FullPath { get; } = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        public string FullPath { get; }
 
         public TempDirectory()
         {
+            FullPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             Directory.CreateDirectory(FullPath);
         }
 

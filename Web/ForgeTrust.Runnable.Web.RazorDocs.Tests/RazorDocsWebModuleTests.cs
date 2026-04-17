@@ -8,8 +8,10 @@ using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -58,8 +60,13 @@ public class RazorDocsWebModuleTests
         // Arrange
         var rootModuleFake = A.Fake<IRunnableHostModule>();
         var envFake = A.Fake<IEnvironmentProvider>();
+        var webHostEnvironment = A.Fake<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
+        A.CallTo(() => webHostEnvironment.ContentRootPath).Returns(Path.GetTempPath());
         var context = new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
         var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton(webHostEnvironment);
+        services.AddLogging();
 
         // Act
         _module.ConfigureServices(context, services);
@@ -74,20 +81,53 @@ public class RazorDocsWebModuleTests
         Assert.Contains(services, s => s.ServiceType == typeof(DocAggregator));
         Assert.Contains(
             services,
-            s => s.ServiceType == typeof(Ganss.Xss.IHtmlSanitizer) && s.Lifetime == ServiceLifetime.Singleton);
-        Assert.DoesNotContain(services, s => s.ServiceType == typeof(IMemoryCache));
+            s => s.ServiceType == typeof(IRazorDocsHtmlSanitizer) && s.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, s => s.ServiceType == typeof(IMemoryCache));
+        Assert.Contains(services, s => s.ServiceType == typeof(IMemo));
 
         using var serviceProvider = services.BuildServiceProvider();
-        var sanitizer = Assert.IsType<Ganss.Xss.HtmlSanitizer>(
-            serviceProvider.GetRequiredService<Ganss.Xss.IHtmlSanitizer>());
-        Assert.Contains("section", sanitizer.AllowedTags);
-        Assert.Contains("article", sanitizer.AllowedTags);
-        Assert.Contains("header", sanitizer.AllowedTags);
-        Assert.Contains("details", sanitizer.AllowedTags);
-        Assert.Contains("summary", sanitizer.AllowedTags);
-        Assert.Contains("class", sanitizer.AllowedAttributes);
-        Assert.Contains("id", sanitizer.AllowedAttributes);
-        Assert.Contains("open", sanitizer.AllowedAttributes);
+        var sanitizer = Assert.IsType<RazorDocsHtmlSanitizer>(
+            serviceProvider.GetRequiredService<IRazorDocsHtmlSanitizer>());
+        Assert.NotNull(serviceProvider.GetService<IOptions<RazorDocsOptions>>());
+        Assert.NotNull(serviceProvider.GetService<RazorDocsOptions>());
+        Assert.NotNull(serviceProvider.GetRequiredService<IMemoryCache>());
+        Assert.NotNull(serviceProvider.GetRequiredService<IMemo>());
+        Assert.NotNull(serviceProvider.GetRequiredService<DocAggregator>());
+        Assert.Contains("section", sanitizer.InnerSanitizer.AllowedTags);
+        Assert.Contains("article", sanitizer.InnerSanitizer.AllowedTags);
+        Assert.Contains("header", sanitizer.InnerSanitizer.AllowedTags);
+        Assert.Contains("details", sanitizer.InnerSanitizer.AllowedTags);
+        Assert.Contains("summary", sanitizer.InnerSanitizer.AllowedTags);
+        Assert.Contains("class", sanitizer.InnerSanitizer.AllowedAttributes);
+        Assert.Contains("id", sanitizer.InnerSanitizer.AllowedAttributes);
+        Assert.Contains("open", sanitizer.InnerSanitizer.AllowedAttributes);
+    }
+
+    [Fact]
+    public void ConfigureServices_ShouldUseDedicatedRazorDocsSanitizer_WhenAmbientSanitizerExists()
+    {
+        var rootModuleFake = A.Fake<IRunnableHostModule>();
+        var envFake = A.Fake<IEnvironmentProvider>();
+        var webHostEnvironment = A.Fake<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
+        var ambientSanitizer = A.Fake<Ganss.Xss.IHtmlSanitizer>();
+        A.CallTo(() => webHostEnvironment.ContentRootPath).Returns(Path.GetTempPath());
+        var context = new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton(webHostEnvironment);
+        services.AddSingleton(ambientSanitizer);
+        services.AddLogging();
+
+        _module.ConfigureServices(context, services);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var razorDocsSanitizer = Assert.IsType<RazorDocsHtmlSanitizer>(
+            serviceProvider.GetRequiredService<IRazorDocsHtmlSanitizer>());
+
+        Assert.Same(ambientSanitizer, serviceProvider.GetRequiredService<Ganss.Xss.IHtmlSanitizer>());
+        Assert.Contains("details", razorDocsSanitizer.InnerSanitizer.AllowedTags);
+        Assert.Contains("summary", razorDocsSanitizer.InnerSanitizer.AllowedTags);
+        Assert.Contains("open", razorDocsSanitizer.InnerSanitizer.AllowedAttributes);
     }
 
     [Fact]

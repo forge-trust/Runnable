@@ -1,7 +1,15 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <StaticWebAssetBasePath>_content/$(AssemblyName)</StaticWebAssetBasePath>
+  </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ForgeTrust.Runnable.Web\ForgeTrust.Runnable.Web.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\ForgeTrust.Runnable.Web.RazorWire\ForgeTrust.Runnable.Web.RazorWire.csproj" />
     <ProjectReference Include="..\ForgeTrust.Runnable.Web.Tailwind\ForgeTrust.Runnable.Web.Tailwind.csproj" />
     <ProjectReference Include="..\..\Caching\ForgeTrust.Runnable.Caching\ForgeTrust.Runnable.Caching.csproj" />
@@ -13,13 +21,8 @@
     <PackageReference Include="HtmlSanitizer" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">

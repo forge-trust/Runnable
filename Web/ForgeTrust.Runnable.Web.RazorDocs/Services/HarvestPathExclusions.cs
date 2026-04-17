@@ -17,6 +17,11 @@ internal static class HarvestPathExclusions
     };
 
     // File paths should be filtered by directory segments only so dot-prefixed files are still included.
+    /// <summary>
+    /// Determines whether a documentation file should be excluded from harvesting based on its path segments.
+    /// </summary>
+    /// <param name="filePath">The relative file path to check.</param>
+    /// <returns><c>true</c> if the file should be excluded; otherwise, <c>false</c>.</returns>
     public static bool ShouldExcludeFilePath(string filePath)
     {
         ArgumentNullException.ThrowIfNull(filePath);

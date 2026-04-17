@@ -10,7 +10,7 @@
   const defaultSearchOptions = {
     prefix: true,
     fuzzy: 0.1,
-    boost: { title: 6, headings: 3, bodyText: 1 }
+    boost: { title: 6, aliases: 4, headings: 3, keywords: 2, summary: 2, bodyText: 1 }
   };
   let searchIndex = null;
   let searchIndexLoadPromise = null;
@@ -231,6 +231,17 @@
       .replaceAll("'", '&#39;');
   }
 
+  function getLocationLabel(item) {
+    const context = item?.navGroup || item?.component || '';
+    const path = item?.path || '';
+
+    if (context && path) {
+      return `${context} • ${path}`;
+    }
+
+    return context || path;
+  }
+
   function normalizeQuery(value) {
     return String(value ?? '').trim().slice(0, maxQueryLength);
   }
@@ -321,8 +332,8 @@
 
     const MiniSearch = window.MiniSearch;
     searchIndex = new MiniSearch({
-      fields: ['title', 'headings', 'bodyText'],
-      storeFields: ['id', 'path', 'title', 'snippet'],
+      fields: ['title', 'aliases', 'keywords', 'summary', 'headings', 'bodyText'],
+      storeFields: ['id', 'path', 'title', 'snippet', 'summary', 'pageType', 'component', 'audience', 'status', 'navGroup'],
       searchOptions: defaultSearchOptions
     });
 
@@ -330,9 +341,17 @@
       id: d.id,
       path: d.path,
       title: d.title,
+      aliases: Array.isArray(d.aliases) ? d.aliases.join(' ') : '',
+      keywords: Array.isArray(d.keywords) ? d.keywords.join(' ') : '',
+      summary: d.summary ?? '',
       headings: Array.isArray(d.headings) ? d.headings.join(' ') : '',
       bodyText: d.bodyText ?? '',
-      snippet: d.snippet ?? ''
+      snippet: d.snippet ?? '',
+      pageType: d.pageType ?? '',
+      component: d.component ?? '',
+      audience: d.audience ?? '',
+      status: d.status ?? '',
+      navGroup: d.navGroup ?? ''
     })));
   }
 
@@ -482,7 +501,7 @@
       return `<li id="docs-search-option-${index}" role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
         <a href="${escapeHtml(item.path)}" data-turbo-frame="doc-content" data-turbo-action="advance">
           <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
-          <span class="docs-search-option-path">${escapeHtml(item.path)}</span>
+          <span class="docs-search-option-path">${escapeHtml(getLocationLabel(item))}</span>
         </a>
       </li>`;
     }).join('');
@@ -529,8 +548,8 @@
     results.innerHTML = queryResults.map((item) => `
       <article class="docs-search-result">
         <h2><a href="${escapeHtml(item.path)}">${escapeHtml(item.title)}</a></h2>
-        <p class="docs-search-result-path">${escapeHtml(item.path)}</p>
-        <p class="docs-search-result-snippet">${escapeHtml(item.snippet || '')}</p>
+        <p class="docs-search-result-path">${escapeHtml(getLocationLabel(item))}</p>
+        <p class="docs-search-result-snippet">${escapeHtml(item.summary || item.snippet || '')}</p>
       </article>
     `).join('');
   }

@@ -15,11 +15,11 @@ public class LevenshteinOptionSuggester : IOptionSuggester
     /// <param name="unknownOption">The unknown command line option.</param>
     /// <param name="validOptions">The list of valid command line options.</param>
     /// <returns>A collection of suggested options that closely match the unknown option.</returns>
-    public IEnumerable<string> GetSuggestions(string? unknownOption, IEnumerable<string>? validOptions)
+    public IReadOnlyList<string> GetSuggestions(string? unknownOption, IEnumerable<string>? validOptions)
     {
         if (string.IsNullOrEmpty(unknownOption) || validOptions == null)
         {
-            return Enumerable.Empty<string>();
+            return Array.Empty<string>();
         }
 
         // Normalize case so that distance calculation is consistent with case-insensitive option matching.
@@ -34,12 +34,16 @@ public class LevenshteinOptionSuggester : IOptionSuggester
             })
             .Where(x => x.Distance <= MaxDistance)
             .OrderBy(x => x.Distance)
-            .Select(x => x.Option);
+            .Select(x => x.Option)
+            .ToList();
     }
 
     /// <summary>
-    ///     Computes the Levenshtein distance between two strings.
+    /// Computes the Levenshtein distance between two strings using a dynamic programming approach.
     /// </summary>
+    /// <param name="s">The first string to compare.</param>
+    /// <param name="t">The second string to compare.</param>
+    /// <returns>The number of single-character edits (insertions, deletions, or substitutions) required to change one string into the other.</returns>
     internal static int ComputeLevenshteinDistance(string s, string t)
     {
         if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;

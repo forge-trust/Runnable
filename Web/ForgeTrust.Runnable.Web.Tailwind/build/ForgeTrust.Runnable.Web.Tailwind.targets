@@ -42,6 +42,15 @@
       <_TailwindToolPathBase>$(MSBuildThisFileDirectory)../tailwindcss</_TailwindToolPathBase>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and Exists('$(_TailwindToolPathBase).exe')">$(_TailwindToolPathBase).exe</_TailwindToolPath>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathBase)')">$(_TailwindToolPathBase)</_TailwindToolPath>
+
+      <!-- 4. During repo-local development, the runtime projects place the downloaded binaries under obj/. -->
+      <_TailwindRuntimeBinaryName Condition="'$(_TailwindTargetRid)' == 'win-x64'">tailwindcss-windows-x64.exe</_TailwindRuntimeBinaryName>
+      <_TailwindRuntimeBinaryName Condition="'$(_TailwindTargetRid)' == 'osx-arm64'">tailwindcss-macos-arm64</_TailwindRuntimeBinaryName>
+      <_TailwindRuntimeBinaryName Condition="'$(_TailwindTargetRid)' == 'osx-x64'">tailwindcss-macos-x64</_TailwindRuntimeBinaryName>
+      <_TailwindRuntimeBinaryName Condition="'$(_TailwindTargetRid)' == 'linux-arm64'">tailwindcss-linux-arm64</_TailwindRuntimeBinaryName>
+      <_TailwindRuntimeBinaryName Condition="'$(_TailwindTargetRid)' == 'linux-x64'">tailwindcss-linux-x64</_TailwindRuntimeBinaryName>
+      <_TailwindToolPathDev>$(MSBuildThisFileDirectory)../runtimes/obj/ForgeTrust.Runnable.Web.Tailwind.Runtime.$(_TailwindTargetRid)/$(Configuration)/$(TargetFramework)/$(_TailwindRuntimeBinaryName)</_TailwindToolPathDev>
+      <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathDev)')">$(_TailwindToolPathDev)</_TailwindToolPath>
     </PropertyGroup>
 
     <Error Text="Tailwind CSS could not determine a supported runtime identifier for the current host. Set RuntimeIdentifier explicitly to a supported RID."

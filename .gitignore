@@ -67,6 +67,7 @@ BenchmarkDotNet.Artifacts/
 *.cobertura.xml
 coverage.json
 coverage.xml
+junit.xml
 
 # macOS System Files
 .DS_Store
@@ -76,6 +77,7 @@ coverage.xml
 /full_comments.json
 /reviewer_comments.json
 /pr_data.json
+.gstack/
 
 # Tailwind binary
 **/tailwindcss

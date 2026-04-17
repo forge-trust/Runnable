@@ -1,23 +1,22 @@
 using AngleSharp;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
-using Ganss.Xss;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using Ganss.Xss;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using Ext_IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
 public class DocAggregatorTests : IDisposable
 {
     private readonly IDocHarvester _harvesterFake;
-    private readonly Ext_IConfiguration _configFake;
+    private readonly RazorDocsOptions _options;
     private readonly IWebHostEnvironment _envFake;
     private readonly ILogger<DocAggregator> _loggerFake;
-    private readonly IHtmlSanitizer _sanitizerFake;
+    private readonly IRazorDocsHtmlSanitizer _sanitizerFake;
     private readonly IMemoryCache _cache;
     private readonly IMemo _memo;
     private readonly DocAggregator _aggregator;
@@ -25,22 +24,22 @@ public class DocAggregatorTests : IDisposable
     public DocAggregatorTests()
     {
         _harvesterFake = A.Fake<IDocHarvester>();
-        _configFake = A.Fake<Ext_IConfiguration>();
+        _options = new RazorDocsOptions();
         _envFake = A.Fake<IWebHostEnvironment>();
         _loggerFake = A.Fake<ILogger<DocAggregator>>();
-        _sanitizerFake = A.Fake<IHtmlSanitizer>();
+        _sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
         _cache = new MemoryCache(new MemoryCacheOptions());
         _memo = new Memo(_cache);
 
         A.CallTo(() => _envFake.ContentRootPath).Returns(Path.GetTempPath());
 
         // Default: just return input for sanitization in most tests
-        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._))
+            .ReturnsLazily((string input) => input);
 
         _aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            _configFake,
+            _options,
             _envFake,
             _memo,
             _sanitizerFake,
@@ -58,7 +57,7 @@ public class DocAggregatorTests : IDisposable
         _ = await _aggregator.GetDocsAsync();
 
         // Act
-        var result = (await _aggregator.GetDocsAsync()).ToList();
+        var result = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(result);
@@ -75,8 +74,8 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var firstResult = (await _aggregator.GetDocsAsync()).ToList();
-        var secondResult = (await _aggregator.GetDocsAsync()).ToList();
+        var firstResult = await _aggregator.GetDocsAsync();
+        var secondResult = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(firstResult);
@@ -96,15 +95,41 @@ public class DocAggregatorTests : IDisposable
         var harvestedDocs = new List<DocNode> { new DocNode("Title", "path", unsafeHtml) };
 
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
-        A.CallTo(() => _sanitizerFake.Sanitize(unsafeHtml, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
+        A.CallTo(() => _sanitizerFake.Sanitize(unsafeHtml))
             .Returns(safeHtml);
 
         // Act
-        var result = (await _aggregator.GetDocsAsync()).ToList();
+        var result = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(result);
         Assert.Equal(safeHtml, result.First().Content);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldPreserveMetadata_WhenSanitizingHarvestedNodes()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Title",
+                "path",
+                "<p>content</p>",
+                Metadata: new DocMetadata
+                {
+                    Summary = "Summary",
+                    PageType = "guide",
+                    HideFromSearch = true
+                })
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+
+        Assert.Equal("Summary", result.Metadata?.Summary);
+        Assert.Equal("guide", result.Metadata?.PageType);
+        Assert.True(result.Metadata?.HideFromSearch);
     }
 
     [Fact]
@@ -119,7 +144,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var result = (await _aggregator.GetDocsAsync()).ToList();
+        var result = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(result);
@@ -140,7 +165,7 @@ public class DocAggregatorTests : IDisposable
 
         var aggregator = new DocAggregator(
             new[] { failingHarvester, workingHarvester },
-            _configFake,
+            _options,
             _envFake,
             _memo,
             _sanitizerFake,
@@ -148,7 +173,7 @@ public class DocAggregatorTests : IDisposable
         );
 
         // Act
-        var result = (await aggregator.GetDocsAsync()).ToList();
+        var result = await aggregator.GetDocsAsync();
 
         // Assert
         Assert.Single(result);
@@ -161,7 +186,7 @@ public class DocAggregatorTests : IDisposable
         // Arrange
         var aggregator = new DocAggregator(
             Enumerable.Empty<IDocHarvester>(),
-            A.Fake<Ext_IConfiguration>(),
+            new RazorDocsOptions(),
             _envFake,
             _memo,
             _sanitizerFake,
@@ -192,7 +217,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
         var byCanonical = await _aggregator.GetDocByPathAsync("docs/readme.md.html");
         var byCanonicalWithoutAnchor = await _aggregator.GetDocByPathAsync("docs/service.cs.html");
 
@@ -212,14 +237,17 @@ public class DocAggregatorTests : IDisposable
     {
         // Arrange
         var configuredRoot = Path.Combine(Path.GetTempPath(), "repo-root");
-        A.CallTo(() => _configFake["RepositoryRoot"]).Returns(configuredRoot);
+        var options = new RazorDocsOptions
+        {
+            Source = new RazorDocsSourceOptions { RepositoryRoot = $"  {configuredRoot}  " }
+        };
         string? capturedRoot = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string root, CancellationToken _) => capturedRoot = root)
-            .Returns(Enumerable.Empty<DocNode>());
+            .Returns(Array.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            _configFake,
+            options,
             _envFake,
             _memo,
             _sanitizerFake,
@@ -244,7 +272,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Contains(docs, d => d.Path == " " && d.CanonicalPath == "index.html");
@@ -321,13 +349,11 @@ public class DocAggregatorTests : IDisposable
         using var sharedCache = new MemoryCache(new MemoryCacheOptions());
         using var sharedMemo = new Memo(sharedCache);
 
-        var sharedConfig = A.Fake<Ext_IConfiguration>();
-        A.CallTo(() => sharedConfig["RepositoryRoot"]).Returns(Path.GetTempPath());
         var sharedEnv = A.Fake<IWebHostEnvironment>();
         A.CallTo(() => sharedEnv.ContentRootPath).Returns(Path.GetTempPath());
-        var sharedSanitizer = A.Fake<IHtmlSanitizer>();
-        A.CallTo(() => sharedSanitizer.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        var sharedSanitizer = A.Fake<IRazorDocsHtmlSanitizer>();
+        A.CallTo(() => sharedSanitizer.Sanitize(A<string>._))
+            .ReturnsLazily((string input) => input);
         var sharedLogger = A.Fake<ILogger<DocAggregator>>();
 
         var harvesterA = A.Fake<IDocHarvester>();
@@ -337,23 +363,28 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => harvesterB.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(new[] { new DocNode("DocB", "b", "content") });
 
+        var sharedOptions = new RazorDocsOptions
+        {
+            Source = new RazorDocsSourceOptions { RepositoryRoot = Path.GetTempPath() }
+        };
+
         var aggregatorA = new DocAggregator(
             new[] { harvesterA },
-            sharedConfig,
+            sharedOptions,
             sharedEnv,
             sharedMemo,
             sharedSanitizer,
             sharedLogger);
         var aggregatorB = new DocAggregator(
             new[] { harvesterB },
-            sharedConfig,
+            sharedOptions,
             sharedEnv,
             sharedMemo,
             sharedSanitizer,
             sharedLogger);
 
-        var docsA = (await aggregatorA.GetDocsAsync()).ToList();
-        var docsB = (await aggregatorB.GetDocsAsync()).ToList();
+        var docsA = await aggregatorA.GetDocsAsync();
+        var docsB = await aggregatorB.GetDocsAsync();
 
         Assert.Single(docsA);
         Assert.Single(docsB);
@@ -394,7 +425,7 @@ public class DocAggregatorTests : IDisposable
         CancellationToken? observedToken = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string _, CancellationToken ct) => observedToken = ct)
-            .Returns(Enumerable.Empty<DocNode>());
+            .Returns(Array.Empty<DocNode>());
 
         _ = await _aggregator.GetDocsAsync();
 
@@ -408,7 +439,7 @@ public class DocAggregatorTests : IDisposable
     {
         // Arrange
         var harvestedDocs = new List<DocNode> { new("Recovered", "path", "content") };
-        var releaseHarvester = new TaskCompletionSource<IEnumerable<DocNode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseHarvester = new TaskCompletionSource<IReadOnlyList<DocNode>>(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken? observedToken = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string _, CancellationToken ct) => observedToken = ct)
@@ -421,7 +452,7 @@ public class DocAggregatorTests : IDisposable
         cts.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => _ = (await canceledCall).ToList());
         releaseHarvester.SetResult(harvestedDocs);
-        var recovered = (await _aggregator.GetDocsAsync()).ToList();
+        var recovered = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.NotNull(observedToken);
@@ -442,7 +473,7 @@ public class DocAggregatorTests : IDisposable
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         Assert.Contains(docs, d => d.Title == "RootFile" && d.CanonicalPath == "readme.md.html");
     }
@@ -458,7 +489,7 @@ public class DocAggregatorTests : IDisposable
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         Assert.Contains(docs, d => d.Path == "docs/readme.md" && d.CanonicalPath == "docs/readme.md.html");
         Assert.Contains(docs, d => d.Path == "docs/readme_md.md" && d.CanonicalPath == "docs/readme_md.md.html");
@@ -470,17 +501,19 @@ public class DocAggregatorTests : IDisposable
     public async Task Constructor_ShouldPreferConfiguredRoot_OverEnvironmentFallback()
     {
         var configuredRoot = Path.Combine(Path.GetTempPath(), "configured-root");
-        var localConfig = A.Fake<Ext_IConfiguration>();
-        A.CallTo(() => localConfig["RepositoryRoot"]).Returns(configuredRoot);
+        var localOptions = new RazorDocsOptions
+        {
+            Source = new RazorDocsSourceOptions { RepositoryRoot = configuredRoot }
+        };
         var localEnv = A.Fake<IWebHostEnvironment>();
         A.CallTo(() => localEnv.ContentRootPath).Returns("/definitely/not/used");
         string? capturedRoot = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string root, CancellationToken _) => capturedRoot = root)
-            .Returns(Enumerable.Empty<DocNode>());
+            .Returns(Array.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            localConfig,
+            localOptions,
             localEnv,
             _memo,
             _sanitizerFake,
@@ -497,13 +530,73 @@ public class DocAggregatorTests : IDisposable
         var ex = Assert.Throws<ArgumentNullException>(
             () => new DocAggregator(
                 new[] { _harvesterFake },
-                _configFake,
+                _options,
                 _envFake,
                 null!,
                 _sanitizerFake,
                 _loggerFake));
 
         Assert.Equal("memo", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenHarvestersIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                null!,
+                _options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal("harvesters", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenEnvironmentIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                _options,
+                null!,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal("environment", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenSanitizerIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                _options,
+                _envFake,
+                _memo,
+                null!,
+                _loggerFake));
+
+        Assert.Equal("sanitizer", ex.ParamName);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenLoggerIsNull()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                _options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                null!));
+
+        Assert.Equal("logger", ex.ParamName);
     }
 
     [Fact]
@@ -519,7 +612,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         // Assert
         var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
@@ -527,6 +620,117 @@ public class DocAggregatorTests : IDisposable
         Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
         Assert.Contains("<p>Namespace intro</p>", namespaceDoc.Content);
         Assert.Contains("</section><section class=\"doc-namespace-intro\">", namespaceDoc.Content);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldMergeNamespaceReadmeMetadataIntoNamespaceNode()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Web",
+                "Namespaces/ForgeTrust.Web",
+                namespaceContent,
+                Metadata: new DocMetadata
+                {
+                    Title = "Web",
+                    PageType = "api-reference",
+                    NavGroup = "API Reference"
+                }),
+            new(
+                "README",
+                "docs/ForgeTrust.Web/README.md",
+                "<p>Namespace intro</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = "ForgeTrust Web",
+                    Summary = "Namespace summary",
+                    Aliases = ["web docs"],
+                    HideFromSearch = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
+
+        Assert.Equal("ForgeTrust Web", namespaceDoc.Title);
+        Assert.Equal("ForgeTrust Web", namespaceDoc.Metadata?.Title);
+        Assert.Equal("Namespace summary", namespaceDoc.Metadata?.Summary);
+        Assert.Equal(["web docs"], namespaceDoc.Metadata?.Aliases);
+        Assert.True(namespaceDoc.Metadata?.HideFromSearch);
+        Assert.Equal("api-reference", namespaceDoc.Metadata?.PageType);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldKeepApiClassification_WhenNamespaceReadmeMetadataOnlyProvidesDerivedDefaults()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Web",
+                "Namespaces/ForgeTrust.Runnable.Web",
+                namespaceContent,
+                Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web")),
+            new(
+                "README",
+                "docs/ForgeTrust.Runnable.Web/README.md",
+                "<p>Namespace intro</p>",
+                Metadata: DocMetadataFactory.CreateMarkdownMetadata(
+                    "docs/ForgeTrust.Runnable.Web/README.md",
+                    "ForgeTrust.Runnable.Web",
+                    null,
+                    "Namespace intro."))
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.Equal("api-reference", namespaceDoc.Metadata?.PageType);
+        Assert.Equal("developer", namespaceDoc.Metadata?.Audience);
+        Assert.Equal("API Reference", namespaceDoc.Metadata?.NavGroup);
+        Assert.Equal("Namespace intro.", namespaceDoc.Metadata?.Summary);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldAllowExplicitNamespaceReadmeClassificationOverrides()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Web",
+                "Namespaces/ForgeTrust.Runnable.Web",
+                namespaceContent,
+                Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web")),
+            new(
+                "README",
+                "docs/ForgeTrust.Runnable.Web/README.md",
+                "<p>Namespace intro</p>",
+                Metadata: DocMetadataFactory.CreateMarkdownMetadata(
+                    "docs/ForgeTrust.Runnable.Web/README.md",
+                    "ForgeTrust.Runnable.Web",
+                    new DocMetadata
+                    {
+                        PageType = "concept",
+                        Audience = "implementer",
+                        Component = "Docs",
+                        NavGroup = "Concepts"
+                    },
+                    "Namespace intro."))
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.Equal("concept", namespaceDoc.Metadata?.PageType);
+        Assert.Equal("implementer", namespaceDoc.Metadata?.Audience);
+        Assert.Equal("Docs", namespaceDoc.Metadata?.Component);
+        Assert.Equal("Concepts", namespaceDoc.Metadata?.NavGroup);
     }
 
     [Fact]
@@ -568,11 +772,10 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
-    public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenConfigIsMissing()
+    public async Task Constructor_ShouldFallbackToDiscoveredRepositoryRoot_WhenSourceRootIsMissing()
     {
         // Arrange
-        var localConfig = A.Fake<Ext_IConfiguration>();
-        A.CallTo(() => localConfig["RepositoryRoot"]).Returns(null);
+        var localOptions = new RazorDocsOptions();
         var localEnv = A.Fake<IWebHostEnvironment>();
         var contentRoot = Path.Combine(Path.GetTempPath(), "repo-fallback-root");
         A.CallTo(() => localEnv.ContentRootPath).Returns(contentRoot);
@@ -580,10 +783,10 @@ public class DocAggregatorTests : IDisposable
         string? capturedRoot = null;
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Invokes((string root, CancellationToken _) => capturedRoot = root)
-            .Returns(Enumerable.Empty<DocNode>());
+            .Returns(Array.Empty<DocNode>());
         var aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            localConfig,
+            localOptions,
             localEnv,
             _memo,
             _sanitizerFake,
@@ -594,6 +797,88 @@ public class DocAggregatorTests : IDisposable
 
         // Assert
         Assert.Equal(expectedRoot, capturedRoot);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenConfiguredRepositoryRootIsWhitespace()
+    {
+        var options = new RazorDocsOptions
+        {
+            Source = new RazorDocsSourceOptions { RepositoryRoot = "   " }
+        };
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal(nameof(RazorDocsSourceOptions.RepositoryRoot), ex.ParamName);
+        Assert.Contains("whitespace", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenBundleModeIsRequestedBeforeItIsImplemented()
+    {
+        var options = new RazorDocsOptions
+        {
+            Mode = RazorDocsMode.Bundle,
+            Bundle = new RazorDocsBundleOptions { Path = "/tmp/docs.bundle.json" }
+        };
+
+        var ex = Assert.Throws<NotSupportedException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Contains("bundle mode", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenModeIsUnsupported()
+    {
+        var options = new RazorDocsOptions
+        {
+            Mode = (RazorDocsMode)999
+        };
+
+        var ex = Assert.Throws<NotSupportedException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Contains("Unsupported RazorDocs mode", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenSourceOptionsAreNullInSourceMode()
+    {
+        var options = new RazorDocsOptions
+        {
+            Source = null!
+        };
+
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => new DocAggregator(
+                new[] { _harvesterFake },
+                options,
+                _envFake,
+                _memo,
+                _sanitizerFake,
+                _loggerFake));
+
+        Assert.Equal("Source", ex.ParamName);
     }
 
     [Fact]
@@ -612,6 +897,18 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocByPathAsync_ShouldMatchNormalizedSourcePath_WhenCanonicalPathDoesNotMatch()
+    {
+        var harvestedDocs = new List<DocNode> { new("Guide", "docs/guide.md", "<p>Guide</p>") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = await _aggregator.GetDocByPathAsync("/DOCS/guide.md/");
+
+        Assert.NotNull(result);
+        Assert.Equal("Guide", result!.Title);
+    }
+
+    [Fact]
     public async Task BuildCanonicalPath_ShouldNotAppendHtml_WhenSourceAlreadyHtml()
     {
         // Arrange
@@ -623,7 +920,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         // Assert
         Assert.Contains(docs, d => d.Path == "docs/page.html" && d.CanonicalPath == "docs/page.html");
@@ -644,7 +941,7 @@ public class DocAggregatorTests : IDisposable
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
         // Act
-        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var docs = await _aggregator.GetDocsAsync();
 
         // Assert
         var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");

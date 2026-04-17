@@ -1,10 +1,10 @@
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -153,6 +153,30 @@ public class CSharpDocHarvesterTests : IDisposable
         Assert.Contains(
             results,
             n => n.Title == "MyClass" && string.IsNullOrEmpty(n.Content) && n.ParentPath == "Namespaces/Test");
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldAttachApiReferenceMetadataDefaults()
+    {
+        var code = """
+            namespace ForgeTrust.Runnable.Web.RazorWire;
+
+            /// <summary>Bridge docs.</summary>
+            public class RazorWireBridge {}
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Bridge.cs"), code);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/ForgeTrust.Runnable.Web.RazorWire");
+        var typeStub = results.Single(n => n.Title == "RazorWireBridge" && n.ParentPath == namespaceNode.Path);
+
+        Assert.Equal("api-reference", namespaceNode.Metadata?.PageType);
+        Assert.Equal("developer", namespaceNode.Metadata?.Audience);
+        Assert.Equal("RazorWire", namespaceNode.Metadata?.Component);
+        Assert.Equal("API Reference", namespaceNode.Metadata?.NavGroup);
+
+        Assert.Equal("api-reference", typeStub.Metadata?.PageType);
+        Assert.Equal("RazorWire", typeStub.Metadata?.Component);
     }
 
     [Fact]
@@ -543,7 +567,7 @@ public class EdgeCases
                     SyntaxFactory.SingletonSeparatedList(typelessParameter)));
 
         // Act: typeless method parameter falls back to object.
-        var signatureResult = CSharpDocHarvester.GetMethodSignatureAndId(typelessMethod, "Test.EdgeCases");
+        var signatureResult = CSharpDocHarvester.GetMethodId(typelessMethod, "Test.EdgeCases");
         var signatureBuilder = new StringBuilder();
         CSharpDocHarvester.AppendHighlightedParameter(signatureBuilder, typelessParameter);
 
@@ -562,7 +586,7 @@ public class EdgeCases
         var namespacePath = namespacePage.Path;
 
         // Assert
-        Assert.Contains("object", signatureResult.Item1);
+        Assert.Contains("object", signatureResult);
         Assert.Contains("<span class=\"sig-type\">object</span>", signatureBuilder.ToString());
         Assert.Equal(string.Empty, nullAccessorSignature);
         Assert.Equal(string.Empty, emptyAccessorSignature);

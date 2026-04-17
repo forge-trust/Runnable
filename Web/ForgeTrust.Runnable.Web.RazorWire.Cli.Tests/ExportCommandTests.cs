@@ -16,11 +16,10 @@ public class ExportCommandTests
         {
             var logger = A.Fake<ILogger<ExportCommand>>();
             var engineLogger = A.Fake<ILogger<ExportEngine>>();
-            var resolverLogger = A.Fake<ILogger<ExportSourceResolver>>();
             var requestFactory = new ExportSourceRequestFactory();
             var processFactory = new NoopProcessFactory();
             var sourceResolver = new ExportSourceResolver(
-                resolverLogger,
+                A.Fake<ILoggerFactory>(),
                 processFactory,
                 new TestHttpHelpers.Factory(TestHttpHelpers.UrlAwareHtmlRoot("http://localhost:5001")));
             var engine = new ExportEngine(
@@ -89,11 +88,10 @@ public class ExportCommandTests
     {
         var logger = A.Fake<ILogger<ExportCommand>>();
         var engineLogger = A.Fake<ILogger<ExportEngine>>();
-        var resolverLogger = A.Fake<ILogger<ExportSourceResolver>>();
         var requestFactory = new ExportSourceRequestFactory();
         var processFactory = new NoopProcessFactory();
         var sourceResolver = new ExportSourceResolver(
-            resolverLogger,
+            A.Fake<ILoggerFactory>(),
             processFactory,
             new TestHttpHelpers.Factory(TestHttpHelpers.UrlAwareHtmlRoot("http://localhost:5001")));
         var engine = new ExportEngine(

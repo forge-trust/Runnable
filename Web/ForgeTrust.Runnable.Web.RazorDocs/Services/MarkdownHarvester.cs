@@ -21,6 +21,11 @@ public class MarkdownHarvester : IDocHarvester
     {
     }
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="MarkdownHarvester"/> for testing or internal use with a custom file reader.
+    /// </summary>
+    /// <param name="logger">Logger used for recording harvesting events and errors.</param>
+    /// <param name="readAllTextAsync">Delegate used to asynchronously read file contents.</param>
     internal MarkdownHarvester(
         ILogger<MarkdownHarvester> logger,
         Func<string, CancellationToken, Task<string>> readAllTextAsync)
@@ -44,7 +49,7 @@ public class MarkdownHarvester : IDocHarvester
     /// <remarks>
     /// Skips files in excluded directories (for example "node_modules", "bin", "obj", and "Tests") and hidden dot-prefixed directories unless explicitly allowlisted. Dot-prefixed files are included. If a file's name is "README" (case-insensitive), its title is set to the parent directory name or "Home" for a repository root README. Files that fail to process are skipped and an error is logged.
     /// </remarks>
-    public async Task<IEnumerable<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
     {
         var nodes = new List<DocNode>();
         var mdFiles = Directory.EnumerateFiles(rootPath, "*.md", SearchOption.AllDirectories);
@@ -61,7 +66,8 @@ public class MarkdownHarvester : IDocHarvester
                 }
 
                 var content = await _readAllTextAsync(file, cancellationToken);
-                var html = Markdown.ToHtml(content, _pipeline);
+                var (markdownBody, frontMatterMetadata) = MarkdownFrontMatterParser.Extract(content);
+                var html = Markdown.ToHtml(markdownBody, _pipeline);
                 var title = Path.GetFileNameWithoutExtension(file);
 
                 if (title.Equals("README", StringComparison.OrdinalIgnoreCase))
@@ -70,7 +76,14 @@ public class MarkdownHarvester : IDocHarvester
                     title = string.IsNullOrEmpty(parentDir) ? "Home" : Path.GetFileName(parentDir);
                 }
 
-                nodes.Add(new DocNode(title, relativePath, html));
+                var resolvedTitle = frontMatterMetadata?.Title ?? title;
+                var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+                    relativePath,
+                    resolvedTitle,
+                    frontMatterMetadata,
+                    ExtractSummary(markdownBody));
+
+                nodes.Add(new DocNode(resolvedTitle, relativePath, html, Metadata: metadata));
             }
             catch (OperationCanceledException)
             {
@@ -83,5 +96,75 @@ public class MarkdownHarvester : IDocHarvester
         }
 
         return nodes;
+    }
+
+    internal static string? ExtractSummary(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return null;
+        }
+
+        var lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var summaryLines = new List<string>();
+        var inCodeFence = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            {
+                inCodeFence = !inCodeFence;
+                continue;
+            }
+
+            if (inCodeFence || string.IsNullOrWhiteSpace(trimmed))
+            {
+                if (summaryLines.Count > 0)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (trimmed.StartsWith("#", StringComparison.Ordinal)
+                || trimmed.StartsWith("- ", StringComparison.Ordinal)
+                || trimmed.StartsWith("* ", StringComparison.Ordinal)
+                || StartsWithNumberedListMarker(trimmed)
+                || trimmed.StartsWith("> ", StringComparison.Ordinal)
+                || trimmed.StartsWith("<!--", StringComparison.Ordinal))
+            {
+                if (summaryLines.Count > 0)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            summaryLines.Add(trimmed);
+        }
+
+        return summaryLines.Count == 0 ? null : string.Join(" ", summaryLines);
+    }
+
+    private static bool StartsWithNumberedListMarker(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !char.IsDigit(value[0]))
+        {
+            return false;
+        }
+
+        var index = 0;
+        while (index < value.Length && char.IsDigit(value[index]))
+        {
+            index++;
+        }
+
+        return index + 1 < value.Length
+               && value[index] == '.'
+               && value[index + 1] == ' ';
     }
 }

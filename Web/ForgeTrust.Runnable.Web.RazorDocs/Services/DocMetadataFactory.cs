@@ -177,11 +177,6 @@ internal static class DocMetadataFactory
 
     private static string GetRunnableComponentName(IReadOnlyList<string> parts)
     {
-        if (parts.Count == 0)
-        {
-            return "Runnable";
-        }
-
         if (parts.Count == 1)
         {
             return parts[0];

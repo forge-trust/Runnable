@@ -132,4 +132,17 @@ public class DocModelsTests
         Assert.Empty(merged.Breadcrumbs!);
         Assert.Null(merged.BreadcrumbsMatchPathTargets);
     }
+
+    [Fact]
+    public void Merge_ShouldReturnPrimary_WhenFallbackIsNull()
+    {
+        var primary = new DocMetadata
+        {
+            Title = "Primary"
+        };
+
+        var merged = DocMetadata.Merge(primary, null);
+
+        Assert.Same(primary, merged);
+    }
 }

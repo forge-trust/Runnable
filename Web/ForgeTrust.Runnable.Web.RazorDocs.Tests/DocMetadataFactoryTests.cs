@@ -52,15 +52,40 @@ public sealed class DocMetadataFactoryTests
     }
 
     [Theory]
+    [InlineData("", "guide", "implementer")]
+    [InlineData(" /guide.md", "guide", "implementer")]
+    public void CreateMarkdownMetadata_ShouldTreatEmptyOrWhitespaceSegmentsAsNonInternal(
+        string path,
+        string expectedPageType,
+        string expectedAudience)
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(path, "Guide", null, null);
+
+        Assert.Equal(expectedPageType, metadata.PageType);
+        Assert.Equal(expectedAudience, metadata.Audience);
+        Assert.Null(metadata.HideFromPublicNav);
+        Assert.Null(metadata.HideFromSearch);
+    }
+
+    [Theory]
     [InlineData("ForgeTrust.Runnable.Web.RazorDocs.Services", "RazorDocs")]
     [InlineData("ForgeTrust.Runnable.Web.RazorWire.Bridge", "RazorWire")]
     [InlineData("ForgeTrust.Runnable.Dependency.Autofac", "Autofac")]
+    [InlineData("ForgeTrust.Runnable.Caching.Redis", "Caching")]
     [InlineData("RazorWireWebExample.Services", "RazorWireWebExample")]
     public void DeriveComponentFromNamespace_ShouldReturnOwningComponent(string namespaceName, string expectedComponent)
     {
         var component = DocMetadataFactory.DeriveComponentFromNamespace(namespaceName);
 
         Assert.Equal(expectedComponent, component);
+    }
+
+    [Fact]
+    public void DeriveComponentFromNamespace_ShouldReturnRunnableForBareRunnableNamespace()
+    {
+        var component = DocMetadataFactory.DeriveComponentFromNamespace("ForgeTrust.Runnable.");
+
+        Assert.Equal("Runnable", component);
     }
 
     [Theory]
@@ -74,6 +99,15 @@ public sealed class DocMetadataFactoryTests
 
         Assert.Equal(expectedHidden, metadata.HideFromPublicNav);
         Assert.Equal(expectedHidden, metadata.HideFromSearch);
+    }
+
+    [Fact]
+    public void CreateApiReferenceMetadata_ShouldAddTitleToBreadcrumbs_WhenNamespaceIsEmpty()
+    {
+        var metadata = DocMetadataFactory.CreateApiReferenceMetadata("Web", string.Empty);
+
+        Assert.Equal(["Namespaces", "Web"], metadata.Breadcrumbs);
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
     }
 
     [Theory]

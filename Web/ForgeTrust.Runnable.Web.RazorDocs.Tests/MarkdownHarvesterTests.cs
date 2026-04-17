@@ -201,6 +201,41 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public void ExtractSummary_ShouldReturnNull_ForWhitespaceInput()
+    {
+        var summary = MarkdownHarvester.ExtractSummary("   \n  ");
+
+        Assert.Null(summary);
+    }
+
+    [Fact]
+    public void ExtractSummary_ShouldSkipCodeFences_BeforeCollectingSummary()
+    {
+        var summary = MarkdownHarvester.ExtractSummary(
+            """
+            ```csharp
+            var ignored = true;
+            ```
+
+            This is the summary paragraph.
+            """);
+
+        Assert.Equal("This is the summary paragraph.", summary);
+    }
+
+    [Fact]
+    public void ExtractSummary_ShouldStopWhenListAppearsAfterSummaryText()
+    {
+        var summary = MarkdownHarvester.ExtractSummary(
+            """
+            This is the summary paragraph.
+            - Follow-up detail
+            """);
+
+        Assert.Equal("This is the summary paragraph.", summary);
+    }
+
+    [Fact]
     public void ExtractSummary_ShouldIgnoreNumberedListsAtStart()
     {
         var summary = MarkdownHarvester.ExtractSummary(

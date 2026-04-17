@@ -222,6 +222,28 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderExplicitSummaryBlurb()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Summary = "This is the summary paragraph.",
+                SummaryIsDerived = false
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
+    }
+
+    [Fact]
     public async Task SearchView_ShouldRenderSearchPageShell()
     {
         using var services = CreateServiceProvider(CreateDocs());

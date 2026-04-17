@@ -5,6 +5,15 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 public sealed class MarkdownFrontMatterParserTests
 {
     [Fact]
+    public void Extract_ShouldReturnNullMetadata_WhenMarkdownIsEmpty()
+    {
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(string.Empty);
+
+        Assert.Equal(string.Empty, body);
+        Assert.Null(metadata);
+    }
+
+    [Fact]
     public void Extract_ShouldParseBlockScalars_AndQuotedInlineLists()
     {
         var markdown = """
@@ -37,6 +46,47 @@ public sealed class MarkdownFrontMatterParserTests
             ---
             title: [
             summary: Broken
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal(markdown.Replace("\r\n", "\n", StringComparison.Ordinal), body);
+        Assert.Null(metadata);
+    }
+
+    [Fact]
+    public void Extract_ShouldReturnOriginalMarkdown_WhenFrontMatterHasNoClosingMarker()
+    {
+        var markdown = """
+            ---
+            title: Quickstart
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal(markdown.Replace("\r\n", "\n", StringComparison.Ordinal), body);
+        Assert.Null(metadata);
+    }
+
+    [Fact]
+    public void Extract_ShouldReturnOriginalMarkdown_WhenOpeningMarkerIsNotFollowedByNewline()
+    {
+        var markdown = "---\rtitle: Quickstart\n---\n# Hello";
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal(markdown.Replace("\r\n", "\n", StringComparison.Ordinal), body);
+        Assert.Null(metadata);
+    }
+
+    [Fact]
+    public void Extract_ShouldReturnNullMetadata_WhenFrontMatterDocumentIsEmpty()
+    {
+        var markdown = """
+            ---
             ---
             # Hello
             """;

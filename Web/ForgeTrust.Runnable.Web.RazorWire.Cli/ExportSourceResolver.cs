@@ -11,6 +11,20 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
+/// <summary>
+/// Structured command execution result used by the export resolver pipeline.
+/// </summary>
+/// <param name="ExitCode">
+/// The process exit code, or a synthetic negative value when process start
+/// failed before an operating-system exit code was available.
+/// </param>
+/// <param name="Stdout">The captured standard output for the command.</param>
+/// <param name="Stderr">The captured standard error or a synthetic start-failure message.</param>
+/// <remarks>
+/// The resolver prefers this explicit result shape over exceptions for ordinary
+/// command failures so it can preserve stdout/stderr in logs and decide whether
+/// to throw, fall back to XML parsing, or continue probing.
+/// </remarks>
 internal record ProcessResult(int ExitCode, string Stdout, string Stderr);
 
 /// <summary>
@@ -60,7 +74,7 @@ public sealed class ExportSourceResolver
         ILoggerFactory loggerFactory,
         ITargetAppProcessFactory processFactory,
         IHttpClientFactory httpClientFactory)
-        : this(loggerFactory, processFactory, httpClientFactory, new CommandExecutor(loggerFactory.CreateLogger<CommandExecutor>()))
+        : this(loggerFactory, processFactory, httpClientFactory, CreateDefaultExecutor(loggerFactory))
     {
     }
 
@@ -79,6 +93,12 @@ public sealed class ExportSourceResolver
         _processFactory = processFactory;
         _httpClientFactory = httpClientFactory;
         _razorWireExecutor = razorWireExecutor;
+    }
+
+    private static ICommandExecutor CreateDefaultExecutor(ILoggerFactory loggerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        return new CommandExecutor(loggerFactory.CreateLogger<CommandExecutor>());
     }
 
     internal async Task<ResolvedExportSource> ResolveAsync(
@@ -300,6 +320,22 @@ public sealed class ExportSourceResolver
             $"Timed out while connecting to --url target '{baseUrl}' after {timeout.TotalSeconds:0.###} seconds. Ensure the application is running and reachable.");
     }
 
+    /// <summary>
+    /// Executes a command through the configured <see cref="ICommandExecutor"/>.
+    /// </summary>
+    /// <param name="fileName">The executable to start.</param>
+    /// <param name="args">The ordered command-line arguments for the executable.</param>
+    /// <param name="workingDirectory">The working directory used for process start.</param>
+    /// <param name="cancellationToken">Cancels the command execution.</param>
+    /// <returns>
+    /// A <see cref="ProcessResult"/> containing the exit code and captured
+    /// output streams from the delegated executor.
+    /// </returns>
+    /// <remarks>
+    /// This seam exists so resolver tests can verify command composition
+    /// without launching real processes. Callers should treat a non-zero exit
+    /// as data and decide whether to raise an exception or fall back.
+    /// </remarks>
     internal Task<ProcessResult> ExecuteProcessAsync(
         string fileName,
         IReadOnlyList<string> args,
@@ -473,6 +509,32 @@ public sealed class ExportSourceResolver
         return candidates[0].FullName;
     }
 
+    /// <summary>
+    /// Resolves the effective assembly name for a project, preferring MSBuild
+    /// evaluation and falling back to raw project XML parsing when needed.
+    /// </summary>
+    /// <param name="projectPath">The project file whose assembly name should be resolved.</param>
+    /// <param name="fallbackName">The fallback assembly name when no explicit value can be determined.</param>
+    /// <param name="framework">
+    /// The target framework used for MSBuild evaluation. Supplying this keeps
+    /// conditional <c>AssemblyName</c> values aligned with the publish target.
+    /// </param>
+    /// <param name="cancellationToken">Cancels MSBuild evaluation.</param>
+    /// <returns>
+    /// The assembly name reported by MSBuild when available; otherwise the
+    /// value returned by <see cref="TryResolveAssemblyNameFromXml"/>.
+    /// </returns>
+    /// <remarks>
+    /// MSBuild is preferred because it evaluates imports and conditional
+    /// properties that raw XML parsing cannot see. If MSBuild exits non-zero,
+    /// produces no usable stdout, or throws a non-cancellation exception, the
+    /// resolver logs the failure details and falls back to XML parsing.
+    /// Omitting <paramref name="framework"/> can mis-evaluate conditional
+    /// <c>AssemblyName</c> declarations for multi-target projects.
+    /// </remarks>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when command execution is canceled.
+    /// </exception>
     internal async Task<string> TryResolveAssemblyNameAsync(
         string projectPath,
         string fallbackName,
@@ -527,6 +589,21 @@ public sealed class ExportSourceResolver
         return TryResolveAssemblyNameFromXml(projectPath, fallbackName);
     }
 
+    /// <summary>
+    /// Reads a project file directly and returns the first explicit
+    /// <c>AssemblyName</c> value found in the XML.
+    /// </summary>
+    /// <param name="projectPath">The project file to inspect.</param>
+    /// <param name="fallbackName">The value returned when the XML cannot be read or has no assembly name.</param>
+    /// <returns>
+    /// The explicit <c>AssemblyName</c> from the project file, or
+    /// <paramref name="fallbackName"/> when no usable value is available.
+    /// </returns>
+    /// <remarks>
+    /// This method intentionally does not evaluate imports or conditional MSBuild
+    /// properties. It is the low-cost fallback used when MSBuild evaluation is
+    /// unavailable or fails to return a usable value.
+    /// </remarks>
     internal static string TryResolveAssemblyNameFromXml(string projectPath, string fallbackName)
     {
         try

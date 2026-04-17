@@ -474,9 +474,21 @@ public class ExportSourceResolverTests
             factory,
             new TestHttpHelpers.Factory(TestHttpHelpers.FixedStatus(System.Net.HttpStatusCode.OK)),
             mockExecutor);
-        
-        A.CallTo(() => mockExecutor.ExecuteCommandAsync(A<string>._, A<IReadOnlyList<string>>._, A<string>._, A<CancellationToken>._))
-            .Returns(new ProcessResult(1, "", "msbuild error"));
+
+        A.CallTo(() => mockExecutor.ExecuteCommandAsync(
+                A<string>._,
+                A<IReadOnlyList<string>>._,
+                A<string>._,
+                A<CancellationToken>._))
+            .ReturnsLazily((string _, IReadOnlyList<string> args, string _, CancellationToken _) =>
+            {
+                if (args.Count > 0 && args[0] == "publish")
+                {
+                    return new ProcessResult(1, string.Empty, "publish error");
+                }
+
+                return new ProcessResult(0, "Missing", string.Empty);
+            });
 
         var request = new ExportSourceRequest(ExportSourceKind.Project, projectPath, null, [], false);
 
@@ -595,9 +607,6 @@ public class ExportSourceResolverTests
                     capturedPublishArgs = args.ToArray();
                     Directory.CreateDirectory(Path.GetDirectoryName(expectedPath)!);
                     File.WriteAllText(expectedPath, string.Empty);
-                    File.WriteAllText(
-                        Path.ChangeExtension(expectedPath, ".runtimeconfig.json"),
-                        """{ "runtimeOptions": { "tfm": "net10.0" } }""");
                 }
 
                 return new ProcessResult(0, string.Empty, string.Empty);
@@ -610,12 +619,6 @@ public class ExportSourceResolverTests
         var normalizedExpected = ExportSourceResolver.NormalizePathForMacOS(
             Path.Combine(tempDir.FullPath, "bin", "runnable-export", "MySite.dll"));
         Assert.Equal(normalizedExpected, resolved.SourceValue);
-
-        // Prove framework selection by reading the runtimeconfig.json (since `-o` flattens the output directory)
-        var configPath = Path.ChangeExtension(resolved.SourceValue, ".runtimeconfig.json");
-        Assert.True(File.Exists(configPath));
-        var configJson = await File.ReadAllTextAsync(configPath);
-        Assert.Contains("net10.0", configJson, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(capturedPublishArgs);
         Assert.Contains("-f", capturedPublishArgs);
         Assert.Contains("net10.0", capturedPublishArgs);
@@ -858,15 +861,31 @@ public class ExportSourceResolverTests
         var mockRazorWireExecutor = A.Fake<ICommandExecutor>();
         var resolver = CreateResolver(A.Fake<ITargetAppProcessFactory>(), A.Fake<IHttpClientFactory>(), mockRazorWireExecutor);
 
+        string? capturedFileName = null;
+        IReadOnlyList<string>? capturedArgs = null;
         A.CallTo(() => mockRazorWireExecutor.ExecuteCommandAsync(
                 A<string>._,
                 A<IReadOnlyList<string>>._,
                 A<string>._,
                 A<CancellationToken>._))
+            .Invokes((string fileName, IReadOnlyList<string> args, string _, CancellationToken _) =>
+            {
+                capturedFileName = fileName;
+                capturedArgs = args;
+            })
             .Returns(new ProcessResult(0, "MyRealName", string.Empty));
 
         var resolved = await resolver.TryResolveAssemblyNameAsync(projectPath, "Main", "net10.0", CancellationToken.None);
+
         Assert.Equal("MyRealName", resolved);
+        Assert.Equal("dotnet", capturedFileName);
+        Assert.NotNull(capturedArgs);
+        Assert.Equal("msbuild", capturedArgs[0]);
+        Assert.Equal(projectPath, capturedArgs[1]);
+        Assert.Contains("-getProperty:AssemblyName", capturedArgs);
+        Assert.Contains("-nologo", capturedArgs);
+        Assert.Contains("-p:Configuration=Release", capturedArgs);
+        Assert.Contains("-p:TargetFramework=net10.0", capturedArgs);
     }
 
     [Trait("Category", "Integration")]

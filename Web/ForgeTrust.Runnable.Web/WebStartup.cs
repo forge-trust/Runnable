@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Core;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -82,6 +83,12 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         _configureOptions?.Invoke(_options);
 
+        if (_options.Errors.NotFoundPageMode == ConventionalNotFoundPageMode.Enabled
+            && _options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews)
+        {
+            _options.Mvc = _options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews };
+        }
+
         if (_options.Mvc.MvcSupportLevel >= MvcSupport.ControllersWithViews)
         {
             _options.StaticFiles.EnableStaticFiles = true;
@@ -128,6 +135,17 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                 {
                     mvcBuilder.AddApplicationPart(assembly);
                 }
+            }
+
+            if (_options.Errors.IsConventionalNotFoundPageEnabled(mvcOpts.MvcSupportLevel))
+            {
+                var frameworkAssembly = typeof(WebOptions).Assembly;
+                if (frameworkAssembly != context.EntryPointAssembly)
+                {
+                    mvcBuilder.AddApplicationPart(frameworkAssembly);
+                }
+
+                services.AddSingleton<ConventionalNotFoundPageRenderer>();
             }
 
             mvcOpts.ConfigureMvc?.Invoke(mvcBuilder);
@@ -215,6 +233,17 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     /// <param name="app">The application builder to configure (middleware, routing, CORS, endpoints, etc.).</param>
     private void InitializeWebApplication(StartupContext context, IApplicationBuilder app)
     {
+        if (_options.Errors.IsConventionalNotFoundPageEnabled(_options.Mvc.MvcSupportLevel))
+        {
+            app.ApplicationServices
+                .GetRequiredService<ConventionalNotFoundPageRenderer>()
+                .ValidateConfiguredViews();
+
+            app.UseWhen(
+                ShouldApplyConventionalNotFoundPage,
+                branch => { branch.UseStatusCodePagesWithReExecute(ConventionalNotFoundPageDefaults.ReservedRouteFormat); });
+        }
+
         foreach (var module in _modules)
         {
             module.ConfigureWebApplication(context, app);
@@ -246,8 +275,71 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
             if (_options.Mvc.MvcSupportLevel > MvcSupport.None)
             {
+                if (_options.Errors.IsConventionalNotFoundPageEnabled(_options.Mvc.MvcSupportLevel))
+                {
+                    endpoints.MapMethods(
+                        ConventionalNotFoundPageDefaults.ReservedRoutePattern,
+                        [HttpMethods.Get, HttpMethods.Head],
+                        async httpContext =>
+                        {
+                            var statusCode = GetReservedRouteStatusCode(httpContext);
+                            var isDirectRequest = httpContext.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>() is null;
+
+                            if (statusCode != StatusCodes.Status404NotFound)
+                            {
+                                if (isDirectRequest)
+                                {
+                                    httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                                }
+
+                                return;
+                            }
+
+                            await httpContext.RequestServices
+                                .GetRequiredService<ConventionalNotFoundPageRenderer>()
+                                .RenderAsync(httpContext);
+                        });
+                }
+
                 endpoints.MapControllers();
             }
         });
+    }
+
+    private static bool ShouldApplyConventionalNotFoundPage(HttpContext httpContext)
+    {
+        if (!HttpMethods.IsGet(httpContext.Request.Method) && !HttpMethods.IsHead(httpContext.Request.Method))
+        {
+            return false;
+        }
+
+        if (httpContext.Request.Path.StartsWithSegments("/_runnable/errors"))
+        {
+            return false;
+        }
+
+        var acceptsHtml = httpContext.Request.GetTypedHeaders().Accept?
+            .Any(mediaType =>
+                mediaType.MediaType.HasValue
+                && (mediaType.MediaType.Value.Equals("text/html", StringComparison.OrdinalIgnoreCase)
+                    || mediaType.MediaType.Value.Equals("application/xhtml+xml", StringComparison.OrdinalIgnoreCase)))
+            ?? false;
+
+        return acceptsHtml;
+    }
+
+    private static int? GetReservedRouteStatusCode(HttpContext httpContext)
+    {
+        if (httpContext.Request.RouteValues.TryGetValue("statusCode", out var routeValue) != true)
+        {
+            return null;
+        }
+
+        return routeValue switch
+        {
+            int intValue => intValue,
+            string stringValue when int.TryParse(stringValue, out var parsed) => parsed,
+            _ => null
+        };
     }
 }

@@ -28,6 +28,11 @@ public record WebOptions
     public StaticFilesOptions StaticFiles { get; set; } = StaticFilesOptions.Default;
 
     /// <summary>
+    /// Gets or sets configuration options for conventional framework error pages.
+    /// </summary>
+    public ErrorPagesOptions Errors { get; set; } = ErrorPagesOptions.Default;
+
+    /// <summary>
     /// Gets or sets an optional delegate to configure endpoint routing for the application.
     /// </summary>
     public Action<IEndpointRouteBuilder>? MapEndpoints { get; set; }

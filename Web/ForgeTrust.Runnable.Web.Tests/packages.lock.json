@@ -122,6 +122,13 @@
         "dependencies": {
           "ForgeTrust.Runnable.Core": "[1.0.0, )"
         }
+      },
+      "forgetrust.runnable.web.tests.sharederrorpagesfixture": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeTrust.Runnable.Core": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web": "[1.0.0, )"
+        }
       }
     }
   }

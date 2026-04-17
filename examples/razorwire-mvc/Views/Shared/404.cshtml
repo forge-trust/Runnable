@@ -1,0 +1,56 @@
+@model ForgeTrust.Runnable.Web.NotFoundPageModel
+@{
+    ViewData["Title"] = "Page Not Found";
+    var missingPath = string.IsNullOrWhiteSpace(Model.OriginalPath)
+        ? "that page"
+        : Model.OriginalPath;
+}
+
+<div class="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-10 shadow-[0_30px_80px_rgba(15,23,42,0.08)]">
+    <div class="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.16),transparent_70%)]"></div>
+
+    <div class="relative grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-center">
+        <div class="space-y-6">
+            <div class="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-rose-600">
+                <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+                HTTP @Model.StatusCode
+            </div>
+
+            <div class="space-y-4">
+                <h1 class="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+                    That route drifted <span class="text-rose-600">out of orbit</span>
+                </h1>
+                <p class="max-w-2xl text-lg leading-relaxed text-slate-600">
+                    We couldn't find <span class="font-semibold text-slate-900">@missingPath</span>. The app is still healthy — this page is the conventional Runnable 404 view rendered through the framework pipeline.
+                </p>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row">
+                <a asp-controller="Home" asp-action="Index" class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+                    Return Home
+                </a>
+                <a asp-controller="Reactivity" asp-action="Index" class="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600">
+                    Jump to Reactivity
+                </a>
+            </div>
+        </div>
+
+        <div class="rounded-[1.5rem] border border-slate-200 bg-slate-950 p-6 text-slate-100 shadow-inner">
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Request Snapshot</p>
+            <dl class="mt-5 space-y-4 text-sm">
+                <div>
+                    <dt class="text-slate-400">Original Path</dt>
+                    <dd class="mt-1 break-all rounded-lg bg-white/5 px-3 py-2 font-mono text-[13px] text-indigo-200">@missingPath</dd>
+                </div>
+                <div>
+                    <dt class="text-slate-400">Original Query</dt>
+                    <dd class="mt-1 break-all rounded-lg bg-white/5 px-3 py-2 font-mono text-[13px] text-emerald-200">@(string.IsNullOrWhiteSpace(Model.OriginalQueryString) ? "(none)" : Model.OriginalQueryString)</dd>
+                </div>
+                <div>
+                    <dt class="text-slate-400">Status</dt>
+                    <dd class="mt-1 rounded-lg bg-white/5 px-3 py-2 font-mono text-[13px] text-rose-200">@Model.StatusCode</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+</div>

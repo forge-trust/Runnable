@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Diagnostics.CodeAnalysis;
+using ForgeTrust.Runnable.Web;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -155,6 +156,7 @@ public class ExportEngine
             context.Queue.Count);
 
         var client = _httpClientFactory.CreateClient("ExportEngine");
+        await TryWriteConventionalNotFoundPageAsync(client, context, cancellationToken);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (context.Queue.Count > 0)
@@ -275,6 +277,60 @@ public class ExportEngine
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error exporting {Route}", route);
+        }
+    }
+
+    private async Task TryWriteConventionalNotFoundPageAsync(
+        HttpClient client,
+        ExportContext context,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await client.GetAsync(
+                $"{context.BaseUrl}{ConventionalNotFoundPageDefaults.ReservedNotFoundRoute}",
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug(
+                    "Skipping 404.html export because {Route} returned {StatusCode}.",
+                    ConventionalNotFoundPageDefaults.ReservedNotFoundRoute,
+                    response.StatusCode);
+                return;
+            }
+
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            if (!string.Equals(contentType, "text/html", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug(
+                    "Skipping 404.html export because {Route} returned non-HTML content type {ContentType}.",
+                    ConventionalNotFoundPageDefaults.ReservedNotFoundRoute,
+                    contentType ?? "(none)");
+                return;
+            }
+
+            var html = await response.Content.ReadAsStringAsync(cancellationToken);
+            var filePath = Path.Combine(context.OutputPath, "404.html");
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(filePath, html, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to export conventional 404 page from {Route}.",
+                ConventionalNotFoundPageDefaults.ReservedNotFoundRoute);
         }
     }
 

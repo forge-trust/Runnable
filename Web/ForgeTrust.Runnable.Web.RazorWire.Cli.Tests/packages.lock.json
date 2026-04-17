@@ -418,6 +418,7 @@
         "dependencies": {
           "CliFx": "[2.3.6, )",
           "ForgeTrust.Runnable.Console": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web": "[1.0.0, )",
           "ForgeTrust.Runnable.Web.RazorWire": "[1.0.0, )"
         }
       },

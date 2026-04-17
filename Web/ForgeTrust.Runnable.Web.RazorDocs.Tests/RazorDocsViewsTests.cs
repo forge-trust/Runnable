@@ -86,6 +86,131 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task IndexView_ShouldRenderCuratedFeaturedCards()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = "Runnable",
+                    Summary = "Proof before promises.",
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "How does composition work?",
+                            Path = "guides/composition.md",
+                            SupportingCopy = "Follow the composition model.",
+                            Order = 10
+                        }
+                    ]
+                }),
+            new(
+                "Composition",
+                "guides/composition.md",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "guide",
+                    Summary = "Destination summary."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
+
+        Assert.Contains(">Runnable</h1>", html);
+        Assert.Contains("Proof before promises.", html);
+        Assert.Contains("How does composition work?", html);
+        Assert.Contains(">Composition</h2>", html);
+        Assert.Contains("Follow the composition model.", html);
+        Assert.Contains("Guide", html);
+        Assert.Contains("href=\"/docs/guides/composition.md.html\"", html);
+    }
+
+    [Fact]
+    public async Task IndexView_ShouldFallbackToDestinationSummary_WhenSupportingCopyIsMissing()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Show me an example",
+                            Path = "examples/hello.md"
+                        }
+                    ]
+                }),
+            new(
+                "Hello Example",
+                "examples/hello.md",
+                "<p>Example body</p>",
+                Metadata: new DocMetadata
+                {
+                    Summary = "This is the summary fallback.",
+                    PageType = "example"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
+
+        Assert.Contains("Show me an example", html);
+        Assert.Contains("This is the summary fallback.", html);
+        Assert.Contains("Example", html);
+    }
+
+    [Fact]
+    public async Task IndexView_ShouldRenderNeutralFallback_WhenFeaturedEntriesResolveToHiddenPages()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Show me internals",
+                            Path = "guides/hidden.md"
+                        }
+                    ]
+                }),
+            new(
+                "Hidden Guide",
+                "guides/hidden.md",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    HideFromPublicNav = true
+                }),
+            new("Guide", "guides/intro.md", "<p>Guide body</p>")
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
+
+        Assert.Contains("Documentation", html);
+        Assert.DoesNotContain("Show me internals", html);
+        Assert.Contains("articles", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderNamespaceBreadcrumbLinks()
     {
         using var services = CreateServiceProvider(CreateDocs());

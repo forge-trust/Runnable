@@ -62,6 +62,7 @@ internal static class MarkdownFrontMatterParser
             RelatedPages = NormalizeList(document.RelatedPages),
             CanonicalSlug = Normalize(document.CanonicalSlug) ?? Normalize(document.Slug),
             Breadcrumbs = NormalizeList(document.Breadcrumbs),
+            FeaturedPages = NormalizeFeaturedPages(document.FeaturedPages),
             PageTypeIsDerived = document.PageType is not null ? false : null,
             AudienceIsDerived = document.Audience is not null ? false : null,
             ComponentIsDerived = document.Component is not null ? false : null,
@@ -122,6 +123,26 @@ internal static class MarkdownFrontMatterParser
         return normalized;
     }
 
+    private static IReadOnlyList<DocFeaturedPageDefinition>? NormalizeFeaturedPages(
+        List<FrontMatterFeaturedPageDefinition>? values)
+    {
+        if (values is null)
+        {
+            return null;
+        }
+
+        return values
+            .Select(
+                value => new DocFeaturedPageDefinition
+                {
+                    Question = Normalize(value.Question),
+                    Path = Normalize(value.Path),
+                    SupportingCopy = Normalize(value.SupportingCopy),
+                    Order = value.Order
+                })
+            .ToArray();
+    }
+
     private sealed class FrontMatterDocument
     {
         public string? Title { get; init; }
@@ -157,5 +178,18 @@ internal static class MarkdownFrontMatterParser
         public string? Slug { get; init; }
 
         public List<string>? Breadcrumbs { get; init; }
+
+        public List<FrontMatterFeaturedPageDefinition>? FeaturedPages { get; init; }
+    }
+
+    private sealed class FrontMatterFeaturedPageDefinition
+    {
+        public string? Question { get; init; }
+
+        public string? Path { get; init; }
+
+        public string? SupportingCopy { get; init; }
+
+        public int? Order { get; init; }
     }
 }

@@ -28,6 +28,11 @@ GitHub milestone: [RazorDocs Phase 2: Evaluator Experience](https://github.com/f
 
 Phase 2 is the first visible product slice built on top of the metadata foundation. The goal is to help an evaluating engineer answer trust questions quickly and move from high-level orientation into concrete examples and API details.
 
+This phase should ship in two moves:
+
+1. turn the root docs landing into a metadata-driven trust-routing surface
+2. extend the same curation and landing pattern to section or pillar entry points such as `Start Here`, `Examples`, and `Troubleshooting`
+
 Primary issues:
 
 - [#101](https://github.com/forge-trust/Runnable/issues/101) Rebuild public docs navigation around user intent
@@ -45,7 +50,8 @@ Recommended shipping emphasis:
 2. evaluator-first landing
 3. page-type badges
 4. concise RazorDocs product explainer
-5. deeper content and wayfinding follow-through
+5. section and pillar landing follow-through using the same metadata contract
+6. deeper content and wayfinding follow-through
 
 ## Phase 3: Routing, Relevance, and Telemetry
 
@@ -63,5 +69,6 @@ Primary issues:
 ## Notes
 
 - These phases are intended to be additive. Phase 2 should consume the Phase 1 foundation rather than reworking it.
+- Phase 1 made the metadata pipeline page-agnostic on purpose. Phase 2 should first consume that seam from the repo-root `README.md`, then reuse it for non-root landing pages without introducing a parallel content system.
 - `Runnable` remains the first proof site, but the roadmap should favor reusable RazorDocs capabilities over one-off customizations.
 - Future phases can expand into more explicit agent-facing features once the evaluator experience and search relevance are working well.

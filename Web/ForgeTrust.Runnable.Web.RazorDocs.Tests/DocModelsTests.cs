@@ -14,6 +14,14 @@ public class DocModelsTests
             Summary = "Summary",
             SummaryIsDerived = true,
             PageType = "guide",
+            FeaturedPages =
+            [
+                new DocFeaturedPageDefinition
+                {
+                    Question = "What is this for?",
+                    Path = "guides/intro.md"
+                }
+            ],
             Aliases = ["alias-one"],
             RedirectAliases = ["legacy/alias"]
         };
@@ -32,6 +40,7 @@ public class DocModelsTests
         Assert.Equal("Summary", node.Metadata?.Summary);
         Assert.True(node.Metadata?.SummaryIsDerived);
         Assert.Equal("guide", node.Metadata?.PageType);
+        Assert.Single(node.Metadata?.FeaturedPages!);
         Assert.Equal(["alias-one"], node.Metadata?.Aliases);
         Assert.Equal(["legacy/alias"], node.Metadata?.RedirectAliases);
     }
@@ -52,6 +61,14 @@ public class DocModelsTests
             Title = "Fallback Title",
             Summary = "Fallback Summary",
             SummaryIsDerived = true,
+            FeaturedPages =
+            [
+                new DocFeaturedPageDefinition
+                {
+                    Question = "Fallback question",
+                    Path = "guides/fallback.md"
+                }
+            ],
             Aliases = ["beta"],
             Keywords = ["keyword"],
             HideFromPublicNav = true
@@ -63,6 +80,9 @@ public class DocModelsTests
         Assert.Equal("Fallback Title", merged!.Title);
         Assert.Equal("Primary", merged.Summary);
         Assert.False(merged.SummaryIsDerived);
+        var featuredPages = Assert.IsAssignableFrom<IReadOnlyList<DocFeaturedPageDefinition>>(merged.FeaturedPages);
+        Assert.Single(featuredPages);
+        Assert.Equal("Fallback question", featuredPages[0].Question);
         Assert.Equal(["alpha"], merged.Aliases);
         Assert.Equal(["legacy/primary"], merged.RedirectAliases);
         Assert.Equal(["keyword"], merged.Keywords);
@@ -118,18 +138,28 @@ public class DocModelsTests
             new DocMetadata
             {
                 Aliases = Array.Empty<string>(),
-                Breadcrumbs = Array.Empty<string>()
+                Breadcrumbs = Array.Empty<string>(),
+                FeaturedPages = Array.Empty<DocFeaturedPageDefinition>()
             },
             new DocMetadata
             {
                 Aliases = ["fallback-alias"],
                 Breadcrumbs = ["Namespaces", "Web"],
-                BreadcrumbsMatchPathTargets = true
+                BreadcrumbsMatchPathTargets = true,
+                FeaturedPages =
+                [
+                    new DocFeaturedPageDefinition
+                    {
+                        Question = "Fallback question",
+                        Path = "guides/fallback.md"
+                    }
+                ]
             });
 
         Assert.NotNull(merged);
         Assert.Empty(merged!.Aliases!);
         Assert.Empty(merged.Breadcrumbs!);
+        Assert.Empty(merged.FeaturedPages!);
         Assert.Null(merged.BreadcrumbsMatchPathTargets);
     }
 

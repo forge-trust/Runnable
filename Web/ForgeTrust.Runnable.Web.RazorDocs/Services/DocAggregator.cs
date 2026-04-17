@@ -710,7 +710,7 @@ public class DocAggregator
     /// <returns>The normalized lookup path.</returns>
     private static string NormalizeLookupPath(string path)
     {
-        var sanitized = path.Trim().Trim('/');
+        var sanitized = path.Trim().Trim('/').Replace('\\', '/');
         var hashIndex = sanitized.IndexOf('#');
         if (hashIndex >= 0)
         {

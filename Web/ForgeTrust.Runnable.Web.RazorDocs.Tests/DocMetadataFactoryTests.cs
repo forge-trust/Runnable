@@ -75,4 +75,20 @@ public sealed class DocMetadataFactoryTests
         Assert.Equal(expectedHidden, metadata.HideFromPublicNav);
         Assert.Equal(expectedHidden, metadata.HideFromSearch);
     }
+
+    [Theory]
+    [InlineData(@"examples\mvc\guide.md", "example", "Examples", "implementer")]
+    [InlineData(@"docs\ForgeTrust.Runnable.Web.Tests\README.md", "internals", "Internals", "contributor")]
+    public void CreateMarkdownMetadata_ShouldNormalizeBackslashPaths(
+        string path,
+        string expectedPageType,
+        string expectedNavGroup,
+        string expectedAudience)
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(path, "Guide", null, null);
+
+        Assert.Equal(expectedPageType, metadata.PageType);
+        Assert.Equal(expectedNavGroup, metadata.NavGroup);
+        Assert.Equal(expectedAudience, metadata.Audience);
+    }
 }

@@ -71,12 +71,13 @@ internal static class DocMetadataFactory
 
     private static string? GetDefaultMarkdownPageType(string path)
     {
-        if (path.Contains("examples/", StringComparison.OrdinalIgnoreCase))
+        var normalizedPath = NormalizePath(path);
+        if (normalizedPath.Contains("examples/", StringComparison.OrdinalIgnoreCase))
         {
             return "example";
         }
 
-        if (IsInternalPath(path))
+        if (IsInternalPath(normalizedPath))
         {
             return "internals";
         }
@@ -86,22 +87,23 @@ internal static class DocMetadataFactory
 
     private static string? GetDefaultAudience(string path)
     {
-        return IsInternalPath(path) ? "contributor" : "implementer";
+        return IsInternalPath(NormalizePath(path)) ? "contributor" : "implementer";
     }
 
     private static string? GetDefaultMarkdownNavGroup(string path)
     {
+        var normalizedPath = NormalizePath(path);
         if (path.Equals("README.md", StringComparison.OrdinalIgnoreCase))
         {
             return "Start Here";
         }
 
-        if (path.Contains("examples/", StringComparison.OrdinalIgnoreCase))
+        if (normalizedPath.Contains("examples/", StringComparison.OrdinalIgnoreCase))
         {
             return "Examples";
         }
 
-        if (IsInternalPath(path))
+        if (IsInternalPath(normalizedPath))
         {
             return "Internals";
         }
@@ -142,7 +144,7 @@ internal static class DocMetadataFactory
 
     private static bool IsInternalPath(string path)
     {
-        var normalizedPath = path.Replace('\\', '/');
+        var normalizedPath = NormalizePath(path);
         var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length == 0)
         {
@@ -210,6 +212,11 @@ internal static class DocMetadataFactory
     private static string? NormalizeMetadataValue(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static string NormalizePath(string path)
+    {
+        return path.Replace('\\', '/');
     }
 
     private static IReadOnlyList<string>? BuildDefaultBreadcrumbs(string? navGroup, string resolvedTitle)

@@ -184,12 +184,12 @@ public sealed record DocMetadata
         IReadOnlyList<string>? primary,
         IReadOnlyList<string>? fallback)
     {
-        if (primary is { Count: > 0 })
+        if (primary is not null)
         {
             return primary;
         }
 
-        return fallback is { Count: > 0 } ? fallback : null;
+        return fallback;
     }
 
     private static (string? Value, bool? Flag) MergeTextWithFlag(
@@ -214,12 +214,12 @@ public sealed record DocMetadata
         IReadOnlyList<string>? fallbackValue,
         bool? fallbackFlag)
     {
-        if (primaryValue is { Count: > 0 })
+        if (primaryValue is not null)
         {
             return (primaryValue, primaryFlag);
         }
 
-        return fallbackValue is { Count: > 0 }
+        return fallbackValue is not null
             ? (fallbackValue, fallbackFlag)
             : (null, null);
     }

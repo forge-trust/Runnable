@@ -1,6 +1,6 @@
-using Microsoft.AspNetCore.Mvc;
-using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 

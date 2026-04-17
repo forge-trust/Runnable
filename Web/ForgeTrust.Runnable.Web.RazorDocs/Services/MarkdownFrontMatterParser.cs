@@ -108,7 +108,7 @@ internal static class MarkdownFrontMatterParser
 
     private static IReadOnlyList<string>? NormalizeList(List<string>? values)
     {
-        if (values is not { Count: > 0 })
+        if (values is null)
         {
             return null;
         }
@@ -119,7 +119,7 @@ internal static class MarkdownFrontMatterParser
             .Cast<string>()
             .ToArray();
 
-        return normalized.Length == 0 ? null : normalized;
+        return normalized;
     }
 
     private sealed class FrontMatterDocument

@@ -46,4 +46,24 @@ public sealed class MarkdownFrontMatterParserTests
         Assert.Equal(markdown.Replace("\r\n", "\n", StringComparison.Ordinal), body);
         Assert.Null(metadata);
     }
+
+    [Fact]
+    public void Extract_ShouldPreserveExplicitEmptyLists()
+    {
+        var markdown = """
+            ---
+            aliases: []
+            breadcrumbs: []
+            related_pages: []
+            ---
+            # Hello
+            """;
+
+        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.NotNull(metadata);
+        Assert.Empty(metadata!.Aliases!);
+        Assert.Empty(metadata.Breadcrumbs!);
+        Assert.Empty(metadata.RelatedPages!);
+    }
 }

@@ -1,10 +1,10 @@
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 

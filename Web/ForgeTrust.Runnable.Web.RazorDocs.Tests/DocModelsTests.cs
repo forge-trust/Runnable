@@ -110,4 +110,26 @@ public class DocModelsTests
         Assert.Equal(["Start Here", "Quickstart"], merged.Breadcrumbs);
         Assert.Null(merged.BreadcrumbsMatchPathTargets);
     }
+
+    [Fact]
+    public void Merge_ShouldTreatExplicitEmptyListsAsAuthoritative()
+    {
+        var merged = DocMetadata.Merge(
+            new DocMetadata
+            {
+                Aliases = Array.Empty<string>(),
+                Breadcrumbs = Array.Empty<string>()
+            },
+            new DocMetadata
+            {
+                Aliases = ["fallback-alias"],
+                Breadcrumbs = ["Namespaces", "Web"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        Assert.NotNull(merged);
+        Assert.Empty(merged!.Aliases!);
+        Assert.Empty(merged.Breadcrumbs!);
+        Assert.Null(merged.BreadcrumbsMatchPathTargets);
+    }
 }

@@ -1,7 +1,7 @@
 # RazorWire Playwright Integration Tests
 
 This project contains browser-level integration tests for the RazorWire MVC sample application in `examples/razorwire-mvc`.
-It also includes a RazorDocs browser regression test that runs against `Web/ForgeTrust.Runnable.Web.RazorDocs`.
+It also includes a RazorDocs browser regression test that runs against `Web/ForgeTrust.Runnable.Web.RazorDocs.Standalone`.
 
 ## What it validates
 

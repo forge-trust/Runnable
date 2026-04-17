@@ -17,16 +17,18 @@ public class SidebarViewComponent : ViewComponent
     /// Initializes a new instance of the <see cref="SidebarViewComponent"/> class.
     /// </summary>
     /// <param name="aggregator">The documentation aggregator used to retrieve document nodes.</param>
-    /// <param name="configuration">Application configuration used for optional namespace prefix simplification settings.</param>
-    public SidebarViewComponent(DocAggregator aggregator, IConfiguration configuration)
+    /// <param name="options">Typed RazorDocs options used for optional namespace prefix simplification settings.</param>
+    public SidebarViewComponent(DocAggregator aggregator, RazorDocsOptions options)
     {
+        ArgumentNullException.ThrowIfNull(aggregator);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.Sidebar);
+        ArgumentNullException.ThrowIfNull(options.Sidebar.NamespacePrefixes);
+
         _aggregator = aggregator;
-        var prefixSection = configuration.GetSection("RazorDocs:Sidebar:NamespacePrefixes");
-        _namespacePrefixes = prefixSection
-            .GetChildren()
-            .Select(child => child.Value)
+        _namespacePrefixes = options.Sidebar.NamespacePrefixes
             .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
-            .Select(prefix => prefix!.Trim())
+            .Select(prefix => prefix.Trim())
             .ToArray();
     }
 

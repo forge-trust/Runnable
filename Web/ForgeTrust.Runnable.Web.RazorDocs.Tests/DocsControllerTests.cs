@@ -31,20 +31,20 @@ public class DocsControllerTests : IDisposable
         _harvesterFake = A.Fake<IDocHarvester>();
         var loggerFake = A.Fake<ILogger<DocAggregator>>();
         var controllerLoggerFake = A.Fake<ILogger<DocsController>>();
-        var configFake = A.Fake<Microsoft.Extensions.Configuration.IConfiguration>();
+        var options = new RazorDocsOptions();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
-        var sanitizerFake = A.Fake<IHtmlSanitizer>();
+        var sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
         A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizerFake.Sanitize(A<string>._, A<string>.Ignored, A<IMarkupFormatter>.Ignored))
-            .ReturnsLazily((string input, string _, IMarkupFormatter _) => input);
+        A.CallTo(() => sanitizerFake.Sanitize(A<string>._))
+            .ReturnsLazily((string input) => input);
         _memo = new Memo(_cache);
 
         // Use real Aggregator with fake dependencies (or we could fake Aggregator but it's a concrete class)
         // Since Controller takes concrete DocAggregator, we instantiate it.
         _aggregator = new DocAggregator(
             new[] { _harvesterFake },
-            configFake,
+            options,
             envFake,
             _memo,
             sanitizerFake,

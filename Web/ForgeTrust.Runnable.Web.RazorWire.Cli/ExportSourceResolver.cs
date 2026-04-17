@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -13,15 +11,17 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
+internal record ProcessResult(int ExitCode, string Stdout, string Stderr);
+
 /// <summary>
 /// Resolves export sources and, when needed, orchestrates launching a target application for crawling.
 /// </summary>
-[ExcludeFromCodeCoverage]
-public class ExportSourceResolver
+public sealed class ExportSourceResolver
 {
     private readonly ILogger<ExportSourceResolver> _logger;
     private readonly ITargetAppProcessFactory _processFactory;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ICommandExecutor _razorWireExecutor;
 
     private const string EphemeralUrlsValue = "http://127.0.0.1:0";
     private const int MaxLogLines = 200;
@@ -53,21 +53,32 @@ public class ExportSourceResolver
     /// <summary>
     /// Initializes a new instance of <see cref="ExportSourceResolver"/>.
     /// </summary>
-    /// <param name="logger">Logger for progress and target-app startup diagnostics.</param>
+    /// <param name="loggerFactory">The logger factory for creating loggers.</param>
     /// <param name="processFactory">Factory for creating target-app process wrappers.</param>
     /// <param name="httpClientFactory">HTTP client factory used for readiness probing.</param>
     public ExportSourceResolver(
-        ILogger<ExportSourceResolver> logger,
+        ILoggerFactory loggerFactory,
         ITargetAppProcessFactory processFactory,
         IHttpClientFactory httpClientFactory)
+        : this(loggerFactory, processFactory, httpClientFactory, new CommandExecutor(loggerFactory.CreateLogger<CommandExecutor>()))
     {
-        ArgumentNullException.ThrowIfNull(logger);
+    }
+
+    internal ExportSourceResolver(
+        ILoggerFactory loggerFactory,
+        ITargetAppProcessFactory processFactory,
+        IHttpClientFactory httpClientFactory,
+        ICommandExecutor razorWireExecutor)
+    {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(processFactory);
         ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(razorWireExecutor);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<ExportSourceResolver>();
         _processFactory = processFactory;
         _httpClientFactory = httpClientFactory;
+        _razorWireExecutor = razorWireExecutor;
     }
 
     internal async Task<ResolvedExportSource> ResolveAsync(
@@ -289,68 +300,13 @@ public class ExportSourceResolver
             $"Timed out while connecting to --url target '{baseUrl}' after {timeout.TotalSeconds:0.###} seconds. Ensure the application is running and reachable.");
     }
 
-    internal record CommandResult(int ExitCode, string Stdout, string Stderr);
-
-    internal virtual async Task<CommandResult> ExecuteProcessAsync(
+    internal Task<ProcessResult> ExecuteProcessAsync(
         string fileName,
         IReadOnlyList<string> args,
         string workingDirectory,
         CancellationToken cancellationToken)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-
-        foreach (var arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
-        }
-
-        using var process = new Process();
-        process.StartInfo = startInfo;
-        var started = false;
-        Task<string>? stdoutTask = null;
-        Task<string>? stderrTask = null;
-        try
-        {
-            try
-            {
-                started = process.Start();
-                if (!started)
-                {
-                    return new CommandResult(-1, string.Empty, "Failed to start process");
-                }
-            }
-            catch (Exception ex) when (ex is Win32Exception or FileNotFoundException or InvalidOperationException)
-            {
-                return new CommandResult(-1, string.Empty, $"Failed to start process: {ex.Message}");
-            }
-            catch (Exception ex)
-            {
-                return new CommandResult(-1, string.Empty, $"An unexpected error occurred while starting the process: {ex.Message}");
-            }
-
-            stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-
-            return new CommandResult(process.ExitCode, stdout, stderr);
-        }
-        finally
-        {
-            TryKillProcess(process, started);
-            await ObserveReadTaskAsync(stdoutTask, "stdout", fileName);
-            await ObserveReadTaskAsync(stderrTask, "stderr", fileName);
-        }
+        return _razorWireExecutor.ExecuteCommandAsync(fileName, args, workingDirectory, cancellationToken);
     }
 
     private async Task RunCommandOrThrowAsync(
@@ -399,6 +355,15 @@ public class ExportSourceResolver
         string? explicitPublishDirectory,
         string? requestedFramework = null)
     {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            projectDirectory = NormalizePathForMacOS(projectDirectory);
+            if (explicitPublishDirectory != null)
+            {
+                explicitPublishDirectory = NormalizePathForMacOS(explicitPublishDirectory);
+            }
+        }
+
         var searchRoots = new List<(string Path, bool RequirePublishSegment)>();
         var explicitPublishPath = string.IsNullOrWhiteSpace(explicitPublishDirectory)
             ? null
@@ -415,6 +380,10 @@ public class ExportSourceResolver
         }
         else
         {
+            if (Directory.Exists(Path.Combine(projectDirectory, "bin")))
+            {
+                searchRoots.Add((Path.Combine(projectDirectory, "bin"), true));
+            }
             var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
             if (Directory.Exists(releaseDir))
             {
@@ -438,17 +407,15 @@ public class ExportSourceResolver
                 .ToList())
             .ToList();
 
-        if (candidatePaths.Count == 0 && string.IsNullOrWhiteSpace(explicitPublishPath))
+        if (candidatePaths.Count == 0)
         {
-            var binDirectory = Path.Combine(projectDirectory, "bin");
-            if (Directory.Exists(binDirectory))
+            // Broad search failsafe for various publish configurations and MacOS symlink discrepancies
+            var di = new DirectoryInfo(projectDirectory);
+            if (di.Exists)
             {
-                candidatePaths = Directory.EnumerateFiles(
-                        binDirectory,
-                        $"{assemblyName}.dll",
-                        SearchOption.AllDirectories)
+                candidatePaths = di.GetFiles($"{assemblyName}.dll", SearchOption.AllDirectories)
+                    .Select(f => f.FullName)
                     .Where(path => !IsRefAssemblyPath(path))
-                    .Where(path => IsPublishedArtifact(binDirectory, path, true))
                     .ToList();
             }
         }
@@ -480,6 +447,12 @@ public class ExportSourceResolver
             }
         }
 
+        if (candidatePaths.Count == 0)
+        {
+            throw new FileNotFoundException(
+                $"Could not locate any valid DLL for assembly '{assemblyName}' under '{projectDirectory}'.");
+        }
+
         var candidates = candidatePaths
             .Select(path => new FileInfo(path))
             .OrderByDescending(info => info.LastWriteTimeUtc)
@@ -490,6 +463,12 @@ public class ExportSourceResolver
                     ? StringComparer.OrdinalIgnoreCase
                     : StringComparer.Ordinal)
             .ToList();
+
+        if (candidates.Count == 0)
+        {
+            throw new FileNotFoundException(
+                $"No files found for candidate paths in '{projectDirectory}'.");
+        }
 
         return candidates[0].FullName;
     }
@@ -639,33 +618,55 @@ public class ExportSourceResolver
         return normalized.Contains("/ref/", StringComparison.OrdinalIgnoreCase);
     }
 
+    internal static string NormalizePathForMacOS(string path)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            return path;
+        }
+
+        if (path.StartsWith("/var/", StringComparison.Ordinal))
+        {
+            return "/private" + path;
+        }
+
+        return path;
+    }
+
     private static bool IsPublishedArtifact(string publishSearchRoot, string path, bool requirePublishSegment)
     {
-        var publishSearchRootFull = Path.GetFullPath(publishSearchRoot);
-        var pathFull = Path.GetFullPath(path);
+        var publishSearchRootFull = NormalizePathForMacOS(Path.GetFullPath(publishSearchRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar);
+        var pathFull = NormalizePathForMacOS(Path.GetFullPath(path));
 
-        var relative = Path.GetRelativePath(publishSearchRootFull, pathFull);
-        if (string.IsNullOrWhiteSpace(relative)
-            || relative.StartsWith("..", StringComparison.Ordinal)
-            || Path.IsPathRooted(relative))
+        var segmentComparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (!pathFull.StartsWith(publishSearchRootFull, segmentComparer))
         {
             return false;
         }
-
-        var segments = relative.Split(
-            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
-            StringSplitOptions.RemoveEmptyEntries);
 
         if (!requirePublishSegment)
         {
             return true;
         }
 
-        var segmentComparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        var comparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal;
 
-        return segments.Contains("publish", segmentComparer);
+        bool HasMatch(string searchPath)
+        {
+            var parts = searchPath.Split(
+                [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                StringSplitOptions.RemoveEmptyEntries);
+            return parts.Contains("publish", comparer)
+                   || parts.Contains(ExportPublishFolder, comparer);
+        }
+
+        var relative = pathFull.Substring(publishSearchRootFull.Length);
+        return HasMatch(publishSearchRootFull) || HasMatch(relative);
     }
 
     internal static string? TryGetFrameworkSegment(string rootDirectory, string path)
@@ -741,47 +742,6 @@ public class ExportSourceResolver
         }
 
         return new Version(major, minor);
-    }
-
-    private void TryKillProcess(Process process, bool started)
-    {
-        if (!started)
-        {
-            return;
-        }
-
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Ignoring process termination exception during cleanup.");
-        }
-    }
-
-    private async Task ObserveReadTaskAsync(Task<string>? readTask, string streamName, string fileName)
-    {
-        if (readTask is null)
-        {
-            return;
-        }
-
-        try
-        {
-            _ = await readTask;
-        }
-        catch (OperationCanceledException)
-        {
-            // Read was canceled along with the command cancellation token.
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Ignoring {StreamName} read exception for command {FileName}", streamName, fileName);
-        }
     }
 
     internal static IReadOnlyList<string> BuildEffectiveAppArgs(IReadOnlyList<string> appArgs)

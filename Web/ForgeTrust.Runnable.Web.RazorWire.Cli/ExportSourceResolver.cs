@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -13,14 +12,30 @@ using Microsoft.Extensions.Logging;
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 
 /// <summary>
+/// Structured command execution result used by the export resolver pipeline.
+/// </summary>
+/// <param name="ExitCode">
+/// The process exit code, or a synthetic negative value when process start
+/// failed before an operating-system exit code was available.
+/// </param>
+/// <param name="Stdout">The captured standard output for the command.</param>
+/// <param name="Stderr">The captured standard error or a synthetic start-failure message.</param>
+/// <remarks>
+/// The resolver prefers this explicit result shape over exceptions for ordinary
+/// command failures so it can preserve stdout/stderr in logs and decide whether
+/// to throw, fall back to XML parsing, or continue probing.
+/// </remarks>
+internal record ProcessResult(int ExitCode, string Stdout, string Stderr);
+
+/// <summary>
 /// Resolves export sources and, when needed, orchestrates launching a target application for crawling.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public sealed class ExportSourceResolver
 {
     private readonly ILogger<ExportSourceResolver> _logger;
     private readonly ITargetAppProcessFactory _processFactory;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ICommandExecutor _razorWireExecutor;
 
     private const string EphemeralUrlsValue = "http://127.0.0.1:0";
     private const int MaxLogLines = 200;
@@ -52,28 +67,45 @@ public sealed class ExportSourceResolver
     /// <summary>
     /// Initializes a new instance of <see cref="ExportSourceResolver"/>.
     /// </summary>
-    /// <param name="logger">Logger for progress and target-app startup diagnostics.</param>
+    /// <param name="loggerFactory">The logger factory for creating loggers.</param>
     /// <param name="processFactory">Factory for creating target-app process wrappers.</param>
     /// <param name="httpClientFactory">HTTP client factory used for readiness probing.</param>
     public ExportSourceResolver(
-        ILogger<ExportSourceResolver> logger,
+        ILoggerFactory loggerFactory,
         ITargetAppProcessFactory processFactory,
         IHttpClientFactory httpClientFactory)
+        : this(loggerFactory, processFactory, httpClientFactory, CreateDefaultExecutor(loggerFactory))
     {
-        ArgumentNullException.ThrowIfNull(logger);
+    }
+
+    internal ExportSourceResolver(
+        ILoggerFactory loggerFactory,
+        ITargetAppProcessFactory processFactory,
+        IHttpClientFactory httpClientFactory,
+        ICommandExecutor razorWireExecutor)
+    {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(processFactory);
         ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(razorWireExecutor);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<ExportSourceResolver>();
         _processFactory = processFactory;
         _httpClientFactory = httpClientFactory;
+        _razorWireExecutor = razorWireExecutor;
+    }
+
+    private static ICommandExecutor CreateDefaultExecutor(ILoggerFactory loggerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        return new CommandExecutor(loggerFactory.CreateLogger<CommandExecutor>());
     }
 
     internal async Task<ResolvedExportSource> ResolveAsync(
         ExportSourceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var startupStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var startupStopwatch = Stopwatch.StartNew();
 
         if (request.SourceKind == ExportSourceKind.Url)
         {
@@ -152,7 +184,7 @@ public sealed class ExportSourceResolver
 
         var projectDirectory = Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory();
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
-        var assemblyName = TryResolveAssemblyName(projectPath, projectName);
+        var assemblyName = await TryResolveAssemblyNameAsync(projectPath, projectName, request.Framework, cancellationToken);
         var publishOutputDirectory = Path.Combine(projectDirectory, "bin", ExportPublishFolder);
 
         if (!request.NoBuild)
@@ -288,78 +320,64 @@ public sealed class ExportSourceResolver
             $"Timed out while connecting to --url target '{baseUrl}' after {timeout.TotalSeconds:0.###} seconds. Ensure the application is running and reachable.");
     }
 
+    /// <summary>
+    /// Executes a command through the configured <see cref="ICommandExecutor"/>.
+    /// </summary>
+    /// <param name="fileName">The executable to start.</param>
+    /// <param name="args">The ordered command-line arguments for the executable.</param>
+    /// <param name="workingDirectory">The working directory used for process start.</param>
+    /// <param name="cancellationToken">Cancels the command execution.</param>
+    /// <returns>
+    /// A <see cref="ProcessResult"/> containing the exit code and captured
+    /// output streams from the delegated executor.
+    /// </returns>
+    /// <remarks>
+    /// This seam exists so resolver tests can verify command composition
+    /// without launching real processes. Callers should treat a non-zero exit
+    /// as data and decide whether to raise an exception or fall back.
+    /// </remarks>
+    internal Task<ProcessResult> ExecuteProcessAsync(
+        string fileName,
+        IReadOnlyList<string> args,
+        string workingDirectory,
+        CancellationToken cancellationToken)
+    {
+        return _razorWireExecutor.ExecuteCommandAsync(fileName, args, workingDirectory, cancellationToken);
+    }
+
     private async Task RunCommandOrThrowAsync(
         string fileName,
         IReadOnlyList<string> args,
         string workingDirectory,
         CancellationToken cancellationToken)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            WorkingDirectory = workingDirectory,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
+        var result = await ExecuteProcessAsync(fileName, args, workingDirectory, cancellationToken);
 
-        foreach (var arg in args)
+        if (!string.IsNullOrWhiteSpace(result.Stdout))
         {
-            startInfo.ArgumentList.Add(arg);
+            _logger.LogDebug(
+                "Command output ({FileName}):{NewLine}{Output}",
+                fileName,
+                Environment.NewLine,
+                result.Stdout);
         }
 
-        using var process = new Process { StartInfo = startInfo };
-        var started = false;
-        Task<string>? stdoutTask = null;
-        Task<string>? stderrTask = null;
-        try
+        if (!string.IsNullOrWhiteSpace(result.Stderr))
         {
-            started = process.Start();
-            if (!started)
-            {
-                throw new InvalidOperationException($"Failed to start command: {fileName} {string.Join(" ", args)}");
-            }
-
-            stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
-
-            if (!string.IsNullOrWhiteSpace(stdout))
-            {
-                _logger.LogDebug(
-                    "Command output ({FileName}):{NewLine}{Output}",
-                    fileName,
-                    Environment.NewLine,
-                    stdout);
-            }
-
-            if (!string.IsNullOrWhiteSpace(stderr))
-            {
-                _logger.LogDebug(
-                    "Command error output ({FileName}):{NewLine}{Output}",
-                    fileName,
-                    Environment.NewLine,
-                    stderr);
-            }
-
-            if (process.ExitCode == 0)
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                $"Command failed with exit code {process.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{stderr}");
+            _logger.LogDebug(
+                "Command error output ({FileName}):{NewLine}{Output}",
+                fileName,
+                Environment.NewLine,
+                result.Stderr);
         }
-        finally
+
+        if (result.ExitCode == 0)
         {
-            TryKillProcess(process, started);
-            await ObserveReadTaskAsync(stdoutTask, "stdout", fileName);
-            await ObserveReadTaskAsync(stderrTask, "stderr", fileName);
+            return;
         }
+
+        throw new InvalidOperationException(
+            $"Command failed with exit code {result.ExitCode}: {fileName} {string.Join(" ", args)}{Environment.NewLine}Stdout:{Environment.NewLine}{result.Stdout}{Environment.NewLine}Stderr:{Environment.NewLine}{result.Stderr}");
     }
 
     internal static string ResolveBuiltDllPath(string projectDirectory, string assemblyName)
@@ -373,10 +391,20 @@ public sealed class ExportSourceResolver
         string? explicitPublishDirectory,
         string? requestedFramework = null)
     {
-        var searchRoots = new List<(string Path, bool RequirePublishSegment)>();
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            projectDirectory = NormalizePathForMacOS(projectDirectory);
+            if (explicitPublishDirectory != null)
+            {
+                explicitPublishDirectory = NormalizePathForMacOS(explicitPublishDirectory);
+            }
+        }
+
         var explicitPublishPath = string.IsNullOrWhiteSpace(explicitPublishDirectory)
             ? null
             : Path.GetFullPath(explicitPublishDirectory);
+
+        List<string> candidatePaths;
         if (!string.IsNullOrWhiteSpace(explicitPublishPath))
         {
             if (!Directory.Exists(explicitPublishPath))
@@ -385,45 +413,44 @@ public sealed class ExportSourceResolver
                     $"Could not find published output folder. Expected: {explicitPublishPath}");
             }
 
-            searchRoots.Add((explicitPublishPath, false));
+            candidatePaths = Directory.EnumerateFiles(
+                    explicitPublishPath,
+                    $"{assemblyName}.dll",
+                    SearchOption.AllDirectories)
+                .Where(path => !IsRefAssemblyPath(path))
+                .Where(path => IsPublishedArtifact(explicitPublishPath, path, requirePublishSegment: false))
+                .ToList();
         }
         else
         {
             var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
-            if (Directory.Exists(releaseDir))
+            if (!Directory.Exists(releaseDir))
             {
-                searchRoots.Add((releaseDir, true));
+                throw new FileNotFoundException(
+                    $"Could not find any publish output. Expected either explicit publish directory or '{releaseDir}'.");
             }
-        }
 
-        if (searchRoots.Count == 0)
-        {
-            throw new FileNotFoundException(
-                $"Could not find any publish output. Expected either explicit publish directory or '{Path.Combine(projectDirectory, "bin", "Release")}'.");
-        }
-
-        var candidatePaths = searchRoots
-            .SelectMany(tuple => Directory.EnumerateFiles(
-                    tuple.Path,
+            candidatePaths = Directory.EnumerateFiles(
+                    releaseDir,
                     $"{assemblyName}.dll",
                     SearchOption.AllDirectories)
                 .Where(path => !IsRefAssemblyPath(path))
-                .Where(path => IsPublishedArtifact(tuple.Path, path, tuple.RequirePublishSegment))
-                .ToList())
-            .ToList();
+                .Where(path => IsPublishedArtifact(releaseDir, path, requirePublishSegment: true))
+                .ToList();
 
-        if (candidatePaths.Count == 0 && string.IsNullOrWhiteSpace(explicitPublishPath))
-        {
-            var binDirectory = Path.Combine(projectDirectory, "bin");
-            if (Directory.Exists(binDirectory))
+            if (candidatePaths.Count == 0)
             {
-                candidatePaths = Directory.EnumerateFiles(
-                        binDirectory,
-                        $"{assemblyName}.dll",
-                        SearchOption.AllDirectories)
-                    .Where(path => !IsRefAssemblyPath(path))
-                    .Where(path => IsPublishedArtifact(binDirectory, path, true))
-                    .ToList();
+                var binDirectory = Path.Combine(projectDirectory, "bin");
+                if (Directory.Exists(binDirectory))
+                {
+                    candidatePaths = Directory.EnumerateFiles(
+                            binDirectory,
+                            $"{assemblyName}.dll",
+                            SearchOption.AllDirectories)
+                        .Where(path => !IsRefAssemblyPath(path))
+                        .Where(path => IsPublishedArtifact(binDirectory, path, requirePublishSegment: true))
+                        .ToList();
+                }
             }
         }
 
@@ -454,6 +481,12 @@ public sealed class ExportSourceResolver
             }
         }
 
+        if (candidatePaths.Count == 0)
+        {
+            throw new FileNotFoundException(
+                $"Could not locate any valid DLL for assembly '{assemblyName}' under '{projectDirectory}'.");
+        }
+
         var candidates = candidatePaths
             .Select(path => new FileInfo(path))
             .OrderByDescending(info => info.LastWriteTimeUtc)
@@ -465,10 +498,111 @@ public sealed class ExportSourceResolver
                     : StringComparer.Ordinal)
             .ToList();
 
+        if (candidates.Count == 0)
+        {
+            throw new FileNotFoundException(
+                $"No files found for candidate paths in '{projectDirectory}'.");
+        }
+
         return candidates[0].FullName;
     }
 
-    internal static string TryResolveAssemblyName(string projectPath, string fallbackName)
+    /// <summary>
+    /// Resolves the effective assembly name for a project, preferring MSBuild
+    /// evaluation and falling back to raw project XML parsing when needed.
+    /// </summary>
+    /// <param name="projectPath">The project file whose assembly name should be resolved.</param>
+    /// <param name="fallbackName">The fallback assembly name when no explicit value can be determined.</param>
+    /// <param name="framework">
+    /// The target framework used for MSBuild evaluation. Supplying this keeps
+    /// conditional <c>AssemblyName</c> values aligned with the publish target.
+    /// </param>
+    /// <param name="cancellationToken">Cancels MSBuild evaluation.</param>
+    /// <returns>
+    /// The assembly name reported by MSBuild when available; otherwise the
+    /// value returned by <see cref="TryResolveAssemblyNameFromXml"/>.
+    /// </returns>
+    /// <remarks>
+    /// MSBuild is preferred because it evaluates imports and conditional
+    /// properties that raw XML parsing cannot see. If MSBuild exits non-zero,
+    /// produces no usable stdout, or throws a non-cancellation exception, the
+    /// resolver logs the failure details and falls back to XML parsing.
+    /// Omitting <paramref name="framework"/> can mis-evaluate conditional
+    /// <c>AssemblyName</c> declarations for multi-target projects.
+    /// </remarks>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when command execution is canceled.
+    /// </exception>
+    internal async Task<string> TryResolveAssemblyNameAsync(
+        string projectPath,
+        string fallbackName,
+        string? framework,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var msbuildArgs = new List<string>
+            {
+                "msbuild",
+                projectPath,
+                "-getProperty:AssemblyName",
+                "-nologo",
+                "-p:Configuration=Release"
+            };
+
+            if (!string.IsNullOrWhiteSpace(framework))
+            {
+                msbuildArgs.Add($"-p:TargetFramework={framework}");
+            }
+
+            var result = await ExecuteProcessAsync(
+                "dotnet",
+                msbuildArgs,
+                Path.GetDirectoryName(projectPath) ?? Directory.GetCurrentDirectory(),
+                cancellationToken);
+
+            if (result.ExitCode == 0 && !string.IsNullOrWhiteSpace(result.Stdout))
+            {
+                return result.Stdout.Trim();
+            }
+
+            _logger.LogWarning(
+                "Failed to resolve assembly name via MSBuild for {ProjectPath} (ExitCode: {ExitCode}). Falling back to XML parsing.{NewLine}Stdout: {Stdout}{NewLine}Stderr: {Stderr}",
+                projectPath,
+                result.ExitCode,
+                Environment.NewLine,
+                result.Stdout,
+                Environment.NewLine,
+                result.Stderr);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to resolve assembly name via MSBuild for {ProjectPath}. Falling back to XML parsing.", projectPath);
+        }
+
+        return TryResolveAssemblyNameFromXml(projectPath, fallbackName);
+    }
+
+    /// <summary>
+    /// Reads a project file directly and returns the first explicit
+    /// <c>AssemblyName</c> value found in the XML.
+    /// </summary>
+    /// <param name="projectPath">The project file to inspect.</param>
+    /// <param name="fallbackName">The value returned when the XML cannot be read or has no assembly name.</param>
+    /// <returns>
+    /// The explicit <c>AssemblyName</c> from the project file, or
+    /// <paramref name="fallbackName"/> when no usable value is available.
+    /// </returns>
+    /// <remarks>
+    /// This method intentionally does not evaluate imports or conditional MSBuild
+    /// properties. It is the low-cost fallback used when MSBuild evaluation is
+    /// unavailable or fails to return a usable value.
+    /// </remarks>
+    internal static string TryResolveAssemblyNameFromXml(string projectPath, string fallbackName)
     {
         try
         {
@@ -559,33 +693,55 @@ public sealed class ExportSourceResolver
         return normalized.Contains("/ref/", StringComparison.OrdinalIgnoreCase);
     }
 
+    internal static string NormalizePathForMacOS(string path)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            return path;
+        }
+
+        if (path.StartsWith("/var/", StringComparison.Ordinal))
+        {
+            return "/private" + path;
+        }
+
+        return path;
+    }
+
     private static bool IsPublishedArtifact(string publishSearchRoot, string path, bool requirePublishSegment)
     {
-        var publishSearchRootFull = Path.GetFullPath(publishSearchRoot);
-        var pathFull = Path.GetFullPath(path);
+        var publishSearchRootFull = NormalizePathForMacOS(Path.GetFullPath(publishSearchRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar);
+        var pathFull = NormalizePathForMacOS(Path.GetFullPath(path));
 
-        var relative = Path.GetRelativePath(publishSearchRootFull, pathFull);
-        if (string.IsNullOrWhiteSpace(relative)
-            || relative.StartsWith("..", StringComparison.Ordinal)
-            || Path.IsPathRooted(relative))
+        var segmentComparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (!pathFull.StartsWith(publishSearchRootFull, segmentComparer))
         {
             return false;
         }
-
-        var segments = relative.Split(
-            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
-            StringSplitOptions.RemoveEmptyEntries);
 
         if (!requirePublishSegment)
         {
             return true;
         }
 
-        var segmentComparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        var comparer = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal;
 
-        return segments.Contains("publish", segmentComparer);
+        bool HasMatch(string searchPath)
+        {
+            var parts = searchPath.Split(
+                [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                StringSplitOptions.RemoveEmptyEntries);
+            return parts.Contains("publish", comparer)
+                   || parts.Contains(ExportPublishFolder, comparer);
+        }
+
+        var relative = pathFull.Substring(publishSearchRootFull.Length);
+        return HasMatch(publishSearchRootFull) || HasMatch(relative);
     }
 
     internal static string? TryGetFrameworkSegment(string rootDirectory, string path)
@@ -661,47 +817,6 @@ public sealed class ExportSourceResolver
         }
 
         return new Version(major, minor);
-    }
-
-    private void TryKillProcess(Process process, bool started)
-    {
-        if (!started)
-        {
-            return;
-        }
-
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Ignoring process termination exception during cleanup.");
-        }
-    }
-
-    private async Task ObserveReadTaskAsync(Task<string>? readTask, string streamName, string fileName)
-    {
-        if (readTask is null)
-        {
-            return;
-        }
-
-        try
-        {
-            _ = await readTask;
-        }
-        catch (OperationCanceledException)
-        {
-            // Read was canceled along with the command cancellation token.
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Ignoring {StreamName} read exception for command {FileName}", streamName, fileName);
-        }
     }
 
     internal static IReadOnlyList<string> BuildEffectiveAppArgs(IReadOnlyList<string> appArgs)

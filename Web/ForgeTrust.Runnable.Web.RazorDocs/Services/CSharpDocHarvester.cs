@@ -789,11 +789,12 @@ public class CSharpDocHarvester : IDocHarvester
 
         if (!namespacePages.TryGetValue(path, out var page))
         {
+            var title = GetNamespaceTitle(normalizedNamespace);
             page = new NamespaceDocPage(
                 normalizedNamespace,
                 path,
-                GetNamespaceTitle(normalizedNamespace),
-                DocMetadataFactory.CreateApiReferenceMetadata(GetNamespaceTitle(normalizedNamespace), normalizedNamespace));
+                title,
+                DocMetadataFactory.CreateApiReferenceMetadata(title, normalizedNamespace));
             namespacePages[path] = page;
         }
 

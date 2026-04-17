@@ -134,8 +134,28 @@
       "forgetrust.runnable.web.tailwind": {
         "type": "Project",
         "dependencies": {
-          "ForgeTrust.Runnable.Core": "[1.0.0, )"
+          "ForgeTrust.Runnable.Core": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web.Tailwind.Runtime.linux-arm64": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web.Tailwind.Runtime.linux-x64": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-x64": "[1.0.0, )",
+          "ForgeTrust.Runnable.Web.Tailwind.Runtime.win-x64": "[1.0.0, )"
         }
+      },
+      "forgetrust.runnable.web.tailwind.runtime.linux-arm64": {
+        "type": "Project"
+      },
+      "forgetrust.runnable.web.tailwind.runtime.linux-x64": {
+        "type": "Project"
+      },
+      "forgetrust.runnable.web.tailwind.runtime.osx-arm64": {
+        "type": "Project"
+      },
+      "forgetrust.runnable.web.tailwind.runtime.osx-x64": {
+        "type": "Project"
+      },
+      "forgetrust.runnable.web.tailwind.runtime.win-x64": {
+        "type": "Project"
       }
     }
   }

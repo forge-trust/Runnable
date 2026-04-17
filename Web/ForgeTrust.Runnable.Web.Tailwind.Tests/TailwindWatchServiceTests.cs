@@ -90,8 +90,7 @@ public class TailwindWatchServiceTests
         service.ResultToReturn = new CommandResult(1, "", "error");
 
         // Act
-        using var cts = new CancellationTokenSource(100);
-        await service.ExecuteAsyncPublic(cts.Token);
+        await service.ExecuteAsyncPublic(CancellationToken.None);
 
         // Assert
         Assert.True(service.ProcessExecuted);

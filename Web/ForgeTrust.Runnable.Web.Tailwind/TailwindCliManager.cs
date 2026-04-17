@@ -92,7 +92,8 @@ public class TailwindCliManager
     /// </summary>
     /// <returns>The RID string (e.g., "win-x64", "linux-arm64").</returns>
     /// <remarks>
-    /// Must be kept in sync with the RID logic in runtime projects and targets.
+    /// Must be kept in sync with the RID logic in the runtime package projects and
+    /// build/ForgeTrust.Runnable.Web.Tailwind.targets.
     /// </remarks>
     public static string GetCurrentRid()
     {
@@ -101,7 +102,8 @@ public class TailwindCliManager
             return RuntimeInformation.ProcessArchitecture switch
             {
                 Architecture.X64 => "win-x64",
-                Architecture.Arm64 => "win-x64", // Use x64 emulation as no native arm64 binary exists for Windows
+                // Tailwind v4.1.18 ships only a Windows x64 standalone binary.
+                Architecture.Arm64 => "win-x64",
                 _ => "unknown"
             };
         }

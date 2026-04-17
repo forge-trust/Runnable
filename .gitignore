@@ -73,6 +73,9 @@ coverage.xml
 
 # Tooling output
 .codex-review
+/full_comments.json
+/reviewer_comments.json
+/pr_data.json
 
 # Tailwind binary
 **/tailwindcss

@@ -19,7 +19,16 @@
         if (File.Exists(ChecksumFile)) {
             var line = File.ReadLines(ChecksumFile)
                 .Select(l => l.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
-                .FirstOrDefault(tokens => tokens.Length >= 2 && (tokens[1].Equals(BinaryName, StringComparison.Ordinal) || tokens[1].Equals("./" + BinaryName, StringComparison.Ordinal)));
+                .FirstOrDefault(tokens =>
+                {
+                    if (tokens.Length < 2) return false;
+                    var fileToken = tokens[1].TrimStart('*');
+                    if (fileToken.StartsWith("./", StringComparison.Ordinal))
+                    {
+                        fileToken = fileToken.Substring(2);
+                    }
+                    return fileToken.Equals(BinaryName, StringComparison.Ordinal);
+                });
             if (line != null) {
                 Hash = line[0];
             }

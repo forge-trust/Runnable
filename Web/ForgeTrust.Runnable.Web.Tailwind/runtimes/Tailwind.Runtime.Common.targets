@@ -4,10 +4,8 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <NoDefaultExcludes>true</NoDefaultExcludes>
     <PackageType>Dependency</PackageType>
     <!-- TailwindRid should be set by the importing project -->
-    <TailwindBinaryName Condition="'$(TailwindRid)' == 'win-arm64'">tailwindcss-windows-arm64.exe</TailwindBinaryName>
     <TailwindBinaryName Condition="'$(TailwindRid)' == 'win-x64'">tailwindcss-windows-x64.exe</TailwindBinaryName>
     <TailwindBinaryName Condition="'$(TailwindRid)' == 'osx-arm64'">tailwindcss-macos-arm64</TailwindBinaryName>
     <TailwindBinaryName Condition="'$(TailwindRid)' == 'osx-x64'">tailwindcss-macos-x64</TailwindBinaryName>
@@ -17,15 +15,21 @@
     <TailwindDownloadUrl>$(TailwindBaseUrl)/$(TailwindBinaryName)</TailwindDownloadUrl>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="obj/**/*.cs" />
+    <EmbeddedResource Remove="obj/**" />
+    <None Remove="obj/**" />
+  </ItemGroup>
+
   <Target Name="ResolveTailwindBinary" BeforeTargets="Build;Pack" Outputs="$(TailwindBinaryName)">
     <PropertyGroup>
       <_TailwindBinaryPath>$(IntermediateOutputPath)$(TailwindBinaryName)</_TailwindBinaryPath>
-      <ChecksumFile>$(IntermediateOutputPath)sha256sums.txt</ChecksumFile>
+      <ChecksumFile>$(IntermediateOutputPath)sha256sums-$(TailwindVersion).txt</ChecksumFile>
     </PropertyGroup>
 
     <MakeDir Directories="$(IntermediateOutputPath)" Condition="!Exists('$(IntermediateOutputPath)')" />
 
-    <DownloadFile SourceUrl="$(TailwindSumsUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="sha256sums.txt" Condition="!Exists('$(ChecksumFile)')" />
+    <DownloadFile SourceUrl="$(TailwindSumsUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="sha256sums-$(TailwindVersion).txt" Condition="!Exists('$(ChecksumFile)')" />
     
     <FindChecksum ChecksumFile="$(ChecksumFile)" BinaryName="$(TailwindBinaryName)">
       <Output TaskParameter="Hash" PropertyName="ExpectedHash" />

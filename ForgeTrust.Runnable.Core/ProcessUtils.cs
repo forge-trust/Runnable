@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
@@ -53,8 +54,8 @@ public static class ProcessUtils
         using var process = new Process();
         process.StartInfo = startInfo;
         var started = false;
-        Task? stdoutTask = null;
-        Task? stderrTask = null;
+        Task<string>? stdoutTask = null;
+        Task<string>? stderrTask = null;
         try
         {
             if (!process.Start())
@@ -90,14 +91,25 @@ public static class ProcessUtils
         }
     }
 
-    private static async Task StreamToLoggerAsync(StreamReader reader, ILogger logger, LogLevel level, CancellationToken cancellationToken)
+    private static async Task<string> StreamToLoggerAsync(StreamReader reader, ILogger logger, LogLevel level, CancellationToken cancellationToken)
     {
+        var output = new StringBuilder();
+        var hasWrittenLine = false;
+
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 var line = await reader.ReadLineAsync(cancellationToken);
                 if (line == null) break;
+
+                if (hasWrittenLine)
+                {
+                    output.AppendLine();
+                }
+
+                output.Append(line);
+                hasWrittenLine = true;
                 logger.Log(level, "{Output}", line);
             }
         }
@@ -106,6 +118,8 @@ public static class ProcessUtils
         {
             logger.LogDebug(ex, "Error streaming process output to logger.");
         }
+
+        return output.ToString();
     }
 
     private static void TryKillProcess(Process process, bool started, ILogger logger)
@@ -133,18 +147,12 @@ public static class ProcessUtils
     /// <param name="fileName">The file name of the process being executed.</param>
     /// <param name="logger">The logger for debugging.</param>
     /// <returns>The string result if available, otherwise an empty string.</returns>
-    private static async Task<string> ObserveAndGetResultAsync(Task? task, string streamName, string fileName, ILogger logger)
+    private static async Task<string> ObserveAndGetResultAsync(Task<string>? task, string streamName, string fileName, ILogger logger)
     {
         if (task == null) return string.Empty;
         try
         {
-            if (task is Task<string> stringTask)
-            {
-                return await stringTask;
-            }
-
-            await task;
-            return string.Empty;
+            return await task;
         }
         catch (Exception ex)
         {

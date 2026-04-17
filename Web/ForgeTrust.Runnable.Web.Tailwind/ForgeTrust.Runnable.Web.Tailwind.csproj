@@ -15,6 +15,11 @@
 
   <ItemGroup>
     <ProjectReference Include="../../ForgeTrust.Runnable.Core/ForgeTrust.Runnable.Core.csproj" />
+    <ProjectReference Include="runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.win-x64.csproj" />
+    <ProjectReference Include="runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj" />
+    <ProjectReference Include="runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-x64.csproj" />
+    <ProjectReference Include="runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.linux-arm64.csproj" />
+    <ProjectReference Include="runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.linux-x64.csproj" />
   </ItemGroup>
 
   <ItemGroup>

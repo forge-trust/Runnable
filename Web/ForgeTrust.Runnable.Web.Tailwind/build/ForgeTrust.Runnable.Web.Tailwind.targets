@@ -17,12 +17,13 @@
     <PropertyGroup>
       <!-- Ensure we have a valid RID for path resolution -->
       <_TailwindTargetRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</_TailwindTargetRid>
+      <!-- Tailwind v4.1.18 only publishes a Windows x64 binary, so Windows Arm64 uses x64 emulation. -->
       <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">win-x64</_TailwindTargetRid>
-      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">win-x64</_TailwindTargetRid>
       <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">osx-arm64</_TailwindTargetRid>
-      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">osx-x64</_TailwindTargetRid>
       <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">linux-arm64</_TailwindTargetRid>
-      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</_TailwindTargetRid>
+      <_TailwindTargetRid Condition="'$(_TailwindTargetRid)' == '' and $([MSBuild]::IsOSPlatform('Linux')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">linux-x64</_TailwindTargetRid>
 
       <!-- 1. Check in the NuGet package runtimes folder -->
       <_TailwindToolPathWin>$(MSBuildThisFileDirectory)../runtimes/$(_TailwindTargetRid)/native/tailwindcss.exe</_TailwindToolPathWin>
@@ -43,6 +44,8 @@
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathBase)')">$(_TailwindToolPathBase)</_TailwindToolPath>
     </PropertyGroup>
 
+    <Error Text="Tailwind CSS could not determine a supported runtime identifier for the current host. Set RuntimeIdentifier explicitly to a supported RID."
+           Condition="'$(_TailwindTargetRid)' == ''" />
     <Error Text="Tailwind CLI binary not found. Please ensure a 'ForgeTrust.Runnable.Web.Tailwind.Runtime.*' package for your platform is installed or tailwindcss is on PATH." 
            Condition="'$(_TailwindToolPath)' == '' or !Exists('$(_TailwindToolPath)')" />
 

@@ -28,6 +28,8 @@ public class TailwindCliManagerTests : IDisposable
         {
             Directory.Delete(_tempPath, true);
         }
+
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

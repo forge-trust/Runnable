@@ -667,6 +667,22 @@ public class ExportSourceResolverTests
     }
 
     [Fact]
+    public void ResolveBuiltDllPath_Should_Throw_When_Explicit_Publish_Directory_Does_Not_Contain_Dll()
+    {
+        using var tempDir = new TempDirectory();
+        var explicitPublishDir = Path.Combine(tempDir.FullPath, "custom-output");
+        Directory.CreateDirectory(explicitPublishDir);
+
+        var staleDllDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
+        Directory.CreateDirectory(staleDllDir);
+        File.WriteAllBytes(Path.Combine(staleDllDir, "MySite.dll"), [1, 2, 3]);
+
+        var ex = Assert.Throws<FileNotFoundException>(
+            () => ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite", explicitPublishDir));
+        Assert.Contains("Could not locate published DLL", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ResolveBuiltDllPath_Should_Throw_When_No_Dll_Is_Found()
     {
         using var tempDir = new TempDirectory();
@@ -691,6 +707,27 @@ public class ExportSourceResolverTests
 
         var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite");
         Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(Path.Combine(net10, "MySite.dll")), resolved);
+    }
+
+    [Fact]
+    public void ResolveBuiltDllPath_Should_Prefer_Release_Publish_Over_Debug_Publish_When_Both_Exist()
+    {
+        using var tempDir = new TempDirectory();
+        var releaseDir = Path.Combine(tempDir.FullPath, "bin", "Release", "net10.0", "publish");
+        var debugDir = Path.Combine(tempDir.FullPath, "bin", "Debug", "net10.0", "publish");
+        Directory.CreateDirectory(releaseDir);
+        Directory.CreateDirectory(debugDir);
+
+        var releaseDllPath = Path.Combine(releaseDir, "MySite.dll");
+        var debugDllPath = Path.Combine(debugDir, "MySite.dll");
+        File.WriteAllBytes(releaseDllPath, [1]);
+        File.WriteAllBytes(debugDllPath, [2]);
+        File.SetLastWriteTimeUtc(releaseDllPath, DateTime.UtcNow.AddMinutes(-5));
+        File.SetLastWriteTimeUtc(debugDllPath, DateTime.UtcNow);
+
+        var resolved = ExportSourceResolver.ResolveBuiltDllPath(tempDir.FullPath, "MySite");
+
+        Assert.Equal(ExportSourceResolver.NormalizePathForMacOS(releaseDllPath), resolved);
     }
 
     [Fact]

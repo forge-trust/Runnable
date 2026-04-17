@@ -400,10 +400,11 @@ public sealed class ExportSourceResolver
             }
         }
 
-        var searchRoots = new List<(string Path, bool RequirePublishSegment)>();
         var explicitPublishPath = string.IsNullOrWhiteSpace(explicitPublishDirectory)
             ? null
             : Path.GetFullPath(explicitPublishDirectory);
+
+        List<string> candidatePaths;
         if (!string.IsNullOrWhiteSpace(explicitPublishPath))
         {
             if (!Directory.Exists(explicitPublishPath))
@@ -412,47 +413,44 @@ public sealed class ExportSourceResolver
                     $"Could not find published output folder. Expected: {explicitPublishPath}");
             }
 
-            searchRoots.Add((explicitPublishPath, false));
-        }
-        else
-        {
-            if (Directory.Exists(Path.Combine(projectDirectory, "bin")))
-            {
-                searchRoots.Add((Path.Combine(projectDirectory, "bin"), true));
-            }
-            var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
-            if (Directory.Exists(releaseDir))
-            {
-                searchRoots.Add((releaseDir, true));
-            }
-        }
-
-        if (searchRoots.Count == 0)
-        {
-            throw new FileNotFoundException(
-                $"Could not find any publish output. Expected either explicit publish directory or '{Path.Combine(projectDirectory, "bin", "Release")}'.");
-        }
-
-        var candidatePaths = searchRoots
-            .SelectMany(tuple => Directory.EnumerateFiles(
-                    tuple.Path,
+            candidatePaths = Directory.EnumerateFiles(
+                    explicitPublishPath,
                     $"{assemblyName}.dll",
                     SearchOption.AllDirectories)
                 .Where(path => !IsRefAssemblyPath(path))
-                .Where(path => IsPublishedArtifact(tuple.Path, path, tuple.RequirePublishSegment))
-                .ToList())
-            .ToList();
-
-        if (candidatePaths.Count == 0)
+                .Where(path => IsPublishedArtifact(explicitPublishPath, path, requirePublishSegment: false))
+                .ToList();
+        }
+        else
         {
-            // Broad search failsafe for various publish configurations and MacOS symlink discrepancies
-            var di = new DirectoryInfo(projectDirectory);
-            if (di.Exists)
+            var releaseDir = Path.Combine(projectDirectory, "bin", "Release");
+            if (!Directory.Exists(releaseDir))
             {
-                candidatePaths = di.GetFiles($"{assemblyName}.dll", SearchOption.AllDirectories)
-                    .Select(f => f.FullName)
-                    .Where(path => !IsRefAssemblyPath(path))
-                    .ToList();
+                throw new FileNotFoundException(
+                    $"Could not find any publish output. Expected either explicit publish directory or '{releaseDir}'.");
+            }
+
+            candidatePaths = Directory.EnumerateFiles(
+                    releaseDir,
+                    $"{assemblyName}.dll",
+                    SearchOption.AllDirectories)
+                .Where(path => !IsRefAssemblyPath(path))
+                .Where(path => IsPublishedArtifact(releaseDir, path, requirePublishSegment: true))
+                .ToList();
+
+            if (candidatePaths.Count == 0)
+            {
+                var binDirectory = Path.Combine(projectDirectory, "bin");
+                if (Directory.Exists(binDirectory))
+                {
+                    candidatePaths = Directory.EnumerateFiles(
+                            binDirectory,
+                            $"{assemblyName}.dll",
+                            SearchOption.AllDirectories)
+                        .Where(path => !IsRefAssemblyPath(path))
+                        .Where(path => IsPublishedArtifact(binDirectory, path, requirePublishSegment: true))
+                        .ToList();
+                }
             }
         }
 

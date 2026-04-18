@@ -25,7 +25,8 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// Registers services required by the RazorDocs module into the provided service collection.
     /// </summary>
     /// <remarks>
-    /// Adds HTML sanitizer, Markdown and C# harvesters, and the documentation aggregator.
+    /// Adds HTML sanitizer, Markdown and C# harvesters, the documentation aggregator, and Tailwind CSS integration
+    /// via <c>services.AddRazorDocs()</c> and <c>services.AddTailwind()</c>.
     /// </remarks>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {

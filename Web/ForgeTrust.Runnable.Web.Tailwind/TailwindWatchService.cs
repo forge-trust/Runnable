@@ -42,13 +42,13 @@ public class TailwindWatchService : BackgroundService
             return;
         }
 
-        if (string.IsNullOrEmpty(_options.InputPath))
+        if (string.IsNullOrWhiteSpace(_options.InputPath))
         {
             _logger.LogError("Tailwind CSS: InputPath is not configured.");
             return;
         }
 
-        if (string.IsNullOrEmpty(_options.OutputPath))
+        if (string.IsNullOrWhiteSpace(_options.OutputPath))
         {
             _logger.LogError("Tailwind CSS: OutputPath is not configured.");
             return;
@@ -93,14 +93,11 @@ public class TailwindWatchService : BackgroundService
     /// <remarks>
     /// Internal virtual to allow mocking in unit tests.
     /// </remarks>
-    /// <summary>
-    /// Executes the Tailwind CLI process.
-    /// </summary>
     /// <param name="fileName">The path to the executable.</param>
     /// <param name="args">The arguments.</param>
     /// <param name="workingDirectory">The working directory.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The command result.</returns>
+    /// <returns>The command result returned by the Tailwind CLI process.</returns>
     internal virtual Task<CommandResult> ExecuteTailwindProcessAsync(
         string fileName,
         IReadOnlyList<string> args,

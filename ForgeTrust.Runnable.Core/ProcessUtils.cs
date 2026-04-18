@@ -56,6 +56,7 @@ public static class ProcessUtils
         var started = false;
         Task<string>? stdoutTask = null;
         Task<string>? stderrTask = null;
+        var outputObserved = false;
         try
         {
             if (!process.Start())
@@ -76,18 +77,23 @@ public static class ProcessUtils
             }
 
             await process.WaitForExitAsync(cancellationToken);
-            
+
             var stdout = await ObserveAndGetResultAsync(stdoutTask, "stdout", fileName, logger);
             var stderr = await ObserveAndGetResultAsync(stderrTask, "stderr", fileName, logger);
+            outputObserved = true;
 
             return new CommandResult(process.ExitCode, stdout, stderr);
         }
         finally
         {
             TryKillProcess(process, started, logger);
-            // Ensure tasks are observed even if an exception occurred during the wait
-            await ObserveAndGetResultAsync(stdoutTask, "stdout", fileName, logger);
-            await ObserveAndGetResultAsync(stderrTask, "stderr", fileName, logger);
+
+            if (!outputObserved)
+            {
+                // Ensure tasks are observed if an exception occurred before the normal result path.
+                await ObserveAndGetResultAsync(stdoutTask, "stdout", fileName, logger);
+                await ObserveAndGetResultAsync(stderrTask, "stderr", fileName, logger);
+            }
         }
     }
 

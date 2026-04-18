@@ -36,4 +36,21 @@ public class TailwindExtensionsTests
         var hostedServices = serviceProvider.GetServices<IHostedService>();
         Assert.Contains(hostedServices, s => s is TailwindWatchService);
     }
+
+    [Fact]
+    public void AddTailwind_ParameterlessOverload_IsIdempotent()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+        services.AddLogging();
+        services.AddSingleton<IHostEnvironment>(FakeItEasy.A.Fake<IHostEnvironment>());
+
+        services.AddTailwind();
+        services.AddTailwind();
+
+        var serviceProvider = services.BuildServiceProvider();
+
+        Assert.Single(serviceProvider.GetServices<TailwindCliManager>());
+        Assert.Single(serviceProvider.GetServices<IHostedService>().OfType<TailwindWatchService>());
+    }
 }

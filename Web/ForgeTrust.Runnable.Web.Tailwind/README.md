@@ -35,3 +35,4 @@ Reference the generated stylesheet from your layout:
 
 - The generated CSS file is intended to be build output and is commonly ignored in source control.
 - The platform-specific `ForgeTrust.Runnable.Web.Tailwind.Runtime.*` packages are support packages consumed transitively by this package and are not usually installed directly.
+- Windows Arm64 hosts intentionally use the `win-x64` runtime under emulation. There is no `ForgeTrust.Runnable.Web.Tailwind.Runtime.win-arm64` package because Tailwind `v4.1.18` does not ship a native Windows Arm64 standalone CLI.

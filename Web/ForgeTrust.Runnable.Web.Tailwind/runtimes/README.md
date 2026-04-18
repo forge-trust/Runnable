@@ -14,6 +14,8 @@ These packages exist so the main Tailwind package can depend on RID-specific bin
 - `ForgeTrust.Runnable.Web.Tailwind.Runtime.linux-x64`
 - `ForgeTrust.Runnable.Web.Tailwind.Runtime.linux-arm64`
 
+> Note: Windows Arm64 hosts are supported via x64 emulation using `ForgeTrust.Runnable.Web.Tailwind.Runtime.win-x64`. Tailwind `v4.1.18` does not publish a native Windows Arm64 standalone binary.
+
 ## Usage
 
 Most consumers should install only `ForgeTrust.Runnable.Web.Tailwind`. These runtime packages are implementation-detail dependencies that are restored automatically through the main package.

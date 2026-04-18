@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Runtime.InteropServices;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.Tailwind;
 using FakeItEasy;
@@ -101,12 +102,133 @@ public class TailwindWatchServiceTests
             .MustHaveHappened();
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ExecuteAsync_LogsError_WhenInputPathIsInvalid(string? inputPath)
+    {
+        _tailwindOptions.InputPath = inputPath!;
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment);
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.False(service.ProcessExecuted);
+        AssertErrorLogged();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ExecuteAsync_LogsError_WhenOutputPathIsInvalid(string? outputPath)
+    {
+        _tailwindOptions.OutputPath = outputPath!;
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment);
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.False(service.ProcessExecuted);
+        AssertErrorLogged();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DoesNotLogError_WhenWatchProcessIsCanceled()
+    {
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)
+        {
+            ExceptionToThrow = new OperationCanceledException()
+        };
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.True(service.ProcessExecuted);
+        AssertErrorNotLogged();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DoesNotLogError_ForNonZeroExitCode_WhenCancellationRequested()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)
+        {
+            ResultToReturn = new CommandResult(1, string.Empty, "error")
+        };
+
+        await service.ExecuteAsyncPublic(cancellationTokenSource.Token);
+
+        Assert.True(service.ProcessExecuted);
+        AssertErrorNotLogged();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LogsError_WhenTailwindPathResolutionThrows()
+    {
+        A.CallTo(() => _cliManager.GetTailwindPath()).Throws(new InvalidOperationException("boom"));
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment);
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.False(service.ProcessExecuted);
+        AssertErrorLogged();
+    }
+
+    [Fact]
+    public async Task ExecuteTailwindProcessAsync_ReturnsCommandResult()
+    {
+        var service = new TailwindWatchService(_cliManager, _options, _logger, _environment);
+        var (fileName, args) = CreateShellCommand(
+            "(echo watch-out) & (echo watch-err 1>&2) & exit /b 2",
+            "printf 'watch-out\\n'; printf 'watch-err\\n' >&2; exit 2");
+
+        var result = await service.ExecuteTailwindProcessAsync(
+            fileName,
+            args,
+            Directory.GetCurrentDirectory(),
+            CancellationToken.None);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains("watch-out", result.Stdout);
+        Assert.Contains("watch-err", result.Stderr);
+    }
+
+    private void AssertErrorLogged()
+    {
+        A.CallTo(_logger)
+            .Where(call => call.Method.Name == "Log"
+                && call.Arguments.Count > 0
+                && Equals(call.Arguments[0], LogLevel.Error))
+            .MustHaveHappened();
+    }
+
+    private void AssertErrorNotLogged()
+    {
+        A.CallTo(_logger)
+            .Where(call => call.Method.Name == "Log"
+                && call.Arguments.Count > 0
+                && Equals(call.Arguments[0], LogLevel.Error))
+            .MustNotHaveHappened();
+    }
+
+    private static (string FileName, IReadOnlyList<string> Args) CreateShellCommand(string windowsScript, string unixScript)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return ("cmd", ["/c", windowsScript]);
+        }
+
+        return ("/bin/sh", ["-c", unixScript]);
+    }
+
     private class TestTailwindWatchService : TailwindWatchService
     {
         public bool ProcessExecuted { get; private set; }
         public string? ExecutedFileName { get; private set; }
         public IReadOnlyList<string>? ExecutedArgs { get; private set; }
         public CommandResult ResultToReturn { get; set; } = new CommandResult(0, "", "");
+        public Exception? ExceptionToThrow { get; set; }
 
         public TestTailwindWatchService(
             TailwindCliManager cliManager,
@@ -128,6 +250,12 @@ public class TailwindWatchServiceTests
             ProcessExecuted = true;
             ExecutedFileName = fileName;
             ExecutedArgs = args;
+
+            if (ExceptionToThrow != null)
+            {
+                throw ExceptionToThrow;
+            }
+
             return Task.FromResult(ResultToReturn);
         }
     }

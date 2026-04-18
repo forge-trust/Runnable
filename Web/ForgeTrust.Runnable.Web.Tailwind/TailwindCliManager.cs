@@ -99,7 +99,37 @@ public class TailwindCliManager
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            return RuntimeInformation.ProcessArchitecture switch
+            return ResolveRid(OSPlatform.Windows, RuntimeInformation.ProcessArchitecture);
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return ResolveRid(OSPlatform.Linux, RuntimeInformation.ProcessArchitecture);
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            return ResolveRid(OSPlatform.OSX, RuntimeInformation.ProcessArchitecture);
+        }
+
+        return "unknown";
+    }
+
+    /// <summary>
+    /// Resolves the Tailwind runtime identifier for a specific platform and process architecture.
+    /// </summary>
+    /// <param name="osPlatform">The operating system platform to evaluate.</param>
+    /// <param name="architecture">The process architecture to map.</param>
+    /// <returns>The Tailwind runtime identifier for the supplied platform/architecture pair.</returns>
+    /// <remarks>
+    /// Must be kept in sync with the RID logic in the runtime package projects and
+    /// build/ForgeTrust.Runnable.Web.Tailwind.targets.
+    /// </remarks>
+    internal static string ResolveRid(OSPlatform osPlatform, Architecture architecture)
+    {
+        if (osPlatform == OSPlatform.Windows)
+        {
+            return architecture switch
             {
                 Architecture.X64 => "win-x64",
                 // Tailwind v4.1.18 ships only a Windows x64 standalone binary.
@@ -108,9 +138,9 @@ public class TailwindCliManager
             };
         }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        if (osPlatform == OSPlatform.Linux)
         {
-            return RuntimeInformation.ProcessArchitecture switch
+            return architecture switch
             {
                 Architecture.X64 => "linux-x64",
                 Architecture.Arm64 => "linux-arm64",
@@ -118,9 +148,9 @@ public class TailwindCliManager
             };
         }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        if (osPlatform == OSPlatform.OSX)
         {
-            return RuntimeInformation.ProcessArchitecture switch
+            return architecture switch
             {
                 Architecture.X64 => "osx-x64",
                 Architecture.Arm64 => "osx-arm64",

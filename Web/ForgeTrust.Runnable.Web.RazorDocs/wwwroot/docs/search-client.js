@@ -1039,42 +1039,59 @@
     }
 
     if (!searchData.runtimePromise) {
-      const existing = document.querySelector('script[data-rw-search-runtime="minisearch"]');
-      searchData.runtimePromise = new Promise((resolve, reject) => {
-        const script = existing || document.createElement('script');
+      const poisonedScripts = Array.from(
+        document.querySelectorAll('script[data-rw-search-runtime="minisearch"]:not([data-rw-search-failed="true"])')
+      );
 
-        const cleanup = () => {
-          script.removeEventListener('load', onLoad);
-          script.removeEventListener('error', onError);
-        };
+      if (poisonedScripts.length > 0) {
+        poisonedScripts.forEach((script) => {
+          script.dataset.rwSearchFailed = 'true';
+        });
 
-        const onLoad = () => {
-          cleanup();
-          if (window.MiniSearch) {
-            resolve(window.MiniSearch);
-          } else {
+        searchData.runtimePromise = Promise.reject(new Error('MiniSearch runtime is not available.')).catch((error) => {
+          searchData.runtimePromise = null;
+          throw error;
+        });
+      } else {
+        document
+          .querySelectorAll('script[data-rw-search-runtime="minisearch"][data-rw-search-failed="true"]')
+          .forEach((script) => script.remove());
+
+        searchData.runtimePromise = new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+
+          const cleanup = () => {
+            script.removeEventListener('load', onLoad);
+            script.removeEventListener('error', onError);
+          };
+
+          const onLoad = () => {
+            cleanup();
+            if (window.MiniSearch) {
+              resolve(window.MiniSearch);
+            } else {
+              script.dataset.rwSearchFailed = 'true';
+              reject(new Error('MiniSearch runtime is not available.'));
+            }
+          };
+
+          const onError = () => {
+            cleanup();
+            script.dataset.rwSearchFailed = 'true';
             reject(new Error('MiniSearch runtime is not available.'));
-          }
-        };
+          };
 
-        const onError = () => {
-          cleanup();
-          reject(new Error('MiniSearch runtime is not available.'));
-        };
-
-        script.addEventListener('load', onLoad, { once: true });
-        script.addEventListener('error', onError, { once: true });
-
-        if (!existing) {
+          script.addEventListener('load', onLoad, { once: true });
+          script.addEventListener('error', onError, { once: true });
           script.src = miniSearchUrl;
           script.defer = true;
           script.dataset.rwSearchRuntime = 'minisearch';
           document.head.append(script);
-        }
-      }).catch((error) => {
-        searchData.runtimePromise = null;
-        throw error;
-      });
+        }).catch((error) => {
+          searchData.runtimePromise = null;
+          throw error;
+        });
+      }
     }
 
     return searchData.runtimePromise;

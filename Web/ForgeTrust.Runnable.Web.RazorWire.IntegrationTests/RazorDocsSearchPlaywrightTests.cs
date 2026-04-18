@@ -19,6 +19,7 @@ public sealed class RazorDocsIntegrationCollection : ICollectionFixture<RazorDoc
 public sealed class RazorDocsSearchPlaywrightTests
 {
     private const string SearchIndexPath = "/docs/search-index.json";
+    private const string MiniSearchRuntimePath = "/docs/minisearch.min.js";
     private readonly RazorDocsPlaywrightFixture _fixture;
 
     public RazorDocsSearchPlaywrightTests(RazorDocsPlaywrightFixture fixture)
@@ -320,6 +321,52 @@ public sealed class RazorDocsSearchPlaywrightTests
         await page.ClickAsync("#docs-search-page-retry");
         await WaitForSearchPageSettledAsync(page);
 
+        Assert.False(await page.Locator("#docs-search-page-failure").IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-starter").IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task SearchPage_RetryRecovers_WhenMiniSearchRuntimeFirstLoadDoesNotInitialize()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+        var runtimeRequests = 0;
+
+        await page.RouteAsync(
+            $"**{MiniSearchRuntimePath}",
+            async route =>
+            {
+                var attempt = System.Threading.Interlocked.Increment(ref runtimeRequests);
+                if (attempt == 1)
+                {
+                    await route.FulfillAsync(new RouteFulfillOptions
+                    {
+                        Status = 200,
+                        ContentType = "application/javascript",
+                        Body = "window.__rwMiniSearchRuntimeIntercept = 1;"
+                    });
+                    return;
+                }
+
+                await route.ContinueAsync();
+            });
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search");
+        await page.WaitForSelectorAsync("#docs-search-page-failure", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        Assert.Equal(1, runtimeRequests);
+        Assert.Equal(
+            "true",
+            await page.GetAttributeAsync("script[data-rw-search-runtime=\"minisearch\"]", "data-rw-search-failed"));
+
+        await page.ClickAsync("#docs-search-page-retry");
+        await WaitForSearchPageSettledAsync(page);
+
+        Assert.Equal(2, runtimeRequests);
         Assert.False(await page.Locator("#docs-search-page-failure").IsVisibleAsync());
         Assert.True(await page.Locator("#docs-search-page-starter").IsVisibleAsync());
     }

@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
 [assembly: InternalsVisibleTo("ForgeTrust.Runnable.Web.Tailwind.Tests")]
@@ -45,7 +45,7 @@ public class TailwindCliManager
         if (!string.IsNullOrEmpty(baseDir))
         {
             var rid = GetCurrentRid();
-            
+
             // 1. Check standard NuGet runtime asset path (for published apps or project-local runtimes folder)
             var runtimePath = Path.Combine(baseDir, "runtimes", rid, "native", _binaryName);
             if (File.Exists(runtimePath))
@@ -81,6 +81,13 @@ public class TailwindCliManager
                 {
                     _logger.LogDebug("Found Tailwind CLI at fallback runtime path: {Path}", fallbackRuntimePath);
                     return fallbackRuntimePath;
+                }
+
+                var devRuntimeProjectPath = GetDevRuntimeProjectPath(baseDir, rid) ?? GetDevRuntimeProjectPath(assemblyDir, rid);
+                if (!string.IsNullOrEmpty(devRuntimeProjectPath) && File.Exists(devRuntimeProjectPath))
+                {
+                    _logger.LogDebug("Found Tailwind CLI at development runtime project path: {Path}", devRuntimeProjectPath);
+                    return devRuntimeProjectPath;
                 }
             }
         }
@@ -169,6 +176,62 @@ public class TailwindCliManager
         }
 
         return "unknown";
+    }
+
+    private static string? GetDevRuntimeProjectPath(string sourceDir, string rid)
+    {
+        var targetFramework = Path.GetFileName(sourceDir);
+        var configurationDir = Directory.GetParent(sourceDir);
+        var binDir = configurationDir?.Parent;
+
+        if (string.IsNullOrEmpty(targetFramework) || configurationDir == null || binDir?.Name != "bin")
+        {
+            return null;
+        }
+
+        var binaryName = rid switch
+        {
+            "win-x64" => "tailwindcss-windows-x64.exe",
+            "osx-arm64" => "tailwindcss-macos-arm64",
+            "osx-x64" => "tailwindcss-macos-x64",
+            "linux-arm64" => "tailwindcss-linux-arm64",
+            "linux-x64" => "tailwindcss-linux-x64",
+            _ => null
+        };
+
+        if (string.IsNullOrEmpty(binaryName))
+        {
+            return null;
+        }
+
+        foreach (var candidateRoot in EnumerateSelfAndAncestors(binDir.Parent))
+        {
+            var candidatePath = Path.Combine(
+                candidateRoot,
+                "Web",
+                "ForgeTrust.Runnable.Web.Tailwind",
+                "runtimes",
+                "obj",
+                $"ForgeTrust.Runnable.Web.Tailwind.Runtime.{rid}",
+                configurationDir.Name,
+                targetFramework,
+                binaryName);
+
+            if (File.Exists(candidatePath))
+            {
+                return candidatePath;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> EnumerateSelfAndAncestors(DirectoryInfo? startDirectory)
+    {
+        for (var current = startDirectory; current != null; current = current.Parent)
+        {
+            yield return current.FullName;
+        }
     }
 
     private static bool TryGetFromPath(string fileName, out string path)

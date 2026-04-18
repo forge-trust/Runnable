@@ -1,7 +1,7 @@
+using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using ForgeTrust.Runnable.Core;
 
 namespace ForgeTrust.Runnable.Web.Tailwind;
 
@@ -119,6 +119,23 @@ public class TailwindWatchService : BackgroundService
             workingDirectory,
             _logger,
             cancellationToken,
-            streamOutput: true);
+            streamOutput: true,
+            stderrLogLevelSelector: GetTailwindStderrLogLevel);
+    }
+
+    private static LogLevel GetTailwindStderrLogLevel(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return LogLevel.Debug;
+        }
+
+        if (line.StartsWith("≈ tailwindcss v", StringComparison.Ordinal) ||
+            line.StartsWith("Done in ", StringComparison.Ordinal))
+        {
+            return LogLevel.Information;
+        }
+
+        return LogLevel.Error;
     }
 }

@@ -1,10 +1,11 @@
+using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
+using FakeItEasy;
+using ForgeTrust.Runnable.Core;
+using ForgeTrust.Runnable.Web.Tailwind;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Runtime.InteropServices;
-using ForgeTrust.Runnable.Core;
-using ForgeTrust.Runnable.Web.Tailwind;
-using FakeItEasy;
 
 namespace ForgeTrust.Runnable.Web.Tailwind.Tests;
 
@@ -28,7 +29,7 @@ public class TailwindWatchServiceTests
         _options = Options.Create(_tailwindOptions);
         _logger = A.Fake<ILogger<TailwindWatchService>>();
         _environment = A.Fake<IHostEnvironment>();
-        
+
         A.CallTo(() => _environment.EnvironmentName).Returns(Environments.Development);
         A.CallTo(() => _environment.ContentRootPath).Returns("/root");
         A.CallTo(() => _cliManager.GetTailwindPath()).Returns("/path/to/tailwind");
@@ -71,7 +72,7 @@ public class TailwindWatchServiceTests
 
         // Act
         await service.ExecuteAsyncPublic(CancellationToken.None);
-        
+
         // Assert
         Assert.True(service.ProcessExecuted);
         Assert.Equal("/path/to/tailwind", service.ExecutedFileName);
@@ -96,8 +97,8 @@ public class TailwindWatchServiceTests
         // Assert
         Assert.True(service.ProcessExecuted);
         A.CallTo(_logger)
-            .Where(call => call.Method.Name == "Log" 
-                && call.Arguments.Count > 0 
+            .Where(call => call.Method.Name == "Log"
+                && call.Arguments.Count > 0
                 && Equals(call.Arguments[0], LogLevel.Error))
             .MustHaveHappened();
     }
@@ -208,6 +209,28 @@ public class TailwindWatchServiceTests
         Assert.Contains("watch-err", result.Stderr);
     }
 
+    [Fact]
+    public async Task ExecuteTailwindProcessAsync_DowngradesBenignTailwindStderrOutput()
+    {
+        var logger = new ListLogger<TailwindWatchService>();
+        var service = new TailwindWatchService(_cliManager, _options, logger, _environment);
+        const string banner = "\u2248 tailwindcss v4.1.18";
+        var (fileName, args) = CreateShellCommand(
+            $"(echo {banner} 1>&2) & (echo Done in 34ms 1>&2) & (echo Error: boom 1>&2) & exit /b 1",
+            $"printf '{banner}\\n' >&2; printf 'Done in 34ms\\n' >&2; printf 'Error: boom\\n' >&2; exit 1");
+
+        var result = await service.ExecuteTailwindProcessAsync(
+            fileName,
+            args,
+            Directory.GetCurrentDirectory(),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.Contains(logger.Messages, entry => entry.LogLevel == LogLevel.Information && entry.Message.Contains("tailwindcss v4.1.18", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, entry => entry.LogLevel == LogLevel.Information && entry.Message.Contains("Done in 34ms", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, entry => entry.LogLevel == LogLevel.Error && entry.Message.Contains("Error: boom", StringComparison.Ordinal));
+    }
+
     private void AssertErrorLogged()
     {
         A.CallTo(_logger)
@@ -273,4 +296,25 @@ public class TailwindWatchServiceTests
             return Task.FromResult(ResultToReturn);
         }
     }
+
+    private sealed class ListLogger<T> : ILogger<T>
+    {
+        public ConcurrentQueue<LogEntry> Messages { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Enqueue(new LogEntry(logLevel, formatter(state, exception)));
+        }
+    }
+
+    private sealed record LogEntry(LogLevel LogLevel, string Message);
 }

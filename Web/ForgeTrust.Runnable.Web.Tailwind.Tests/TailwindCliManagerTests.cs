@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.Logging;
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.Tailwind;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.Tailwind.Tests;
 
@@ -20,6 +20,7 @@ public class TailwindCliManagerTests : IDisposable
         _logger = A.Fake<ILogger<TailwindCliManager>>();
         _manager = new TailwindCliManager(_logger);
         _manager.BaseDirectoryOverride = _tempPath;
+        _manager.AssemblyDirectoryOverride = Path.Combine(_tempPath, "isolated-assembly");
         _binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "tailwindcss.exe" : "tailwindcss";
         _originalPath = Environment.GetEnvironmentVariable("PATH");
     }
@@ -99,6 +100,44 @@ public class TailwindCliManagerTests : IDisposable
         Directory.CreateDirectory(runtimeNativeDir);
         var expectedPath = Path.Combine(runtimeNativeDir, _binaryName);
 
+        File.WriteAllText(expectedPath, "dummy");
+
+        var result = _manager.GetTailwindPath();
+
+        Assert.Equal(expectedPath, result);
+    }
+
+    [Fact]
+    public void GetTailwindPath_ReturnsDevelopmentRuntimeProjectPath_IfFound()
+    {
+        var rid = TailwindCliManager.GetCurrentRid();
+        var baseDir = Path.Combine(_tempPath, "examples", "sample-app", "bin", "Debug", "net10.0");
+        var assemblyDir = Path.Combine(baseDir, "assembly-shadow");
+        Directory.CreateDirectory(baseDir);
+        _manager.BaseDirectoryOverride = baseDir;
+        _manager.AssemblyDirectoryOverride = assemblyDir;
+
+        var runtimeBinaryName = rid switch
+        {
+            "win-x64" => "tailwindcss-windows-x64.exe",
+            "osx-arm64" => "tailwindcss-macos-arm64",
+            "osx-x64" => "tailwindcss-macos-x64",
+            "linux-arm64" => "tailwindcss-linux-arm64",
+            "linux-x64" => "tailwindcss-linux-x64",
+            _ => throw new InvalidOperationException($"Unsupported RID for test: {rid}")
+        };
+
+        var runtimeProjectDir = Path.Combine(
+            _tempPath,
+            "Web",
+            "ForgeTrust.Runnable.Web.Tailwind",
+            "runtimes",
+            "obj",
+            $"ForgeTrust.Runnable.Web.Tailwind.Runtime.{rid}",
+            "Debug",
+            "net10.0");
+        Directory.CreateDirectory(runtimeProjectDir);
+        var expectedPath = Path.Combine(runtimeProjectDir, runtimeBinaryName);
         File.WriteAllText(expectedPath, "dummy");
 
         var result = _manager.GetTailwindPath();

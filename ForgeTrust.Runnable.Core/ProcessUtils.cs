@@ -26,6 +26,11 @@ public static class ProcessUtils
     /// <param name="logger">The logger to which output will be sent if <paramref name="streamOutput"/> is true.</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <param name="streamOutput">If true, output will be streamed to the logger in real-time.</param>
+    /// <param name="stderrLogLevelSelector">
+    /// Optional selector that can remap the log level used for each standard error line when
+    /// <paramref name="streamOutput"/> is enabled. When omitted, standard error lines are logged
+    /// at <see cref="LogLevel.Error"/>.
+    /// </param>
     /// <returns>A <see cref="CommandResult"/> containing the execution details, including the exit code and captured output.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the process fails to start.</exception>
     public static async Task<CommandResult> ExecuteProcessAsync(
@@ -34,7 +39,8 @@ public static class ProcessUtils
         string workingDirectory,
         ILogger logger,
         CancellationToken cancellationToken,
-        bool streamOutput = false)
+        bool streamOutput = false,
+        Func<string, LogLevel>? stderrLogLevelSelector = null)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -83,7 +89,7 @@ public static class ProcessUtils
             if (streamOutput)
             {
                 stdoutTask = StreamToLoggerAsync(process.StandardOutput, logger, LogLevel.Information, fileName, cancellationToken);
-                stderrTask = StreamToLoggerAsync(process.StandardError, logger, LogLevel.Error, fileName, cancellationToken);
+                stderrTask = StreamToLoggerAsync(process.StandardError, logger, LogLevel.Error, fileName, cancellationToken, stderrLogLevelSelector);
             }
             else
             {
@@ -117,7 +123,8 @@ public static class ProcessUtils
         ILogger logger,
         LogLevel level,
         string fileName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string, LogLevel>? levelSelector = null)
     {
         var output = new StringBuilder();
         var hasWrittenLine = false;
@@ -136,13 +143,14 @@ public static class ProcessUtils
 
                 output.Append(line);
                 hasWrittenLine = true;
+                var effectiveLevel = levelSelector?.Invoke(line) ?? level;
                 if (string.IsNullOrWhiteSpace(fileName))
                 {
-                    logger.Log(level, "{Output}", line);
+                    logger.Log(effectiveLevel, "{Output}", line);
                 }
                 else
                 {
-                    logger.Log(level, "{FileName}: {Output}", fileName, line);
+                    logger.Log(effectiveLevel, "{FileName}: {Output}", fileName, line);
                 }
             }
         }

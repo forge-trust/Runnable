@@ -69,6 +69,32 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task ExecuteProcessAsync_UsesConfiguredStderrLogLevelSelector_WhenStreaming()
+    {
+        var logger = new ListLogger();
+        var (fileName, args) = CreateShellCommand(
+            "(echo remapped 1>&2) & exit /b 0",
+            "printf 'remapped\\n' >&2");
+
+        var result = await ProcessUtils.ExecuteProcessAsync(
+            fileName,
+            args,
+            Directory.GetCurrentDirectory(),
+            logger,
+            CancellationToken.None,
+            streamOutput: true,
+            stderrLogLevelSelector: _ => LogLevel.Warning);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("remapped", result.Stderr);
+        Assert.Contains(
+            logger.Messages,
+            entry => entry.LogLevel == LogLevel.Warning
+                && entry.Message.Contains(fileName, StringComparison.Ordinal)
+                && entry.Message.Contains("remapped", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_LogsAndThrows_WhenProcessCannotStart()
     {
         var logger = new ListLogger();

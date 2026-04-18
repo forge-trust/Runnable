@@ -705,10 +705,63 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public void Search_ShouldReturnView()
+    public async Task Search_ShouldReturnViewModelWithFallbackLinks()
     {
-        var result = _controller.Search();
-        Assert.IsType<ViewResult>(result);
+        var docs = new List<DocNode>
+        {
+            new(
+                "Guide",
+                "guides/start",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "guide",
+                    Order = 1
+                }),
+            new(
+                "Example",
+                "examples/hello",
+                "<p>Example body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "example",
+                    Order = 2
+                }),
+            new(
+                "API",
+                "Namespaces/ForgeTrust.Runnable.Web",
+                "<p>API body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "api-reference",
+                    Order = 3
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.Equal("Search Documentation", model.Title);
+        Assert.Equal(3, model.FailureFallbackLinks.Count);
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Browse guides");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Open an example");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Explore API reference");
+    }
+
+    [Fact]
+    public async Task Search_ShouldStillRenderShell_WhenDocAggregationFails()
+    {
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .ThrowsAsync(new InvalidOperationException("boom"));
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.Equal("Search Documentation", model.Title);
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
     }
 
     [Fact]
@@ -724,10 +777,15 @@ public class DocsControllerTests : IDisposable
                 {
                     Summary = "Get started quickly.",
                     PageType = "guide",
+                    Audience = "developer",
                     Component = "Runnable",
                     Aliases = ["quickstart"],
                     Keywords = ["install"],
-                    NavGroup = "Start Here"
+                    Status = "stable",
+                    NavGroup = "Start Here",
+                    Order = 7,
+                    RelatedPages = ["examples/hello-world", "Namespaces/ForgeTrust.Runnable"],
+                    Breadcrumbs = ["Guides", "Getting Started"]
                 })
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
@@ -743,10 +801,19 @@ public class DocsControllerTests : IDisposable
         Assert.Equal("guide", document.GetProperty("pageType").GetString());
         Assert.Equal("Guide", document.GetProperty("pageTypeLabel").GetString());
         Assert.Equal("guide", document.GetProperty("pageTypeVariant").GetString());
+        Assert.Equal("developer", document.GetProperty("audience").GetString());
         Assert.Equal("Runnable", document.GetProperty("component").GetString());
+        Assert.Equal("stable", document.GetProperty("status").GetString());
         Assert.Equal("Start Here", document.GetProperty("navGroup").GetString());
+        Assert.Equal(7, document.GetProperty("order").GetInt32());
         Assert.Equal("quickstart", document.GetProperty("aliases").EnumerateArray().Single().GetString());
         Assert.Equal("install", document.GetProperty("keywords").EnumerateArray().Single().GetString());
+        Assert.Equal(
+            ["examples/hello-world", "Namespaces/ForgeTrust.Runnable"],
+            document.GetProperty("relatedPages").EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+        Assert.Equal(
+            ["Guides", "Getting Started"],
+            document.GetProperty("breadcrumbs").EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
     }
 
     [Fact]

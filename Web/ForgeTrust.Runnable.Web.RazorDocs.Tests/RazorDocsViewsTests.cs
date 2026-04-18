@@ -45,13 +45,12 @@ public class RazorDocsViewsTests
         Assert.Contains("'pageTypeVariant'", searchClient);
         Assert.Contains("function renderPageTypeBadge(item)", searchClient);
         Assert.Contains("docs-search-option-title-row", searchClient);
-        Assert.Contains("docs-search-result-meta", searchClient);
         Assert.Contains("docs-page-badge", searchClient);
-        Assert.Contains("const metadata = [", searchClient);
-        Assert.Contains("metadata ?", searchClient);
-        Assert.Contains("<div class=\"docs-search-result-meta\">", searchClient);
-        Assert.Contains("${metadata}", searchClient);
-        Assert.Contains(": ''", searchClient);
+        Assert.Contains("function createSearchResultArticle(doc, queryTokens)", searchClient);
+        Assert.Contains("docs-search-result-badges", searchClient);
+        Assert.Contains("createSearchResultBadge(formatFacetValue(doc.pageType))", searchClient);
+        Assert.Contains("createSearchResultBadge(formatFacetValue(doc.component))", searchClient);
+        Assert.Contains("createSearchResultBadge(formatFacetValue(doc.audience), true)", searchClient);
     }
 
     [Fact]
@@ -660,14 +659,33 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task SearchView_ShouldRenderSearchPageShell()
     {
-        using var services = CreateServiceProvider(CreateDocs());
+        var docs = CreateDocs();
+        docs.Add(
+            new(
+                "Quick Example",
+                "examples/quick-start",
+                "<p>Example body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "example"
+                }));
+
+        using var services = CreateServiceProvider(docs);
 
         var html = await RenderDocsViewAsync(
             services,
             "Search",
-            c => Task.FromResult(c.Search()));
+            c => c.Search());
 
         Assert.Contains("id=\"docs-search-page-input\"", html);
+        Assert.Contains("id=\"docs-search-page-status\"", html);
+        Assert.Contains("id=\"docs-search-page-filters-toggle\"", html);
+        Assert.Contains("id=\"docs-search-page-filters-panel\"", html);
+        Assert.Contains("id=\"docs-search-page-starter\"", html);
+        Assert.Contains("data-rw-search-suggestion=\"getting started\"", html);
+        Assert.Contains("id=\"docs-search-page-failure\"", html);
+        Assert.Contains("id=\"docs-search-page-retry\"", html);
+        Assert.Contains("docs-search-page-failure-link", html);
         Assert.Contains("id=\"docs-search-page-results\"", html);
         Assert.Contains("Search Documentation", html);
         Assert.Contains("id=\"docs-search-input\"", html);

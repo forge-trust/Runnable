@@ -1,9 +1,11 @@
 (() => {
   const indexUrl = '/docs/search-index.json';
+  const miniSearchUrl = '/docs/minisearch.min.js';
   const maxQueryLength = 500;
   const topResults = 8;
   const fetchTimeoutMs = 10000;
   const docsFrameId = 'doc-content';
+  const searchInputHash = '#docs-search-page-input';
   const enableDocsPartialRewrite = Boolean(
     document.querySelector('meta[name="rw-docs-static-partials"][content="1"]')
   );
@@ -12,10 +14,59 @@
     fuzzy: 0.1,
     boost: { title: 6, aliases: 4, headings: 3, keywords: 2, summary: 2, bodyText: 1 }
   };
-  let searchIndex = null;
-  let searchIndexLoadPromise = null;
+  const facetDefinitions = [
+    { key: 'pageType', label: 'Page Type', kind: 'chips' },
+    { key: 'component', label: 'Component', kind: 'select' },
+    { key: 'audience', label: 'Audience', kind: 'chips' },
+    { key: 'status', label: 'Status', kind: 'chips' }
+  ];
+  const facetKeys = facetDefinitions.map((facet) => facet.key);
   const sidebarBoundAttribute = 'data-rw-search-sidebar-bound';
   const searchPageBoundAttribute = 'data-rw-search-page-bound';
+  const shortcutsBoundAttribute = 'data-rw-search-shortcuts-bound';
+  const mobileFilterMedia = window.matchMedia ? window.matchMedia('(max-width: 767px)') : null;
+  const pageTypeSort = new Map([
+    ['guide', 0],
+    ['concept', 1],
+    ['tutorial', 2],
+    ['example', 3],
+    ['api-reference', 4],
+    ['api', 4],
+    ['troubleshooting', 5]
+  ]);
+  const statusSort = new Map([
+    ['stable', 0],
+    ['beta', 1],
+    ['preview', 2],
+    ['experimental', 3],
+    ['deprecated', 4]
+  ]);
+  const searchData = {
+    index: null,
+    docs: [],
+    docsById: new Map(),
+    facetValues: createEmptyFacetValues(),
+    loadPromise: null,
+    runtimePromise: null
+  };
+  const searchPageState = {
+    q: '',
+    pageType: '',
+    component: '',
+    audience: '',
+    status: '',
+    filtersExpanded: false,
+    loadState: 'idle'
+  };
+
+  function createEmptyFacetValues() {
+    return {
+      pageType: [],
+      component: [],
+      audience: [],
+      status: []
+    };
+  }
 
   function getSidebarSearchElements() {
     return {
@@ -26,11 +77,23 @@
   }
 
   function getSearchPageElements() {
+    const root = document.getElementById('docs-search-page');
     return {
-      root: document.getElementById('docs-search-page'),
+      root,
       input: document.getElementById('docs-search-page-input'),
+      status: document.getElementById('docs-search-page-status'),
+      filtersToggle: document.getElementById('docs-search-page-filters-toggle'),
+      filtersPanel: document.getElementById('docs-search-page-filters-panel'),
+      filters: document.getElementById('docs-search-page-filters'),
+      activeFilters: document.getElementById('docs-search-page-active-filters'),
+      starter: document.getElementById('docs-search-page-starter'),
+      failure: document.getElementById('docs-search-page-failure'),
+      retry: document.getElementById('docs-search-page-retry'),
+      resultsMeta: document.getElementById('docs-search-page-results-meta'),
       results: document.getElementById('docs-search-page-results'),
-      status: document.getElementById('docs-search-page-status')
+      suggestionButtons: root
+        ? Array.from(root.querySelectorAll('[data-rw-search-suggestion]'))
+        : []
     };
   }
 
@@ -70,8 +133,6 @@
           return headers[key] ?? null;
         }
       }
-
-      return null;
     }
 
     return null;
@@ -85,11 +146,7 @@
 
     const path = url.pathname;
 
-    if (!isDocsPath(path)) {
-      return null;
-    }
-
-    if (path === '/docs') {
+    if (!isDocsPath(path) || path === '/docs') {
       return null;
     }
 
@@ -174,11 +231,7 @@
       const requestUrl = event.detail?.url;
       const canonicalUrl = toUrl(requestUrl);
       const partialUrl = toDocsPartialUrl(canonicalUrl);
-      if (!partialUrl) {
-        return;
-      }
-
-      if (!(requestUrl instanceof URL)) {
+      if (!partialUrl || !(requestUrl instanceof URL)) {
         return;
       }
 
@@ -231,6 +284,10 @@
       .replaceAll("'", '&#39;');
   }
 
+  function escapeRegExp(value) {
+    return String(value ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   function normalizeBadgeVariant(value) {
     const normalized = String(value ?? '')
       .trim()
@@ -250,67 +307,16 @@
     return `<span class="docs-page-badge docs-page-badge--${escapeHtml(variant)}">${escapeHtml(label)}</span>`;
   }
 
-  function renderMetadataChip(label, value) {
-    const normalizedValue = String(value ?? '').trim();
-    if (!normalizedValue) {
-      return '';
-    }
-
-    return `<span class="docs-metadata-chip">${escapeHtml(label)}: ${escapeHtml(normalizedValue)}</span>`;
-  }
-
-  function getLocationLabel(item) {
-    const context = item?.navGroup || item?.component || '';
-    const path = item?.path || '';
-
-    if (context && path) {
-      return `${context} • ${path}`;
-    }
-
-    return context || path;
-  }
-
   function normalizeQuery(value) {
     return String(value ?? '').trim().slice(0, maxQueryLength);
   }
 
+  function normalizeFacetValue(value) {
+    return String(value ?? '').trim();
+  }
+
   function formatQueryForStatus(value) {
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: strips non-printable control characters from status text
     return normalizeQuery(value).replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ');
-  }
-
-  async function init() {
-    try {
-      await ensureSearchIndexLoaded();
-      bindSidebar();
-      bindSearchPage();
-    } catch (err) {
-      reportInitError(err);
-    }
-  }
-
-  function reportInitError(err) {
-    console.error(err);
-    const message = getErrorMessage(err);
-    const sidebar = getSidebarSearchElements();
-    const page = getSearchPageElements();
-    setStatus(sidebar.status, message);
-    setStatus(page.status, message);
-  }
-
-  async function ensureSearchIndexLoaded() {
-    if (searchIndex) {
-      return;
-    }
-
-    if (!searchIndexLoadPromise) {
-      searchIndexLoadPromise = loadIndex().catch((err) => {
-        searchIndexLoadPromise = null;
-        throw err;
-      });
-    }
-
-    await searchIndexLoadPromise;
   }
 
   function getErrorMessage(err) {
@@ -330,7 +336,695 @@
     return 'Search is temporarily unavailable.';
   }
 
+  function createElement(tagName, className, textContent) {
+    const element = document.createElement(tagName);
+    if (className) {
+      element.className = className;
+    }
+
+    if (textContent !== undefined) {
+      element.textContent = textContent;
+    }
+
+    return element;
+  }
+
+  function setStatus(node, text) {
+    if (node) {
+      node.textContent = text;
+    }
+  }
+
+  function isEditableElement(target) {
+    if (!(target instanceof Element)) {
+      return false;
+    }
+
+    return Boolean(target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="textbox"]'));
+  }
+
+  function isSearchInputElement(target) {
+    if (!(target instanceof Element)) {
+      return false;
+    }
+
+    return Boolean(target.closest('#docs-search-input, #docs-search-page-input'));
+  }
+
+  function isSearchPageVisible() {
+    return Boolean(getSearchPageElements().root);
+  }
+
+  function getCurrentSearchQuery() {
+    const page = getSearchPageElements();
+    const pageQuery = normalizeQuery(page.input?.value);
+    if (pageQuery) {
+      return pageQuery;
+    }
+
+    return normalizeQuery(getSidebarSearchElements().input?.value);
+  }
+
+  function formatFacetValue(value) {
+    const normalized = normalizeFacetValue(value);
+    if (!normalized) {
+      return '';
+    }
+
+    const lower = normalized.toLowerCase();
+    if (lower === 'api' || lower === 'api-reference') {
+      return 'API Reference';
+    }
+
+    return normalized
+      .split(/[-_\s]+/)
+      .filter(Boolean)
+      .map((part) => part === part.toUpperCase() ? part : `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+      .join(' ');
+  }
+
+  function getLocationLabel(item) {
+    const context = item?.navGroup || item?.component || '';
+    const path = item?.path || '';
+
+    if (context && path) {
+      return `${context} • ${path}`;
+    }
+
+    return context || path;
+  }
+
+  function normalizeSearchDocument(doc) {
+    const toStringArray = (value) => Array.isArray(value)
+      ? value.map((item) => String(item ?? '').trim()).filter(Boolean)
+      : [];
+    const orderValue = Number.parseInt(String(doc?.order ?? ''), 10);
+
+    return {
+      id: String(doc?.id ?? doc?.path ?? ''),
+      path: String(doc?.path ?? ''),
+      title: String(doc?.title ?? '').trim(),
+      summary: String(doc?.summary ?? '').trim(),
+      headings: toStringArray(doc?.headings),
+      bodyText: String(doc?.bodyText ?? ''),
+      snippet: String(doc?.snippet ?? '').trim(),
+      pageType: normalizeFacetValue(doc?.pageType),
+      pageTypeLabel: String(doc?.pageTypeLabel ?? '').trim(),
+      pageTypeVariant: normalizeFacetValue(doc?.pageTypeVariant),
+      audience: normalizeFacetValue(doc?.audience),
+      component: normalizeFacetValue(doc?.component),
+      aliases: toStringArray(doc?.aliases),
+      keywords: toStringArray(doc?.keywords),
+      status: normalizeFacetValue(doc?.status),
+      navGroup: String(doc?.navGroup ?? '').trim(),
+      order: Number.isFinite(orderValue) ? orderValue : null,
+      relatedPages: toStringArray(doc?.relatedPages),
+      breadcrumbs: toStringArray(doc?.breadcrumbs)
+    };
+  }
+
+  function sortFacetValues(key, values) {
+    const list = [...values];
+    if (key === 'pageType') {
+      return list.sort((a, b) => (pageTypeSort.get(a.toLowerCase()) ?? 100) - (pageTypeSort.get(b.toLowerCase()) ?? 100) || a.localeCompare(b));
+    }
+
+    if (key === 'status') {
+      return list.sort((a, b) => (statusSort.get(a.toLowerCase()) ?? 100) - (statusSort.get(b.toLowerCase()) ?? 100) || a.localeCompare(b));
+    }
+
+    return list.sort((a, b) => a.localeCompare(b));
+  }
+
+  function deriveFacetValues(docs) {
+    const values = createEmptyFacetValues();
+    for (const doc of docs) {
+      for (const key of facetKeys) {
+        const value = normalizeFacetValue(doc[key]);
+        if (value) {
+          values[key].push(value);
+        }
+      }
+    }
+
+    for (const key of facetKeys) {
+      values[key] = sortFacetValues(key, [...new Set(values[key])]);
+    }
+
+    return values;
+  }
+
+  function getSearchFilters(state) {
+    return {
+      pageType: normalizeFacetValue(state.pageType),
+      component: normalizeFacetValue(state.component),
+      audience: normalizeFacetValue(state.audience),
+      status: normalizeFacetValue(state.status)
+    };
+  }
+
+  function hasActiveFilters(filters) {
+    return facetKeys.some((key) => Boolean(filters[key]));
+  }
+
+  function matchesFilters(doc, filters, skipKey = null) {
+    return facetKeys.every((key) => {
+      if (key === skipKey) {
+        return true;
+      }
+
+      const expected = normalizeFacetValue(filters[key]);
+      if (!expected) {
+        return true;
+      }
+
+      return normalizeFacetValue(doc[key]) === expected;
+    });
+  }
+
+  function matchesStoredResult(result, filters) {
+    return facetKeys.every((key) => {
+      const expected = normalizeFacetValue(filters[key]);
+      if (!expected) {
+        return true;
+      }
+
+      return normalizeFacetValue(result?.[key]) === expected;
+    });
+  }
+
+  function compareBrowseDocs(left, right) {
+    const leftTypeRank = pageTypeSort.get((left.pageType || '').toLowerCase()) ?? 100;
+    const rightTypeRank = pageTypeSort.get((right.pageType || '').toLowerCase()) ?? 100;
+    if (leftTypeRank !== rightTypeRank) {
+      return leftTypeRank - rightTypeRank;
+    }
+
+    const leftOrder = left.order ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = right.order ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return left.title.localeCompare(right.title, undefined, { sensitivity: 'base' })
+      || left.path.localeCompare(right.path, undefined, { sensitivity: 'base' });
+  }
+
+  function sortDocsForBrowse(docs) {
+    return [...docs].sort(compareBrowseDocs);
+  }
+
+  function readSearchPageStateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      q: normalizeQuery(params.get('q')),
+      pageType: normalizeFacetValue(params.get('pageType')),
+      component: normalizeFacetValue(params.get('component')),
+      audience: normalizeFacetValue(params.get('audience')),
+      status: normalizeFacetValue(params.get('status'))
+    };
+  }
+
+  function writeSearchPageUrl(historyMode = 'replace') {
+    if (!isSearchPageVisible()) {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const filters = getSearchFilters(searchPageState);
+    const query = normalizeQuery(searchPageState.q);
+
+    if (query) {
+      url.searchParams.set('q', query);
+    } else {
+      url.searchParams.delete('q');
+    }
+
+    for (const key of facetKeys) {
+      if (filters[key]) {
+        url.searchParams.set(key, filters[key]);
+      } else {
+        url.searchParams.delete(key);
+      }
+    }
+
+    url.hash = '';
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (currentUrl === nextUrl) {
+      return;
+    }
+
+    if (historyMode === 'push') {
+      window.history.pushState({ rwDocsSearch: true }, '', nextUrl);
+      return;
+    }
+
+    window.history.replaceState({ rwDocsSearch: true }, '', nextUrl);
+  }
+
+  function consumeSearchPageAutofocusHash(page) {
+    if (!page.input || window.location.hash !== searchInputHash) {
+      return;
+    }
+
+    page.input.focus();
+    page.input.select?.();
+
+    const url = new URL(window.location.href);
+    url.hash = '';
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`);
+  }
+
+  function focusVisibleSearchInput() {
+    const page = getSearchPageElements();
+    if (page.input) {
+      page.input.focus();
+      page.input.select?.();
+      return;
+    }
+
+    const sidebar = getSidebarSearchElements();
+    if (sidebar.input) {
+      sidebar.input.focus();
+      sidebar.input.select?.();
+    }
+  }
+
+  function navigateToSearchPageWithQuery(query) {
+    const url = new URL('/docs/search', window.location.origin);
+    const normalized = normalizeQuery(query);
+    if (normalized) {
+      url.searchParams.set('q', normalized);
+    }
+
+    url.hash = searchInputHash;
+    window.location.assign(url.toString());
+  }
+
+  function getHighlightTokens(query) {
+    return [...new Set(
+      normalizeQuery(query)
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length > 1)
+    )].sort((left, right) => right.length - left.length);
+  }
+
+  function createHighlightedFragment(text, tokens) {
+    const fragment = document.createDocumentFragment();
+    const source = String(text ?? '');
+    if (!source) {
+      return fragment;
+    }
+
+    if (!tokens.length) {
+      fragment.append(source);
+      return fragment;
+    }
+
+    const regex = new RegExp(`(${tokens.map(escapeRegExp).join('|')})`, 'ig');
+    let lastIndex = 0;
+
+    for (const match of source.matchAll(regex)) {
+      const index = match.index ?? 0;
+      if (index > lastIndex) {
+        fragment.append(source.slice(lastIndex, index));
+      }
+
+      const mark = createElement('mark');
+      mark.textContent = match[0];
+      fragment.append(mark);
+      lastIndex = index + match[0].length;
+    }
+
+    if (lastIndex < source.length) {
+      fragment.append(source.slice(lastIndex));
+    }
+
+    return fragment;
+  }
+
+  function buildBreadcrumbLabels(doc) {
+    if (Array.isArray(doc.breadcrumbs) && doc.breadcrumbs.length > 0) {
+      return doc.breadcrumbs;
+    }
+
+    const fallback = [];
+    if (doc.navGroup) {
+      fallback.push(doc.navGroup);
+    }
+
+    const path = String(doc.path ?? '');
+    const pathPart = path.split('#')[0];
+    const pathSegments = pathPart
+      .replace(/^\/docs\/?/i, '')
+      .split('/')
+      .map((segment) => {
+        try {
+          return decodeURIComponent(segment);
+        } catch {
+          return segment;
+        }
+      })
+      .filter(Boolean);
+
+    if (pathSegments.length > 1) {
+      fallback.push(pathSegments[pathSegments.length - 2]);
+    }
+
+    return [...new Set(fallback.filter(Boolean))];
+  }
+
+  function createSearchResultBadge(text, secondary = false) {
+    const badge = createElement(
+      'span',
+      secondary ? 'docs-search-result-badge docs-search-result-badge-secondary' : 'docs-search-result-badge',
+      text
+    );
+    return badge;
+  }
+
+  function createSearchResultArticle(doc, queryTokens) {
+    const article = createElement('article', 'docs-search-result');
+
+    const breadcrumbs = buildBreadcrumbLabels(doc);
+    if (breadcrumbs.length > 0) {
+      const breadcrumbRow = createElement('div', 'docs-search-result-breadcrumbs');
+      breadcrumbs.forEach((label, index) => {
+        if (index > 0) {
+          breadcrumbRow.append(createElement('span', 'docs-search-result-breadcrumb-separator', '/'));
+        }
+
+        breadcrumbRow.append(createElement('span', null, label));
+      });
+      article.append(breadcrumbRow);
+    }
+
+    const title = createElement('h2', 'docs-search-result-title');
+    const link = createElement('a');
+    link.href = doc.path;
+    link.setAttribute('data-turbo-frame', docsFrameId);
+    link.setAttribute('data-turbo-action', 'advance');
+    link.append(createHighlightedFragment(doc.title, queryTokens));
+    title.append(link);
+    article.append(title);
+
+    const badgeRow = createElement('div', 'docs-search-result-badges');
+    if (doc.pageType) {
+      badgeRow.append(createSearchResultBadge(formatFacetValue(doc.pageType)));
+    }
+
+    if (doc.component) {
+      badgeRow.append(createSearchResultBadge(formatFacetValue(doc.component)));
+    }
+
+    if (doc.audience) {
+      badgeRow.append(createSearchResultBadge(formatFacetValue(doc.audience), true));
+    }
+
+    if (doc.status) {
+      badgeRow.append(createSearchResultBadge(formatFacetValue(doc.status), true));
+    }
+
+    if (badgeRow.childNodes.length > 0) {
+      article.append(badgeRow);
+    }
+
+    const snippet = createElement('p', 'docs-search-result-snippet');
+    snippet.append(createHighlightedFragment(doc.summary || doc.snippet || '', queryTokens));
+    article.append(snippet);
+
+    return article;
+  }
+
+  function createNoResultsRecovery(view) {
+    const container = createElement('section', 'docs-search-page-no-results');
+    container.append(createElement('h2', 'docs-search-page-section-title', 'No pages matched this exact combination.'));
+    container.append(createElement('p', 'docs-search-page-starter-copy', 'Try a broader query, clear one filter, or follow one of these recovery paths.'));
+
+    const links = createElement('div', 'docs-search-page-no-results-links');
+    view.recoveryLinks.forEach((link) => {
+      const anchor = createElement('a', 'docs-search-page-no-results-link', link.title);
+      anchor.href = link.href;
+      anchor.setAttribute('data-turbo-frame', docsFrameId);
+      anchor.setAttribute('data-turbo-action', 'advance');
+      links.append(anchor);
+    });
+    container.append(links);
+    return container;
+  }
+
+  function createLoadingSkeletons(count = 3) {
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < count; index += 1) {
+      const article = createElement('article', 'docs-search-result docs-search-result-skeleton');
+      article.setAttribute('aria-hidden', 'true');
+      article.append(createElement('div', 'docs-search-skeleton docs-search-skeleton-title'));
+      article.append(createElement('div', 'docs-search-skeleton docs-search-skeleton-meta'));
+      article.append(createElement('div', 'docs-search-skeleton docs-search-skeleton-line'));
+      article.append(createElement('div', 'docs-search-skeleton docs-search-skeleton-line docs-search-skeleton-line-short'));
+      fragment.append(article);
+    }
+    return fragment;
+  }
+
+  function selectRecoveryDoc(docs, predicate) {
+    return sortDocsForBrowse(docs.filter(predicate))[0] ?? null;
+  }
+
+  function normalizeDocReference(value) {
+    return String(value ?? '')
+      .trim()
+      .replace(/^\/docs\/?/i, '')
+      .replace(/\.html$/i, '')
+      .replace(/\.md$/i, '')
+      .replace(/^\/+/, '')
+      .toLowerCase();
+  }
+
+  function resolveRelatedDoc(reference) {
+    const normalizedReference = normalizeDocReference(reference);
+    if (!normalizedReference) {
+      return null;
+    }
+
+    const directMatch = searchData.docsById.get(reference);
+    if (directMatch) {
+      return directMatch;
+    }
+
+    return searchData.docs.find((doc) => {
+      const idReference = normalizeDocReference(doc.id);
+      const pathReference = normalizeDocReference(doc.path);
+      const titleReference = String(doc.title ?? '').trim().toLowerCase();
+      return normalizedReference === idReference
+        || normalizedReference === pathReference
+        || normalizedReference === titleReference;
+    }) ?? null;
+  }
+
+  function buildRecoveryLinks(sourceDocs) {
+    const preferredDocs = sourceDocs.length > 0 ? sourceDocs : searchData.docs;
+    const allDocs = searchData.docs;
+    const links = [];
+
+    const pushLink = (doc, title = null) => {
+      if (!doc) {
+        return;
+      }
+
+      if (links.some((link) => link.href === doc.path)) {
+        return;
+      }
+
+      links.push({ title: title || doc.title, href: doc.path });
+    };
+
+    const pushRelatedLinks = (docs) => {
+      for (const doc of docs.slice(0, 5)) {
+        for (const reference of doc.relatedPages || []) {
+          pushLink(resolveRelatedDoc(reference));
+          if (links.length >= 3) {
+            return;
+          }
+        }
+      }
+    };
+
+    pushRelatedLinks(preferredDocs);
+
+    if (links.length < 3) {
+      pushLink(
+        selectRecoveryDoc(
+          preferredDocs,
+          (doc) => ['guide', 'concept', 'tutorial', 'troubleshooting'].includes((doc.pageType || '').toLowerCase())
+            || doc.path.includes('/guides/')),
+        'Browse guides');
+      pushLink(
+        selectRecoveryDoc(
+          preferredDocs,
+          (doc) => (doc.pageType || '').toLowerCase() === 'example'
+            || doc.path.includes('/examples/')),
+        'Open an example');
+      pushLink(
+        selectRecoveryDoc(
+          preferredDocs,
+          (doc) => ['api', 'api-reference'].includes((doc.pageType || '').toLowerCase())
+            || doc.path.includes('/Namespaces/')),
+        'Explore API reference');
+    }
+
+    if (links.length < 3) {
+      const namespacesDoc = selectRecoveryDoc(allDocs, (doc) => doc.path.endsWith('/Namespaces.html') || doc.path === '/docs/Namespaces');
+      pushLink(namespacesDoc, 'Browse namespaces');
+    }
+
+    if (links.length < 3) {
+      links.push({ title: 'Documentation index', href: '/docs' });
+    }
+
+    return links;
+  }
+
+  function deriveFacetState(baseDocs, filters) {
+    return facetDefinitions.map((facet) => {
+      const selectedValue = normalizeFacetValue(filters[facet.key]);
+      const siblingDocs = baseDocs.filter((doc) => matchesFilters(doc, filters, facet.key));
+      const options = searchData.facetValues[facet.key].map((value) => {
+        const count = siblingDocs.filter((doc) => normalizeFacetValue(doc[facet.key]) === value).length;
+        return {
+          value,
+          count,
+          selected: value === selectedValue,
+          disabled: count === 0 && value !== selectedValue
+        };
+      });
+
+      return {
+        ...facet,
+        options,
+        selectedValue
+      };
+    });
+  }
+
+  function runRankedSearch(query, filters, maxResults = null) {
+    if (!searchData.index) {
+      return [];
+    }
+
+    const normalizedQuery = normalizeQuery(query);
+    const filterFn = hasActiveFilters(filters)
+      ? (result) => matchesStoredResult(result, filters)
+      : undefined;
+
+    let results;
+    if (normalizedQuery) {
+      results = searchData.index.search(normalizedQuery, {
+        ...defaultSearchOptions,
+        filter: filterFn
+      });
+    } else if (hasActiveFilters(filters)) {
+      results = sortDocsForBrowse(searchData.docs.filter((doc) => matchesFilters(doc, filters)))
+        .map((doc) => ({ id: doc.id }));
+    } else {
+      results = [];
+    }
+
+    if (typeof maxResults === 'number') {
+      return results.slice(0, maxResults);
+    }
+
+    return results;
+  }
+
+  function buildSearchView() {
+    const filters = getSearchFilters(searchPageState);
+    const activeFilters = facetDefinitions
+      .map((facet) => {
+        const value = normalizeFacetValue(filters[facet.key]);
+        if (!value) {
+          return null;
+        }
+
+        return {
+          key: facet.key,
+          label: facet.label,
+          value,
+          displayValue: formatFacetValue(value)
+        };
+      })
+      .filter(Boolean);
+    const normalizedQuery = normalizeQuery(searchPageState.q);
+    const isStarter = !normalizedQuery && activeFilters.length === 0;
+    const baseDocs = normalizedQuery
+      ? runRankedSearch(normalizedQuery, createEmptyFacetValues()).map((result) => searchData.docsById.get(result.id)).filter(Boolean)
+      : sortDocsForBrowse(searchData.docs);
+    const resultDocs = normalizedQuery || activeFilters.length > 0
+      ? runRankedSearch(normalizedQuery, filters).map((result) => searchData.docsById.get(result.id)).filter(Boolean)
+      : [];
+    const orderedResultDocs = normalizedQuery ? resultDocs : sortDocsForBrowse(resultDocs);
+
+    return {
+      normalizedQuery,
+      activeFilters,
+      facets: deriveFacetState(baseDocs, filters),
+      resultDocs: orderedResultDocs,
+      isStarter,
+      recoveryLinks: buildRecoveryLinks(baseDocs)
+    };
+  }
+
+  function ensureMiniSearchLoaded() {
+    if (window.MiniSearch) {
+      return Promise.resolve(window.MiniSearch);
+    }
+
+    if (!searchData.runtimePromise) {
+      const existing = document.querySelector('script[data-rw-search-runtime="minisearch"]');
+      searchData.runtimePromise = new Promise((resolve, reject) => {
+        const script = existing || document.createElement('script');
+
+        const cleanup = () => {
+          script.removeEventListener('load', onLoad);
+          script.removeEventListener('error', onError);
+        };
+
+        const onLoad = () => {
+          cleanup();
+          if (window.MiniSearch) {
+            resolve(window.MiniSearch);
+          } else {
+            reject(new Error('MiniSearch runtime is not available.'));
+          }
+        };
+
+        const onError = () => {
+          cleanup();
+          reject(new Error('MiniSearch runtime is not available.'));
+        };
+
+        script.addEventListener('load', onLoad, { once: true });
+        script.addEventListener('error', onError, { once: true });
+
+        if (!existing) {
+          script.src = miniSearchUrl;
+          script.defer = true;
+          script.dataset.rwSearchRuntime = 'minisearch';
+          document.head.append(script);
+        }
+      }).catch((error) => {
+        searchData.runtimePromise = null;
+        throw error;
+      });
+    }
+
+    return searchData.runtimePromise;
+  }
+
   async function loadIndex() {
+    await ensureMiniSearchLoaded();
     if (!window.MiniSearch) {
       throw new Error('MiniSearch runtime is not available.');
     }
@@ -343,12 +1037,12 @@
       // Keep the request credential mode aligned with the layout preload so
       // the browser can reuse the preloaded response instead of warning.
       response = await fetch(indexUrl, { credentials: 'include', signal: controller.signal });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
         throw new Error('Search index request timed out.');
       }
 
-      throw err;
+      throw error;
     } finally {
       window.clearTimeout(timeout);
     }
@@ -358,41 +1052,129 @@
     }
 
     const payload = await response.json();
-    const docs = Array.isArray(payload.documents) ? payload.documents : [];
+    const docs = Array.isArray(payload.documents)
+      ? payload.documents.map(normalizeSearchDocument).filter((doc) => doc.id && doc.path && doc.title)
+      : [];
 
     const MiniSearch = window.MiniSearch;
-    searchIndex = new MiniSearch({
+    const index = new MiniSearch({
       fields: ['title', 'aliases', 'keywords', 'summary', 'headings', 'bodyText'],
       storeFields: ['id', 'path', 'title', 'snippet', 'summary', 'pageType', 'pageTypeLabel', 'pageTypeVariant', 'component', 'audience', 'status', 'navGroup'],
       searchOptions: defaultSearchOptions
     });
 
-    searchIndex.addAll(docs.map((d) => ({
-      id: d.id,
-      path: d.path,
-      title: d.title,
-      aliases: Array.isArray(d.aliases) ? d.aliases.join(' ') : '',
-      keywords: Array.isArray(d.keywords) ? d.keywords.join(' ') : '',
-      summary: d.summary ?? '',
-      headings: Array.isArray(d.headings) ? d.headings.join(' ') : '',
-      bodyText: d.bodyText ?? '',
-      snippet: d.snippet ?? '',
-      pageType: d.pageType ?? '',
-      pageTypeLabel: d.pageTypeLabel ?? '',
-      pageTypeVariant: d.pageTypeVariant ?? '',
-      component: d.component ?? '',
-      audience: d.audience ?? '',
-      status: d.status ?? '',
-      navGroup: d.navGroup ?? ''
+    index.addAll(docs.map((doc) => ({
+      id: doc.id,
+      path: doc.path,
+      title: doc.title,
+      aliases: doc.aliases.join(' '),
+      keywords: doc.keywords.join(' '),
+      summary: doc.summary,
+      headings: doc.headings.join(' '),
+      bodyText: doc.bodyText,
+      snippet: doc.snippet,
+      pageType: doc.pageType,
+      pageTypeLabel: doc.pageTypeLabel ?? '',
+      pageTypeVariant: doc.pageTypeVariant ?? '',
+      component: doc.component,
+      audience: doc.audience,
+      status: doc.status,
+      navGroup: doc.navGroup
     })));
+
+    searchData.index = index;
+    searchData.docs = docs;
+    searchData.docsById = new Map(docs.map((doc) => [doc.id, doc]));
+    searchData.facetValues = deriveFacetValues(docs);
   }
 
-  function query(q, max = topResults) {
-    if (!searchIndex || !q || !q.trim()) {
-      return [];
+  function ensureSearchResourcesLoaded() {
+    if (searchData.index) {
+      return Promise.resolve();
     }
 
-    return searchIndex.search(q.trim(), defaultSearchOptions).slice(0, max);
+    if (!searchData.loadPromise) {
+      searchData.loadPromise = loadIndex().catch((error) => {
+        searchData.loadPromise = null;
+        throw error;
+      });
+    }
+
+    return searchData.loadPromise;
+  }
+
+  function clearSidebarResults(sidebar) {
+    if (!sidebar.results) {
+      return;
+    }
+
+    sidebar.results.innerHTML = '';
+    sidebar.results.classList.add('hidden');
+    sidebar.input?.removeAttribute('aria-activedescendant');
+  }
+
+  function renderSidebarMessage(sidebar, message) {
+    if (!sidebar.results) {
+      return;
+    }
+
+    sidebar.results.classList.remove('hidden');
+    sidebar.results.innerHTML = `<li class="docs-search-empty" role="presentation">${escapeHtml(message)}</li>`;
+    setStatus(sidebar.status, message);
+  }
+
+  function renderSidebarResults(sidebar, queryResults, query, activeIndex = -1) {
+    const { input, results, status } = sidebar;
+    if (!results) {
+      return;
+    }
+
+    if (!query) {
+      clearSidebarResults(sidebar);
+      setStatus(status, '');
+      return;
+    }
+
+    if (!queryResults.length) {
+      renderSidebarMessage(sidebar, 'No matching docs found.');
+      return;
+    }
+
+    results.classList.remove('hidden');
+    results.innerHTML = queryResults.map((item, index) => {
+      const selected = index === activeIndex ? 'true' : 'false';
+      const pageTypeBadge = renderPageTypeBadge(item);
+      return `<li id="docs-search-option-${index}" role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
+        <a href="${escapeHtml(item.path)}" data-turbo-frame="${docsFrameId}" data-turbo-action="advance">
+          <span class="docs-search-option-title-row">
+            <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
+            ${pageTypeBadge}
+          </span>
+          <span class="docs-search-option-path">${escapeHtml(getLocationLabel(item))}</span>
+        </a>
+      </li>`;
+    }).join('');
+
+    setStatus(status, `${queryResults.length} result(s).`);
+    if (activeIndex >= 0 && input) {
+      input.setAttribute('aria-activedescendant', `docs-search-option-${activeIndex}`);
+    }
+  }
+
+  function setActiveSidebarOption(items, activeIndex, input) {
+    items.forEach((item, index) => {
+      const selected = index === activeIndex;
+      item.setAttribute('aria-selected', selected ? 'true' : 'false');
+      item.classList.toggle('active', selected);
+    });
+
+    if (activeIndex >= 0 && items[activeIndex] && input) {
+      input.setAttribute('aria-activedescendant', items[activeIndex].id);
+      items[activeIndex].scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      return;
+    }
+
+    input?.removeAttribute('aria-activedescendant');
   }
 
   function bindSidebar() {
@@ -407,27 +1189,56 @@
     }
 
     input.setAttribute(sidebarBoundAttribute, '1');
-
     let activeIndex = -1;
     let lastRenderedQuery = '';
 
-    const runSearch = debounce(() => {
-      const q = normalizeQuery(input.value);
-      const queryResults = query(q, topResults);
-      activeIndex = queryResults.length > 0 ? 0 : -1;
-      renderSidebarResults(sidebar, queryResults, q, activeIndex);
-      lastRenderedQuery = q;
+    const performSearch = debounce(async () => {
+      const query = normalizeQuery(input.value);
+      if (query !== input.value) {
+        input.value = query;
+      }
+
+      if (!query) {
+        activeIndex = -1;
+        lastRenderedQuery = '';
+        clearSidebarResults(sidebar);
+        setStatus(sidebar.status, '');
+        return;
+      }
+
+      try {
+        if (!searchData.index) {
+          renderSidebarMessage(sidebar, 'Loading search index...');
+        }
+
+        await ensureSearchResourcesLoaded();
+        const queryResults = runRankedSearch(query, createEmptyFacetValues(), topResults);
+        activeIndex = queryResults.length > 0 ? 0 : -1;
+        renderSidebarResults(sidebar, queryResults, query, activeIndex);
+        lastRenderedQuery = query;
+      } catch (error) {
+        activeIndex = -1;
+        renderSidebarMessage(sidebar, getErrorMessage(error));
+      }
     }, 120);
+
+    input.addEventListener('focus', () => {
+      ensureSearchResourcesLoaded().catch((error) => {
+        if (normalizeQuery(input.value)) {
+          renderSidebarMessage(sidebar, getErrorMessage(error));
+        }
+      });
+    });
 
     input.addEventListener('input', () => {
       activeIndex = -1;
-      runSearch();
+      performSearch();
     });
 
-    input.addEventListener('keydown', (event) => {
+    input.addEventListener('keydown', async (event) => {
       const currentQuery = normalizeQuery(input.value);
-      if (currentQuery !== lastRenderedQuery) {
-        const refreshed = query(currentQuery, topResults);
+      if (currentQuery && currentQuery !== lastRenderedQuery && searchData.index) {
+        const refreshed = runRankedSearch(currentQuery, createEmptyFacetValues(), topResults);
         activeIndex = refreshed.length > 0 ? 0 : -1;
         renderSidebarResults(sidebar, refreshed, currentQuery, activeIndex);
         lastRenderedQuery = currentQuery;
@@ -450,27 +1261,221 @@
         if (activeIndex >= 0 && items[activeIndex]) {
           event.preventDefault();
           const anchor = items[activeIndex].querySelector('a');
-          if (anchor && typeof anchor.click === 'function') {
-            anchor.click();
-          } else {
-            const href = items[activeIndex].getAttribute('data-href');
-            if (href) {
-              window.location.assign(href);
-            }
-          }
+          anchor?.click();
         }
       } else if (event.key === 'Escape') {
-        results.innerHTML = '';
-        results.classList.add('hidden');
-        input.removeAttribute('aria-activedescendant');
+        clearSidebarResults(sidebar);
       }
     });
   }
 
+  function syncSearchPageFilterPanel(page) {
+    if (!page.filtersPanel || !page.filtersToggle) {
+      return;
+    }
+
+    const isMobile = mobileFilterMedia ? mobileFilterMedia.matches : window.innerWidth < 768;
+    page.filtersToggle.setAttribute('aria-expanded', isMobile && searchPageState.filtersExpanded ? 'true' : 'false');
+    page.filtersPanel.hidden = isMobile && !searchPageState.filtersExpanded;
+  }
+
+  function setSearchPageBusy(page, isBusy) {
+    page.results?.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+  }
+
+  function renderSearchPageFilters(page, view) {
+    if (!page.filters) {
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    view.facets.forEach((facet) => {
+      const group = createElement('section', 'docs-search-page-filter-group');
+      group.append(createElement('h2', 'docs-search-page-filter-label', facet.label));
+
+      if (facet.kind === 'select') {
+        const select = createElement('select', 'docs-search-page-select');
+        select.dataset.rwFacetKey = facet.key;
+        const emptyOption = createElement('option', null, `All ${facet.label}`);
+        emptyOption.value = '';
+        select.append(emptyOption);
+
+        facet.options.forEach((option) => {
+          const optionElement = createElement('option', null, `${formatFacetValue(option.value)}${option.count > 0 ? ` (${option.count})` : ''}`);
+          optionElement.value = option.value;
+          optionElement.selected = option.selected;
+          optionElement.disabled = option.disabled;
+          select.append(optionElement);
+        });
+
+        group.append(select);
+      } else {
+        const row = createElement('div', 'docs-search-page-chip-row');
+        facet.options.forEach((option) => {
+          const chip = createElement('button', 'docs-search-page-chip', formatFacetValue(option.value));
+          chip.type = 'button';
+          chip.dataset.rwFacetKey = facet.key;
+          chip.dataset.rwFacetValue = option.value;
+          chip.setAttribute('aria-pressed', option.selected ? 'true' : 'false');
+          chip.disabled = option.disabled;
+          row.append(chip);
+        });
+        group.append(row);
+      }
+
+      fragment.append(group);
+    });
+
+    page.filters.replaceChildren(fragment);
+  }
+
+  function renderSearchPageActiveFilters(page, view) {
+    if (!page.activeFilters) {
+      return;
+    }
+
+    if (view.activeFilters.length === 0) {
+      page.activeFilters.hidden = true;
+      page.activeFilters.replaceChildren();
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    view.activeFilters.forEach((filter) => {
+      const pill = createElement('div', 'docs-search-page-active-filter');
+      pill.append(createElement('span', null, `${filter.label}: ${filter.displayValue}`));
+      const button = createElement('button', null, 'Clear');
+      button.type = 'button';
+      button.dataset.rwClearFacetKey = filter.key;
+      pill.append(button);
+      fragment.append(pill);
+    });
+
+    page.activeFilters.hidden = false;
+    page.activeFilters.replaceChildren(fragment);
+  }
+
+  function renderSearchPageResults(page, view) {
+    if (!page.results || !page.resultsMeta) {
+      return;
+    }
+
+    const queryTokens = getHighlightTokens(view.normalizedQuery);
+
+    if (view.isStarter) {
+      page.resultsMeta.hidden = true;
+      page.results.replaceChildren();
+      return;
+    }
+
+    if (view.resultDocs.length === 0) {
+      const descriptor = view.normalizedQuery
+        ? `No results for "${formatQueryForStatus(view.normalizedQuery)}".`
+        : 'No results for the current filters.';
+      page.resultsMeta.hidden = false;
+      page.resultsMeta.textContent = descriptor;
+      page.results.replaceChildren(createNoResultsRecovery(view));
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    view.resultDocs.forEach((doc) => {
+      fragment.append(createSearchResultArticle(doc, queryTokens));
+    });
+
+    page.resultsMeta.hidden = false;
+    page.resultsMeta.textContent = view.normalizedQuery
+      ? `${view.resultDocs.length} result(s) for "${formatQueryForStatus(view.normalizedQuery)}".`
+      : `${view.resultDocs.length} page(s) for the current filters.`;
+    page.results.replaceChildren(fragment);
+  }
+
+  function renderSearchPage() {
+    const page = getSearchPageElements();
+    if (!page.root || !page.status || !page.results) {
+      return;
+    }
+
+    syncSearchPageFilterPanel(page);
+
+    if (searchPageState.loadState === 'loading' && !searchData.index) {
+      setStatus(page.status, 'Loading search index...');
+      page.failure.hidden = true;
+      page.starter.hidden = true;
+      page.resultsMeta.hidden = true;
+      page.results.replaceChildren(createLoadingSkeletons());
+      setSearchPageBusy(page, true);
+      return;
+    }
+
+    if (searchPageState.loadState === 'error' && !searchData.index) {
+      setStatus(page.status, 'Search is temporarily unavailable.');
+      page.failure.hidden = false;
+      page.starter.hidden = true;
+      page.resultsMeta.hidden = true;
+      page.results.replaceChildren();
+      setSearchPageBusy(page, false);
+      return;
+    }
+
+    if (!searchData.index) {
+      return;
+    }
+
+    const view = buildSearchView();
+    renderSearchPageFilters(page, view);
+    renderSearchPageActiveFilters(page, view);
+    page.failure.hidden = true;
+    page.starter.hidden = !view.isStarter;
+    setSearchPageBusy(page, false);
+
+    if (view.isStarter) {
+      setStatus(page.status, 'Search is ready. Try a starter query or browse by filter.');
+      page.resultsMeta.hidden = true;
+      page.results.replaceChildren();
+      return;
+    }
+
+    setStatus(page.status, view.resultDocs.length > 0
+      ? 'Search results updated.'
+      : 'Try loosening one filter or using a broader term.');
+    renderSearchPageResults(page, view);
+  }
+
+  function setSearchPageState(nextState, historyMode = 'replace') {
+    Object.assign(searchPageState, nextState);
+
+    const page = getSearchPageElements();
+    if (page.input && searchPageState.q !== page.input.value) {
+      page.input.value = searchPageState.q;
+    }
+
+    if (historyMode !== 'none') {
+      writeSearchPageUrl(historyMode);
+    }
+
+    renderSearchPage();
+  }
+
+  async function loadSearchPageData() {
+    searchPageState.loadState = 'loading';
+    renderSearchPage();
+
+    try {
+      await ensureSearchResourcesLoaded();
+      searchPageState.loadState = 'ready';
+      renderSearchPage();
+    } catch (error) {
+      console.error(error);
+      searchPageState.loadState = 'error';
+      renderSearchPage();
+    }
+  }
+
   function bindSearchPage() {
     const page = getSearchPageElements();
-    const { root, input, results } = page;
-    if (!root || !input || !results) {
+    const { root, input, filters, activeFilters, retry, filtersToggle, suggestionButtons } = page;
+    if (!root || !input || !filters || !activeFilters || !retry || !filtersToggle) {
       return;
     }
 
@@ -479,130 +1484,142 @@
     }
 
     root.setAttribute(searchPageBoundAttribute, '1');
-
-    const params = new URLSearchParams(window.location.search);
-    const initialQuery = normalizeQuery(params.get('q'));
-    input.value = initialQuery;
-    renderSearchPageResults(page, initialQuery);
+    Object.assign(searchPageState, readSearchPageStateFromUrl());
+    searchPageState.loadState = searchData.index ? 'ready' : 'loading';
+    input.value = searchPageState.q;
 
     const onInput = debounce(() => {
-      const q = normalizeQuery(input.value);
-      if (q !== input.value) {
-        input.value = q;
+      const query = normalizeQuery(input.value);
+      setSearchPageState({ q: query }, 'replace');
+    }, 140);
+
+    input.addEventListener('input', () => {
+      if (searchData.index) {
+        setSearchPageBusy(page, true);
       }
-
-      const url = new URL(window.location.href);
-      if (q) {
-        url.searchParams.set('q', q);
-      } else {
-        url.searchParams.delete('q');
-      }
-
-      window.history.replaceState({}, '', url);
-      renderSearchPageResults(page, q);
-    }, 120);
-
-    input.addEventListener('input', onInput);
-  }
-
-  function renderSidebarResults(sidebar, queryResults, q, activeIndex = -1) {
-    const { input, results, status } = sidebar;
-    if (!results) {
-      return;
-    }
-
-    if (!q || !q.trim()) {
-      results.innerHTML = '';
-      results.classList.add('hidden');
-      input?.removeAttribute('aria-activedescendant');
-      setStatus(status, '');
-      return;
-    }
-
-    if (!queryResults.length) {
-      results.classList.remove('hidden');
-      results.innerHTML = '<li class="docs-search-empty" role="presentation">No matching docs found.</li>';
-      input?.removeAttribute('aria-activedescendant');
-      setStatus(status, 'No matching docs found.');
-      return;
-    }
-
-    results.classList.remove('hidden');
-    results.innerHTML = queryResults.map((item, index) => {
-      const selected = index === activeIndex ? 'true' : 'false';
-      const pageTypeBadge = renderPageTypeBadge(item);
-      return `<li id="docs-search-option-${index}" role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
-        <a href="${escapeHtml(item.path)}" data-turbo-frame="doc-content" data-turbo-action="advance">
-          <span class="docs-search-option-title-row">
-            <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
-            ${pageTypeBadge}
-          </span>
-          <span class="docs-search-option-path">${escapeHtml(getLocationLabel(item))}</span>
-        </a>
-      </li>`;
-    }).join('');
-
-    setStatus(status, `${queryResults.length} result(s).`);
-  }
-
-  function setActiveSidebarOption(items, activeIndex, input) {
-    items.forEach((item, i) => {
-      const selected = i === activeIndex;
-      item.setAttribute('aria-selected', selected ? 'true' : 'false');
-      item.classList.toggle('active', selected);
+      onInput();
     });
 
-    if (activeIndex >= 0 && items[activeIndex] && input) {
-      input.setAttribute('aria-activedescendant', items[activeIndex].id);
-      items[activeIndex].scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-    } else {
-      input?.removeAttribute('aria-activedescendant');
+    filters.addEventListener('click', (event) => {
+      const chip = event.target.closest('[data-rw-facet-key][data-rw-facet-value]');
+      if (!(chip instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const key = chip.dataset.rwFacetKey;
+      const value = normalizeFacetValue(chip.dataset.rwFacetValue);
+      if (!key) {
+        return;
+      }
+
+      const nextValue = normalizeFacetValue(searchPageState[key]) === value ? '' : value;
+      setSearchPageState({ [key]: nextValue }, 'push');
+    });
+
+    filters.addEventListener('change', (event) => {
+      const select = event.target;
+      if (!(select instanceof HTMLSelectElement) || !select.dataset.rwFacetKey) {
+        return;
+      }
+
+      setSearchPageState({ [select.dataset.rwFacetKey]: normalizeFacetValue(select.value) }, 'push');
+    });
+
+    activeFilters.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-rw-clear-facet-key]');
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const key = button.dataset.rwClearFacetKey;
+      if (!key) {
+        return;
+      }
+
+      setSearchPageState({ [key]: '' }, 'push');
+    });
+
+    retry.addEventListener('click', () => {
+      loadSearchPageData().catch((error) => console.error(error));
+    });
+
+    filtersToggle.addEventListener('click', () => {
+      searchPageState.filtersExpanded = !searchPageState.filtersExpanded;
+      syncSearchPageFilterPanel(page);
+    });
+
+    suggestionButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const query = normalizeQuery(button.dataset.rwSearchSuggestion);
+        setSearchPageState({ q: query }, 'push');
+        input.focus();
+        input.select?.();
+      });
+    });
+
+    if (mobileFilterMedia) {
+      mobileFilterMedia.addEventListener('change', () => syncSearchPageFilterPanel(page));
     }
+
+    if (!window[shortcutsBoundAttribute]) {
+      window.addEventListener('popstate', () => {
+        const nextPage = getSearchPageElements();
+        if (!nextPage.root) {
+          return;
+        }
+
+        Object.assign(searchPageState, readSearchPageStateFromUrl());
+        searchPageState.loadState = searchData.index
+          ? 'ready'
+          : (searchData.loadPromise ? 'loading' : 'error');
+        nextPage.input.value = searchPageState.q;
+        renderSearchPage();
+      });
+      window[shortcutsBoundAttribute] = '1';
+    }
+
+    renderSearchPage();
+    consumeSearchPageAutofocusHash(page);
+    loadSearchPageData().catch((error) => console.error(error));
   }
 
-  function renderSearchPageResults(page, q) {
-    const { results, status } = page;
-    if (!results) {
+  function bindGlobalSearchShortcuts() {
+    if (document.documentElement.getAttribute(shortcutsBoundAttribute) === '1') {
       return;
     }
 
-    if (!q || !q.trim()) {
-      setStatus(status, 'Type to search across documentation.');
-      results.innerHTML = '';
-      return;
-    }
+    document.documentElement.setAttribute(shortcutsBoundAttribute, '1');
+    document.addEventListener('keydown', (event) => {
+      if (event.defaultPrevented) {
+        return;
+      }
 
-    const queryResults = query(q, 100);
-    const safeQuery = formatQueryForStatus(q);
-    setStatus(status, `${queryResults.length} result(s) for "${safeQuery}".`);
+      const editableTarget = isEditableElement(event.target);
+      const searchInputTarget = isSearchInputElement(event.target);
 
-    if (!queryResults.length) {
-      results.innerHTML = '<p class="docs-search-empty">No results found.</p>';
-      return;
-    }
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key === '/') {
+        if (editableTarget) {
+          return;
+        }
 
-    results.innerHTML = queryResults.map((item) => {
-      const metadata = [
-        renderPageTypeBadge(item),
-        renderMetadataChip('Component', item.component),
-        renderMetadataChip('Audience', item.audience)
-      ].filter(Boolean).join('');
+        event.preventDefault();
+        focusVisibleSearchInput();
+        return;
+      }
 
-      return `
-      <article class="docs-search-result">
-        ${metadata ? `<div class="docs-search-result-meta">${metadata}</div>` : ''}
-        <h2><a href="${escapeHtml(item.path)}">${escapeHtml(item.title)}</a></h2>
-        <p class="docs-search-result-path">${escapeHtml(getLocationLabel(item))}</p>
-        <p class="docs-search-result-snippet">${escapeHtml(item.summary || item.snippet || '')}</p>
-      </article>
-    `;
-    }).join('');
-  }
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && String(event.key).toLowerCase() === 'k') {
+        if (editableTarget && !searchInputTarget) {
+          return;
+        }
 
-  function setStatus(node, text) {
-    if (node) {
-      node.textContent = text;
-    }
+        event.preventDefault();
+        if (isSearchPageVisible()) {
+          focusVisibleSearchInput();
+        } else {
+          navigateToSearchPageWithQuery(getCurrentSearchQuery());
+        }
+      }
+    });
   }
 
   function initOnTurboFrameLoad(event) {
@@ -611,11 +1628,13 @@
       return;
     }
 
-    init().catch((err) => console.error('Search init failed:', err));
+    init().catch((error) => console.error('Search init failed:', error));
   }
 
-  function runInit() {
-    init().catch((err) => console.error('Search init failed:', err));
+  async function init() {
+    bindGlobalSearchShortcuts();
+    bindSidebar();
+    bindSearchPage();
   }
 
   function getCurrentUrlKey() {
@@ -628,6 +1647,10 @@
       || typeof window.Turbo !== 'undefined'
       || document.documentElement.hasAttribute('data-turbo'));
   let lastInitializedUrlKey = null;
+
+  function runInit() {
+    init().catch((error) => console.error('Search init failed:', error));
+  }
 
   function runInitForCurrentUrl() {
     runInit();

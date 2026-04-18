@@ -1,20 +1,102 @@
+@model ForgeTrust.Runnable.Web.RazorDocs.Models.SearchPageViewModel
+
 <div id="docs-search-page" class="docs-search-page">
-    <header class="mb-6">
-        <h1 class="text-3xl font-bold text-white tracking-tight mb-2">Search Documentation</h1>
-        <p class="text-slate-400">Search all indexed documentation pages.</p>
+    <header class="docs-search-page-header">
+        <p class="docs-search-page-eyebrow">Docs Search</p>
+        <h1 class="docs-search-page-title">@Model.Title</h1>
+        <p class="docs-search-page-intro">@Model.Orientation</p>
     </header>
 
-    <div class="docs-search-page-input-wrap">
-        <label for="docs-search-page-input" class="sr-only">Search query</label>
-        <input id="docs-search-page-input"
-               type="search"
-               placeholder="Type to search..."
-               autocomplete="off"
-               aria-label="Search query" />
+    <div class="docs-search-page-query-row">
+        <div class="docs-search-page-input-wrap">
+            <label for="docs-search-page-input" class="sr-only">Search query</label>
+            <input id="docs-search-page-input"
+                   type="search"
+                   placeholder="@Model.SearchPlaceholder"
+                   autocomplete="off"
+                   spellcheck="false"
+                   aria-describedby="docs-search-page-status"
+                   aria-controls="docs-search-page-results"
+                   aria-label="Search query" />
+        </div>
+        <button id="docs-search-page-filters-toggle"
+                class="docs-search-page-filters-toggle"
+                type="button"
+                aria-controls="docs-search-page-filters-panel"
+                aria-expanded="false">
+            Filters
+        </button>
     </div>
 
     <p id="docs-search-page-status" class="docs-search-page-status" aria-live="polite">
-        Type to search across documentation.
+        Loading search index...
     </p>
-    <section id="docs-search-page-results" aria-label="Search results"></section>
+
+    <div id="docs-search-page-active-filters" class="docs-search-page-active-filters" hidden></div>
+
+    <section id="docs-search-page-filters-panel"
+             class="docs-search-page-filters-panel"
+             aria-label="Search filters">
+        <div id="docs-search-page-filters" class="docs-search-page-filters"></div>
+    </section>
+
+    <section id="docs-search-page-starter"
+             class="docs-search-page-starter"
+             hidden
+             aria-label="Search suggestions">
+        <p class="docs-search-page-starter-copy">@Model.StarterHint</p>
+        <div class="docs-search-page-starter-chips">
+            @foreach (var query in Model.SuggestedQueries)
+            {
+                <button type="button"
+                        class="docs-search-page-starter-chip"
+                        data-rw-search-suggestion="@query">
+                    @query
+                </button>
+            }
+        </div>
+    </section>
+
+    <section id="docs-search-page-failure"
+             class="docs-search-page-failure"
+             hidden
+             aria-live="polite">
+        <h2 class="docs-search-page-section-title">Search is temporarily unavailable</h2>
+        <p class="docs-search-page-failure-copy">
+            The search workspace loaded, but the index could not be fetched yet. You can retry or keep moving with one of these fallback paths.
+        </p>
+        <div class="docs-search-page-failure-actions">
+            <button id="docs-search-page-retry"
+                    class="docs-search-page-retry"
+                    type="button">
+                Retry
+            </button>
+        </div>
+        <div class="docs-search-page-failure-links">
+            @foreach (var link in Model.FailureFallbackLinks)
+            {
+                <a class="docs-search-page-failure-link" href="@link.Href">
+                    <span class="docs-search-page-failure-link-title">@link.Title</span>
+                    <span class="docs-search-page-failure-link-description">@link.Description</span>
+                </a>
+            }
+        </div>
+    </section>
+
+    <div id="docs-search-page-results-meta" class="docs-search-page-results-meta" hidden></div>
+
+    <section id="docs-search-page-results"
+             class="docs-search-page-results"
+             aria-label="Search results"
+             aria-busy="true">
+        @for (var index = 0; index < 3; index++)
+        {
+            <article class="docs-search-result docs-search-result-skeleton" aria-hidden="true">
+                <div class="docs-search-skeleton docs-search-skeleton-title"></div>
+                <div class="docs-search-skeleton docs-search-skeleton-meta"></div>
+                <div class="docs-search-skeleton docs-search-skeleton-line"></div>
+                <div class="docs-search-skeleton docs-search-skeleton-line docs-search-skeleton-line-short"></div>
+            </article>
+        }
+    </section>
 </div>

@@ -247,6 +247,36 @@ public sealed class RazorWireMvcPlaywrightTests
         await NavigateViaHeaderAndAssertSessionScoreAsync(page, linkText: "Reactivity", expectedPath: "/Reactivity", expectedSessionScore: 1);
     }
 
+    [Fact]
+    public async Task UnknownRoute_ShowsBrandedNotFoundPage_With404Status()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        var missingUrl = $"{_fixture.BaseUrl}/missing-playwright-route";
+        var response = await page.GotoAsync(missingUrl);
+
+        Assert.NotNull(response);
+        Assert.Equal(404, response!.Status);
+        Assert.Equal(missingUrl, page.Url);
+
+        await page.WaitForSelectorAsync("h1", new PageWaitForSelectorOptions
+        {
+            Timeout = 15_000
+        });
+
+        var heading = await page.TextContentAsync("h1");
+        Assert.NotNull(heading);
+        Assert.Contains("drifted out of orbit", heading, StringComparison.OrdinalIgnoreCase);
+
+        var snapshot = await page.TextContentAsync("main");
+        Assert.NotNull(snapshot);
+        Assert.Contains("/missing-playwright-route", snapshot, StringComparison.Ordinal);
+
+        await page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Return Home", Exact = true }).ClickAsync();
+        await WaitForPathAsync(page, "/");
+    }
+
     private static async Task WaitForStreamConnectedAsync(IPage page)
     {
         await page.WaitForFunctionAsync(
@@ -461,6 +491,7 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
     private IPlaywright? _playwright;
 
     public IBrowser Browser { get; private set; } = null!;
+    public string BaseUrl { get; private set; } = string.Empty;
     public string ReactivityUrl { get; private set; } = string.Empty;
 
     public async Task InitializeAsync()
@@ -475,6 +506,7 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
 
         _appProcess = StartExampleApp("http://127.0.0.1:0");
         var baseUrl = await WaitForBoundBaseUrlAsync(TimeSpan.FromSeconds(60));
+        BaseUrl = baseUrl;
         ReactivityUrl = $"{baseUrl}/Reactivity";
 
         await WaitForAppReadyAsync(baseUrl, TimeSpan.FromSeconds(60));

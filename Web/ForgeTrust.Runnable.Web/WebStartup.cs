@@ -1,9 +1,13 @@
 using ForgeTrust.Runnable.Core;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Routing;
 
 namespace ForgeTrust.Runnable.Web;
 
@@ -82,6 +86,12 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         _configureOptions?.Invoke(_options);
 
+        if (_options.Errors.NotFoundPageMode == ConventionalNotFoundPageMode.Enabled
+            && _options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews)
+        {
+            _options.Mvc = _options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews };
+        }
+
         if (_options.Mvc.MvcSupportLevel >= MvcSupport.ControllersWithViews)
         {
             _options.StaticFiles.EnableStaticFiles = true;
@@ -128,6 +138,17 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
                 {
                     mvcBuilder.AddApplicationPart(assembly);
                 }
+            }
+
+            if (_options.Errors.IsConventionalNotFoundPageEnabled(mvcOpts.MvcSupportLevel))
+            {
+                var frameworkAssembly = typeof(WebOptions).Assembly;
+                if (frameworkAssembly != context.EntryPointAssembly)
+                {
+                    mvcBuilder.AddApplicationPart(frameworkAssembly);
+                }
+
+                services.TryAddSingleton<ConventionalNotFoundPageRenderer>();
             }
 
             mvcOpts.ConfigureMvc?.Invoke(mvcBuilder);
@@ -215,6 +236,29 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     /// <param name="app">The application builder to configure (middleware, routing, CORS, endpoints, etc.).</param>
     private void InitializeWebApplication(StartupContext context, IApplicationBuilder app)
     {
+        if (_options.Errors.IsConventionalNotFoundPageEnabled(_options.Mvc.MvcSupportLevel))
+        {
+            app.ApplicationServices
+                .GetRequiredService<ConventionalNotFoundPageRenderer>()
+                .ValidateConfiguredViews();
+
+            app.UseWhen(
+                ShouldApplyConventionalNotFoundPage,
+                branch =>
+                {
+                    branch.UseStatusCodePages(
+                        async statusCodeContext =>
+                        {
+                            if (statusCodeContext.HttpContext.Response.StatusCode != StatusCodes.Status404NotFound)
+                            {
+                                return;
+                            }
+
+                            await ReExecuteConventionalNotFoundPageAsync(statusCodeContext);
+                        });
+                });
+        }
+
         foreach (var module in _modules)
         {
             module.ConfigureWebApplication(context, app);
@@ -246,8 +290,152 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
             if (_options.Mvc.MvcSupportLevel > MvcSupport.None)
             {
+                if (_options.Errors.IsConventionalNotFoundPageEnabled(_options.Mvc.MvcSupportLevel))
+                {
+                    endpoints.MapMethods(
+                        ConventionalNotFoundPageDefaults.ReservedRoutePattern,
+                        [HttpMethods.Get, HttpMethods.Head],
+                        async httpContext =>
+                        {
+                            var statusCode = GetReservedRouteStatusCode(httpContext);
+                            var isDirectRequest = httpContext.Features.Get<IStatusCodeReExecuteFeature>() is null;
+
+                            if (statusCode != StatusCodes.Status404NotFound)
+                            {
+                                if (isDirectRequest)
+                                {
+                                    httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                                }
+
+                                return;
+                            }
+
+                            await httpContext.RequestServices
+                                .GetRequiredService<ConventionalNotFoundPageRenderer>()
+                                .RenderAsync(httpContext);
+                        });
+                }
+
                 endpoints.MapControllers();
             }
         });
+    }
+
+    internal static bool ShouldApplyConventionalNotFoundPage(HttpContext httpContext)
+    {
+        if (!HttpMethods.IsGet(httpContext.Request.Method) && !HttpMethods.IsHead(httpContext.Request.Method))
+        {
+            return false;
+        }
+
+        if (httpContext.Request.Path.StartsWithSegments(ConventionalNotFoundPageDefaults.ReservedRouteBase))
+        {
+            return false;
+        }
+
+        var acceptsHtml = httpContext.Request.GetTypedHeaders().Accept?
+            .Any(mediaType =>
+                mediaType.MediaType.HasValue
+                && (mediaType.MediaType.Value.Equals("text/html", StringComparison.OrdinalIgnoreCase)
+                    || mediaType.MediaType.Value.Equals("application/xhtml+xml", StringComparison.OrdinalIgnoreCase)))
+            ?? false;
+
+        return acceptsHtml;
+    }
+
+    private static async Task ReExecuteConventionalNotFoundPageAsync(StatusCodeContext statusCodeContext)
+    {
+        var httpContext = statusCodeContext.HttpContext;
+        var originalPath = httpContext.Request.Path;
+        var originalQueryString = httpContext.Request.QueryString;
+        var originalEndpoint = httpContext.GetEndpoint();
+        var originalRouteValues = new RouteValueDictionary(httpContext.Request.RouteValues);
+        var originalReExecuteFeature = httpContext.Features.Get<IStatusCodeReExecuteFeature>();
+        var statusCodePagesFeature = httpContext.Features.Get<IStatusCodePagesFeature>();
+        var originalStatusCodePagesEnabled = statusCodePagesFeature?.Enabled;
+
+        httpContext.Features.Set<IStatusCodeReExecuteFeature>(
+            new ConventionalNotFoundPageReExecuteFeature(
+                httpContext.Request.PathBase.Value ?? string.Empty,
+                originalPath.Value ?? string.Empty,
+                originalQueryString.Value ?? string.Empty,
+                httpContext.Response.StatusCode,
+                originalEndpoint,
+                new RouteValueDictionary(originalRouteValues)));
+
+        if (statusCodePagesFeature is not null)
+        {
+            statusCodePagesFeature.Enabled = false;
+        }
+
+        httpContext.Request.Path = new PathString(ConventionalNotFoundPageDefaults.ReservedNotFoundRoute);
+        httpContext.Request.QueryString = QueryString.Empty;
+        httpContext.Request.RouteValues = new RouteValueDictionary();
+        httpContext.SetEndpoint(null);
+
+        try
+        {
+            await statusCodeContext.Next(httpContext);
+        }
+        finally
+        {
+            httpContext.Request.Path = originalPath;
+            httpContext.Request.QueryString = originalQueryString;
+            httpContext.Request.RouteValues = originalRouteValues;
+            httpContext.SetEndpoint(originalEndpoint);
+
+            if (statusCodePagesFeature is not null && originalStatusCodePagesEnabled.HasValue)
+            {
+                statusCodePagesFeature.Enabled = originalStatusCodePagesEnabled.Value;
+            }
+
+            httpContext.Features.Set(originalReExecuteFeature);
+        }
+    }
+
+    internal static int? GetReservedRouteStatusCode(HttpContext httpContext)
+    {
+        if (httpContext.Request.RouteValues.TryGetValue("statusCode", out var routeValue) != true)
+        {
+            return null;
+        }
+
+        return routeValue switch
+        {
+            int intValue => intValue,
+            string stringValue when int.TryParse(stringValue, out var parsed) => parsed,
+            _ => null
+        };
+    }
+
+    private sealed class ConventionalNotFoundPageReExecuteFeature : IStatusCodeReExecuteFeature
+    {
+        public ConventionalNotFoundPageReExecuteFeature(
+            string originalPathBase,
+            string originalPath,
+            string? originalQueryString,
+            int originalStatusCode,
+            Endpoint? endpoint,
+            RouteValueDictionary routeValues)
+        {
+            OriginalPathBase = originalPathBase;
+            OriginalPath = originalPath;
+            OriginalQueryString = originalQueryString;
+            OriginalStatusCode = originalStatusCode;
+            Endpoint = endpoint;
+            RouteValues = routeValues;
+        }
+
+        public string OriginalPathBase { get; set; }
+
+        public string OriginalPath { get; set; }
+
+        public string? OriginalQueryString { get; set; }
+
+        public int OriginalStatusCode { get; set; }
+
+        public Endpoint? Endpoint { get; set; }
+
+        public RouteValueDictionary RouteValues { get; set; }
     }
 }

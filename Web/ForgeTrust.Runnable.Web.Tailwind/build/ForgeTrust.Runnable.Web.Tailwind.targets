@@ -3,6 +3,7 @@
     <TailwindEnabled Condition="'$(TailwindEnabled)' == ''">true</TailwindEnabled>
     <TailwindInputPath Condition="'$(TailwindInputPath)' == ''">wwwroot/css/app.css</TailwindInputPath>
     <TailwindOutputPath Condition="'$(TailwindOutputPath)' == ''">wwwroot/css/site.gen.css</TailwindOutputPath>
+    <TailwindCliPath Condition="'$(TailwindCliPath)' == ''"></TailwindCliPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,27 +31,33 @@
       <_TailwindRuntimeBinaryName Condition="'$(_TailwindTargetRid)' == 'linux-arm64'">tailwindcss-linux-arm64</_TailwindRuntimeBinaryName>
       <_TailwindRuntimeBinaryName Condition="'$(_TailwindTargetRid)' == 'linux-x64'">tailwindcss-linux-x64</_TailwindRuntimeBinaryName>
 
-      <!-- 1. Check in the NuGet package runtimes folder -->
+      <!-- 1. Use an explicit CLI override when provided. -->
+      <_TailwindCliPathFull Condition="'$(TailwindCliPath)' != ''">$([System.IO.Path]::GetFullPath('$(TailwindCliPath)', '$(MSBuildProjectDirectory)'))</_TailwindCliPathFull>
+      <_TailwindToolPath Condition="'$(_TailwindCliPathFull)' != '' and Exists('$(_TailwindCliPathFull)')">$(_TailwindCliPathFull)</_TailwindToolPath>
+
+      <!-- 2. Check in the NuGet package runtimes folder -->
       <_TailwindToolPathRuntime>$(MSBuildThisFileDirectory)../runtimes/$(_TailwindTargetRid)/native/$(_TailwindRuntimeBinaryName)</_TailwindToolPathRuntime>
-      <_TailwindToolPath Condition="Exists('$(_TailwindToolPathRuntime)')">$(_TailwindToolPathRuntime)</_TailwindToolPath>
+      <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathRuntime)')">$(_TailwindToolPathRuntime)</_TailwindToolPath>
       
-      <!-- 2. Check in the project-local runtimes folder (deployed native assets) -->
+      <!-- 3. Check in the project-local runtimes folder (deployed native assets) -->
       <_TailwindLocalRuntimePath>$(ProjectDir)runtimes/$(_TailwindTargetRid)/native/$(_TailwindRuntimeBinaryName)</_TailwindLocalRuntimePath>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindLocalRuntimePath)')">$(_TailwindLocalRuntimePath)</_TailwindToolPath>
 
-      <!-- 3. Fallback to base folder if not in runtimes -->
+      <!-- 4. Fallback to base folder if not in runtimes -->
       <_TailwindToolPathBase>$(MSBuildThisFileDirectory)../tailwindcss</_TailwindToolPathBase>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and Exists('$(_TailwindToolPathBase).exe')">$(_TailwindToolPathBase).exe</_TailwindToolPath>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathBase)')">$(_TailwindToolPathBase)</_TailwindToolPath>
 
-      <!-- 4. During repo-local development, the runtime projects place the downloaded binaries under obj/. -->
+      <!-- 5. During repo-local development, the runtime projects place the downloaded binaries under obj/. -->
       <_TailwindToolPathDev>$(MSBuildThisFileDirectory)../runtimes/obj/ForgeTrust.Runnable.Web.Tailwind.Runtime.$(_TailwindTargetRid)/$(Configuration)/$(TargetFramework)/$(_TailwindRuntimeBinaryName)</_TailwindToolPathDev>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathDev)')">$(_TailwindToolPathDev)</_TailwindToolPath>
     </PropertyGroup>
 
     <Error Text="Tailwind CSS could not determine a supported runtime identifier for the current build host."
            Condition="'$(_TailwindTargetRid)' == ''" />
-    <Error Text="Tailwind CLI binary not found. Please ensure a 'ForgeTrust.Runnable.Web.Tailwind.Runtime.*' package for your platform is installed or tailwindcss is on PATH." 
+    <Error Text="TailwindCliPath was set to '$(TailwindCliPath)', but the resolved file '$(_TailwindCliPathFull)' does not exist."
+           Condition="'$(TailwindCliPath)' != '' and !Exists('$(_TailwindCliPathFull)')" />
+    <Error Text="Tailwind CLI binary not found. Please ensure a 'ForgeTrust.Runnable.Web.Tailwind.Runtime.*' package for your platform is installed or set TailwindCliPath to a local Tailwind CLI binary."
            Condition="'$(_TailwindToolPath)' == '' or !Exists('$(_TailwindToolPath)')" />
 
     <Message Importance="High" Text="Tailwind CSS: Running build for $(TailwindInputPath) -> $(TailwindOutputPath)" />

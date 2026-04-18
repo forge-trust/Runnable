@@ -24,15 +24,21 @@
   <Target
     Name="ResolveTailwindBinary"
     BeforeTargets="Build;Pack"
-    Outputs="$(IntermediateOutputPath)$(TailwindBinaryName)">
+    Outputs="$(IntermediateOutputPath)tailwind-$(TailwindVersion)/$(TailwindBinaryName)">
+    <Error Text="TailwindRid must be set by the importing project."
+           Condition="'$(TailwindRid)' == ''" />
+    <Error Text="Unsupported TailwindRid '$(TailwindRid)'. No TailwindBinaryName mapping was found."
+           Condition="'$(TailwindRid)' != '' and '$(TailwindBinaryName)' == ''" />
+
     <PropertyGroup>
-      <_TailwindBinaryPath>$(IntermediateOutputPath)$(TailwindBinaryName)</_TailwindBinaryPath>
-      <ChecksumFile>$(IntermediateOutputPath)sha256sums-$(TailwindVersion).txt</ChecksumFile>
+      <_TailwindCacheDir>$(IntermediateOutputPath)tailwind-$(TailwindVersion)/</_TailwindCacheDir>
+      <_TailwindBinaryPath>$(_TailwindCacheDir)$(TailwindBinaryName)</_TailwindBinaryPath>
+      <ChecksumFile>$(_TailwindCacheDir)sha256sums.txt</ChecksumFile>
     </PropertyGroup>
 
-    <MakeDir Directories="$(IntermediateOutputPath)" Condition="!Exists('$(IntermediateOutputPath)')" />
+    <MakeDir Directories="$(_TailwindCacheDir)" Condition="!Exists('$(_TailwindCacheDir)')" />
 
-    <DownloadFile SourceUrl="$(TailwindSumsUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="sha256sums-$(TailwindVersion).txt" Condition="!Exists('$(ChecksumFile)')" />
+    <DownloadFile SourceUrl="$(TailwindSumsUrl)" DestinationFolder="$(_TailwindCacheDir)" DestinationFileName="sha256sums.txt" Condition="!Exists('$(ChecksumFile)')" />
     
     <FindChecksum ChecksumFile="$(ChecksumFile)" BinaryName="$(TailwindBinaryName)">
       <Output TaskParameter="Hash" PropertyName="ExpectedHash" />
@@ -40,7 +46,7 @@
 
     <Error Text="Could not find expected SHA-256 hash for '$(TailwindBinaryName)' in '$(ChecksumFile)'." Condition="'$(ExpectedHash)' == ''" />
 
-    <DownloadFile SourceUrl="$(TailwindDownloadUrl)" DestinationFolder="$(IntermediateOutputPath)" DestinationFileName="$(TailwindBinaryName)" Condition="!Exists('$(_TailwindBinaryPath)')" />
+    <DownloadFile SourceUrl="$(TailwindDownloadUrl)" DestinationFolder="$(_TailwindCacheDir)" DestinationFileName="$(TailwindBinaryName)" Condition="!Exists('$(_TailwindBinaryPath)')" />
 
     <GetFileHash Files="$(_TailwindBinaryPath)" Algorithm="SHA256">
       <Output TaskParameter="Items" ItemName="ComputedHashes" />

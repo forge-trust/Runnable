@@ -37,11 +37,21 @@ Reference the generated stylesheet from your layout:
 
 If you need to suppress the package-driven build temporarily, set `TailwindEnabled=false` in MSBuild, for example with `dotnet build -p:TailwindEnabled=false` or a project-level `<TailwindEnabled>false</TailwindEnabled>` property.
 
+If you want to keep the package-driven build but point it at a different standalone Tailwind executable, set `TailwindCliPath` to an absolute path or a project-relative file path:
+
+```xml
+<PropertyGroup>
+  <TailwindCliPath>tools/tailwindcss/tailwindcss</TailwindCliPath>
+</PropertyGroup>
+```
+
 ## Escape hatch (plugin-heavy Tailwind setups)
 
 If your Tailwind configuration depends on npm-only plugins or custom JavaScript tooling, keep your existing Node-based asset pipeline instead of forcing the standalone CLI path.
 
 Disable the package-driven MSBuild integration with `TailwindEnabled=false`, and either omit `services.AddTailwind()` or set `options.Enabled = false` so the development watch service does not start. After that, run your existing npm, pnpm, or yarn Tailwind command as part of your normal frontend build.
+
+If your custom setup still uses the standalone CLI but stores it outside the package runtime layout, prefer `TailwindCliPath` over editing the imported `.targets` file directly.
 
 ## Notes
 

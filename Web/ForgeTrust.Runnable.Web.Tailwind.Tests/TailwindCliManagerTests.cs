@@ -187,10 +187,13 @@ public class TailwindCliManagerTests : IDisposable
     {
         yield return [OSPlatform.Windows, Architecture.X64, "win-x64"];
         yield return [OSPlatform.Windows, Architecture.Arm64, "win-x64"];
+        yield return [OSPlatform.Windows, Architecture.X86, "unknown"];
         yield return [OSPlatform.Linux, Architecture.X64, "linux-x64"];
         yield return [OSPlatform.Linux, Architecture.Arm64, "linux-arm64"];
+        yield return [OSPlatform.Linux, Architecture.X86, "unknown"];
         yield return [OSPlatform.OSX, Architecture.X64, "osx-x64"];
         yield return [OSPlatform.OSX, Architecture.Arm64, "osx-arm64"];
+        yield return [OSPlatform.OSX, Architecture.X86, "unknown"];
         yield return [OSPlatform.Create("FREEBSD"), Architecture.X64, "unknown"];
     }
 }

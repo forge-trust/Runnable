@@ -155,10 +155,6 @@ public static class ProcessUtils
             }
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            logger.LogDebug(ex, "Error streaming process output to logger.");
-        }
 
         return output.ToString();
     }

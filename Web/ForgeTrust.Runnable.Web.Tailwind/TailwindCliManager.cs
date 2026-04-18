@@ -38,6 +38,16 @@ public class TailwindCliManager
     /// Gets the path to the Tailwind CLI binary.
     /// </summary>
     /// <returns>The absolute path to the tailwindcss executable.</returns>
+    /// <remarks>
+    /// Resolution proceeds in this order:
+    /// <list type="number">
+    /// <item><description>RID-specific runtime assets under <see cref="AppContext.BaseDirectory"/>.</description></item>
+    /// <item><description>A flat binary next to the application under <see cref="AppContext.BaseDirectory"/>.</description></item>
+    /// <item><description>RID-specific runtime assets relative to this assembly, including local development runtime build outputs when running inside this repository.</description></item>
+    /// <item><description>The system <c>PATH</c> as an escape hatch for custom or Node-managed Tailwind setups.</description></item>
+    /// </list>
+    /// If none of these locations contain a compatible binary, the method throws <see cref="FileNotFoundException"/>.
+    /// </remarks>
     /// <exception cref="FileNotFoundException">Thrown if the binary cannot be found in runtimes, local directory, or PATH.</exception>
     public virtual string GetTailwindPath()
     {
@@ -110,7 +120,10 @@ public class TailwindCliManager
     /// <returns>The RID string (e.g., "win-x64", "linux-arm64").</returns>
     /// <remarks>
     /// Must be kept in sync with the RID logic in the runtime package projects and
-    /// build/ForgeTrust.Runnable.Web.Tailwind.targets.
+    /// build/ForgeTrust.Runnable.Web.Tailwind.targets. Unsupported operating systems
+    /// or architectures return <c>"unknown"</c>. Windows Arm64 intentionally maps to
+    /// <c>win-x64</c> because Tailwind v4.1.18 does not ship a native Windows Arm64
+    /// standalone binary.
     /// </remarks>
     public static string GetCurrentRid()
     {

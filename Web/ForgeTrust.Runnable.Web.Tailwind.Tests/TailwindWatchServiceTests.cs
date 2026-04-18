@@ -217,8 +217,8 @@ public class TailwindWatchServiceTests
         var service = new TailwindWatchService(_cliManager, _options, logger, _environment);
         const string banner = "\u2248 tailwindcss v4.1.18";
         var (fileName, args) = CreateShellCommand(
-            $"(echo {banner} 1>&2) & (echo Done in 34ms 1>&2) & (echo Error: boom 1>&2) & exit /b 1",
-            $"printf '{banner}\\n' >&2; printf 'Done in 34ms\\n' >&2; printf 'Error: boom\\n' >&2; exit 1");
+            $"(echo {banner} 1>&2) & (echo. 1>&2) & (echo Done in 34ms 1>&2) & (echo Error: boom 1>&2) & exit /b 1",
+            $"printf '{banner}\\n' >&2; printf '\\n' >&2; printf 'Done in 34ms\\n' >&2; printf 'Error: boom\\n' >&2; exit 1");
 
         var result = await service.ExecuteTailwindProcessAsync(
             fileName,
@@ -229,6 +229,7 @@ public class TailwindWatchServiceTests
         Assert.Equal(1, result.ExitCode);
         Assert.Contains(logger.Messages, entry => entry.LogLevel == LogLevel.Information && entry.Message.Contains("tailwindcss v4.1.18", StringComparison.Ordinal));
         Assert.Contains(logger.Messages, entry => entry.LogLevel == LogLevel.Information && entry.Message.Contains("Done in 34ms", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, entry => entry.LogLevel == LogLevel.Debug);
         Assert.Contains(logger.Messages, entry => entry.LogLevel == LogLevel.Error && entry.Message.Contains("Error: boom", StringComparison.Ordinal));
     }
 

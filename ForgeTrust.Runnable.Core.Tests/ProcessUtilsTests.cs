@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.Logging;
 using ForgeTrust.Runnable.Core;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core.Tests;
 
@@ -95,6 +95,24 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task ExecuteProcessAsync_PropagatesStreamingFailures_WhenLoggerThrows()
+    {
+        var logger = new ThrowingLogger(LogLevel.Information);
+        var (fileName, args) = CreateShellCommand(
+            "(echo stdout) & exit /b 0",
+            "printf 'stdout\\n'");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ProcessUtils.ExecuteProcessAsync(
+                fileName,
+                args,
+                Directory.GetCurrentDirectory(),
+                logger,
+                CancellationToken.None,
+                streamOutput: true));
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_LogsAndThrows_WhenProcessCannotStart()
     {
         var logger = new ListLogger();
@@ -145,4 +163,24 @@ public class ProcessUtilsTests
     }
 
     private sealed record LogEntry(LogLevel LogLevel, string Message, Exception? Exception);
+
+    private sealed class ThrowingLogger(LogLevel logLevelToThrow) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == logLevelToThrow)
+            {
+                throw new InvalidOperationException("Logger failure");
+            }
+        }
+    }
 }

@@ -39,6 +39,50 @@ Reference the package and add the module to your Runnable web application:
 await WebApp<RazorDocsWebModule>.RunAsync(args);
 ```
 
+## Landing Curation
+
+RazorDocs can turn the root docs landing into a curated proof-path surface by reading `featured_pages` from the repository-root `README.md` front matter.
+
+### Authoring contract
+
+`featured_pages` is parsed as part of `DocMetadata`, so the metadata contract stays page-agnostic. The built-in `/docs` landing consumes those entries only from the root `README.md`.
+
+```yaml
+---
+title: Runnable
+summary: Follow the proof paths that explain what this framework is for and how it composes.
+featured_pages:
+  - question: How does composition work?
+    path: guides/composition.md
+    supporting_copy: Start with the composition guide before drilling into APIs.
+    order: 10
+
+  - question: Show me an end-to-end example
+    path: examples/hello-world/README.md
+    order: 20
+---
+```
+
+### Field behavior
+
+- `question` is the reader-facing label shown on the landing card. If omitted, RazorDocs falls back to the destination page title.
+- `path` accepts either the source path or canonical docs path for the destination page. RazorDocs normalizes forward-slash and backslash separators during resolution.
+- `supporting_copy` is optional landing-only text. If omitted, RazorDocs falls back to the destination page summary.
+- `order` is optional. Lower values sort first, and ties preserve authored order.
+
+### Fallback and visibility rules
+
+- If the root `README.md` is missing, the landing stays on the neutral docs index.
+- If `featured_pages` is missing or empty, the landing stays on the neutral docs index.
+- If a featured path is missing, hidden from public navigation, or duplicated, RazorDocs skips it and logs a warning.
+- If all featured entries are skipped, RazorDocs falls back to the neutral docs index instead of rendering broken cards.
+
+## Related Projects
+
+- [ForgeTrust.Runnable.Web.RazorDocs.Standalone](../ForgeTrust.Runnable.Web.RazorDocs.Standalone/README.md) for the runnable/exportable host used in docs export and smoke testing
+- [Back to Web List](../README.md)
+- [Back to Root](../../README.md)
+
 ## Notes
 
 - This package is the reusable documentation surface; `ForgeTrust.Runnable.Web.RazorDocs.Standalone` is the thin executable wrapper used for local hosting and export scenarios.

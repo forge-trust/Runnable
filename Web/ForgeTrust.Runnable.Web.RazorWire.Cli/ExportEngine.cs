@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Diagnostics.CodeAnalysis;
+using ForgeTrust.Runnable.Web;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -82,12 +83,12 @@ public class ExportEngine
     }
 
     /// <summary>
-    /// Crawls the site starting from configured seed routes (or the root) and exports discovered pages and frame sources to the output path.
+    /// Crawls the site starting from configured seed routes (or the root), writes the conventional reserved 404 page when available, and exports discovered pages and frame sources to the output path.
     /// </summary>
     /// <param name="context">Export configuration and runtime state including base URL, output path, queue, and visited set.</param>
     /// <param name="cancellationToken">Token to observe for cooperative cancellation of the crawl and export operations.</param>
     /// <remarks>
-    /// If <see cref="ExportContext.SeedRoutesPath"/> is provided, the file is read and each line is validated and normalized to a root-relative route; invalid seeds are logged. If the seed file exists but yields no valid routes, the root path ("/") is enqueued. If no seed file is provided, the root path is enqueued. Discovered internal links and frame sources are queued and processed until the queue is exhausted or the operation is cancelled.
+    /// If <see cref="ExportContext.SeedRoutesPath"/> is provided, the file is read and each line is validated and normalized to a root-relative route; invalid seeds are logged. If the seed file exists but yields no valid routes, the root path ("/") is enqueued. If no seed file is provided, the root path is enqueued. Before crawl processing begins, the engine probes Runnable's reserved conventional 404 route and writes <c>404.html</c> when the route returns a successful HTML response. That reserved-route probe and any follow-on <c>404.html</c> write are best-effort only: failures are logged, do not abort the crawl, and do not prevent queued seed routes from being processed. Discovered internal links and frame sources are queued and processed until the queue is exhausted or the operation is cancelled.
     /// </remarks>
     /// <returns>A task that completes when the crawl and export operations have finished.</returns>
     /// <exception cref="FileNotFoundException">Thrown when <see cref="ExportContext.SeedRoutesPath"/> is specified but the file does not exist.</exception>
@@ -155,6 +156,7 @@ public class ExportEngine
             context.Queue.Count);
 
         var client = _httpClientFactory.CreateClient("ExportEngine");
+        await TryWriteConventionalNotFoundPageAsync(client, context, cancellationToken);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (context.Queue.Count > 0)
@@ -275,6 +277,60 @@ public class ExportEngine
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error exporting {Route}", route);
+        }
+    }
+
+    private async Task TryWriteConventionalNotFoundPageAsync(
+        HttpClient client,
+        ExportContext context,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await client.GetAsync(
+                $"{context.BaseUrl}{ConventionalNotFoundPageDefaults.ReservedNotFoundRoute}",
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug(
+                    "Skipping 404.html export because {Route} returned {StatusCode}.",
+                    ConventionalNotFoundPageDefaults.ReservedNotFoundRoute,
+                    response.StatusCode);
+                return;
+            }
+
+            var contentType = response.Content.Headers.ContentType?.MediaType;
+            if (!string.Equals(contentType, "text/html", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug(
+                    "Skipping 404.html export because {Route} returned non-HTML content type {ContentType}.",
+                    ConventionalNotFoundPageDefaults.ReservedNotFoundRoute,
+                    contentType ?? "(none)");
+                return;
+            }
+
+            var html = await response.Content.ReadAsStringAsync(cancellationToken);
+            var filePath = Path.Combine(context.OutputPath, "404.html");
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(filePath, html, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to export conventional 404 page from {Route}.",
+                ConventionalNotFoundPageDefaults.ReservedNotFoundRoute);
         }
     }
 

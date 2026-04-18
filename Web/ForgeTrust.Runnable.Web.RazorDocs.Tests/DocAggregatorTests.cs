@@ -909,6 +909,18 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocByPathAsync_ShouldMatchNormalizedSourcePath_WhenLookupStartsWithBackslashes()
+    {
+        var harvestedDocs = new List<DocNode> { new("Guide", "docs/guide.md", "<p>Guide</p>") };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = await _aggregator.GetDocByPathAsync("\\DOCS\\guide.md\\");
+
+        Assert.NotNull(result);
+        Assert.Equal("Guide", result!.Title);
+    }
+
+    [Fact]
     public async Task BuildCanonicalPath_ShouldNotAppendHtml_WhenSourceAlreadyHtml()
     {
         // Arrange

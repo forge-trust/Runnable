@@ -36,11 +36,13 @@ Forms are enhanced to perform partial page updates without full reloads.
 
 ## Getting Started
 
-1.  **Run the application**:
+1.  **Run the application from the repository root**:
 
     ```bash
-    dotnet run
+    dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
     ```
+
+    If you `cd examples/razorwire-mvc` first, `dotnet run` also works from there.
 
 2.  **Open the demo**:
     Navigate to `http://localhost:5233` (or the port indicated in the console).

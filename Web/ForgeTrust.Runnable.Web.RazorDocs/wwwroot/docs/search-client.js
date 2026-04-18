@@ -888,25 +888,36 @@
   }
 
   function deriveFacetState(baseDocs, filters) {
-    return facetDefinitions.map((facet) => {
-      const selectedValue = normalizeFacetValue(filters[facet.key]);
-      const siblingDocs = baseDocs.filter((doc) => matchesFilters(doc, filters, facet.key));
-      const options = searchData.facetValues[facet.key].map((value) => {
-        const count = siblingDocs.filter((doc) => normalizeFacetValue(doc[facet.key]) === value).length;
-        return {
-          value,
-          count,
-          selected: value === selectedValue,
-          disabled: count === 0 && value !== selectedValue
-        };
-      });
+    return facetDefinitions
+      .map((facet) => {
+        const selectedValue = normalizeFacetValue(filters[facet.key]);
+        const siblingDocs = baseDocs.filter((doc) => matchesFilters(doc, filters, facet.key));
+        const facetValues = [...searchData.facetValues[facet.key]];
+        if (selectedValue && !facetValues.includes(selectedValue)) {
+          facetValues.unshift(selectedValue);
+        }
 
-      return {
-        ...facet,
-        options,
-        selectedValue
-      };
-    });
+        const options = facetValues.map((value) => {
+          const count = siblingDocs.filter((doc) => normalizeFacetValue(doc[facet.key]) === value).length;
+          return {
+            value,
+            count,
+            selected: value === selectedValue,
+            disabled: count === 0 && value !== selectedValue
+          };
+        });
+
+        if (options.length === 0) {
+          return null;
+        }
+
+        return {
+          ...facet,
+          options,
+          selectedValue
+        };
+      })
+      .filter(Boolean);
   }
 
   function runRankedSearch(query, filters, maxResults = null) {

@@ -56,6 +56,15 @@ public class TailwindWatchService : BackgroundService
 
         try
         {
+            var inputFullPath = Path.GetFullPath(_options.InputPath, _environment.ContentRootPath);
+            var outputFullPath = Path.GetFullPath(_options.OutputPath, _environment.ContentRootPath);
+            var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (string.Equals(inputFullPath, outputFullPath, pathComparison))
+            {
+                _logger.LogError("Tailwind CSS: InputPath and OutputPath must not point to the same file.");
+                return;
+            }
+
             var tailwindPath = _cliManager.GetTailwindPath();
             var args = new List<string>
             {

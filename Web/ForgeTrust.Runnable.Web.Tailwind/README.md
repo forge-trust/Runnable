@@ -31,6 +31,18 @@ Reference the generated stylesheet from your layout:
 <link rel="stylesheet" href="~/css/site.gen.css" asp-append-version="true" />
 ```
 
+## CI
+
+`ForgeTrust.Runnable.Web.Tailwind` hooks into the normal `dotnet build` and `dotnet publish` pipeline through MSBuild targets, so the default integration does not require a separate `npm install` or `npm run build` step in CI.
+
+If you need to suppress the package-driven build temporarily, set `TailwindEnabled=false` in MSBuild, for example with `dotnet build -p:TailwindEnabled=false` or a project-level `<TailwindEnabled>false</TailwindEnabled>` property.
+
+## Escape hatch (plugin-heavy Tailwind setups)
+
+If your Tailwind configuration depends on npm-only plugins or custom JavaScript tooling, keep your existing Node-based asset pipeline instead of forcing the standalone CLI path.
+
+Disable the package-driven MSBuild integration with `TailwindEnabled=false`, and either omit `services.AddTailwind()` or set `options.Enabled = false` so the development watch service does not start. After that, run your existing npm, pnpm, or yarn Tailwind command as part of your normal frontend build.
+
 ## Notes
 
 - The generated CSS file is intended to be build output and is commonly ignored in source control.

@@ -133,6 +133,20 @@ public class TailwindWatchServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_LogsError_WhenInputAndOutputResolveToSameFile()
+    {
+        _tailwindOptions.InputPath = Path.Combine("styles", "..", "app.css");
+        _tailwindOptions.OutputPath = "app.css";
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment);
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.False(service.ProcessExecuted);
+        AssertErrorLogged();
+        A.CallTo(() => _cliManager.GetTailwindPath()).MustNotHaveHappened();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_DoesNotLogError_WhenWatchProcessIsCanceled()
     {
         var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)

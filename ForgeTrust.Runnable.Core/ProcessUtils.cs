@@ -59,16 +59,31 @@ public static class ProcessUtils
         var outputObserved = false;
         try
         {
-            if (!process.Start())
+            try
             {
-                throw new InvalidOperationException($"Failed to start process: {fileName}");
+                if (!process.Start())
+                {
+                    var exception = new InvalidOperationException($"Failed to start process: {fileName}");
+                    logger.LogError(exception, "Failed to start process {FileName}", fileName);
+                    throw exception;
+                }
             }
+            catch (InvalidOperationException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to start process {FileName}", fileName);
+                throw new InvalidOperationException($"Failed to start process: {fileName}", ex);
+            }
+
             started = true;
 
             if (streamOutput)
             {
-                stdoutTask = StreamToLoggerAsync(process.StandardOutput, logger, LogLevel.Information, cancellationToken);
-                stderrTask = StreamToLoggerAsync(process.StandardError, logger, LogLevel.Error, cancellationToken);
+                stdoutTask = StreamToLoggerAsync(process.StandardOutput, logger, LogLevel.Information, fileName, cancellationToken);
+                stderrTask = StreamToLoggerAsync(process.StandardError, logger, LogLevel.Error, fileName, cancellationToken);
             }
             else
             {
@@ -97,7 +112,12 @@ public static class ProcessUtils
         }
     }
 
-    private static async Task<string> StreamToLoggerAsync(StreamReader reader, ILogger logger, LogLevel level, CancellationToken cancellationToken)
+    private static async Task<string> StreamToLoggerAsync(
+        StreamReader reader,
+        ILogger logger,
+        LogLevel level,
+        string fileName,
+        CancellationToken cancellationToken)
     {
         var output = new StringBuilder();
         var hasWrittenLine = false;
@@ -116,7 +136,14 @@ public static class ProcessUtils
 
                 output.Append(line);
                 hasWrittenLine = true;
-                logger.Log(level, "{Output}", line);
+                if (string.IsNullOrWhiteSpace(fileName))
+                {
+                    logger.Log(level, "{Output}", line);
+                }
+                else
+                {
+                    logger.Log(level, "{FileName}: {Output}", fileName, line);
+                }
             }
         }
         catch (OperationCanceledException) { }

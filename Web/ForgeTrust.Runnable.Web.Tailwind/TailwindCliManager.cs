@@ -30,6 +30,11 @@ public class TailwindCliManager
     internal string? BaseDirectoryOverride { get; set; }
 
     /// <summary>
+    /// Gets or sets a directory to override the resolved assembly directory for testing isolated fallback lookup.
+    /// </summary>
+    internal string? AssemblyDirectoryOverride { get; set; }
+
+    /// <summary>
     /// Gets the path to the Tailwind CLI binary.
     /// </summary>
     /// <returns>The absolute path to the tailwindcss executable.</returns>
@@ -59,18 +64,23 @@ public class TailwindCliManager
 
             // 3. Check for the binary in any runtimes folder relative to the assembly
             // This handles cases where runtime packages are present but not yet deployed to a flat bin folder
-            var assemblyLocation = typeof(TailwindCliManager).Assembly.Location;
-            if (!string.IsNullOrEmpty(assemblyLocation))
+            var assemblyDir = AssemblyDirectoryOverride;
+            if (string.IsNullOrEmpty(assemblyDir))
             {
-                var assemblyDir = Path.GetDirectoryName(assemblyLocation);
-                if (!string.IsNullOrEmpty(assemblyDir))
+                var assemblyLocation = typeof(TailwindCliManager).Assembly.Location;
+                if (!string.IsNullOrEmpty(assemblyLocation))
                 {
-                    var fallbackRuntimePath = Path.Combine(assemblyDir, "runtimes", rid, "native", _binaryName);
-                    if (File.Exists(fallbackRuntimePath))
-                    {
-                        _logger.LogDebug("Found Tailwind CLI at fallback runtime path: {Path}", fallbackRuntimePath);
-                        return fallbackRuntimePath;
-                    }
+                    assemblyDir = Path.GetDirectoryName(assemblyLocation);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(assemblyDir))
+            {
+                var fallbackRuntimePath = Path.Combine(assemblyDir, "runtimes", rid, "native", _binaryName);
+                if (File.Exists(fallbackRuntimePath))
+                {
+                    _logger.LogDebug("Found Tailwind CLI at fallback runtime path: {Path}", fallbackRuntimePath);
+                    return fallbackRuntimePath;
                 }
             }
         }

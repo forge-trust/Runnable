@@ -89,28 +89,21 @@ public class TailwindCliManagerTests : IDisposable
     public void GetTailwindPath_ReturnsAssemblyFallbackRuntimePath_IfFound()
     {
         var rid = TailwindCliManager.GetCurrentRid();
-        var assemblyDir = Path.GetDirectoryName(typeof(TailwindCliManager).Assembly.Location);
-        Assert.NotNull(assemblyDir);
+        var baseDir = Path.Combine(_tempPath, "app-base");
+        var assemblyDir = Path.Combine(_tempPath, "assembly-base");
+        Directory.CreateDirectory(baseDir);
+        _manager.BaseDirectoryOverride = baseDir;
+        _manager.AssemblyDirectoryOverride = assemblyDir;
 
-        var runtimeNativeDir = Path.Combine(assemblyDir!, "runtimes", rid, "native");
+        var runtimeNativeDir = Path.Combine(assemblyDir, "runtimes", rid, "native");
         Directory.CreateDirectory(runtimeNativeDir);
         var expectedPath = Path.Combine(runtimeNativeDir, _binaryName);
 
-        try
-        {
-            File.WriteAllText(expectedPath, "dummy");
+        File.WriteAllText(expectedPath, "dummy");
 
-            var result = _manager.GetTailwindPath();
+        var result = _manager.GetTailwindPath();
 
-            Assert.Equal(expectedPath, result);
-        }
-        finally
-        {
-            if (File.Exists(expectedPath))
-            {
-                File.Delete(expectedPath);
-            }
-        }
+        Assert.Equal(expectedPath, result);
     }
 
     [Fact]

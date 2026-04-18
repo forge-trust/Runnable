@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using ForgeTrust.Runnable.Core;
@@ -25,6 +26,8 @@ public class ProcessUtilsTests
         Assert.Equal(3, result.ExitCode);
         Assert.Contains("stdout", result.Stdout);
         Assert.Contains("stderr", result.Stderr);
+        Assert.Contains(logger.Messages, entry => entry.Message.Contains(fileName, StringComparison.Ordinal) && entry.Message.Contains("stdout", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, entry => entry.Message.Contains(fileName, StringComparison.Ordinal) && entry.Message.Contains("stderr", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -65,6 +68,27 @@ public class ProcessUtilsTests
                 cts.Token));
     }
 
+    [Fact]
+    public async Task ExecuteProcessAsync_LogsAndThrows_WhenProcessCannotStart()
+    {
+        var logger = new ListLogger();
+        var fileName = $"no-such-executable-{Guid.NewGuid():N}";
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ProcessUtils.ExecuteProcessAsync(
+                fileName,
+                [],
+                Directory.GetCurrentDirectory(),
+                logger,
+                CancellationToken.None));
+
+        Assert.Contains(fileName, exception.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            logger.Messages,
+            entry => entry.LogLevel == LogLevel.Error
+                && entry.Message.Contains(fileName, StringComparison.Ordinal));
+    }
+
     private static (string FileName, IReadOnlyList<string> Args) CreateShellCommand(string windowsScript, string unixScript)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -77,7 +101,7 @@ public class ProcessUtilsTests
 
     private sealed class ListLogger : ILogger
     {
-        public List<string> Messages { get; } = [];
+        public ConcurrentQueue<LogEntry> Messages { get; } = new();
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -90,7 +114,9 @@ public class ProcessUtilsTests
             Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
-            Messages.Add(formatter(state, exception));
+            Messages.Enqueue(new LogEntry(logLevel, formatter(state, exception), exception));
         }
     }
+
+    private sealed record LogEntry(LogLevel LogLevel, string Message, Exception? Exception);
 }

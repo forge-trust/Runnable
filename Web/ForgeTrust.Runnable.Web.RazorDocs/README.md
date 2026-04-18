@@ -12,7 +12,7 @@ Documentation site generation and hosting for Runnable web applications.
 - `AddRazorDocs()` for typed options binding and core service registration
 - `DocAggregator` plus the built-in Markdown and C# harvesters
 - Search UI assets and the `/docs` MVC surface used by RazorDocs consumers
-- Tailwind-powered generated styling via `ForgeTrust.Runnable.Web.Tailwind`
+- Precompiled Tailwind-powered styling with layout-time path resolution for root-module and embedded hosts
 
 ## Configuration
 
@@ -42,4 +42,6 @@ await WebApp<RazorDocsWebModule>.RunAsync(args);
 ## Notes
 
 - This package is the reusable documentation surface; `ForgeTrust.Runnable.Web.RazorDocs.Standalone` is the thin executable wrapper used for local hosting and export scenarios.
-- It depends on the Tailwind package family for generated styling and the caching package for docs aggregation performance.
+- The bundled RazorDocs UI already includes its generated stylesheet as a static web asset. The layout resolves the correct stylesheet path automatically from the host's root module shape for standalone/root-module hosts versus embedded application-part consumers.
+- Consumers do not need to call `services.AddTailwind()` unless they also want Tailwind build/watch integration for their own host application's CSS.
+- It depends on the Tailwind package family for RazorDocs package build-time styling generation and on the caching package for docs aggregation performance.

@@ -1,10 +1,14 @@
+@inject ForgeTrust.Runnable.Web.RazorDocs.RazorDocsAssetPathResolver AssetPathResolver
+@{
+    var stylesheetPath = AssetPathResolver.StylesheetPath;
+}
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-slate-900 border-slate-800" style="scrollbar-gutter: stable;">
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>@ViewData["Title"] - RazorDocs</title>
-    <link rel="stylesheet" href="~/css/site.gen.css" asp-append-version="true" />
+    <link rel="stylesheet" href="@stylesheetPath" asp-append-version="true" />
     <link rel="stylesheet" href="~/docs/search.css" />
     <link rel="preload" href="~/docs/search-index.json" as="fetch" crossorigin="use-credentials" />
     <rw:scripts/>

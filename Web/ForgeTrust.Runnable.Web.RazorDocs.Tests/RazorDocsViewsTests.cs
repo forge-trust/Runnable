@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -33,6 +34,28 @@ public class RazorDocsViewsTests
         Assert.Contains("href=\"~/docs/search-index.json\"", layout);
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
         Assert.Contains("src=\"~/docs/search-client.js\"", layout);
+    }
+
+    [Fact]
+    public async Task Layout_ShouldRenderRootStylesheet_WhenRazorDocsIsTheApplication()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
+
+        Assert.Contains("href=\"/css/site.gen.css", html);
+    }
+
+    [Fact]
+    public async Task Layout_ShouldRenderPackagedStylesheet_WhenRazorDocsIsEmbeddedInAnotherHost()
+    {
+        using var services = CreateServiceProvider(
+            CreateDocs(),
+            rootModuleAssembly: typeof(RazorDocsViewsTests).Assembly);
+
+        var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
+
+        Assert.Contains("href=\"/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css", html);
     }
 
     [Fact]
@@ -479,7 +502,8 @@ public class RazorDocsViewsTests
 
     private static ServiceProvider CreateServiceProvider(
         IReadOnlyList<DocNode> docs,
-        IDictionary<string, string?>? overrides = null)
+        IDictionary<string, string?>? overrides = null,
+        Assembly? rootModuleAssembly = null)
     {
         var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
         var webRoot = Path.Combine(repoRoot, "Web", "ForgeTrust.Runnable.Web.RazorDocs");
@@ -509,6 +533,9 @@ public class RazorDocsViewsTests
         services.AddMemoryCache();
         services.AddSingleton<IMemo, Memo>();
         services.AddRazorDocs();
+        services.AddSingleton(
+            RazorDocsAssetPathResolver.CreateForRootModule(
+                rootModuleAssembly ?? typeof(RazorDocsWebModule).Assembly));
         services.RemoveAll<IDocHarvester>();
         services.AddSingleton<IDocHarvester>(_ => new StaticDocHarvester(docs));
         services.AddControllersWithViews()

@@ -21,7 +21,10 @@
     <None Remove="obj/**" />
   </ItemGroup>
 
-  <Target Name="ResolveTailwindBinary" BeforeTargets="Build;Pack" Outputs="$(TailwindBinaryName)">
+  <Target
+    Name="ResolveTailwindBinary"
+    BeforeTargets="Build;Pack"
+    Outputs="$(IntermediateOutputPath)$(TailwindBinaryName)">
     <PropertyGroup>
       <_TailwindBinaryPath>$(IntermediateOutputPath)$(TailwindBinaryName)</_TailwindBinaryPath>
       <ChecksumFile>$(IntermediateOutputPath)sha256sums-$(TailwindVersion).txt</ChecksumFile>

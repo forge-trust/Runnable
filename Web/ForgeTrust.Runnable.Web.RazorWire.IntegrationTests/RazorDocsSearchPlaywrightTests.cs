@@ -70,6 +70,27 @@ public sealed class RazorDocsSearchPlaywrightTests
     }
 
     [Fact]
+    public async Task SlashShortcut_DoesNotFocusHiddenSidebarInput_OnMobileDocsPage()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize
+            {
+                Width = 390,
+                Height = 844
+            }
+        });
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.DocsUrl);
+        await WaitForSidebarSearchReadyAsync(page);
+        await page.FocusAsync("#docs-sidebar-open");
+
+        await page.Keyboard.PressAsync("/");
+        await ExpectActiveElementIdAsync(page, "docs-sidebar-open");
+    }
+
+    [Fact]
     public async Task SearchShortcut_NavigatesToWorkspace_AndPreservesSidebarQuery()
     {
         await using var context = await _fixture.Browser.NewContextAsync();
@@ -183,6 +204,74 @@ public sealed class RazorDocsSearchPlaywrightTests
 
         Assert.Equal(chipQuery, await page.InputValueAsync("#docs-search-page-input"));
         Assert.False(await page.Locator("#docs-search-page-starter").IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task SearchPage_UsesTopLevelNavigation_ForDocumentationIndexRecoveryLink()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+        var payload = JsonSerializer.Serialize(new
+        {
+            metadata = new
+            {
+                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+                version = "1",
+                engine = "minisearch"
+            },
+            documents = new[]
+            {
+                new
+                {
+                    id = "misc/overview",
+                    path = "/docs/misc/overview",
+                    title = "Misc Overview",
+                    summary = "Misc summary",
+                    headings = Array.Empty<string>(),
+                    bodyText = "miscellaneous body",
+                    snippet = "miscellaneous body",
+                    pageType = "reference-note",
+                    audience = string.Empty,
+                    component = string.Empty,
+                    aliases = Array.Empty<string>(),
+                    keywords = Array.Empty<string>(),
+                    status = string.Empty,
+                    navGroup = "Misc",
+                    order = 1,
+                    relatedPages = Array.Empty<string>(),
+                    breadcrumbs = Array.Empty<string>()
+                }
+            }
+        });
+
+        await page.RouteAsync(
+            $"**{SearchIndexPath}",
+            async route =>
+            {
+                await route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 200,
+                    ContentType = "application/json",
+                    Body = payload
+                });
+            });
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search?q={Uri.EscapeDataString("no-such-query")}");
+        await WaitForSearchPageSettledAsync(page);
+
+        var docsIndexLink = page.GetByRole(AriaRole.Link, new PageGetByRoleOptions
+        {
+            Name = "Documentation index",
+            Exact = true
+        });
+
+        await docsIndexLink.WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = 30_000
+        });
+
+        Assert.Equal("_top", await docsIndexLink.GetAttributeAsync("data-turbo-frame"));
     }
 
     [Fact]

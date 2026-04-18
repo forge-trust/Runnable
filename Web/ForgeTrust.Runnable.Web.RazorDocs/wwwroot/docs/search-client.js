@@ -355,6 +355,31 @@
     }
   }
 
+  function isVisibleInteractiveElement(element) {
+    if (!(element instanceof HTMLElement)) {
+      return false;
+    }
+
+    if (element.hidden || element.closest('[inert]') || element.closest('[aria-hidden="true"]')) {
+      return false;
+    }
+
+    const styles = window.getComputedStyle(element);
+    if (styles.display === 'none' || styles.visibility === 'hidden') {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return false;
+    }
+
+    return rect.bottom > 0
+      && rect.right > 0
+      && rect.top < window.innerHeight
+      && rect.left < window.innerWidth;
+  }
+
   function isEditableElement(target) {
     if (!(target instanceof Element)) {
       return false;
@@ -598,17 +623,40 @@
 
   function focusVisibleSearchInput() {
     const page = getSearchPageElements();
-    if (page.input) {
+    if (isVisibleInteractiveElement(page.input)) {
       page.input.focus();
       page.input.select?.();
-      return;
+      return true;
     }
 
     const sidebar = getSidebarSearchElements();
-    if (sidebar.input) {
+    if (isVisibleInteractiveElement(sidebar.input)) {
       sidebar.input.focus();
       sidebar.input.select?.();
+      return true;
     }
+
+    return false;
+  }
+
+  function shouldTargetDocsFrame(href) {
+    const url = toUrl(href);
+    return Boolean(url && url.origin === window.location.origin && isDocsPath(url.pathname) && url.pathname !== '/docs');
+  }
+
+  function applyDocsNavigationTarget(anchor, href) {
+    if (!(anchor instanceof HTMLAnchorElement)) {
+      return;
+    }
+
+    if (shouldTargetDocsFrame(href)) {
+      anchor.setAttribute('data-turbo-frame', docsFrameId);
+      anchor.setAttribute('data-turbo-action', 'advance');
+      return;
+    }
+
+    anchor.setAttribute('data-turbo-frame', '_top');
+    anchor.removeAttribute('data-turbo-action');
   }
 
   function navigateToSearchPageWithQuery(query) {
@@ -724,8 +772,7 @@
     const title = createElement('h2', 'docs-search-result-title');
     const link = createElement('a');
     link.href = doc.path;
-    link.setAttribute('data-turbo-frame', docsFrameId);
-    link.setAttribute('data-turbo-action', 'advance');
+    applyDocsNavigationTarget(link, doc.path);
     link.append(createHighlightedFragment(doc.title, queryTokens));
     title.append(link);
     article.append(title);
@@ -767,8 +814,7 @@
     view.recoveryLinks.forEach((link) => {
       const anchor = createElement('a', 'docs-search-page-no-results-link', link.title);
       anchor.href = link.href;
-      anchor.setAttribute('data-turbo-frame', docsFrameId);
-      anchor.setAttribute('data-turbo-action', 'advance');
+      applyDocsNavigationTarget(anchor, link.href);
       links.append(anchor);
     });
     container.append(links);
@@ -1613,8 +1659,9 @@
           return;
         }
 
-        event.preventDefault();
-        focusVisibleSearchInput();
+        if (focusVisibleSearchInput()) {
+          event.preventDefault();
+        }
         return;
       }
 

@@ -20,18 +20,33 @@ public static class ProcessUtils
     /// <summary>
     /// Executes a process asynchronously and captures its output.
     /// </summary>
-    /// <param name="fileName">The path to the executable file.</param>
-    /// <param name="args">The list of arguments to pass to the process.</param>
-    /// <param name="workingDirectory">The working directory for the process.</param>
-    /// <param name="logger">The logger to which output will be sent if <paramref name="streamOutput"/> is true.</param>
+    /// <param name="fileName">The path to the executable file to launch.</param>
+    /// <param name="args">The ordered list of command-line arguments to pass to the process.</param>
+    /// <param name="workingDirectory">The working directory used when starting the process.</param>
+    /// <param name="logger">
+    /// The logger that receives streamed output when <paramref name="streamOutput"/> is <see langword="true" />.
+    /// </param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-    /// <param name="streamOutput">If true, output will be streamed to the logger in real-time.</param>
+    /// <param name="streamOutput">
+    /// If <see langword="true" />, standard output and standard error are logged in real time and also
+    /// captured in the returned <see cref="CommandResult" />.
+    /// </param>
     /// <param name="stderrLogLevelSelector">
     /// Optional selector that can remap the log level used for each standard error line when
     /// <paramref name="streamOutput"/> is enabled. When omitted, standard error lines are logged
     /// at <see cref="LogLevel.Error"/>.
     /// </param>
-    /// <returns>A <see cref="CommandResult"/> containing the execution details, including the exit code and captured output.</returns>
+    /// <returns>
+    /// A <see cref="CommandResult"/> containing the process exit code and captured standard output/error.
+    /// Non-zero exit codes are returned to the caller and are not treated as exceptions.
+    /// </returns>
+    /// <remarks>
+    /// When <paramref name="streamOutput"/> is enabled, output is drained concurrently from both pipes,
+    /// logged as lines arrive, and still buffered into the returned <see cref="CommandResult" />. Any
+    /// exception thrown by the logger or <paramref name="stderrLogLevelSelector" /> is allowed to
+    /// propagate so callers do not receive a partial success result with truncated output.
+    /// </remarks>
+    /// <exception cref="OperationCanceledException">Thrown when <paramref name="cancellationToken"/> is canceled.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the process fails to start.</exception>
     public static async Task<CommandResult> ExecuteProcessAsync(
         string fileName,
@@ -97,7 +112,7 @@ public static class ProcessUtils
                 stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
             }
 
-            await process.WaitForExitAsync(cancellationToken);
+            await WaitForExitOrStreamingFailureAsync(process, streamOutput, stdoutTask, stderrTask, cancellationToken);
 
             var stdout = await GetResultAsync(stdoutTask);
             var stderr = await GetResultAsync(stderrTask);
@@ -173,6 +188,55 @@ public static class ProcessUtils
         {
             logger.LogDebug(ex, "Failed to kill process {ProcessId}", process.Id);
         }
+    }
+
+    private static async Task WaitForExitOrStreamingFailureAsync(
+        Process process,
+        bool streamOutput,
+        Task<string>? stdoutTask,
+        Task<string>? stderrTask,
+        CancellationToken cancellationToken)
+    {
+        var waitForExitTask = process.WaitForExitAsync(cancellationToken);
+
+        if (!streamOutput)
+        {
+            await waitForExitTask;
+            return;
+        }
+
+        var pendingTasks = new List<Task>(2);
+        if (stdoutTask != null)
+        {
+            pendingTasks.Add(stdoutTask);
+        }
+
+        if (stderrTask != null)
+        {
+            pendingTasks.Add(stderrTask);
+        }
+
+        while (!waitForExitTask.IsCompleted && pendingTasks.Count > 0)
+        {
+            var waitCandidates = new Task[pendingTasks.Count + 1];
+            waitCandidates[0] = waitForExitTask;
+            pendingTasks.CopyTo(waitCandidates, 1);
+
+            var completedTask = await Task.WhenAny(waitCandidates);
+            if (completedTask == waitForExitTask)
+            {
+                break;
+            }
+
+            if (completedTask.IsFaulted || completedTask.IsCanceled)
+            {
+                await completedTask;
+            }
+
+            pendingTasks.Remove(completedTask);
+        }
+
+        await waitForExitTask;
     }
 
     /// <summary>

@@ -113,6 +113,25 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task ExecuteProcessAsync_PropagatesStreamingFailures_BeforeProcessExit()
+    {
+        var logger = new ThrowingLogger(LogLevel.Information);
+        var (fileName, args) = CreateShellCommand(
+            "(echo stdout) & ping -n 6 127.0.0.1 >NUL & exit /b 0",
+            "printf 'stdout\\n'; sleep 5");
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ProcessUtils.ExecuteProcessAsync(
+                fileName,
+                args,
+                Directory.GetCurrentDirectory(),
+                logger,
+                cts.Token,
+                streamOutput: true));
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_LogsAndThrows_WhenProcessCannotStart()
     {
         var logger = new ListLogger();

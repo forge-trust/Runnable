@@ -44,7 +44,9 @@ public static class ProcessUtils
     /// When <paramref name="streamOutput"/> is enabled, output is drained concurrently from both pipes,
     /// logged as lines arrive, and still buffered into the returned <see cref="CommandResult" />. Any
     /// exception thrown by the logger or <paramref name="stderrLogLevelSelector" /> is allowed to
-    /// propagate so callers do not receive a partial success result with truncated output.
+    /// propagate so callers do not receive a partial success result with truncated output. The returned
+    /// <see cref="CommandResult" /> preserves the exact standard output and standard error characters
+    /// emitted by the process in both streaming and non-streaming modes.
     /// </remarks>
     /// <exception cref="OperationCanceledException">Thrown when <paramref name="cancellationToken"/> is canceled.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the process fails to start.</exception>
@@ -142,36 +144,77 @@ public static class ProcessUtils
         Func<string, LogLevel>? levelSelector = null)
     {
         var output = new StringBuilder();
-        var hasWrittenLine = false;
+        var currentLine = new StringBuilder();
+        var buffer = new char[1024];
+        var previousWasCarriageReturn = false;
 
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var line = await reader.ReadLineAsync(cancellationToken);
-                if (line == null) break;
-
-                if (hasWrittenLine)
+                var charsRead = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
+                if (charsRead == 0)
                 {
-                    output.AppendLine();
+                    break;
                 }
 
-                output.Append(line);
-                hasWrittenLine = true;
-                var effectiveLevel = levelSelector?.Invoke(line) ?? level;
-                if (string.IsNullOrWhiteSpace(fileName))
+                for (var i = 0; i < charsRead; i++)
                 {
-                    logger.Log(effectiveLevel, "{Output}", line);
-                }
-                else
-                {
-                    logger.Log(effectiveLevel, "{FileName}: {Output}", fileName, line);
+                    var current = buffer[i];
+                    output.Append(current);
+
+                    if (current == '\r')
+                    {
+                        LogCapturedLine(logger, level, fileName, currentLine.ToString(), levelSelector);
+                        currentLine.Clear();
+                        previousWasCarriageReturn = true;
+                        continue;
+                    }
+
+                    if (current == '\n')
+                    {
+                        if (previousWasCarriageReturn)
+                        {
+                            previousWasCarriageReturn = false;
+                            continue;
+                        }
+
+                        LogCapturedLine(logger, level, fileName, currentLine.ToString(), levelSelector);
+                        currentLine.Clear();
+                        continue;
+                    }
+
+                    previousWasCarriageReturn = false;
+                    currentLine.Append(current);
                 }
             }
         }
         catch (OperationCanceledException) { }
 
+        if (!previousWasCarriageReturn && currentLine.Length > 0)
+        {
+            LogCapturedLine(logger, level, fileName, currentLine.ToString(), levelSelector);
+        }
+
         return output.ToString();
+    }
+
+    private static void LogCapturedLine(
+        ILogger logger,
+        LogLevel defaultLevel,
+        string fileName,
+        string line,
+        Func<string, LogLevel>? levelSelector)
+    {
+        var effectiveLevel = levelSelector?.Invoke(line) ?? defaultLevel;
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            logger.Log(effectiveLevel, "{Output}", line);
+        }
+        else
+        {
+            logger.Log(effectiveLevel, "{FileName}: {Output}", fileName, line);
+        }
     }
 
     private static void TryKillProcess(Process process, bool started, ILogger logger)

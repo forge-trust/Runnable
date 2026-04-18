@@ -131,6 +131,96 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldPreserveExistingNestedOptionsObjects()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RepositoryRoot"] = "/tmp/legacy-root"
+                    })
+                .Build());
+
+        var source = new RazorDocsSourceOptions { RepositoryRoot = " /tmp/configured-root " };
+        var bundle = new RazorDocsBundleOptions { Path = " /tmp/docs.bundle.json " };
+        var sidebar = new RazorDocsSidebarOptions
+        {
+            NamespacePrefixes = [" Contoso.Product. ", "contoso.product.", " "]
+        };
+
+        services.Configure<RazorDocsOptions>(
+            options =>
+            {
+                options.Source = source;
+                options.Bundle = bundle;
+                options.Sidebar = sidebar;
+            });
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Same(source, options.Source);
+        Assert.Same(bundle, options.Bundle);
+        Assert.Same(sidebar, options.Sidebar);
+        Assert.Equal("/tmp/configured-root", options.Source.RepositoryRoot);
+        Assert.Equal("/tmp/docs.bundle.json", options.Bundle.Path);
+        Assert.Equal(["Contoso.Product."], options.Sidebar.NamespacePrefixes);
+    }
+
+    [Fact]
+    public void AddRazorDocs_ShouldRehydrateExplicitlyNullNestedOptionsObjects()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+
+        services.AddRazorDocs();
+        services.Configure<RazorDocsOptions>(
+            options =>
+            {
+                options.Source = null!;
+                options.Bundle = null!;
+                options.Sidebar = null!;
+            });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.NotNull(options.Source);
+        Assert.NotNull(options.Bundle);
+        Assert.NotNull(options.Sidebar);
+        Assert.NotNull(options.Sidebar.NamespacePrefixes);
+        Assert.Empty(options.Sidebar.NamespacePrefixes);
+    }
+
+    [Fact]
+    public void AddRazorDocs_ShouldRehydrateExplicitlyNullNamespacePrefixes()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+
+        services.AddRazorDocs();
+        services.Configure<RazorDocsOptions>(
+            options =>
+            {
+                options.Sidebar = new RazorDocsSidebarOptions
+                {
+                    NamespacePrefixes = null!
+                };
+            });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.NotNull(options.Sidebar);
+        Assert.NotNull(options.Sidebar.NamespacePrefixes);
+        Assert.Empty(options.Sidebar.NamespacePrefixes);
+    }
+
+    [Fact]
     public void Validator_ShouldRejectUnsupportedModeValue()
     {
         var validator = new RazorDocsOptionsValidator();

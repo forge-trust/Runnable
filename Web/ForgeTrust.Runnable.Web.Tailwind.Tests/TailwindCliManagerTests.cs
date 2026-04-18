@@ -91,6 +91,26 @@ public class TailwindCliManagerTests : IDisposable
     }
 
     [Fact]
+    public void GetTailwindPath_ResolvesBinary_WhenUsingDefaultBaseDirectory()
+    {
+        var pathDir = Path.Combine(_tempPath, "bin");
+        Directory.CreateDirectory(pathDir);
+
+        var expectedPath = Path.Combine(pathDir, _binaryName);
+        File.WriteAllText(expectedPath, "dummy");
+        Environment.SetEnvironmentVariable("PATH", string.Join(Path.PathSeparator, [pathDir, _originalPath ?? string.Empty]));
+
+        _manager.BaseDirectoryOverride = null;
+        _manager.AssemblyDirectoryOverride = null;
+
+        var result = _manager.GetTailwindPath();
+
+        Assert.True(Path.IsPathRooted(result));
+        Assert.True(File.Exists(result));
+        Assert.Contains("tailwindcss", Path.GetFileName(result), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GetTailwindPath_ReturnsAssemblyFallbackRuntimePath_IfFound()
     {
         var rid = TailwindCliManager.GetCurrentRid();

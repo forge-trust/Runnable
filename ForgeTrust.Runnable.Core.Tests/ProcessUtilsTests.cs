@@ -95,6 +95,92 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task ExecuteProcessAsync_PropagatesExceptionFromStderrLogLevelSelector_WhenStreaming()
+    {
+        var logger = new ListLogger();
+        var (fileName, args) = CreateShellCommand(
+            "(echo boom 1>&2) & exit /b 0",
+            "printf 'boom\\n' >&2");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ProcessUtils.ExecuteProcessAsync(
+                fileName,
+                args,
+                Directory.GetCurrentDirectory(),
+                logger,
+                CancellationToken.None,
+                streamOutput: true,
+                stderrLogLevelSelector: _ => throw new InvalidOperationException("selector failure")));
+
+        Assert.Equal("selector failure", exception.Message);
+    }
+
+    [Fact]
+    public async Task ExecuteProcessAsync_CapturesMultipleStreamedLines_InOrder()
+    {
+        var logger = new ListLogger();
+        var (fileName, args) = CreateShellCommand(
+            "(echo first) & (echo second) & exit /b 0",
+            "printf 'first\\nsecond\\n'");
+
+        var result = await ProcessUtils.ExecuteProcessAsync(
+            fileName,
+            args,
+            Directory.GetCurrentDirectory(),
+            logger,
+            CancellationToken.None,
+            streamOutput: true);
+
+        Assert.Equal(GetPlatformMultilineOutput("first", "second"), result.Stdout);
+        Assert.Contains(logger.Messages, entry => entry.Message.Contains("first", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, entry => entry.Message.Contains("second", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteProcessAsync_PreservesExactOutput_WhenStreamingAndNonStreaming()
+    {
+        var streamingLogger = new ListLogger();
+        var nonStreamingLogger = new ListLogger();
+        var (fileName, args) = CreateShellCommand(
+            "(echo first) & (echo second) & exit /b 0",
+            "printf 'first\\nsecond\\n'");
+
+        var streamingResult = await ProcessUtils.ExecuteProcessAsync(
+            fileName,
+            args,
+            Directory.GetCurrentDirectory(),
+            streamingLogger,
+            CancellationToken.None,
+            streamOutput: true);
+
+        var nonStreamingResult = await ProcessUtils.ExecuteProcessAsync(
+            fileName,
+            args,
+            Directory.GetCurrentDirectory(),
+            nonStreamingLogger,
+            CancellationToken.None);
+
+        Assert.Equal(GetPlatformMultilineOutput("first", "second"), streamingResult.Stdout);
+        Assert.Equal(streamingResult.Stdout, nonStreamingResult.Stdout);
+    }
+
+    [Fact]
+    public async Task ExecuteProcessAsync_AllowsEmptyArgumentArray()
+    {
+        var logger = new ListLogger();
+        var result = await ProcessUtils.ExecuteProcessAsync(
+            "dotnet",
+            [],
+            Directory.GetCurrentDirectory(),
+            logger,
+            CancellationToken.None);
+
+        Assert.True(
+            !string.IsNullOrWhiteSpace(result.Stdout) || !string.IsNullOrWhiteSpace(result.Stderr),
+            "Expected dotnet without arguments to produce console output.");
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_PropagatesStreamingFailures_WhenLoggerThrows()
     {
         var logger = new ThrowingLogger(LogLevel.Information);
@@ -160,6 +246,12 @@ public class ProcessUtilsTests
         }
 
         return ("/bin/sh", ["-c", unixScript]);
+    }
+
+    private static string GetPlatformMultilineOutput(params string[] lines)
+    {
+        var newline = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "\r\n" : "\n";
+        return string.Join(newline, lines) + newline;
     }
 
     private sealed class ListLogger : ILogger

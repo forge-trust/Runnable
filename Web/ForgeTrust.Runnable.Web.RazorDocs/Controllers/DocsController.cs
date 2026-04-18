@@ -1,3 +1,4 @@
+using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +11,10 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 /// </summary>
 public class DocsController : Controller
 {
+    private const string RootLandingSourcePath = "README.md";
+    private const string NeutralLandingHeading = "Documentation";
+    private const string NeutralLandingDescription = "Welcome to the technical documentation. Select a topic from the sidebar to verify implementation details and usage guides.";
+    private const string CuratedLandingDescription = "Start with the proof paths that answer the first evaluator questions, then drill into guides, examples, and API details.";
     private static readonly TimeSpan SearchIndexCacheDuration = DocAggregator.SnapshotCacheDuration;
 
     private readonly DocAggregator _aggregator;
@@ -27,14 +32,18 @@ public class DocsController : Controller
     }
 
     /// <summary>
-    /// Displays the documentation index view containing available documentation items.
+    /// Displays the documentation index view containing either curated proof paths from the repository-root landing doc or the neutral docs landing fallback.
     /// </summary>
-    /// <returns>A view result whose model is the collection of documentation items extracted from the repository.</returns>
+    /// <returns>
+    /// A view result whose model is a <see cref="DocLandingViewModel"/>. The model includes curated featured cards when the
+    /// repository-root <c>README.md</c> authors <c>featured_pages</c>; otherwise it includes the neutral fallback landing data.
+    /// </returns>
     public async Task<IActionResult> Index()
     {
         var docs = await _aggregator.GetDocsAsync(HttpContext.RequestAborted);
+        var viewModel = BuildLandingViewModel(docs);
 
-        return View(docs);
+        return View(viewModel);
     }
 
     /// <summary>
@@ -146,5 +155,237 @@ public class DocsController : Controller
     internal bool CanRefreshCache()
     {
         return User?.Identity?.IsAuthenticated == true;
+    }
+
+    private DocLandingViewModel BuildLandingViewModel(IReadOnlyList<DocNode> docs)
+    {
+        var visibleDocs = docs
+            .Where(d => d.Metadata?.HideFromPublicNav != true)
+            .ToList();
+        var landingDoc = docs.FirstOrDefault(
+            d => string.Equals(d.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase));
+        var featuredPages = ResolveFeaturedPages(landingDoc, docs);
+        var hasFeaturedPages = featuredPages.Count > 0;
+
+        return new DocLandingViewModel
+        {
+            Heading = hasFeaturedPages ? GetCuratedHeading(landingDoc!) : NeutralLandingHeading,
+            Description = hasFeaturedPages ? GetCuratedDescription(landingDoc!) : NeutralLandingDescription,
+            LandingDoc = landingDoc,
+            VisibleDocs = visibleDocs,
+            FeaturedPages = featuredPages
+        };
+    }
+
+    private List<DocLandingFeaturedPageViewModel> ResolveFeaturedPages(DocNode? landingDoc, IReadOnlyList<DocNode> docs)
+    {
+        if (landingDoc?.Metadata?.FeaturedPages is not { Count: > 0 } featuredDefinitions)
+        {
+            return [];
+        }
+
+        var lookup = BuildDocLookup(docs);
+        var resolvedCards = new List<DocLandingFeaturedPageViewModel>();
+        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (definition, _) in featuredDefinitions
+                     .Select((definition, index) => (definition, index))
+                     .OrderBy(item => item.definition.Order ?? int.MaxValue)
+                     .ThenBy(item => item.index))
+        {
+            if (string.IsNullOrWhiteSpace(definition.Path))
+            {
+                _logger.LogWarning(
+                    "Skipping featured docs landing entry on {LandingPath} because it has no destination path.",
+                    landingDoc.Path);
+                continue;
+            }
+
+            var destination = ResolveDocByPath(definition.Path!, lookup);
+            if (destination is null)
+            {
+                _logger.LogWarning(
+                    "Skipping featured docs landing entry '{FeaturedPath}' on {LandingPath} because the destination page could not be resolved.",
+                    definition.Path,
+                    landingDoc.Path);
+                continue;
+            }
+
+            if (destination.Metadata?.HideFromPublicNav == true)
+            {
+                _logger.LogWarning(
+                    "Skipping featured docs landing entry '{FeaturedPath}' on {LandingPath} because the destination page is hidden from public navigation.",
+                    definition.Path,
+                    landingDoc.Path);
+                continue;
+            }
+
+            var destinationLinkPath = GetSnapshotCanonicalPath(destination);
+            if (!seenPaths.Add(destinationLinkPath))
+            {
+                _logger.LogWarning(
+                    "Skipping duplicate featured docs landing entry '{FeaturedPath}' on {LandingPath} because its destination is already featured.",
+                    definition.Path,
+                    landingDoc.Path);
+                continue;
+            }
+
+            var destinationTitle = string.IsNullOrWhiteSpace(destination.Metadata?.Title)
+                ? destination.Title
+                : destination.Metadata!.Title!.Trim();
+            var question = string.IsNullOrWhiteSpace(definition.Question)
+                ? destinationTitle
+                : definition.Question.Trim();
+
+            resolvedCards.Add(
+                new DocLandingFeaturedPageViewModel
+                {
+                    Question = question,
+                    Title = destinationTitle,
+                    Href = $"/docs/{destinationLinkPath}",
+                    PageType = destination.Metadata?.PageType,
+                    SupportingText = GetSupportingText(definition, destination)
+                });
+        }
+
+        return resolvedCards;
+    }
+
+    private sealed class DocLookupBucket
+    {
+        public List<DocNode> OrderedDocs { get; } = [];
+
+        public HashSet<DocNode> SeenDocs { get; } = [];
+    }
+
+    private static Dictionary<string, DocLookupBucket> BuildDocLookup(IEnumerable<DocNode> docs)
+    {
+        var lookup = new Dictionary<string, DocLookupBucket>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var doc in docs)
+        {
+            AddLookupEntry(lookup, NormalizeLookupPath(doc.Path), doc);
+            AddLookupEntry(lookup, NormalizeLookupPath(GetSnapshotCanonicalPath(doc)), doc);
+        }
+
+        return lookup;
+    }
+
+    private static void AddLookupEntry(Dictionary<string, DocLookupBucket> lookup, string key, DocNode doc)
+    {
+        if (!lookup.TryGetValue(key, out var bucket))
+        {
+            bucket = new DocLookupBucket();
+            lookup[key] = bucket;
+        }
+
+        if (bucket.SeenDocs.Add(doc))
+        {
+            bucket.OrderedDocs.Add(doc);
+        }
+    }
+
+    private static DocNode? ResolveDocByPath(
+        string path,
+        IReadOnlyDictionary<string, DocLookupBucket> lookup)
+    {
+        var lookupPath = NormalizeLookupPath(path);
+        var lookupCanonicalPath = NormalizeCanonicalPath(path);
+
+        if (!lookup.TryGetValue(lookupPath, out var bucket) || bucket.OrderedDocs.Count == 0)
+        {
+            return null;
+        }
+
+        var candidates = bucket.OrderedDocs;
+
+        var exactCanonicalMatch = candidates.FirstOrDefault(
+            doc => string.Equals(
+                       NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
+                       lookupCanonicalPath,
+                       StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(
+                       NormalizeCanonicalPath(doc.Path),
+                       lookupCanonicalPath,
+                       StringComparison.OrdinalIgnoreCase));
+        if (exactCanonicalMatch is not null)
+        {
+            return exactCanonicalMatch;
+        }
+
+        return candidates
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
+            .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
+            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+    }
+
+    private static string NormalizeLookupPath(string path)
+    {
+        var sanitized = path.Trim().Replace('\\', '/').Trim('/');
+        var hashIndex = sanitized.IndexOf('#');
+        if (hashIndex >= 0)
+        {
+            sanitized = sanitized[..hashIndex];
+        }
+
+        return sanitized;
+    }
+
+    private static string NormalizeCanonicalPath(string path)
+    {
+        return path.Trim().Replace('\\', '/').Trim('/');
+    }
+
+    private static string GetSnapshotCanonicalPath(DocNode doc)
+    {
+        return doc.CanonicalPath
+               ?? throw new InvalidOperationException(
+                   $"DocsController requires snapshot canonical paths. Doc '{doc.Path}' was missing CanonicalPath.");
+    }
+
+    private static string? GetFragment(string path)
+    {
+        var canonical = NormalizeCanonicalPath(path);
+        var hashIndex = canonical.IndexOf('#');
+        if (hashIndex < 0 || hashIndex == canonical.Length - 1)
+        {
+            return null;
+        }
+
+        return canonical[(hashIndex + 1)..];
+    }
+
+    private static string? GetSupportingText(DocFeaturedPageDefinition definition, DocNode destination)
+    {
+        if (!string.IsNullOrWhiteSpace(definition.SupportingCopy))
+        {
+            return definition.SupportingCopy.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(destination.Metadata?.Summary)
+            ? null
+            : destination.Metadata!.Summary!.Trim();
+    }
+
+    private static string GetCuratedHeading(DocNode landingDoc)
+    {
+        var title = string.IsNullOrWhiteSpace(landingDoc.Metadata!.Title)
+            ? landingDoc.Title
+            : landingDoc.Metadata.Title;
+        if (string.IsNullOrWhiteSpace(title) || string.Equals(title.Trim(), "Home", StringComparison.OrdinalIgnoreCase))
+        {
+            return NeutralLandingHeading;
+        }
+
+        return title.Trim();
+    }
+
+    private static string GetCuratedDescription(DocNode landingDoc)
+    {
+        var summary = landingDoc.Metadata!.Summary;
+        return string.IsNullOrWhiteSpace(summary)
+            ? CuratedLandingDescription
+            : summary.Trim();
     }
 }

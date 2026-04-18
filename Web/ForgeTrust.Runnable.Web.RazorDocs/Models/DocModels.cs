@@ -90,6 +90,15 @@ public sealed record DocMetadata
     /// </summary>
     public IReadOnlyList<string>? Breadcrumbs { get; init; }
 
+    /// <summary>
+    /// Gets optional landing-page curation entries authored with the documentation page.
+    /// </summary>
+    /// <remarks>
+    /// RazorDocs parses this metadata on any page so the contract stays page-agnostic. The built-in docs landing
+    /// consumes these entries only from the repository-root <c>README.md</c>.
+    /// </remarks>
+    public IReadOnlyList<DocFeaturedPageDefinition>? FeaturedPages { get; init; }
+
     internal bool? PageTypeIsDerived { get; init; }
 
     internal bool? AudienceIsDerived { get; init; }
@@ -176,13 +185,14 @@ public sealed record DocMetadata
             RelatedPages = MergeLists(primary.RelatedPages, fallback.RelatedPages),
             CanonicalSlug = PreferNonBlank(primary.CanonicalSlug, fallback.CanonicalSlug),
             Breadcrumbs = breadcrumbs,
-            BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets
+            BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets,
+            FeaturedPages = MergeLists(primary.FeaturedPages, fallback.FeaturedPages)
         };
     }
 
-    internal static IReadOnlyList<string>? MergeLists(
-        IReadOnlyList<string>? primary,
-        IReadOnlyList<string>? fallback)
+    internal static IReadOnlyList<T>? MergeLists<T>(
+        IReadOnlyList<T>? primary,
+        IReadOnlyList<T>? fallback)
     {
         if (primary is not null)
         {
@@ -243,6 +253,107 @@ public record DocNode(
     bool IsDirectory = false,
     string? CanonicalPath = null,
     DocMetadata? Metadata = null);
+
+/// <summary>
+/// Defines one authored featured-page entry for a docs landing surface.
+/// </summary>
+public sealed record DocFeaturedPageDefinition
+{
+    /// <summary>
+    /// Gets the reader-facing evaluator question or label for the card.
+    /// </summary>
+    /// <remarks>
+    /// When this value is omitted on the built-in docs landing, RazorDocs falls back to the resolved destination
+    /// page title so the card still renders with a sensible label.
+    /// </remarks>
+    public string? Question { get; init; }
+
+    /// <summary>
+    /// Gets the source or canonical path of the destination page to feature.
+    /// </summary>
+    /// <remarks>
+    /// RazorDocs matches both source paths and canonical browser paths. Path separators are normalized during
+    /// resolution so authored forward-slash and backslash forms point to the same destination.
+    /// </remarks>
+    public string? Path { get; init; }
+
+    /// <summary>
+    /// Gets optional landing-only supporting copy shown instead of destination summary text.
+    /// </summary>
+    public string? SupportingCopy { get; init; }
+
+    /// <summary>
+    /// Gets the relative display order for the featured entry.
+    /// </summary>
+    public int? Order { get; init; }
+}
+
+/// <summary>
+/// View model for the docs landing page.
+/// </summary>
+public sealed record DocLandingViewModel
+{
+    /// <summary>
+    /// Gets the hero heading shown on the docs landing.
+    /// </summary>
+    public string Heading { get; init; } = "Documentation";
+
+    /// <summary>
+    /// Gets the supporting description shown under the hero heading.
+    /// </summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the repository-root landing document when one was harvested.
+    /// </summary>
+    public DocNode? LandingDoc { get; init; }
+
+    /// <summary>
+    /// Gets the visible documentation nodes used by the neutral fallback landing state.
+    /// </summary>
+    public IReadOnlyList<DocNode> VisibleDocs { get; init; } = [];
+
+    /// <summary>
+    /// Gets the resolved featured cards for the landing experience.
+    /// </summary>
+    public IReadOnlyList<DocLandingFeaturedPageViewModel> FeaturedPages { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the landing should render curated proof-path cards.
+    /// </summary>
+    public bool HasFeaturedPages => FeaturedPages.Count > 0;
+}
+
+/// <summary>
+/// View model for one resolved featured card on the docs landing page.
+/// </summary>
+public sealed record DocLandingFeaturedPageViewModel
+{
+    /// <summary>
+    /// Gets the evaluator question or label shown on the card.
+    /// </summary>
+    public string Question { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the destination page title shown on the card.
+    /// </summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the browser-facing link to the destination page.
+    /// </summary>
+    public string Href { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the destination page type, such as guide, example, or api-reference.
+    /// </summary>
+    public string? PageType { get; init; }
+
+    /// <summary>
+    /// Gets the supporting body copy shown on the card.
+    /// </summary>
+    public string? SupportingText { get; init; }
+}
 
 /// <summary>
 /// Interface for harvesting documentation from various sources.

@@ -40,6 +40,68 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void Extract_ShouldParseFeaturedPages()
+    {
+        var markdown = """
+            ---
+            featured_pages:
+              - question: How does composition work?
+                path: guides/composition.md
+                supporting_copy: Follow the service graph.
+                order: 20
+              - path: examples/hello-world.md
+                order: 30
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        Assert.NotNull(metadata);
+
+        var featuredPages = Assert.IsAssignableFrom<IReadOnlyList<ForgeTrust.Runnable.Web.RazorDocs.Models.DocFeaturedPageDefinition>>(metadata!.FeaturedPages);
+        Assert.Collection(
+            featuredPages,
+            first =>
+            {
+                Assert.Equal("How does composition work?", first.Question);
+                Assert.Equal("guides/composition.md", first.Path);
+                Assert.Equal("Follow the service graph.", first.SupportingCopy);
+                Assert.Equal(20, first.Order);
+            },
+            second =>
+            {
+                Assert.Null(second.Question);
+                Assert.Equal("examples/hello-world.md", second.Path);
+                Assert.Null(second.SupportingCopy);
+                Assert.Equal(30, second.Order);
+            });
+    }
+
+    [Fact]
+    public void Extract_ShouldIgnoreNullFeaturedPageEntries()
+    {
+        var markdown = """
+            ---
+            featured_pages:
+              - null
+              - question: Where do I start?
+                path: guides/intro.md
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        var featuredPages = Assert.IsAssignableFrom<IReadOnlyList<ForgeTrust.Runnable.Web.RazorDocs.Models.DocFeaturedPageDefinition>>(metadata!.FeaturedPages);
+        var featuredPage = Assert.Single(featuredPages);
+        Assert.Equal("Where do I start?", featuredPage.Question);
+        Assert.Equal("guides/intro.md", featuredPage.Path);
+    }
+
+    [Fact]
     public void Extract_ShouldReturnOriginalMarkdown_WhenFrontMatterIsInvalid()
     {
         var markdown = """
@@ -68,6 +130,22 @@ public sealed class MarkdownFrontMatterParserTests
         var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
 
         Assert.Equal(markdown.Replace("\r\n", "\n", StringComparison.Ordinal), body);
+        Assert.Null(metadata);
+    }
+
+    [Fact]
+    public void Extract_ShouldReturnNullMetadata_WhenFrontMatterDocumentIsYamlNull()
+    {
+        var markdown = """
+            ---
+            null
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
         Assert.Null(metadata);
     }
 
@@ -104,6 +182,7 @@ public sealed class MarkdownFrontMatterParserTests
             ---
             aliases: []
             breadcrumbs: []
+            featured_pages: []
             related_pages: []
             ---
             # Hello
@@ -114,6 +193,7 @@ public sealed class MarkdownFrontMatterParserTests
         Assert.NotNull(metadata);
         Assert.Empty(metadata!.Aliases!);
         Assert.Empty(metadata.Breadcrumbs!);
+        Assert.Empty(metadata.FeaturedPages!);
         Assert.Empty(metadata.RelatedPages!);
     }
 }

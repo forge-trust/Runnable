@@ -21,16 +21,7 @@ public sealed class RazorDocsSearchPreloadPlaywrightTests
         // Report: .gstack/qa-reports/qa-report-localhost-5189-2026-04-18.md
         await using var context = await _fixture.Browser.NewContextAsync();
         var page = await context.NewPageAsync();
-        var preloadWarnings = new List<string>();
-
-        page.Console += (_, message) =>
-        {
-            if (message.Text.Contains("search-index.json", StringComparison.OrdinalIgnoreCase)
-                && message.Text.Contains("credentials mode does not match", StringComparison.OrdinalIgnoreCase))
-            {
-                preloadWarnings.Add(message.Text);
-            }
-        };
+        var preloadWarnings = CaptureCredentialMismatchWarnings(page);
 
         await page.GotoAsync(_fixture.DocsUrl);
         await WaitForSearchIndexResourceAsync(page);
@@ -47,16 +38,7 @@ public sealed class RazorDocsSearchPreloadPlaywrightTests
         // Report: .gstack/qa-reports/qa-report-localhost-5189-2026-04-18.md
         await using var context = await _fixture.Browser.NewContextAsync();
         var page = await context.NewPageAsync();
-        var preloadWarnings = new List<string>();
-
-        page.Console += (_, message) =>
-        {
-            if (message.Text.Contains("search-index.json", StringComparison.OrdinalIgnoreCase)
-                && message.Text.Contains("credentials mode does not match", StringComparison.OrdinalIgnoreCase))
-            {
-                preloadWarnings.Add(message.Text);
-            }
-        };
+        var preloadWarnings = CaptureCredentialMismatchWarnings(page);
 
         await page.GotoAsync($"{_fixture.DocsUrl}/search");
         await page.WaitForSelectorAsync("#docs-search-page-input", new PageWaitForSelectorOptions
@@ -76,6 +58,21 @@ public sealed class RazorDocsSearchPreloadPlaywrightTests
             "() => performance.getEntriesByType('resource').some(entry => entry.name.includes('/docs/search-index.json'))",
             null,
             new PageWaitForFunctionOptions { Timeout = 30_000 });
+    }
+
+    private static List<string> CaptureCredentialMismatchWarnings(IPage page)
+    {
+        var warnings = new List<string>();
+        page.Console += (_, message) =>
+        {
+            if (message.Text.Contains("search-index.json", StringComparison.OrdinalIgnoreCase)
+                && message.Text.Contains("credentials mode does not match", StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add(message.Text);
+            }
+        };
+
+        return warnings;
     }
 
     private static async Task AssertSearchIndexPreloadWasReusedAsync(IPage page)

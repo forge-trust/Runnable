@@ -251,9 +251,16 @@ public class DocsController : Controller
         return resolvedCards;
     }
 
-    private static Dictionary<string, List<DocNode>> BuildDocLookup(IEnumerable<DocNode> docs)
+    private sealed class DocLookupBucket
     {
-        var lookup = new Dictionary<string, List<DocNode>>(StringComparer.OrdinalIgnoreCase);
+        public List<DocNode> OrderedDocs { get; } = [];
+
+        public HashSet<DocNode> SeenDocs { get; } = [];
+    }
+
+    private static Dictionary<string, DocLookupBucket> BuildDocLookup(IEnumerable<DocNode> docs)
+    {
+        var lookup = new Dictionary<string, DocLookupBucket>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var doc in docs)
         {
@@ -264,31 +271,33 @@ public class DocsController : Controller
         return lookup;
     }
 
-    private static void AddLookupEntry(Dictionary<string, List<DocNode>> lookup, string key, DocNode doc)
+    private static void AddLookupEntry(Dictionary<string, DocLookupBucket> lookup, string key, DocNode doc)
     {
-        if (!lookup.TryGetValue(key, out var docs))
+        if (!lookup.TryGetValue(key, out var bucket))
         {
-            docs = [];
-            lookup[key] = docs;
+            bucket = new DocLookupBucket();
+            lookup[key] = bucket;
         }
 
-        if (!docs.Contains(doc))
+        if (bucket.SeenDocs.Add(doc))
         {
-            docs.Add(doc);
+            bucket.OrderedDocs.Add(doc);
         }
     }
 
     private static DocNode? ResolveDocByPath(
         string path,
-        IReadOnlyDictionary<string, List<DocNode>> lookup)
+        IReadOnlyDictionary<string, DocLookupBucket> lookup)
     {
         var lookupPath = NormalizeLookupPath(path);
         var lookupCanonicalPath = NormalizeCanonicalPath(path);
 
-        if (!lookup.TryGetValue(lookupPath, out var candidates) || candidates.Count == 0)
+        if (!lookup.TryGetValue(lookupPath, out var bucket) || bucket.OrderedDocs.Count == 0)
         {
             return null;
         }
+
+        var candidates = bucket.OrderedDocs;
 
         var exactCanonicalMatch = candidates.FirstOrDefault(
             doc => string.Equals(
@@ -313,7 +322,7 @@ public class DocsController : Controller
 
     private static string NormalizeLookupPath(string path)
     {
-        var sanitized = path.Trim().Trim('/').Replace('\\', '/');
+        var sanitized = path.Trim().Replace('\\', '/').Trim('/');
         var hashIndex = sanitized.IndexOf('#');
         if (hashIndex >= 0)
         {
@@ -325,11 +334,15 @@ public class DocsController : Controller
 
     private static string NormalizeCanonicalPath(string path)
     {
-        return path.Trim().Trim('/').Replace('\\', '/');
+        return path.Trim().Replace('\\', '/').Trim('/');
     }
 
-    // DocsController only consumes aggregator snapshots, which always populate CanonicalPath.
-    private static string GetSnapshotCanonicalPath(DocNode doc) => doc.CanonicalPath!;
+    private static string GetSnapshotCanonicalPath(DocNode doc)
+    {
+        return doc.CanonicalPath
+               ?? throw new InvalidOperationException(
+                   $"DocsController requires snapshot canonical paths. Doc '{doc.Path}' was missing CanonicalPath.");
+    }
 
     private static string? GetFragment(string path)
     {

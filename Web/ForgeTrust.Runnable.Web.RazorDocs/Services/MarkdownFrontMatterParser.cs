@@ -124,7 +124,7 @@ internal static class MarkdownFrontMatterParser
     }
 
     private static IReadOnlyList<DocFeaturedPageDefinition>? NormalizeFeaturedPages(
-        List<FrontMatterFeaturedPageDefinition>? values)
+        List<FrontMatterFeaturedPageDefinition?>? values)
     {
         if (values is null)
         {
@@ -132,10 +132,11 @@ internal static class MarkdownFrontMatterParser
         }
 
         return values
+            .Where(value => value is not null)
             .Select(
                 value => new DocFeaturedPageDefinition
                 {
-                    Question = Normalize(value.Question),
+                    Question = Normalize(value!.Question),
                     Path = Normalize(value.Path),
                     SupportingCopy = Normalize(value.SupportingCopy),
                     Order = value.Order
@@ -179,7 +180,7 @@ internal static class MarkdownFrontMatterParser
 
         public List<string>? Breadcrumbs { get; init; }
 
-        public List<FrontMatterFeaturedPageDefinition>? FeaturedPages { get; init; }
+        public List<FrontMatterFeaturedPageDefinition?>? FeaturedPages { get; init; }
     }
 
     private sealed class FrontMatterFeaturedPageDefinition

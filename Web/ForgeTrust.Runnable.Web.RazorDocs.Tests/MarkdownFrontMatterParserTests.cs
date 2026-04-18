@@ -80,6 +80,28 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void Extract_ShouldIgnoreNullFeaturedPageEntries()
+    {
+        var markdown = """
+            ---
+            featured_pages:
+              - null
+              - question: Where do I start?
+                path: guides/intro.md
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        var featuredPages = Assert.IsAssignableFrom<IReadOnlyList<ForgeTrust.Runnable.Web.RazorDocs.Models.DocFeaturedPageDefinition>>(metadata!.FeaturedPages);
+        var featuredPage = Assert.Single(featuredPages);
+        Assert.Equal("Where do I start?", featuredPage.Question);
+        Assert.Equal("guides/intro.md", featuredPage.Path);
+    }
+
+    [Fact]
     public void Extract_ShouldReturnOriginalMarkdown_WhenFrontMatterIsInvalid()
     {
         var markdown = """

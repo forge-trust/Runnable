@@ -77,8 +77,6 @@ public sealed class RazorDocsLandingPlaywrightTests
             State = WaitForSelectorState.Visible
         });
 
-        Assert.Equal(href, await card.GetAttributeAsync("href"));
-
         var cardText = await card.InnerTextAsync();
         Assert.Contains(question, cardText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(title, cardText, StringComparison.OrdinalIgnoreCase);

@@ -238,9 +238,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
-        A.CallTo(_controllerLoggerFake)
-            .Where(call => call.Method.Name == "Log")
-            .MustHaveHappened();
+        AssertWarningLogged("destination page is hidden from public navigation");
     }
 
     [Fact]
@@ -271,9 +269,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
-        A.CallTo(_controllerLoggerFake)
-            .Where(call => call.Method.Name == "Log")
-            .MustHaveHappened();
+        AssertWarningLogged("has no destination path");
     }
 
     [Fact]
@@ -305,9 +301,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
-        A.CallTo(_controllerLoggerFake)
-            .Where(call => call.Method.Name == "Log")
-            .MustHaveHappened();
+        AssertWarningLogged("destination page could not be resolved");
     }
 
     [Fact]
@@ -353,9 +347,7 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         var featuredPage = Assert.Single(model.FeaturedPages);
         Assert.Equal("Start here", featuredPage.Question);
-        A.CallTo(_controllerLoggerFake)
-            .Where(call => call.Method.Name == "Log")
-            .MustHaveHappened();
+        AssertWarningLogged("destination is already featured");
     }
 
     [Fact]
@@ -479,7 +471,7 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task Index_ShouldResolveFeaturedPathsWithWindowsSeparators()
+    public async Task Index_ShouldResolveFeaturedPathsWithLeadingWindowsSeparators()
     {
         var docs = new List<DocNode>
         {
@@ -493,7 +485,7 @@ public class DocsControllerTests : IDisposable
                     [
                         new DocFeaturedPageDefinition
                         {
-                            Path = "guides\\composition.md"
+                            Path = "\\guides\\composition.md"
                         }
                     ]
                 }),
@@ -1099,5 +1091,21 @@ public class DocsControllerTests : IDisposable
     {
         (_memo as IDisposable)?.Dispose();
         _cache.Dispose();
+    }
+
+    private void AssertWarningLogged(string expectedMessageFragment)
+    {
+        A.CallTo(_controllerLoggerFake)
+            .Where(
+                call => call.Method.Name == nameof(ILogger.Log)
+                        && call.GetArgument<LogLevel>(0) == LogLevel.Warning
+                        && LoggedMessageContains(call, expectedMessageFragment))
+            .MustHaveHappened();
+    }
+
+    private static bool LoggedMessageContains(FakeItEasy.Core.IFakeObjectCall call, string expectedMessageFragment)
+    {
+        var message = call.GetArgument<object>(2)?.ToString();
+        return message?.Contains(expectedMessageFragment, StringComparison.OrdinalIgnoreCase) == true;
     }
 }

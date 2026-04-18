@@ -5,6 +5,10 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.Tailwind.Tests;
 
+[CollectionDefinition("EnvVarIsolation", DisableParallelization = true)]
+public sealed class EnvVarIsolationCollection;
+
+[Collection("EnvVarIsolation")]
 public class TailwindCliManagerTests : IDisposable
 {
     private readonly string _tempPath;
@@ -152,6 +156,22 @@ public class TailwindCliManagerTests : IDisposable
 
         // Act & Assert
         Assert.Throws<FileNotFoundException>(() => _manager.GetTailwindPath());
+    }
+
+    [Fact]
+    public void GetTailwindPath_LogsDebug_WhenPathEnvironmentVariableIsUnavailable()
+    {
+        Environment.SetEnvironmentVariable("PATH", null);
+
+        Assert.Throws<FileNotFoundException>(() => _manager.GetTailwindPath());
+
+        A.CallTo(_logger)
+            .Where(call => call.Method.Name == "Log"
+                && call.Arguments.Count > 2
+                && Equals(call.Arguments[0], LogLevel.Debug)
+                && call.Arguments[2] != null
+                && call.Arguments[2]!.ToString()!.Contains("PATH environment variable is not set.", StringComparison.Ordinal))
+            .MustHaveHappened();
     }
 
     [Theory]

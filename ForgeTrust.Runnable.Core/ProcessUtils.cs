@@ -99,8 +99,8 @@ public static class ProcessUtils
 
             await process.WaitForExitAsync(cancellationToken);
 
-            var stdout = await ObserveAndGetResultAsync(stdoutTask, "stdout", fileName, logger);
-            var stderr = await ObserveAndGetResultAsync(stderrTask, "stderr", fileName, logger);
+            var stdout = await GetResultAsync(stdoutTask);
+            var stderr = await GetResultAsync(stderrTask);
             outputObserved = true;
 
             return new CommandResult(process.ExitCode, stdout, stderr);
@@ -112,8 +112,8 @@ public static class ProcessUtils
             if (!outputObserved)
             {
                 // Ensure tasks are observed if an exception occurred before the normal result path.
-                await ObserveAndGetResultAsync(stdoutTask, "stdout", fileName, logger);
-                await ObserveAndGetResultAsync(stderrTask, "stderr", fileName, logger);
+                await ObserveTaskAsync(stdoutTask, "stdout", fileName, logger);
+                await ObserveTaskAsync(stderrTask, "stderr", fileName, logger);
             }
         }
     }
@@ -180,25 +180,33 @@ public static class ProcessUtils
     }
 
     /// <summary>
-    /// Observes a task and returns its result if it is a Task&lt;string&gt;.
-    /// Ensures any exceptions are caught and logged.
+    /// Gets the result of a task if it is a Task&lt;string&gt;.
+    /// </summary>
+    /// <param name="task">The task to observe.</param>
+    /// <returns>The string result if available, otherwise an empty string.</returns>
+    private static async Task<string> GetResultAsync(Task<string>? task)
+    {
+        if (task == null) return string.Empty;
+        return await task;
+    }
+
+    /// <summary>
+    /// Observes a task during cleanup and logs any exceptions without surfacing them.
     /// </summary>
     /// <param name="task">The task to observe.</param>
     /// <param name="streamName">The name of the stream (e.g., "stdout").</param>
     /// <param name="fileName">The file name of the process being executed.</param>
     /// <param name="logger">The logger for debugging.</param>
-    /// <returns>The string result if available, otherwise an empty string.</returns>
-    private static async Task<string> ObserveAndGetResultAsync(Task<string>? task, string streamName, string fileName, ILogger logger)
+    private static async Task ObserveTaskAsync(Task<string>? task, string streamName, string fileName, ILogger logger)
     {
-        if (task == null) return string.Empty;
+        if (task == null) return;
         try
         {
-            return await task;
+            await task;
         }
         catch (Exception ex)
         {
             logger.LogDebug(ex, "Failed to complete reading {StreamName} for {FileName}", streamName, fileName);
-            return string.Empty;
         }
     }
 }

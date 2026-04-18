@@ -11,6 +11,7 @@ namespace ForgeTrust.Runnable.Web.Tailwind.Tests;
 
 public class TailwindWatchServiceTests
 {
+    private static readonly string TestContentRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "tailwind-watch-tests"));
     private readonly TailwindCliManager _cliManager;
     private readonly IOptions<TailwindOptions> _options;
     private readonly ILogger<TailwindWatchService> _logger;
@@ -31,7 +32,7 @@ public class TailwindWatchServiceTests
         _environment = A.Fake<IHostEnvironment>();
 
         A.CallTo(() => _environment.EnvironmentName).Returns(Environments.Development);
-        A.CallTo(() => _environment.ContentRootPath).Returns("/root");
+        A.CallTo(() => _environment.ContentRootPath).Returns(TestContentRoot);
         A.CallTo(() => _cliManager.GetTailwindPath()).Returns("/path/to/tailwind");
     }
 

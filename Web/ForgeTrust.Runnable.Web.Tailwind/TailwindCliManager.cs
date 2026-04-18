@@ -93,7 +93,7 @@ public class TailwindCliManager
         }
 
         // 4. Check system PATH
-        if (TryGetFromPath(_binaryName, out var path))
+        if (TryGetFromPath(_binaryName, _logger, out var path))
         {
             _logger.LogDebug("Found Tailwind CLI in PATH: {Path}", path);
             return path;
@@ -234,11 +234,15 @@ public class TailwindCliManager
         }
     }
 
-    private static bool TryGetFromPath(string fileName, out string path)
+    private static bool TryGetFromPath(string fileName, ILogger logger, out string path)
     {
         path = string.Empty;
         var values = Environment.GetEnvironmentVariable("PATH");
-        if (values == null) return false;
+        if (values == null)
+        {
+            logger.LogDebug("PATH environment variable is not set.");
+            return false;
+        }
 
         foreach (var p in values.Split(Path.PathSeparator))
         {

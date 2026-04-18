@@ -165,11 +165,12 @@ public class DocsController : Controller
         var landingDoc = docs.FirstOrDefault(
             d => string.Equals(d.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase));
         var featuredPages = ResolveFeaturedPages(landingDoc, docs);
+        var hasFeaturedPages = featuredPages.Count > 0;
 
         return new DocLandingViewModel
         {
-            Heading = featuredPages.Count > 0 ? GetCuratedHeading(landingDoc) : NeutralLandingHeading,
-            Description = featuredPages.Count > 0 ? GetCuratedDescription(landingDoc) : NeutralLandingDescription,
+            Heading = hasFeaturedPages ? GetCuratedHeading(landingDoc!) : NeutralLandingHeading,
+            Description = hasFeaturedPages ? GetCuratedDescription(landingDoc!) : NeutralLandingDescription,
             LandingDoc = landingDoc,
             VisibleDocs = visibleDocs,
             FeaturedPages = featuredPages
@@ -219,7 +220,7 @@ public class DocsController : Controller
                 continue;
             }
 
-            var destinationLinkPath = destination.CanonicalPath ?? destination.Path;
+            var destinationLinkPath = GetSnapshotCanonicalPath(destination);
             if (!seenPaths.Add(destinationLinkPath))
             {
                 _logger.LogWarning(
@@ -257,7 +258,7 @@ public class DocsController : Controller
         foreach (var doc in docs)
         {
             AddLookupEntry(lookup, NormalizeLookupPath(doc.Path), doc);
-            AddLookupEntry(lookup, NormalizeLookupPath(doc.CanonicalPath ?? doc.Path), doc);
+            AddLookupEntry(lookup, NormalizeLookupPath(GetSnapshotCanonicalPath(doc)), doc);
         }
 
         return lookup;
@@ -291,7 +292,7 @@ public class DocsController : Controller
 
         var exactCanonicalMatch = candidates.FirstOrDefault(
             doc => string.Equals(
-                       NormalizeCanonicalPath(doc.CanonicalPath ?? doc.Path),
+                       NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
                        lookupCanonicalPath,
                        StringComparison.OrdinalIgnoreCase)
                    || string.Equals(
@@ -304,7 +305,7 @@ public class DocsController : Controller
         }
 
         return candidates
-            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(doc.CanonicalPath ?? doc.Path)) ? 0 : 1)
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
             .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
             .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
@@ -326,6 +327,9 @@ public class DocsController : Controller
     {
         return path.Trim().Trim('/').Replace('\\', '/');
     }
+
+    // DocsController only consumes aggregator snapshots, which always populate CanonicalPath.
+    private static string GetSnapshotCanonicalPath(DocNode doc) => doc.CanonicalPath!;
 
     private static string? GetFragment(string path)
     {
@@ -351,11 +355,11 @@ public class DocsController : Controller
             : destination.Metadata!.Summary!.Trim();
     }
 
-    private static string GetCuratedHeading(DocNode? landingDoc)
+    private static string GetCuratedHeading(DocNode landingDoc)
     {
-        var title = string.IsNullOrWhiteSpace(landingDoc?.Metadata?.Title)
-            ? landingDoc?.Title
-            : landingDoc.Metadata!.Title;
+        var title = string.IsNullOrWhiteSpace(landingDoc.Metadata!.Title)
+            ? landingDoc.Title
+            : landingDoc.Metadata.Title;
         if (string.IsNullOrWhiteSpace(title) || string.Equals(title.Trim(), "Home", StringComparison.OrdinalIgnoreCase))
         {
             return NeutralLandingHeading;
@@ -364,9 +368,9 @@ public class DocsController : Controller
         return title.Trim();
     }
 
-    private static string GetCuratedDescription(DocNode? landingDoc)
+    private static string GetCuratedDescription(DocNode landingDoc)
     {
-        var summary = landingDoc?.Metadata?.Summary;
+        var summary = landingDoc.Metadata!.Summary;
         return string.IsNullOrWhiteSpace(summary)
             ? CuratedLandingDescription
             : summary.Trim();

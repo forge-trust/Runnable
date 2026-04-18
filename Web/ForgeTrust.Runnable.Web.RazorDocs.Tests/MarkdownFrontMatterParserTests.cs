@@ -112,6 +112,22 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void Extract_ShouldReturnNullMetadata_WhenFrontMatterDocumentIsYamlNull()
+    {
+        var markdown = """
+            ---
+            null
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        Assert.Null(metadata);
+    }
+
+    [Fact]
     public void Extract_ShouldReturnOriginalMarkdown_WhenOpeningMarkerIsNotFollowedByNewline()
     {
         var markdown = "---\rtitle: Quickstart\n---\n# Hello";

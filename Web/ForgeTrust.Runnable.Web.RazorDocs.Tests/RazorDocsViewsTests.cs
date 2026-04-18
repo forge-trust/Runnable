@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using AngleSharp.Dom;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -169,6 +170,67 @@ public class RazorDocsViewsTests
         Assert.Contains("Show me an example", html);
         Assert.Contains("This is the summary fallback.", html);
         Assert.Contains("Example", html);
+    }
+
+    [Fact]
+    public async Task IndexView_ShouldFormatKnownPageTypes_AndHideCardBadgeWhenPageTypeIsMissing()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "API card",
+                            Path = "guides/api.md"
+                        },
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "How-to card",
+                            Path = "guides/how-to.md"
+                        },
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Start card",
+                            Path = "guides/start.md"
+                        },
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Untyped card",
+                            Path = "guides/plain.md"
+                        }
+                    ]
+                }),
+            new("API Page", "guides/api.md", "<p>API body</p>", Metadata: new DocMetadata { PageType = "api-reference" }),
+            new("How-To Page", "guides/how-to.md", "<p>How-to body</p>", Metadata: new DocMetadata { PageType = "how-to" }),
+            new("Start Page", "guides/start.md", "<p>Start body</p>", Metadata: new DocMetadata { PageType = "start-here" }),
+            new("Plain Page", "guides/plain.md", "<p>Plain body</p>")
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.Equal(
+            "API Reference",
+            document.QuerySelector("a.group[href='/docs/guides/api.md.html'] span.rounded-full")?.TextContent.Trim());
+        Assert.Equal(
+            "How-To",
+            document.QuerySelector("a.group[href='/docs/guides/how-to.md.html'] span.rounded-full")?.TextContent.Trim());
+        Assert.Equal(
+            "Start Here",
+            document.QuerySelector("a.group[href='/docs/guides/start.md.html'] span.rounded-full")?.TextContent.Trim());
+
+        var untypedCard = document.QuerySelector("a.group[href='/docs/guides/plain.md.html']");
+        Assert.NotNull(untypedCard);
+        Assert.Null(untypedCard!.QuerySelector("span.rounded-full"));
+        Assert.Null(untypedCard.QuerySelector("p.mt-3"));
     }
 
     [Fact]

@@ -158,6 +158,25 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Index_ShouldReturnNeutralLanding_WhenRootReadmeHasNoMetadata()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Home", "README.md", "<p>Home</p>"),
+            new("Guide", "guides/intro.md", "<p>Guide body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        Assert.False(model.HasFeaturedPages);
+        Assert.Equal("Documentation", model.Heading);
+        Assert.Equal(2, model.VisibleDocs.Count);
+    }
+
+    [Fact]
     public async Task Index_ShouldReturnNeutralLanding_WhenRootReadmeHasNoFeaturedPages()
     {
         var docs = new List<DocNode>
@@ -381,6 +400,85 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Index_ShouldUseCuratedFallbacks_WhenLandingMetadataUsesHomeDefaults()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = " Home ",
+                    Summary = "   ",
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Path = "guides/composition.md"
+                        }
+                    ]
+                }),
+            new(
+                "Composition",
+                "guides/composition.md",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = "Composition Guide",
+                    Summary = "Destination summary should still appear on the card.",
+                    PageType = "guide"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        var featuredPage = Assert.Single(model.FeaturedPages);
+        Assert.Equal("Documentation", model.Heading);
+        Assert.Equal(
+            "Start with the proof paths that answer the first evaluator questions, then drill into guides, examples, and API details.",
+            model.Description);
+        Assert.Equal("Composition Guide", featuredPage.Question);
+        Assert.Equal("Composition Guide", featuredPage.Title);
+    }
+
+    [Fact]
+    public async Task Index_ShouldUseNeutralHeading_WhenLandingDocTitleIsWhitespace()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "   ",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = "   ",
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Path = "guides/composition.md"
+                        }
+                    ]
+                }),
+            new("Composition", "guides/composition.md", "<p>Guide body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        Assert.True(model.HasFeaturedPages);
+        Assert.Equal("Documentation", model.Heading);
+    }
+
+    [Fact]
     public async Task Index_ShouldResolveFeaturedPathsWithWindowsSeparators()
     {
         var docs = new List<DocNode>
@@ -409,6 +507,75 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         var featuredPage = Assert.Single(model.FeaturedPages);
         Assert.Equal("/docs/guides/composition.md.html", featuredPage.Href);
+    }
+
+    [Fact]
+    public async Task Index_ShouldPreferBestFallbackCandidate_WhenFeaturedPathHasNoExactCanonicalMatch()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Path = "guides/intro.md#missing-fragment"
+                        }
+                    ]
+                }),
+            new("Guide Root", "guides/intro.md", "<p>Root body</p>"),
+            new("Guide Empty Anchor", "guides/intro.md#details", "   "),
+            new("Guide Filled Anchor", "guides/intro.md#setup", "<p>Setup body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        var featuredPage = Assert.Single(model.FeaturedPages);
+        Assert.Equal("Guide Root", featuredPage.Question);
+        Assert.Equal("Guide Root", featuredPage.Title);
+        Assert.Equal("/docs/guides/intro.md.html", featuredPage.Href);
+    }
+
+    [Fact]
+    public async Task Index_ShouldPreferNonEmptyFallbackCandidate_WhenAllFallbackEntriesUseFragments()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Path = "guides/advanced.md#missing-fragment"
+                        }
+                    ]
+                }),
+            new("Guide Empty Fragment", "guides/advanced.md#details", "   "),
+            new("Guide Rich Fragment", "guides/advanced.md#setup", "<p>Setup body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        var featuredPage = Assert.Single(model.FeaturedPages);
+        Assert.Equal("Guide Rich Fragment", featuredPage.Question);
+        Assert.Equal("Guide Rich Fragment", featuredPage.Title);
+        Assert.Equal("/docs/guides/advanced.md.html#setup", featuredPage.Href);
     }
 
     [Fact]

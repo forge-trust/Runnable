@@ -367,6 +367,49 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldFallbackToModelTitle_WhenMetadataTitleIsNull()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Fallback Title",
+            "guides/null-title.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Title = null
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">Fallback Title</h1>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderTrimmedMetadataTitle_WhenMetadataTitleIsPresent()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Fallback Title",
+            "guides/trimmed-title.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Title = "  Authored Title  "
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">Authored Title</h1>", html);
+        Assert.DoesNotContain(">Fallback Title</h1>", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataTargetsCannotBeVerified()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -388,6 +431,54 @@ public class RazorDocsViewsTests
         Assert.Contains(">Quickstart</h1>", html);
         Assert.Contains(">quickstart.md</span>", html);
         Assert.DoesNotContain("Start Here", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataBreadcrumbCountDoesNotMatchPath()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["Start Here", "Quickstart", "Extra"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">guides</a>", html);
+        Assert.Contains(">quickstart.md</span>", html);
+        Assert.DoesNotContain(">Start Here</a>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataBreadcrumbsCollapseToEmpty()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["   ", "\t"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">guides</a>", html);
+        Assert.Contains(">quickstart.md</span>", html);
+        Assert.DoesNotContain(">Start Here</a>", html);
     }
 
     [Fact]
@@ -448,6 +539,27 @@ public class RazorDocsViewsTests
             {
                 Summary = "This is the summary paragraph.",
                 SummaryIsDerived = false
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderSummaryBlurb_WhenDerivedFlagIsUnset()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Summary = "This is the summary paragraph."
             });
 
         var html = await RenderViewAsync(

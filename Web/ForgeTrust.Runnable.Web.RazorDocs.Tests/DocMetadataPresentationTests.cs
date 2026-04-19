@@ -8,8 +8,11 @@ public sealed class DocMetadataPresentationTests
     [InlineData("guide", "Guide", "guide")]
     [InlineData(" example ", "Example", "example")]
     [InlineData("api_reference", "API Reference", "api-reference")]
+    [InlineData("internals", "Internals", "internals")]
     [InlineData("how to", "How-To", "how-to")]
     [InlineData("start-here", "Start Here", "start-here")]
+    [InlineData("troubleshooting", "Troubleshooting", "troubleshooting")]
+    [InlineData("glossary", "Glossary", "glossary")]
     [InlineData("faq", "FAQ", "glossary")]
     public void ResolvePageTypeBadge_ShouldNormalizeKnownValues(string rawValue, string expectedLabel, string expectedVariant)
     {
@@ -21,8 +24,11 @@ public sealed class DocMetadataPresentationTests
     }
 
     [Theory]
+    [InlineData("api_surface", "API Surface")]
     [InlineData("custom_reference", "Custom Reference")]
     [InlineData("cli_sdk", "CLI SDK")]
+    [InlineData("faq_overview", "FAQ Overview")]
+    [InlineData("ui_ux", "UI UX")]
     public void ResolvePageTypeBadge_ShouldFallbackToNeutralTitleCase_ForUnknownValues(string rawValue, string expectedLabel)
     {
         var badge = DocMetadataPresentation.ResolvePageTypeBadge(rawValue);
@@ -42,5 +48,13 @@ public sealed class DocMetadataPresentationTests
         var badge = DocMetadataPresentation.ResolvePageTypeBadge(rawValue);
 
         Assert.Null(badge);
+    }
+
+    [Fact]
+    public void NormalizeToken_ShouldReturnNull_WhenValueHasOnlySeparators()
+    {
+        var normalized = DocMetadataPresentation.NormalizeToken(" - _ \t ");
+
+        Assert.Null(normalized);
     }
 }

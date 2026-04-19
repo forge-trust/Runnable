@@ -1,23 +1,26 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode
 @{
-    var resolvedTitle = string.IsNullOrWhiteSpace(Model.Metadata?.Title)
+    var metadata = Model.Metadata;
+    var resolvedTitle = string.IsNullOrWhiteSpace(metadata?.Title)
         ? Model.Title
-        : Model.Metadata!.Title!.Trim();
-    var summary = Model.Metadata?.Summary;
-    var showSummary = !string.IsNullOrWhiteSpace(summary) && Model.Metadata?.SummaryIsDerived != true;
+        : metadata!.Title!.Trim();
+    var summary = metadata?.Summary;
+    var hasSummary = !string.IsNullOrWhiteSpace(summary);
+    var summaryIsDerived = metadata?.SummaryIsDerived == true;
+    var showSummary = hasSummary && !summaryIsDerived;
     ViewData["Title"] = resolvedTitle;
     var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
-    var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(Model.Metadata?.PageType);
-    var component = Model.Metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(Model.Metadata?.Component)
+    var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType);
+    var component = metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Component)
         ? null
-        : Model.Metadata!.Component!.Trim();
-    var audience = Model.Metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(Model.Metadata?.Audience)
+        : metadata!.Component!.Trim();
+    var audience = metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Audience)
         ? null
-        : Model.Metadata!.Audience!.Trim();
+        : metadata!.Audience!.Trim();
     var normalizedPath = Model.Path.Trim().Trim('/');
     var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                           || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
-    var metadataBreadcrumbs = Model.Metadata?.Breadcrumbs?
+    var metadataBreadcrumbs = metadata?.Breadcrumbs?
         .Where(label => !string.IsNullOrWhiteSpace(label))
         .Select(label => label.Trim())
         .ToList();
@@ -54,9 +57,13 @@
     }
 
     var breadcrumbs = new List<(string Label, string? Href)>();
-    var canUseMetadataBreadcrumbs = metadataBreadcrumbs is { Count: > 0 }
-                                    && Model.Metadata?.BreadcrumbsMatchPathTargets == true
-                                    && metadataBreadcrumbs.Count == parsedBreadcrumbs.Count;
+    var metadataBreadcrumbCount = metadataBreadcrumbs?.Count ?? 0;
+    var hasMetadataBreadcrumbs = metadataBreadcrumbCount > 0;
+    var metadataBreadcrumbsMatchPathTargets = metadata?.BreadcrumbsMatchPathTargets == true;
+    var metadataBreadcrumbCountMatchesPath = metadataBreadcrumbCount == parsedBreadcrumbs.Count;
+    var canUseMetadataBreadcrumbs = hasMetadataBreadcrumbs
+                                    && metadataBreadcrumbsMatchPathTargets
+                                    && metadataBreadcrumbCountMatchesPath;
 
     if (canUseMetadataBreadcrumbs)
     {

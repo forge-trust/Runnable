@@ -5,36 +5,45 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 public sealed class DocMetadataPresentationTests
 {
     [Theory]
-    [InlineData("guide", "Guide", "guide")]
-    [InlineData(" example ", "Example", "example")]
-    [InlineData("api_reference", "API Reference", "api-reference")]
-    [InlineData("internals", "Internals", "internals")]
-    [InlineData("how to", "How-To", "how-to")]
-    [InlineData("start-here", "Start Here", "start-here")]
-    [InlineData("troubleshooting", "Troubleshooting", "troubleshooting")]
-    [InlineData("glossary", "Glossary", "glossary")]
-    [InlineData("faq", "FAQ", "faq")]
-    public void ResolvePageTypeBadge_ShouldNormalizeKnownValues(string rawValue, string expectedLabel, string expectedVariant)
+    [InlineData("guide", "guide", "Guide", "guide")]
+    [InlineData(" example ", "example", "Example", "example")]
+    [InlineData("api_reference", "api-reference", "API Reference", "api-reference")]
+    [InlineData("internals", "internals", "Internals", "internals")]
+    [InlineData("how to", "how-to", "How-To", "how-to")]
+    [InlineData("start-here", "start-here", "Start Here", "start-here")]
+    [InlineData("troubleshooting", "troubleshooting", "Troubleshooting", "troubleshooting")]
+    [InlineData("glossary", "glossary", "Glossary", "glossary")]
+    [InlineData("faq", "faq", "FAQ", "faq")]
+    public void ResolvePageTypeBadge_ShouldNormalizeKnownValues(
+        string rawValue,
+        string expectedValue,
+        string expectedLabel,
+        string expectedVariant)
     {
         var badge = DocMetadataPresentation.ResolvePageTypeBadge(rawValue);
 
         Assert.NotNull(badge);
-        Assert.Equal(expectedLabel, badge!.Label);
+        Assert.Equal(expectedValue, badge!.Value);
+        Assert.Equal(expectedLabel, badge.Label);
         Assert.Equal(expectedVariant, badge.Variant);
     }
 
     [Theory]
-    [InlineData("api_surface", "API Surface")]
-    [InlineData("custom_reference", "Custom Reference")]
-    [InlineData("cli_sdk", "CLI SDK")]
-    [InlineData("faq_overview", "FAQ Overview")]
-    [InlineData("ui_ux", "UI UX")]
-    public void ResolvePageTypeBadge_ShouldFallbackToNeutralTitleCase_ForUnknownValues(string rawValue, string expectedLabel)
+    [InlineData("api_surface", "api-surface", "API Surface")]
+    [InlineData("custom_reference", "custom-reference", "Custom Reference")]
+    [InlineData("cli_sdk", "cli-sdk", "CLI SDK")]
+    [InlineData("faq_overview", "faq-overview", "FAQ Overview")]
+    [InlineData("ui_ux", "ui-ux", "UI UX")]
+    public void ResolvePageTypeBadge_ShouldFallbackToNeutralTitleCase_ForUnknownValues(
+        string rawValue,
+        string expectedValue,
+        string expectedLabel)
     {
         var badge = DocMetadataPresentation.ResolvePageTypeBadge(rawValue);
 
         Assert.NotNull(badge);
-        Assert.Equal(expectedLabel, badge!.Label);
+        Assert.Equal(expectedValue, badge!.Value);
+        Assert.Equal(expectedLabel, badge.Label);
         Assert.Equal("neutral", badge.Variant);
     }
 

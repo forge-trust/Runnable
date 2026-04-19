@@ -35,6 +35,11 @@ public class TailwindCliManager
     internal string? AssemblyDirectoryOverride { get; set; }
 
     /// <summary>
+    /// Gets or sets a runtime identifier override for tests that need to exercise non-host RID resolution paths.
+    /// </summary>
+    internal string? RidOverride { get; set; }
+
+    /// <summary>
     /// Gets the path to the Tailwind CLI binary.
     /// </summary>
     /// <returns>The absolute path to the tailwindcss executable.</returns>
@@ -54,7 +59,7 @@ public class TailwindCliManager
         var baseDir = BaseDirectoryOverride ?? AppContext.BaseDirectory;
         if (!string.IsNullOrEmpty(baseDir))
         {
-            var rid = GetCurrentRid();
+            var rid = RidOverride ?? GetCurrentRid();
 
             // 1. Check standard NuGet runtime asset path (for published apps or project-local runtimes folder)
             var runtimePath = Path.Combine(baseDir, "runtimes", rid, "native", _binaryName);

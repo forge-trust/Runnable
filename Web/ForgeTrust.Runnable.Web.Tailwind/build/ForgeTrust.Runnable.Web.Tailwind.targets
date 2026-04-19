@@ -20,14 +20,9 @@
           Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')"
           Inputs="$(TailwindInputPath);@(_TailwindTemplates);@(_TailwindConfigs)" 
           Outputs="$(TailwindOutputPath)">
-    <ReadLinesFromFile File="$(_TailwindVersionFile)"
-                       Condition="'$(TailwindVersion)' == '' and Exists('$(_TailwindVersionFile)')">
-      <Output TaskParameter="Lines" ItemName="_TailwindVersionFileLines" />
-    </ReadLinesFromFile>
-
     <PropertyGroup>
       <!-- Source-tree consumers import only this targets file, so resolve TailwindVersion here as well. -->
-      <TailwindVersion Condition="'$(TailwindVersion)' == '' and '@(_TailwindVersionFileLines)' != ''">@(_TailwindVersionFileLines->'%(Identity)')</TailwindVersion>
+      <TailwindVersion Condition="'$(TailwindVersion)' == '' and Exists('$(_TailwindVersionFile)')">$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(_TailwindVersionFile)')), '^[^\r\n]+').Value)</TailwindVersion>
 
       <!-- Tailwind runs during the build, so select the CLI for the current build host instead of RuntimeIdentifier. -->
       <!-- Tailwind v4.1.18 only publishes a Windows x64 binary, so Windows Arm64 uses x64 emulation. -->

@@ -141,15 +141,34 @@ public class TailwindCliManagerTests : IDisposable
         _manager.BaseDirectoryOverride = baseDir;
         _manager.AssemblyDirectoryOverride = assemblyDir;
 
-        var runtimeBinaryName = rid switch
-        {
-            "win-x64" => "tailwindcss-windows-x64.exe",
-            "osx-arm64" => "tailwindcss-macos-arm64",
-            "osx-x64" => "tailwindcss-macos-x64",
-            "linux-arm64" => "tailwindcss-linux-arm64",
-            "linux-x64" => "tailwindcss-linux-x64",
-            _ => throw new InvalidOperationException($"Unsupported RID for test: {rid}")
-        };
+        var runtimeProjectDir = Path.Combine(
+            _tempPath,
+            "Web",
+            "ForgeTrust.Runnable.Web.Tailwind",
+            "runtimes",
+            "obj",
+            $"ForgeTrust.Runnable.Web.Tailwind.Runtime.{rid}",
+            "Debug",
+            "net10.0");
+        Directory.CreateDirectory(runtimeProjectDir);
+        var expectedPath = Path.Combine(runtimeProjectDir, GetRuntimeProjectBinaryName(rid));
+        File.WriteAllText(expectedPath, "dummy");
+
+        var result = _manager.GetTailwindPath();
+
+        Assert.Equal(expectedPath, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(DevelopmentRuntimeRidCases))]
+    public void GetTailwindPath_ReturnsDevelopmentRuntimeProjectPath_ForSupportedRidOverride(string rid, string binaryName)
+    {
+        var baseDir = Path.Combine(_tempPath, "examples", "sample-app", "bin", "Debug", "net10.0");
+        var assemblyDir = Path.Combine(baseDir, "assembly-shadow");
+        Directory.CreateDirectory(baseDir);
+        _manager.BaseDirectoryOverride = baseDir;
+        _manager.AssemblyDirectoryOverride = assemblyDir;
+        _manager.RidOverride = rid;
 
         var runtimeProjectDir = Path.Combine(
             _tempPath,
@@ -161,12 +180,26 @@ public class TailwindCliManagerTests : IDisposable
             "Debug",
             "net10.0");
         Directory.CreateDirectory(runtimeProjectDir);
-        var expectedPath = Path.Combine(runtimeProjectDir, runtimeBinaryName);
+        var expectedPath = Path.Combine(runtimeProjectDir, binaryName);
         File.WriteAllText(expectedPath, "dummy");
 
         var result = _manager.GetTailwindPath();
 
         Assert.Equal(expectedPath, result);
+    }
+
+    [Fact]
+    public void GetTailwindPath_ThrowsFileNotFoundException_WhenRidOverrideIsUnsupported()
+    {
+        var baseDir = Path.Combine(_tempPath, "examples", "sample-app", "bin", "Debug", "net10.0");
+        var assemblyDir = Path.Combine(baseDir, "assembly-shadow");
+        Directory.CreateDirectory(baseDir);
+        _manager.BaseDirectoryOverride = baseDir;
+        _manager.AssemblyDirectoryOverride = assemblyDir;
+        _manager.RidOverride = "mystery-rid";
+        Environment.SetEnvironmentVariable("PATH", string.Empty);
+
+        Assert.Throws<FileNotFoundException>(() => _manager.GetTailwindPath());
     }
 
     [Fact]
@@ -216,4 +249,23 @@ public class TailwindCliManagerTests : IDisposable
         yield return [OSPlatform.OSX, Architecture.X86, "unknown"];
         yield return [OSPlatform.Create("FREEBSD"), Architecture.X64, "unknown"];
     }
+
+    public static IEnumerable<object[]> DevelopmentRuntimeRidCases()
+    {
+        yield return ["win-x64", "tailwindcss-windows-x64.exe"];
+        yield return ["osx-arm64", "tailwindcss-macos-arm64"];
+        yield return ["osx-x64", "tailwindcss-macos-x64"];
+        yield return ["linux-arm64", "tailwindcss-linux-arm64"];
+        yield return ["linux-x64", "tailwindcss-linux-x64"];
+    }
+
+    private static string GetRuntimeProjectBinaryName(string rid) => rid switch
+    {
+        "win-x64" => "tailwindcss-windows-x64.exe",
+        "osx-arm64" => "tailwindcss-macos-arm64",
+        "osx-x64" => "tailwindcss-macos-x64",
+        "linux-arm64" => "tailwindcss-linux-arm64",
+        "linux-x64" => "tailwindcss-linux-x64",
+        _ => throw new InvalidOperationException($"Unsupported RID for test: {rid}")
+    };
 }

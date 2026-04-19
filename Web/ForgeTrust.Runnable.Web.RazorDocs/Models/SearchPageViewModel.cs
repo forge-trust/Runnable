@@ -7,6 +7,12 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Models;
 /// This model is rendered before the client-side search index is available so the page can show stable loading,
 /// starter, and failure states even when the search payload is slow or unavailable. All members are required and
 /// should be supplied as non-<see langword="null" /> values. The list properties render in the order provided.
+/// Use <see cref="SearchPageViewModel" /> for the server-rendered shell contract and recovery guidance, not for live
+/// search results or client-side facet state. Callers should prefer empty lists over <see langword="null" /> for
+/// <paramref name="SuggestedQueries" /> and <paramref name="FailureFallbackLinks" />.
+/// Suggested queries and fallback links are displayed in the supplied order, so place the highest-signal actions
+/// first. Avoid relying on client-side mutation of this model after render, and avoid using external absolute URLs in
+/// <see cref="SearchPageFallbackLink.Href" /> because the shell assumes app-relative navigation semantics.
 /// </remarks>
 /// <param name="Title">The primary page heading shown above the workspace controls.</param>
 /// <param name="Orientation">A short orientation sentence that explains what users can discover from the workspace.</param>
@@ -29,6 +35,9 @@ public sealed record SearchPageViewModel(
 /// These links are rendered before the client search payload is available, so each entry should be complete enough
 /// to stand on its own. Destinations under <c>/docs/...</c> continue using the docs content frame, while the docs
 /// index and non-doc routes navigate the top-level page.
+/// Keep <see cref="Href" /> app-relative and already URL-safe, and assume the UI will HTML-escape the visible text
+/// in <see cref="Title" /> and <see cref="Description" />. Prefer concise copy that fits comfortably in a compact
+/// recovery card, and do not depend on client search indexing to make the destination discoverable.
 /// </remarks>
 /// <param name="Title">Short, action-oriented label used as the visible link title.</param>
 /// <param name="Href">The app-relative destination URL to open when the user follows the recovery action.</param>

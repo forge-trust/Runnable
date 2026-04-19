@@ -402,7 +402,8 @@ public class DocsController : Controller
 
         if (links.Count < 3)
         {
-            var namespacesRoot = docs.FirstOrDefault(
+            var namespacesRoot = SelectFallbackDoc(
+                docs,
                 doc => string.Equals(doc.Path, "Namespaces", StringComparison.OrdinalIgnoreCase));
             TryAddFallbackLink(
                 links,

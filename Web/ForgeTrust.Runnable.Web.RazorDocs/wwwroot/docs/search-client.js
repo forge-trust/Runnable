@@ -25,6 +25,7 @@
   const searchPageBoundAttribute = 'data-rw-search-page-bound';
   const shortcutsBoundAttribute = 'data-rw-search-shortcuts-bound';
   const popstateBoundFlag = '__rwDocsSearchPopstateBound';
+  const mobileFilterListenerBoundFlag = '__rwDocsSearchMobileFilterListenerBound';
   const mobileFilterMedia = window.matchMedia ? window.matchMedia('(max-width: 767px)') : null;
   const pageTypeSort = new Map([
     ['guide', 0],
@@ -1380,6 +1381,15 @@
     page.filtersPanel.hidden = isMobile && !searchPageState.filtersExpanded;
   }
 
+  function handleMobileFilterChange() {
+    const page = getSearchPageElements();
+    if (!page.root) {
+      return;
+    }
+
+    syncSearchPageFilterPanel(page);
+  }
+
   function setSearchPageBusy(page, isBusy) {
     page.results?.setAttribute('aria-busy', isBusy ? 'true' : 'false');
   }
@@ -1659,8 +1669,9 @@
       });
     });
 
-    if (mobileFilterMedia) {
-      mobileFilterMedia.addEventListener('change', () => syncSearchPageFilterPanel(page));
+    if (mobileFilterMedia && !window[mobileFilterListenerBoundFlag]) {
+      mobileFilterMedia.addEventListener('change', handleMobileFilterChange);
+      window[mobileFilterListenerBoundFlag] = '1';
     }
 
     if (!window[popstateBoundFlag]) {

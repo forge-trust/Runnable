@@ -710,6 +710,22 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task IndexView_ShouldNotRenderSearchWorkspaceOnlyAssets()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Index",
+            c => c.Index());
+
+        Assert.DoesNotContain("href=\"/docs/search-index.json\"", html);
+        Assert.DoesNotContain("data-rw-search-runtime=\"minisearch\"", html);
+        Assert.Contains("src=\"/docs/search-client.js\"", html);
+        Assert.Contains("id=\"docs-search-input\"", html);
+    }
+
+    [Fact]
     public async Task IndexView_ShouldRenderNamespacesWithoutNamespaceRootLink_WhenRootIsMissing()
     {
         var docs = CreateDocs().Where(d => !string.Equals(d.Path, "Namespaces", StringComparison.OrdinalIgnoreCase)).ToList();

@@ -766,6 +766,31 @@ public class DocsControllerTests : IDisposable
 
     [Fact]
     public async Task SearchIndex_ShouldReturnJsonPayload_WithNormalizedPageTypeBadgeFields()
+    public async Task Search_ShouldSkipHiddenNamespacesFallback_WhenBuildingRecoveryLinks()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Namespaces",
+                "Namespaces",
+                "<p>Namespace index</p>",
+                Metadata: new DocMetadata
+                {
+                    HideFromPublicNav = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Title == "Browse namespaces");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldReturnJsonPayload_WithNormalizedPageTypeBadgeFields()
     {
         var docs = new List<DocNode>
         {

@@ -106,7 +106,10 @@ public class DocsController : Controller
     /// <summary>
     /// Returns docs search index data for live-hosted docs.
     /// </summary>
-    /// <returns>A JSON result containing searchable document metadata and content fields.</returns>
+    /// <returns>
+    /// A JSON result containing searchable document metadata, including normalized page-type badge fields that keep search
+    /// result rendering consistent with the built-in landing and details experiences.
+    /// </returns>
     [HttpGet]
     public async Task<IActionResult> SearchIndex()
     {
@@ -237,6 +240,7 @@ public class DocsController : Controller
             var question = string.IsNullOrWhiteSpace(definition.Question)
                 ? destinationTitle
                 : definition.Question.Trim();
+            var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(destination.Metadata?.PageType);
 
             resolvedCards.Add(
                 new DocLandingFeaturedPageViewModel
@@ -245,6 +249,7 @@ public class DocsController : Controller
                     Title = destinationTitle,
                     Href = $"/docs/{destinationLinkPath}",
                     PageType = destination.Metadata?.PageType,
+                    PageTypeBadge = pageTypeBadge,
                     SupportingText = GetSupportingText(definition, destination)
                 });
         }

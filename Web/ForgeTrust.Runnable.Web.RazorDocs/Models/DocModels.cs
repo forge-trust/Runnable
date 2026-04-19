@@ -351,6 +351,11 @@ public sealed record DocLandingFeaturedPageViewModel
     public string? PageType { get; init; }
 
     /// <summary>
+    /// Gets the normalized badge presentation for <see cref="PageType"/> when RazorDocs can render one.
+    /// </summary>
+    public DocPageTypeBadgePresentation? PageTypeBadge { get; init; }
+
+    /// <summary>
     /// Gets the supporting body copy shown on the card.
     /// </summary>
     public string? SupportingText { get; init; }

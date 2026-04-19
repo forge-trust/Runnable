@@ -3,23 +3,6 @@
 @{
     ViewData["Title"] = "Documentation Index";
     var visibleDocs = Model.VisibleDocs.ToList();
-
-    static string? FormatPageType(string? pageType)
-    {
-        if (string.IsNullOrWhiteSpace(pageType))
-        {
-            return null;
-        }
-
-        return pageType.Trim().ToLowerInvariant() switch
-        {
-            "api-reference" => "API Reference",
-            "how-to" => "How-To",
-            "start-here" => "Start Here",
-            _ => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
-                pageType.Replace('-', ' ').Replace('_', ' ').Trim().ToLowerInvariant())
-        };
-    }
 }
 
 <div class="flex flex-col items-center justify-center h-full p-6 sm:p-8 lg:p-12 text-center text-slate-500">
@@ -38,17 +21,17 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full max-w-6xl text-left">
             @foreach (var featuredPage in Model.FeaturedPages)
             {
-                var pageTypeLabel = FormatPageType(featuredPage.PageType);
+                var pageTypeBadge = featuredPage.PageTypeBadge ?? DocMetadataPresentation.ResolvePageTypeBadge(featuredPage.PageType);
                 <a href="@featuredPage.Href"
                    data-turbo-frame="doc-content"
                    data-turbo-action="advance"
                    class="group h-full rounded-2xl border border-slate-800 bg-slate-900/60 p-6 transition-colors hover:border-cyan-500/50 hover:bg-slate-900">
                     <div class="mb-4 flex items-start justify-between gap-4">
                         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">@featuredPage.Question</p>
-                        @if (!string.IsNullOrWhiteSpace(pageTypeLabel))
+                        @if (pageTypeBadge is not null)
                         {
-                            <span class="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200">
-                                @pageTypeLabel
+                            <span class="docs-page-badge docs-page-badge--@pageTypeBadge.Variant">
+                                @pageTypeBadge.Label
                             </span>
                         }
                     </div>

@@ -1,16 +1,26 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode
 @{
-    var resolvedTitle = string.IsNullOrWhiteSpace(Model.Metadata?.Title)
+    var metadata = Model.Metadata;
+    var resolvedTitle = string.IsNullOrWhiteSpace(metadata?.Title)
         ? Model.Title
-        : Model.Metadata!.Title!.Trim();
-    var summary = Model.Metadata?.Summary;
-    var showSummary = !string.IsNullOrWhiteSpace(summary) && Model.Metadata?.SummaryIsDerived != true;
+        : metadata!.Title!.Trim();
+    var summary = metadata?.Summary;
+    var hasSummary = !string.IsNullOrWhiteSpace(summary);
+    var summaryIsDerived = metadata?.SummaryIsDerived == true;
+    var showSummary = hasSummary && !summaryIsDerived;
     ViewData["Title"] = resolvedTitle;
     var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+    var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType);
+    var component = metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Component)
+        ? null
+        : metadata!.Component!.Trim();
+    var audience = metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Audience)
+        ? null
+        : metadata!.Audience!.Trim();
     var normalizedPath = Model.Path.Trim().Trim('/');
     var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                           || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
-    var metadataBreadcrumbs = Model.Metadata?.Breadcrumbs?
+    var metadataBreadcrumbs = metadata?.Breadcrumbs?
         .Where(label => !string.IsNullOrWhiteSpace(label))
         .Select(label => label.Trim())
         .ToList();
@@ -47,9 +57,13 @@
     }
 
     var breadcrumbs = new List<(string Label, string? Href)>();
-    var canUseMetadataBreadcrumbs = metadataBreadcrumbs is { Count: > 0 }
-                                    && Model.Metadata?.BreadcrumbsMatchPathTargets == true
-                                    && metadataBreadcrumbs.Count == parsedBreadcrumbs.Count;
+    var metadataBreadcrumbCount = metadataBreadcrumbs?.Count ?? 0;
+    var hasMetadataBreadcrumbs = metadataBreadcrumbCount > 0;
+    var metadataBreadcrumbsMatchPathTargets = metadata?.BreadcrumbsMatchPathTargets == true;
+    var metadataBreadcrumbCountMatchesPath = metadataBreadcrumbCount == parsedBreadcrumbs.Count;
+    var canUseMetadataBreadcrumbs = hasMetadataBreadcrumbs
+                                    && metadataBreadcrumbsMatchPathTargets
+                                    && metadataBreadcrumbCountMatchesPath;
 
     if (canUseMetadataBreadcrumbs)
     {
@@ -89,6 +103,23 @@
             }
         }
     </nav>
+    @if (pageTypeBadge is not null || component is not null || audience is not null)
+    {
+        <div class="docs-page-meta">
+            @if (pageTypeBadge is not null)
+            {
+                <span class="docs-page-badge docs-page-badge--@pageTypeBadge.Variant">@pageTypeBadge.Label</span>
+            }
+            @if (component is not null)
+            {
+                <span class="docs-metadata-chip">Component: @component</span>
+            }
+            @if (audience is not null)
+            {
+                <span class="docs-metadata-chip">Audience: @audience</span>
+            }
+        </div>
+    }
     @if (!isCSharpApiDoc)
     {
         <h1 class="text-3xl font-bold text-white tracking-tight">@resolvedTitle</h1>

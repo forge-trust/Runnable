@@ -231,6 +231,34 @@
       .replaceAll("'", '&#39;');
   }
 
+  function normalizeBadgeVariant(value) {
+    const normalized = String(value ?? '')
+      .trim()
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9-]/g, '');
+
+    return normalized || 'neutral';
+  }
+
+  function renderPageTypeBadge(item) {
+    const label = String(item?.pageTypeLabel ?? '').trim();
+    if (!label) {
+      return '';
+    }
+
+    const variant = normalizeBadgeVariant(item?.pageTypeVariant);
+    return `<span class="docs-page-badge docs-page-badge--${escapeHtml(variant)}">${escapeHtml(label)}</span>`;
+  }
+
+  function renderMetadataChip(label, value) {
+    const normalizedValue = String(value ?? '').trim();
+    if (!normalizedValue) {
+      return '';
+    }
+
+    return `<span class="docs-metadata-chip">${escapeHtml(label)}: ${escapeHtml(normalizedValue)}</span>`;
+  }
+
   function getLocationLabel(item) {
     const context = item?.navGroup || item?.component || '';
     const path = item?.path || '';
@@ -335,7 +363,7 @@
     const MiniSearch = window.MiniSearch;
     searchIndex = new MiniSearch({
       fields: ['title', 'aliases', 'keywords', 'summary', 'headings', 'bodyText'],
-      storeFields: ['id', 'path', 'title', 'snippet', 'summary', 'pageType', 'component', 'audience', 'status', 'navGroup'],
+      storeFields: ['id', 'path', 'title', 'snippet', 'summary', 'pageType', 'pageTypeLabel', 'pageTypeVariant', 'component', 'audience', 'status', 'navGroup'],
       searchOptions: defaultSearchOptions
     });
 
@@ -350,6 +378,8 @@
       bodyText: d.bodyText ?? '',
       snippet: d.snippet ?? '',
       pageType: d.pageType ?? '',
+      pageTypeLabel: d.pageTypeLabel ?? '',
+      pageTypeVariant: d.pageTypeVariant ?? '',
       component: d.component ?? '',
       audience: d.audience ?? '',
       status: d.status ?? '',
@@ -500,9 +530,13 @@
     results.classList.remove('hidden');
     results.innerHTML = queryResults.map((item, index) => {
       const selected = index === activeIndex ? 'true' : 'false';
+      const pageTypeBadge = renderPageTypeBadge(item);
       return `<li id="docs-search-option-${index}" role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
         <a href="${escapeHtml(item.path)}" data-turbo-frame="doc-content" data-turbo-action="advance">
-          <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
+          <span class="docs-search-option-title-row">
+            <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
+            ${pageTypeBadge}
+          </span>
           <span class="docs-search-option-path">${escapeHtml(getLocationLabel(item))}</span>
         </a>
       </li>`;
@@ -547,13 +581,22 @@
       return;
     }
 
-    results.innerHTML = queryResults.map((item) => `
+    results.innerHTML = queryResults.map((item) => {
+      const metadata = [
+        renderPageTypeBadge(item),
+        renderMetadataChip('Component', item.component),
+        renderMetadataChip('Audience', item.audience)
+      ].filter(Boolean).join('');
+
+      return `
       <article class="docs-search-result">
+        ${metadata ? `<div class="docs-search-result-meta">${metadata}</div>` : ''}
         <h2><a href="${escapeHtml(item.path)}">${escapeHtml(item.title)}</a></h2>
         <p class="docs-search-result-path">${escapeHtml(getLocationLabel(item))}</p>
         <p class="docs-search-result-snippet">${escapeHtml(item.summary || item.snippet || '')}</p>
       </article>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function setStatus(node, text) {

@@ -11,7 +11,7 @@ public sealed class RepositoryReadmePolicyTests
     };
 
     [Fact]
-    public void TrackedReadmes_ShouldNotStartWithYamlFrontMatter()
+    public void AuthoredReadmes_ShouldNotStartWithYamlFrontMatter()
     {
         var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
         var violatingReadmes = EnumerateAuthoredReadmePaths(repoRoot)
@@ -23,7 +23,7 @@ public sealed class RepositoryReadmePolicyTests
 
         Assert.True(
             violatingReadmes.Length == 0,
-            $"Tracked README.md files must stay portable and avoid inline YAML front matter. Violations: {string.Join(", ", violatingReadmes)}");
+            $"Authored README.md files must stay portable and avoid inline YAML front matter. Violations: {string.Join(", ", violatingReadmes)}");
     }
 
     private static IReadOnlyList<string> EnumerateAuthoredReadmePaths(string repoRoot)

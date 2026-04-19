@@ -765,7 +765,20 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchIndex_ShouldReturnJsonPayload_WithNormalizedPageTypeBadgeFields()
+    public async Task Search_ShouldStillRenderShell_WhenDocAggregationTimesOut()
+    {
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .ThrowsAsync(new OperationCanceledException());
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.Equal("Search Documentation", model.Title);
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+    }
+
+    [Fact]
     public async Task Search_ShouldSkipHiddenNamespacesFallback_WhenBuildingRecoveryLinks()
     {
         var docs = new List<DocNode>
@@ -787,6 +800,34 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
         Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Title == "Browse namespaces");
         Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldReturnJsonPayload_WithNormalizedPageTypeBadgeFields()
+    public async Task Search_ShouldSkipDuplicateFallbackLinks_WhenOneDocMatchesMultipleBuckets()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Shared Example",
+                "guides/shared-example",
+                "<p>Shared body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "example"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        var sharedHref = DocAggregator.BuildSearchDocUrl("guides/shared-example");
+
+        Assert.Equal(1, model.FailureFallbackLinks.Count(link => link.Href == sharedHref));
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Browse guides");
+        Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Title == "Open an example");
     }
 
     [Fact]

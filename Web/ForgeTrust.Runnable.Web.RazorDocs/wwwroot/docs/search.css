@@ -33,10 +33,84 @@
     display: none;
 }
 
+.docs-page-badge,
+.docs-metadata-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    border: 1px solid #334155;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.25;
+    background: rgba(15, 23, 42, 0.72);
+}
+
+.docs-page-badge {
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #cbd5e1;
+}
+
+.docs-page-badge--guide,
+.docs-page-badge--how-to,
+.docs-page-badge--start-here {
+    border-color: rgba(34, 211, 238, 0.35);
+    background: rgba(34, 211, 238, 0.12);
+    color: #a5f3fc;
+}
+
+.docs-page-badge--example {
+    border-color: rgba(16, 185, 129, 0.35);
+    background: rgba(16, 185, 129, 0.12);
+    color: #a7f3d0;
+}
+
+.docs-page-badge--api-reference,
+.docs-page-badge--glossary,
+.docs-page-badge--faq {
+    border-color: rgba(99, 102, 241, 0.38);
+    background: rgba(99, 102, 241, 0.12);
+    color: #c7d2fe;
+}
+
+.docs-page-badge--internals,
+.docs-page-badge--troubleshooting {
+    border-color: rgba(251, 191, 36, 0.4);
+    background: rgba(251, 191, 36, 0.12);
+    color: #fde68a;
+}
+
+.docs-page-badge--neutral {
+    color: #cbd5e1;
+}
+
+.docs-metadata-chip {
+    color: #cbd5e1;
+}
+
+.docs-page-meta,
+.docs-search-result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.docs-page-meta {
+    margin-bottom: 1rem;
+}
+
 .docs-search-option a {
     display: block;
     padding: 0.55rem 0.65rem;
     text-decoration: none;
+}
+
+.docs-search-option-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
 }
 
 .docs-search-option-title {
@@ -85,8 +159,12 @@
     background: #020617;
 }
 
+.docs-search-result-meta {
+    margin-bottom: 0.65rem;
+}
+
 .docs-search-result h2 {
-    margin: 0;
+    margin: 0 0 0.15rem;
     font-size: 1.05rem;
 }
 

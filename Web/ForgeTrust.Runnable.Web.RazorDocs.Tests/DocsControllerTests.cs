@@ -712,7 +712,7 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchIndex_ShouldReturnJsonPayload()
+    public async Task SearchIndex_ShouldReturnJsonPayload_WithNormalizedPageTypeBadgeFields()
     {
         var docs = new List<DocNode>
         {
@@ -741,10 +741,45 @@ public class DocsControllerTests : IDisposable
         var document = Assert.Single(documents.EnumerateArray());
         Assert.Equal("Get started quickly.", document.GetProperty("summary").GetString());
         Assert.Equal("guide", document.GetProperty("pageType").GetString());
+        Assert.Equal("Guide", document.GetProperty("pageTypeLabel").GetString());
+        Assert.Equal("guide", document.GetProperty("pageTypeVariant").GetString());
         Assert.Equal("Runnable", document.GetProperty("component").GetString());
         Assert.Equal("Start Here", document.GetProperty("navGroup").GetString());
         Assert.Equal("quickstart", document.GetProperty("aliases").EnumerateArray().Single().GetString());
         Assert.Equal("install", document.GetProperty("keywords").EnumerateArray().Single().GetString());
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldSuppressDerivedAudienceAndComponentFields()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Getting Started",
+                "guides/start",
+                "<h2>Install</h2><p>First steps.</p>",
+                Metadata: new DocMetadata
+                {
+                    Summary = "Get started quickly.",
+                    PageType = "guide",
+                    Component = "Runnable",
+                    ComponentIsDerived = true,
+                    Audience = "implementer",
+                    AudienceIsDerived = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.SearchIndex();
+        var json = Assert.IsType<JsonResult>(result);
+
+        var payload = JsonSerializer.Serialize(json.Value);
+        using var doc = JsonDocument.Parse(payload);
+        var document = Assert.Single(doc.RootElement.GetProperty("documents").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, document.GetProperty("component").ValueKind);
+        Assert.Equal(JsonValueKind.Null, document.GetProperty("audience").ValueKind);
+        Assert.Equal("Guide", document.GetProperty("pageTypeLabel").GetString());
+        Assert.Equal("guide", document.GetProperty("pageTypeVariant").GetString());
     }
 
     [Fact]

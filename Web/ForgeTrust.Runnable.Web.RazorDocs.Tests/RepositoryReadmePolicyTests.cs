@@ -1,15 +1,20 @@
-using System.Diagnostics;
-
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
 public sealed class RepositoryReadmePolicyTests
 {
+    private static readonly HashSet<string> ExcludedDirectorySegments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "bin",
+        "obj",
+        "node_modules",
+        "TestResults"
+    };
+
     [Fact]
     public void TrackedReadmes_ShouldNotStartWithYamlFrontMatter()
     {
         var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
-        var violatingReadmes = GetTrackedReadmePaths(repoRoot)
-            .Where(path => path.EndsWith("README.md", StringComparison.OrdinalIgnoreCase))
+        var violatingReadmes = EnumerateAuthoredReadmePaths(repoRoot)
             .Where(
                 path => File.ReadAllText(Path.Combine(repoRoot, path))
                     .Replace("\r\n", "\n", StringComparison.Ordinal)
@@ -21,30 +26,36 @@ public sealed class RepositoryReadmePolicyTests
             $"Tracked README.md files must stay portable and avoid inline YAML front matter. Violations: {string.Join(", ", violatingReadmes)}");
     }
 
-    private static IReadOnlyList<string> GetTrackedReadmePaths(string repoRoot)
+    private static IReadOnlyList<string> EnumerateAuthoredReadmePaths(string repoRoot)
     {
-        var startInfo = new ProcessStartInfo("git")
-        {
-            WorkingDirectory = repoRoot,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-        startInfo.ArgumentList.Add("ls-files");
+        return Directory
+            .EnumerateFiles(repoRoot, "README.md", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(repoRoot, path).Replace('\\', '/'))
+            .Where(path => !ShouldExcludePath(path))
+            .ToArray();
+    }
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start git ls-files.");
-        var standardOutput = process.StandardOutput.ReadToEnd();
-        var standardError = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-
-        if (process.ExitCode != 0)
+    private static bool ShouldExcludePath(string relativePath)
+    {
+        var segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length <= 1)
         {
-            throw new InvalidOperationException($"git ls-files failed while collecting tracked README paths: {standardError}");
+            return false;
         }
 
-        return standardOutput
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToArray();
+        foreach (var directorySegment in segments[..^1])
+        {
+            if (directorySegment.StartsWith(".", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (ExcludedDirectorySegments.Contains(directorySegment))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

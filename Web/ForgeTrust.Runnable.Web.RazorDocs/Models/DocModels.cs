@@ -94,8 +94,9 @@ public sealed record DocMetadata
     /// Gets optional landing-page curation entries authored with the documentation page.
     /// </summary>
     /// <remarks>
-    /// RazorDocs parses this metadata on any page so the contract stays page-agnostic. The built-in docs landing
-    /// consumes these entries only from the repository-root <c>README.md</c>.
+    /// RazorDocs parses this metadata on any page so the contract stays page-agnostic. Authors can supply these entries
+    /// either inline in Markdown front matter or through a paired sidecar such as <c>README.md.yml</c>. The built-in docs
+    /// landing consumes these entries only from the repository-root <c>README.md</c> metadata.
     /// </remarks>
     public IReadOnlyList<DocFeaturedPageDefinition>? FeaturedPages { get; init; }
 

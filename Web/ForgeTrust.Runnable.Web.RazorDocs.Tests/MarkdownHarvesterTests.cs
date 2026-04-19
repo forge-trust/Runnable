@@ -163,6 +163,145 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldReadRootReadmeMetadataFromPairedSidecar()
+    {
+        var guidesDir = Path.Combine(_testRoot, "guides");
+        Directory.CreateDirectory(guidesDir);
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "README.md"), "# Runnable");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "README.md.yml"),
+            """
+            title: Runnable
+            summary: Start with the proof paths that matter most.
+            featured_pages:
+              - question: Where do I start?
+                path: guides/intro.md
+                supporting_copy: Follow the intro guide first.
+                order: 10
+            """);
+        await File.WriteAllTextAsync(Path.Combine(guidesDir, "intro.md"), "# Intro");
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = results.Single(n => n.Path == "README.md");
+
+        Assert.Equal("Runnable", doc.Title);
+        Assert.Equal("Start with the proof paths that matter most.", doc.Metadata?.Summary);
+        Assert.False(doc.Metadata?.SummaryIsDerived);
+        var featuredPage = Assert.Single(doc.Metadata?.FeaturedPages!);
+        Assert.Equal("Where do I start?", featuredPage.Question);
+        Assert.Equal("guides/intro.md", featuredPage.Path);
+        Assert.Equal("Follow the intro guide first.", featuredPage.SupportingCopy);
+        Assert.Equal(10, featuredPage.Order);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldPreferInlineFrontMatterOverSidecarMetadata()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "Guide.md"),
+            """
+            ---
+            title: Inline Quickstart
+            summary: Inline summary wins.
+            ---
+            # Hello
+
+            Inline body.
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "Guide.md.yml"),
+            """
+            title: Sidecar Quickstart
+            summary: Sidecar summary should lose.
+            keywords:
+              - paired
+              - fallback
+            """);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = Assert.Single(results);
+
+        Assert.Equal("Inline Quickstart", doc.Title);
+        Assert.Equal("Inline summary wins.", doc.Metadata?.Summary);
+        Assert.False(doc.Metadata?.SummaryIsDerived);
+        Assert.Equal(["paired", "fallback"], doc.Metadata?.Keywords);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldTreatExplicitEmptyInlineListsAsAuthoritativeOverSidecarMetadata()
+    {
+        var guidesDir = Path.Combine(_testRoot, "guides");
+        Directory.CreateDirectory(guidesDir);
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "README.md"),
+            """
+            ---
+            featured_pages: []
+            ---
+            # Runnable
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "README.md.yml"),
+            """
+            featured_pages:
+              - path: guides/intro.md
+            """);
+        await File.WriteAllTextAsync(Path.Combine(guidesDir, "intro.md"), "# Intro");
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = results.Single(n => n.Path == "README.md");
+
+        Assert.Empty(doc.Metadata?.FeaturedPages!);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldIgnoreMetadataSidecars_WhenBothYamlExtensionsExist()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), "# Guide");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md.yml"), "title: First");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md.yaml"), "title: Second");
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = Assert.Single(results);
+
+        Assert.Equal("Guide", doc.Title);
+        Assert.Equal("Guide", doc.Metadata?.Title);
+        AssertWarningLogged("both");
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldIgnoreInvalidMetadataSidecar_AndLogWarning()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), "# Guide");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md.yml"), "title: [");
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = Assert.Single(results);
+
+        Assert.Equal("Guide", doc.Title);
+        Assert.Equal("Guide", doc.Metadata?.Title);
+        AssertWarningLogged("could not be parsed");
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldIgnoreUnreadableMetadataSidecar_AndLogWarning()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), "# Guide");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md.yml"), "title: Hidden");
+        var harvester = new MarkdownHarvester(
+            _loggerFake,
+            (path, cancellationToken) => path.EndsWith(".md.yml", StringComparison.OrdinalIgnoreCase)
+                ? Task.FromException<string>(new IOException("boom"))
+                : File.ReadAllTextAsync(path, cancellationToken));
+
+        var results = (await harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = Assert.Single(results);
+
+        Assert.Equal("Guide", doc.Title);
+        Assert.Equal("Guide", doc.Metadata?.Title);
+        AssertWarningLogged("could not be read");
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldDeriveSummary_WhenFrontMatterSummaryIsMissing()
     {
         await File.WriteAllTextAsync(
@@ -330,6 +469,22 @@ public class MarkdownHarvesterTests : IDisposable
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harvester.HarvestAsync(_testRoot));
         A.CallTo(_loggerFake).Where(call => call.Method.Name == "Log").MustNotHaveHappened();
+    }
+
+    private void AssertWarningLogged(string expectedMessageFragment)
+    {
+        A.CallTo(_loggerFake)
+            .Where(
+                call => call.Method.Name == nameof(ILogger.Log)
+                        && call.GetArgument<LogLevel>(0) == LogLevel.Warning
+                        && LoggedMessageContains(call, expectedMessageFragment))
+            .MustHaveHappened();
+    }
+
+    private static bool LoggedMessageContains(FakeItEasy.Core.IFakeObjectCall call, string expectedMessageFragment)
+    {
+        var message = call.GetArgument<object>(2)?.ToString();
+        return message?.Contains(expectedMessageFragment, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     public void Dispose()

@@ -28,14 +28,19 @@ If `RazorDocs:Source:RepositoryRoot` is omitted, the package falls back to repos
 
 ## Landing Curation
 
-RazorDocs can turn the root docs landing into a curated proof-path surface by reading `featured_pages` from the repository-root `README.md` front matter.
+RazorDocs can turn the root docs landing into a curated proof-path surface by reading `featured_pages` from the repository-root `README.md` metadata.
 
 ### Authoring contract
 
-`featured_pages` is parsed as part of `DocMetadata`, so the metadata contract stays page-agnostic. The built-in `/docs` landing consumes those entries only from the root `README.md`.
+`featured_pages` is parsed as part of `DocMetadata`, so the metadata contract stays page-agnostic. The built-in `/docs` landing consumes those entries only from the root `README.md` metadata, but authors can now supply that metadata in either of two places:
+
+- Inline Markdown front matter at the top of the `.md` file
+- A paired sidecar YAML file such as `README.md.yml` or `README.md.yaml`
+
+Inline front matter remains the default authoring path for ordinary docs pages. Paired sidecars are the recommended escape hatch for portability-sensitive files such as `README.md`, where raw front matter renders poorly on GitHub and other plain Markdown surfaces.
 
 ```yaml
----
+# README.md.yml
 title: Runnable
 summary: Follow the proof paths that explain what this framework is for and how it composes.
 featured_pages:
@@ -43,11 +48,9 @@ featured_pages:
     path: guides/composition.md
     supporting_copy: Start with the composition guide before drilling into APIs.
     order: 10
-
   - question: Show me an end-to-end example
     path: examples/hello-world/README.md
     order: 20
----
 ```
 
 ### Field behavior
@@ -61,8 +64,17 @@ featured_pages:
 
 - If the root `README.md` is missing, the landing stays on the neutral docs index.
 - If `featured_pages` is missing or empty, the landing stays on the neutral docs index.
+- If both `README.md.yml` and `README.md.yaml` exist for the same Markdown file, RazorDocs logs a warning and ignores both sidecars until the conflict is removed.
+- If both sidecar metadata and inline front matter define the same field, inline front matter wins and the sidecar acts as fallback metadata only.
+- Invalid sidecar YAML logs a warning and falls back to the inline/default metadata path instead of breaking the page harvest.
 - If a featured path is missing, hidden from public navigation, or duplicated, RazorDocs skips it and logs a warning.
 - If all featured entries are skipped, RazorDocs falls back to the neutral docs index instead of rendering broken cards.
+
+### Pitfalls
+
+- Do not create both `.yml` and `.yaml` sidecars for the same Markdown file. RazorDocs treats that as an authoring error and ignores both.
+- Do not use a sidecar as a second secret metadata system. It supports the same `DocMetadata` schema as inline front matter, and it is best reserved for files whose Markdown needs to stay portable on other surfaces.
+- README portability matters most at the repository and package level. In this repo, authored tracked `README.md` files should stay free of inline front matter so GitHub renders them cleanly.
 
 ## Related Projects
 

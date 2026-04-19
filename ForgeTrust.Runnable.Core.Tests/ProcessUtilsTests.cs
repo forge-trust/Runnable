@@ -136,6 +136,31 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task StreamToLoggerAsync_PreservesCarriageReturns_AndLogsWithoutFileNamePrefix()
+    {
+        var logger = new ListLogger();
+        var reader = new ScriptedTextReader(ReadChunk("alpha\r\nbeta\r"));
+
+        var output = await ProcessUtils.StreamToLoggerAsync(
+            reader,
+            logger,
+            LogLevel.Information,
+            string.Empty,
+            CancellationToken.None);
+
+        Assert.Equal("alpha\r\nbeta\r", output);
+        Assert.Contains(
+            logger.Messages,
+            entry => entry.LogLevel == LogLevel.Information && entry.Message == "alpha");
+        Assert.Contains(
+            logger.Messages,
+            entry => entry.LogLevel == LogLevel.Information && entry.Message == "beta");
+        Assert.DoesNotContain(
+            logger.Messages,
+            entry => entry.Message.Contains(':', StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_UsesConfiguredStderrLogLevelSelector_WhenStreaming()
     {
         var logger = new ListLogger();

@@ -189,6 +189,51 @@ public class TailwindCliManagerTests : IDisposable
     }
 
     [Fact]
+    public void GetTailwindPath_ReturnsDevelopmentRuntimeProjectPath_FromAssemblyDirectory_WhenBaseDirectoryShapeIsUnsupported()
+    {
+        var rid = TailwindCliManager.GetCurrentRid();
+        var baseDir = Path.Combine(_tempPath, "examples", "sample-app");
+        var assemblyDir = Path.Combine(_tempPath, "examples", "shadow-app", "bin", "Debug", "net10.0");
+        Directory.CreateDirectory(baseDir);
+        Directory.CreateDirectory(assemblyDir);
+        _manager.BaseDirectoryOverride = baseDir;
+        _manager.AssemblyDirectoryOverride = assemblyDir;
+
+        var runtimeProjectDir = Path.Combine(
+            _tempPath,
+            "Web",
+            "ForgeTrust.Runnable.Web.Tailwind",
+            "runtimes",
+            "obj",
+            $"ForgeTrust.Runnable.Web.Tailwind.Runtime.{rid}",
+            "Debug",
+            "net10.0");
+        Directory.CreateDirectory(runtimeProjectDir);
+        var expectedPath = Path.Combine(runtimeProjectDir, GetRuntimeProjectBinaryName(rid));
+        File.WriteAllText(expectedPath, "dummy");
+
+        var result = _manager.GetTailwindPath();
+
+        Assert.Equal(expectedPath, result);
+    }
+
+    [Fact]
+    public void GetTailwindPath_ThrowsFileNotFoundException_WhenSupportedRidHasNoDevelopmentRuntimeProjectInAncestorTree()
+    {
+        var rid = TailwindCliManager.GetCurrentRid();
+        var baseDir = Path.Combine(_tempPath, "examples", "sample-app", "bin", "Debug", "net10.0");
+        var assemblyDir = Path.Combine(_tempPath, "shadow", "bin", "Debug", "net10.0");
+        Directory.CreateDirectory(baseDir);
+        Directory.CreateDirectory(assemblyDir);
+        _manager.BaseDirectoryOverride = baseDir;
+        _manager.AssemblyDirectoryOverride = assemblyDir;
+        _manager.RidOverride = rid;
+        Environment.SetEnvironmentVariable("PATH", string.Empty);
+
+        Assert.Throws<FileNotFoundException>(() => _manager.GetTailwindPath());
+    }
+
+    [Fact]
     public void GetTailwindPath_ThrowsFileNotFoundException_WhenRidOverrideIsUnsupported()
     {
         var baseDir = Path.Combine(_tempPath, "examples", "sample-app", "bin", "Debug", "net10.0");

@@ -60,6 +60,24 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public void SearchClient_ShouldPersistAndRenderPageTypeBadgeFields()
+    {
+        var searchClient = ReadSearchClientMarkup();
+
+        Assert.Contains("'pageTypeLabel'", searchClient);
+        Assert.Contains("'pageTypeVariant'", searchClient);
+        Assert.Contains("function renderPageTypeBadge(item)", searchClient);
+        Assert.Contains("docs-search-option-title-row", searchClient);
+        Assert.Contains("docs-search-result-meta", searchClient);
+        Assert.Contains("docs-page-badge", searchClient);
+        Assert.Contains("const metadata = [", searchClient);
+        Assert.Contains("metadata ?", searchClient);
+        Assert.Contains("<div class=\"docs-search-result-meta\">", searchClient);
+        Assert.Contains("${metadata}", searchClient);
+        Assert.Contains(": ''", searchClient);
+    }
+
+    [Fact]
     public void Layout_ShouldKeepSidebarVisibleByDefault_ForNoScriptFallback()
     {
         var layout = ReadLayoutMarkup();
@@ -153,6 +171,7 @@ public class RazorDocsViewsTests
         Assert.Contains(">Composition</h2>", html);
         Assert.Contains("Follow the composition model.", html);
         Assert.Contains("Guide", html);
+        Assert.Contains("docs-page-badge--guide", html);
         Assert.Contains("href=\"/docs/guides/composition.md.html\"", html);
     }
 
@@ -196,7 +215,7 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
-    public async Task IndexView_ShouldFormatKnownPageTypes_AndHideCardBadgeWhenPageTypeIsMissing()
+    public async Task IndexView_ShouldFormatKnownAndUnknownPageTypes_AndHideCardBadgeWhenPageTypeIsMissing()
     {
         var docs = new List<DocNode>
         {
@@ -227,13 +246,19 @@ public class RazorDocsViewsTests
                         {
                             Question = "Untyped card",
                             Path = "guides/plain.md"
+                        },
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Custom card",
+                            Path = "guides/custom.md"
                         }
                     ]
                 }),
             new("API Page", "guides/api.md", "<p>API body</p>", Metadata: new DocMetadata { PageType = "api-reference" }),
             new("How-To Page", "guides/how-to.md", "<p>How-to body</p>", Metadata: new DocMetadata { PageType = "how-to" }),
             new("Start Page", "guides/start.md", "<p>Start body</p>", Metadata: new DocMetadata { PageType = "start-here" }),
-            new("Plain Page", "guides/plain.md", "<p>Plain body</p>")
+            new("Plain Page", "guides/plain.md", "<p>Plain body</p>"),
+            new("Custom Page", "guides/custom.md", "<p>Custom body</p>", Metadata: new DocMetadata { PageType = "custom_reference" })
         };
         using var services = CreateServiceProvider(docs);
 
@@ -242,17 +267,23 @@ public class RazorDocsViewsTests
 
         Assert.Equal(
             "API Reference",
-            document.QuerySelector("a.group[href='/docs/guides/api.md.html'] span.rounded-full")?.TextContent.Trim());
+            document.QuerySelector("a.group[href='/docs/guides/api.md.html'] span.docs-page-badge")?.TextContent.Trim());
         Assert.Equal(
             "How-To",
-            document.QuerySelector("a.group[href='/docs/guides/how-to.md.html'] span.rounded-full")?.TextContent.Trim());
+            document.QuerySelector("a.group[href='/docs/guides/how-to.md.html'] span.docs-page-badge")?.TextContent.Trim());
         Assert.Equal(
             "Start Here",
-            document.QuerySelector("a.group[href='/docs/guides/start.md.html'] span.rounded-full")?.TextContent.Trim());
+            document.QuerySelector("a.group[href='/docs/guides/start.md.html'] span.docs-page-badge")?.TextContent.Trim());
+        Assert.Equal(
+            "Custom Reference",
+            document.QuerySelector("a.group[href='/docs/guides/custom.md.html'] span.docs-page-badge")?.TextContent.Trim());
+        Assert.Contains(
+            "docs-page-badge--neutral",
+            document.QuerySelector("a.group[href='/docs/guides/custom.md.html'] span.docs-page-badge")?.ClassName ?? string.Empty);
 
         var untypedCard = document.QuerySelector("a.group[href='/docs/guides/plain.md.html']");
         Assert.NotNull(untypedCard);
-        Assert.Null(untypedCard!.QuerySelector("span.rounded-full"));
+        Assert.Null(untypedCard!.QuerySelector("span.docs-page-badge"));
         Assert.Null(untypedCard.QuerySelector("p.mt-3"));
     }
 
@@ -362,6 +393,49 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldFallbackToModelTitle_WhenMetadataTitleIsNull()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Fallback Title",
+            "guides/null-title.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Title = null
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">Fallback Title</h1>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderTrimmedMetadataTitle_WhenMetadataTitleIsPresent()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Fallback Title",
+            "guides/trimmed-title.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Title = "  Authored Title  "
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">Authored Title</h1>", html);
+        Assert.DoesNotContain(">Fallback Title</h1>", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataTargetsCannotBeVerified()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -383,6 +457,54 @@ public class RazorDocsViewsTests
         Assert.Contains(">Quickstart</h1>", html);
         Assert.Contains(">quickstart.md</span>", html);
         Assert.DoesNotContain("Start Here", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataBreadcrumbCountDoesNotMatchPath()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["Start Here", "Quickstart", "Extra"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">guides</a>", html);
+        Assert.Contains(">quickstart.md</span>", html);
+        Assert.DoesNotContain(">Start Here</a>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataBreadcrumbsCollapseToEmpty()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["   ", "\t"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">guides</a>", html);
+        Assert.Contains(">quickstart.md</span>", html);
+        Assert.DoesNotContain(">Start Here</a>", html);
     }
 
     [Fact]
@@ -451,6 +573,111 @@ public class RazorDocsViewsTests
             doc);
 
         Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderSummaryBlurb_WhenDerivedFlagIsUnset()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Summary = "This is the summary paragraph."
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderPageTypeBadge_AndMetadataContextChips()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                PageType = "api-reference",
+                Component = "RazorDocs",
+                Audience = "Evaluators"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.Equal("API Reference", document.QuerySelector(".docs-page-meta .docs-page-badge")?.TextContent.Trim());
+        Assert.Contains(
+            "docs-page-badge--api-reference",
+            document.QuerySelector(".docs-page-meta .docs-page-badge")?.ClassName ?? string.Empty);
+        Assert.Contains("Component: RazorDocs", html);
+        Assert.Contains("Audience: Evaluators", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldSuppressDerivedAudienceAndComponentChips()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                PageType = "guide",
+                Component = "Runnable",
+                ComponentIsDerived = true,
+                Audience = "implementer",
+                AudienceIsDerived = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.Equal("Guide", document.QuerySelector(".docs-page-meta .docs-page-badge")?.TextContent.Trim());
+        Assert.DoesNotContain("Component: Runnable", html);
+        Assert.DoesNotContain("Audience: implementer", html);
+        Assert.Null(document.QuerySelector(".docs-page-meta .docs-metadata-chip"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderMetaContainer_WhenBadgeAndChipsAreUnavailable()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                PageType = "   ",
+                Component = "Runnable",
+                ComponentIsDerived = true,
+                Audience = "implementer",
+                AudienceIsDerived = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.Null(document.QuerySelector(".docs-page-meta"));
     }
 
     [Fact]
@@ -743,6 +970,20 @@ public class RazorDocsViewsTests
             "_Layout.cshtml");
 
         return File.ReadAllText(layoutPath);
+    }
+
+    private static string ReadSearchClientMarkup()
+    {
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        var searchClientPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "wwwroot",
+            "docs",
+            "search-client.js");
+
+        return File.ReadAllText(searchClientPath);
     }
 
     private static async Task<string> RenderDocsViewAsync(

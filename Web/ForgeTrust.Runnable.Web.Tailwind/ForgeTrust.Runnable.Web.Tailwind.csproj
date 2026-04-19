@@ -29,5 +29,6 @@
   <!-- This allows the targets file to be bundled in the NuGet package -->
   <ItemGroup>
     <None Include="build\ForgeTrust.Runnable.Web.Tailwind.targets" Pack="true" PackagePath="build" />
+    <None Include="tailwind.version" Pack="true" PackagePath="build" />
   </ItemGroup>
 </Project>

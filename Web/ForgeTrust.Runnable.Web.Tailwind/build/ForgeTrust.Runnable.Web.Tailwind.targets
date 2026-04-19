@@ -4,6 +4,10 @@
     <TailwindInputPath Condition="'$(TailwindInputPath)' == ''">wwwroot/css/app.css</TailwindInputPath>
     <TailwindOutputPath Condition="'$(TailwindOutputPath)' == ''">wwwroot/css/site.gen.css</TailwindOutputPath>
     <TailwindCliPath Condition="'$(TailwindCliPath)' == ''"></TailwindCliPath>
+    <_TailwindVersionFilePackage>$(MSBuildThisFileDirectory)tailwind.version</_TailwindVersionFilePackage>
+    <_TailwindVersionFileSource>$(MSBuildThisFileDirectory)..\tailwind.version</_TailwindVersionFileSource>
+    <_TailwindVersionFile Condition="Exists('$(_TailwindVersionFilePackage)')">$(_TailwindVersionFilePackage)</_TailwindVersionFile>
+    <_TailwindVersionFile Condition="'$(_TailwindVersionFile)' == '' and Exists('$(_TailwindVersionFileSource)')">$(_TailwindVersionFileSource)</_TailwindVersionFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,7 +19,15 @@
           Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')"
           Inputs="$(TailwindInputPath);@(_TailwindTemplates);@(_TailwindConfigs)" 
           Outputs="$(TailwindOutputPath)">
+    <ReadLinesFromFile File="$(_TailwindVersionFile)"
+                       Condition="'$(TailwindVersion)' == '' and Exists('$(_TailwindVersionFile)')">
+      <Output TaskParameter="Lines" ItemName="_TailwindVersionFileLines" />
+    </ReadLinesFromFile>
+
     <PropertyGroup>
+      <!-- Source-tree consumers import only this targets file, so resolve TailwindVersion here as well. -->
+      <TailwindVersion Condition="'$(TailwindVersion)' == '' and '@(_TailwindVersionFileLines)' != ''">@(_TailwindVersionFileLines->'%(Identity)')</TailwindVersion>
+
       <!-- Tailwind runs during the build, so select the CLI for the current build host instead of RuntimeIdentifier. -->
       <!-- Tailwind v4.1.18 only publishes a Windows x64 binary, so Windows Arm64 uses x64 emulation. -->
       <_TailwindTargetRid Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">win-x64</_TailwindTargetRid>
@@ -59,6 +71,8 @@
 
     <Error Text="Tailwind CSS could not determine a supported runtime identifier for the current build host."
            Condition="'$(_TailwindTargetRid)' == ''" />
+    <Error Text="Tailwind CSS version could not be resolved. Set TailwindVersion explicitly or ensure build/tailwind.version is available next to ForgeTrust.Runnable.Web.Tailwind.targets."
+           Condition="'$(TailwindVersion)' == ''" />
     <Error Text="TailwindCliPath was set to '$(TailwindCliPath)', but the resolved file '$(_TailwindCliPathFull)' does not exist."
            Condition="'$(TailwindCliPath)' != '' and !Exists('$(_TailwindCliPathFull)')" />
     <Error Text="Tailwind CLI binary not found. Please ensure a 'ForgeTrust.Runnable.Web.Tailwind.Runtime.*' package for your platform is installed or set TailwindCliPath to a local Tailwind CLI binary."

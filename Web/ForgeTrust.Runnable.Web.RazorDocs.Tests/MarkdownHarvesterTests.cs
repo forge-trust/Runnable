@@ -302,6 +302,39 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadMetadataSidecarAsync_ShouldThrow_WhenMarkdownPathIsBlank()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harvester.ReadMetadataSidecarAsync(" ", "Guide.md", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReadMetadataSidecarAsync_ShouldThrow_WhenRelativeMarkdownPathIsBlank()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _harvester.ReadMetadataSidecarAsync(Path.Combine(_testRoot, "Guide.md"), " ", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReadMetadataSidecarAsync_ShouldPropagateOperationCanceled_WhenSidecarReadIsCanceled()
+    {
+        var markdownPath = Path.Combine(_testRoot, "Guide.md");
+        await File.WriteAllTextAsync(markdownPath, "# Guide");
+        await File.WriteAllTextAsync(markdownPath + ".yml", "title: Hidden");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var harvester = new MarkdownHarvester(
+            _loggerFake,
+            (path, cancellationToken) => path.EndsWith(".md.yml", StringComparison.OrdinalIgnoreCase)
+                ? Task.FromCanceled<string>(cts.Token)
+                : File.ReadAllTextAsync(path, cancellationToken));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => harvester.ReadMetadataSidecarAsync(markdownPath, "Guide.md", cts.Token));
+        A.CallTo(_loggerFake).Where(call => call.Method.Name == "Log").MustNotHaveHappened();
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldDeriveSummary_WhenFrontMatterSummaryIsMissing()
     {
         await File.WriteAllTextAsync(

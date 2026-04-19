@@ -686,9 +686,27 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-page-failure\"", html);
         Assert.Contains("id=\"docs-search-page-retry\"", html);
         Assert.Contains("docs-search-page-failure-link", html);
+        Assert.Contains("href=\"/docs/search-index.json\"", html);
+        Assert.Contains("data-rw-search-runtime=\"minisearch\"", html);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", html);
+        Assert.Contains("data-turbo-action=\"advance\"", html);
         Assert.Contains("id=\"docs-search-page-results\"", html);
         Assert.Contains("Search Documentation", html);
         Assert.Contains("id=\"docs-search-input\"", html);
+    }
+
+    [Fact]
+    public async Task SearchView_ShouldRenderTopLevelFailureFallbackLink_ForDocsIndexRecovery()
+    {
+        using var services = CreateServiceProvider([]);
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Search",
+            c => c.Search());
+
+        Assert.Contains("href=\"/docs\"", html);
+        Assert.Contains("data-turbo-frame=\"_top\"", html);
     }
 
     [Fact]
@@ -992,10 +1010,13 @@ public class RazorDocsViewsTests
         httpContext.Response.Body = new MemoryStream();
 
         var controller = ActivatorUtilities.CreateInstance<DocsController>(scopedServices);
+        var routeData = new RouteData();
+        routeData.Values["controller"] = "Docs";
+        routeData.Values["action"] = actionName;
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = httpContext,
-            RouteData = new RouteData(),
+            RouteData = routeData,
             ActionDescriptor = new ControllerActionDescriptor
             {
                 ControllerName = "Docs",

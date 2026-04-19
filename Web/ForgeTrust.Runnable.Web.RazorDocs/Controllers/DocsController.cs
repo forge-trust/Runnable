@@ -94,9 +94,19 @@ public class DocsController : Controller
     }
 
     /// <summary>
-    /// Displays the dedicated docs search page.
+    /// Displays the dedicated docs search workspace shell.
     /// </summary>
-    /// <returns>A view result displaying the search page interface.</returns>
+    /// <remarks>
+    /// The action returns a <see cref="SearchPageViewModel"/> immediately so the workspace can render starter,
+    /// loading, and retry UI before the client downloads the search index. Fallback link generation shares a linked
+    /// cancellation token with the current request and is capped by <see cref="SearchShellFallbackBudget"/> so slow
+    /// aggregation does not block the shell from rendering. If aggregation times out or throws, the view still
+    /// renders with default recovery links.
+    /// </remarks>
+    /// <returns>
+    /// A <see cref="ViewResult"/> whose model is a <see cref="SearchPageViewModel"/> describing the search shell and
+    /// its server-rendered recovery paths.
+    /// </returns>
     public async Task<IActionResult> Search()
     {
         ViewData["Title"] = "Search";

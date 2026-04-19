@@ -24,6 +24,7 @@
   const sidebarBoundAttribute = 'data-rw-search-sidebar-bound';
   const searchPageBoundAttribute = 'data-rw-search-page-bound';
   const shortcutsBoundAttribute = 'data-rw-search-shortcuts-bound';
+  const popstateBoundFlag = '__rwDocsSearchPopstateBound';
   const mobileFilterMedia = window.matchMedia ? window.matchMedia('(max-width: 767px)') : null;
   const pageTypeSort = new Map([
     ['guide', 0],
@@ -600,12 +601,16 @@
       return;
     }
 
+    const historyState = window.history.state && typeof window.history.state === 'object'
+      ? { ...window.history.state, rwDocsSearch: true }
+      : { rwDocsSearch: true };
+
     if (historyMode === 'push') {
-      window.history.pushState({ rwDocsSearch: true }, '', nextUrl);
+      window.history.pushState(historyState, '', nextUrl);
       return;
     }
 
-    window.history.replaceState({ rwDocsSearch: true }, '', nextUrl);
+    window.history.replaceState(historyState, '', nextUrl);
   }
 
   function consumeSearchPageAutofocusHash(page) {
@@ -670,6 +675,14 @@
 
     anchor.setAttribute('data-turbo-frame', '_top');
     anchor.removeAttribute('data-turbo-action');
+  }
+
+  function getDocsNavigationAttributes(href) {
+    if (shouldTargetDocsFrame(href)) {
+      return ` data-turbo-frame="${docsFrameId}" data-turbo-action="advance"`;
+    }
+
+    return ' data-turbo-frame="_top"';
   }
 
   function navigateToSearchPageWithQuery(query) {
@@ -1231,8 +1244,9 @@
     results.innerHTML = queryResults.map((item, index) => {
       const selected = index === activeIndex ? 'true' : 'false';
       const pageTypeBadge = renderPageTypeBadge(item);
+      const navigationAttributes = getDocsNavigationAttributes(item.path);
       return `<li id="docs-search-option-${index}" role="option" aria-selected="${selected}" tabindex="-1" class="docs-search-option" data-href="${escapeHtml(item.path)}">
-        <a href="${escapeHtml(item.path)}" data-turbo-frame="${docsFrameId}" data-turbo-action="advance">
+        <a href="${escapeHtml(item.path)}"${navigationAttributes}>
           <span class="docs-search-option-title-row">
             <span class="docs-search-option-title">${escapeHtml(item.title)}</span>
             ${pageTypeBadge}
@@ -1434,6 +1448,7 @@
       const button = createElement('button', null, 'Clear');
       button.type = 'button';
       button.dataset.rwClearFacetKey = filter.key;
+      button.setAttribute('aria-label', `Clear ${filter.label} filter`);
       pill.append(button);
       fragment.append(pill);
     });
@@ -1648,7 +1663,7 @@
       mobileFilterMedia.addEventListener('change', () => syncSearchPageFilterPanel(page));
     }
 
-    if (!window[shortcutsBoundAttribute]) {
+    if (!window[popstateBoundFlag]) {
       window.addEventListener('popstate', () => {
         const nextPage = getSearchPageElements();
         if (!nextPage.root) {
@@ -1662,7 +1677,7 @@
         nextPage.input.value = searchPageState.q;
         renderSearchPage();
       });
-      window[shortcutsBoundAttribute] = '1';
+      window[popstateBoundFlag] = '1';
     }
 
     renderSearchPage();

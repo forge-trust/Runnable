@@ -10,6 +10,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.IntegrationTests;
 [Trait("Category", "Integration")]
 public sealed class RazorDocsSearchFacetsRegression1Tests
 {
+    private const string SearchIndexPath = "/docs/search-index.json";
     private readonly RazorDocsPlaywrightFixture _fixture;
 
     public RazorDocsSearchFacetsRegression1Tests(RazorDocsPlaywrightFixture fixture)
@@ -22,18 +23,87 @@ public sealed class RazorDocsSearchFacetsRegression1Tests
     {
         await using var context = await _fixture.Browser.NewContextAsync();
         var page = await context.NewPageAsync();
+        var payload = CreateSearchPayload(
+            new
+            {
+                id = "guides/getting-started",
+                path = "/docs/guides/getting-started",
+                title = "Getting Started",
+                summary = "Start here",
+                headings = Array.Empty<string>(),
+                bodyText = "setup and install",
+                snippet = "setup and install",
+                pageType = "guide",
+                audience = string.Empty,
+                component = string.Empty,
+                aliases = Array.Empty<string>(),
+                keywords = Array.Empty<string>(),
+                status = string.Empty,
+                navGroup = "Guides",
+                order = 1,
+                relatedPages = Array.Empty<string>(),
+                breadcrumbs = Array.Empty<string>()
+            },
+            new
+            {
+                id = "examples/quick-start",
+                path = "/docs/examples/quick-start",
+                title = "Quick Start",
+                summary = "Run the example",
+                headings = Array.Empty<string>(),
+                bodyText = "example walk-through",
+                snippet = "example walk-through",
+                pageType = "example",
+                audience = string.Empty,
+                component = string.Empty,
+                aliases = Array.Empty<string>(),
+                keywords = Array.Empty<string>(),
+                status = string.Empty,
+                navGroup = "Examples",
+                order = 2,
+                relatedPages = Array.Empty<string>(),
+                breadcrumbs = Array.Empty<string>()
+            });
+
+        await page.RouteAsync(
+            $"**{SearchIndexPath}",
+            async route =>
+            {
+                await route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 200,
+                    ContentType = "application/json",
+                    Body = payload
+                });
+            });
 
         await page.GotoAsync($"{_fixture.DocsUrl}/search");
         await WaitForSearchPageSettledAsync(page);
 
+        Assert.Equal(0, await page.GetByRole(AriaRole.Heading, new() { Name = "Status" }).CountAsync());
         Assert.Equal(0, await page.Locator("[data-rw-facet-key='status']").CountAsync());
 
         await page.GotoAsync($"{_fixture.DocsUrl}/search?status=beta");
         await WaitForSearchPageSettledAsync(page);
 
+        Assert.Equal(1, await page.GetByRole(AriaRole.Heading, new() { Name = "Status" }).CountAsync());
         var selectedStatusFacet = page.Locator("[data-rw-facet-key='status'][data-rw-facet-value='beta']");
         Assert.Equal(1, await selectedStatusFacet.CountAsync());
         Assert.Equal("true", await selectedStatusFacet.First.GetAttributeAsync("aria-pressed"));
+    }
+
+    private static string CreateSearchPayload(params object[] documents)
+    {
+        return System.Text.Json.JsonSerializer.Serialize(new
+        {
+            metadata = new
+            {
+                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+                version = "1",
+                engine = "minisearch"
+            },
+            documents
+        });
     }
 
     private static async Task WaitForSearchPageSettledAsync(IPage page)

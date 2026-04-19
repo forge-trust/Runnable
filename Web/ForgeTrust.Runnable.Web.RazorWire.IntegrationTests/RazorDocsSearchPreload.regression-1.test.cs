@@ -35,7 +35,7 @@ public sealed class RazorDocsSearchPreloadRegression1Tests
 
         await page.GotoAsync($"{_fixture.DocsUrl}/search");
         await WaitForSearchPageSettledAsync(page);
-        await page.WaitForTimeoutAsync(500);
+        await page.WaitForTimeoutAsync(3000);
 
         Assert.DoesNotContain(
             warnings,

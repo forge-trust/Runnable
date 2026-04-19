@@ -75,10 +75,26 @@
         <div class="docs-search-page-failure-links">
             @foreach (var link in Model.FailureFallbackLinks)
             {
-                <a class="docs-search-page-failure-link" href="@link.Href">
-                    <span class="docs-search-page-failure-link-title">@link.Title</span>
-                    <span class="docs-search-page-failure-link-description">@link.Description</span>
-                </a>
+                var usesDocsFrame = link.Href.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase);
+                if (usesDocsFrame)
+                {
+                    <a class="docs-search-page-failure-link"
+                       href="@link.Href"
+                       data-turbo-frame="doc-content"
+                       data-turbo-action="advance">
+                        <span class="docs-search-page-failure-link-title">@link.Title</span>
+                        <span class="docs-search-page-failure-link-description">@link.Description</span>
+                    </a>
+                }
+                else
+                {
+                    <a class="docs-search-page-failure-link"
+                       href="@link.Href"
+                       data-turbo-frame="_top">
+                        <span class="docs-search-page-failure-link-title">@link.Title</span>
+                        <span class="docs-search-page-failure-link-description">@link.Description</span>
+                    </a>
+                }
             }
         </div>
     </section>

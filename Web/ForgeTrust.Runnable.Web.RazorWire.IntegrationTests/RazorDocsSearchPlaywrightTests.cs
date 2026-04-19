@@ -145,6 +145,8 @@ public sealed class RazorDocsSearchPlaywrightTests
             "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
             null,
             new PageWaitForFunctionOptions { Timeout = 30_000 });
+        var initialResultCount = await page.Locator("#docs-search-page-results .docs-search-result").CountAsync();
+        Assert.True(initialResultCount > 0);
 
         var filterValue = await page.Locator("[data-rw-facet-key='pageType']:not([disabled])")
             .First
@@ -157,6 +159,12 @@ public sealed class RazorDocsSearchPlaywrightTests
             "(expected) => new URLSearchParams(window.location.search).get('pageType') === expected",
             filterValue,
             new PageWaitForFunctionOptions { Timeout = 15_000 });
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+        var filteredResultCount = await page.Locator("#docs-search-page-results .docs-search-result").CountAsync();
+        Assert.True(filteredResultCount > 0);
 
         await page.GoBackAsync();
         await page.WaitForFunctionAsync(
@@ -164,9 +172,14 @@ public sealed class RazorDocsSearchPlaywrightTests
             _fixture.SearchQuery,
             new PageWaitForFunctionOptions { Timeout = 15_000 });
         await WaitForSearchPageSettledAsync(page);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
 
         Assert.Equal(_fixture.SearchQuery, await page.InputValueAsync("#docs-search-page-input"));
         Assert.False(await page.Locator("#docs-search-page-active-filters").IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-results .docs-search-result").CountAsync() > 0);
 
         await page.GoForwardAsync();
         await page.WaitForFunctionAsync(
@@ -174,9 +187,14 @@ public sealed class RazorDocsSearchPlaywrightTests
             new { query = _fixture.SearchQuery, pageType = filterValue },
             new PageWaitForFunctionOptions { Timeout = 15_000 });
         await WaitForSearchPageSettledAsync(page);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
 
         Assert.Equal(_fixture.SearchQuery, await page.InputValueAsync("#docs-search-page-input"));
         Assert.True(await page.Locator("#docs-search-page-active-filters").IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-results .docs-search-result").CountAsync() > 0);
     }
 
     [Fact]

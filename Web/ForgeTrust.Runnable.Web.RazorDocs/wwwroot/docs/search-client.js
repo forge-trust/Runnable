@@ -1042,12 +1042,19 @@
       .filter(Boolean);
     const normalizedQuery = normalizeQuery(searchPageState.q);
     const isStarter = !normalizedQuery && activeFilters.length === 0;
-    const baseDocs = normalizedQuery
-      ? runRankedSearch(normalizedQuery, createEmptyFacetValues()).map((result) => searchData.docsById.get(result.id)).filter(Boolean)
-      : sortDocsForBrowse(searchData.docs);
-    const resultDocs = normalizedQuery || activeFilters.length > 0
-      ? runRankedSearch(normalizedQuery, filters).map((result) => searchData.docsById.get(result.id)).filter(Boolean)
+    const baseResults = normalizedQuery
+      ? runRankedSearch(normalizedQuery, createEmptyFacetValues())
       : [];
+    const baseDocs = normalizedQuery
+      ? baseResults.map((result) => searchData.docsById.get(result.id)).filter(Boolean)
+      : sortDocsForBrowse(searchData.docs);
+    const resultDocs = normalizedQuery
+      ? (activeFilters.length > 0
+          ? baseDocs.filter((doc) => matchesFilters(doc, filters))
+          : baseDocs)
+      : (activeFilters.length > 0
+          ? sortDocsForBrowse(searchData.docs.filter((doc) => matchesFilters(doc, filters)))
+          : []);
     const orderedResultDocs = normalizedQuery ? resultDocs : sortDocsForBrowse(resultDocs);
 
     return {

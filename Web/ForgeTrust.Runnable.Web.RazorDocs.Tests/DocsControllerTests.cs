@@ -778,9 +778,9 @@ public class DocsControllerTests : IDisposable
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
             .ReturnsLazily(
-                async (string _, CancellationToken _) =>
+                async (string _, CancellationToken cancellationToken) =>
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(750));
+                    await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken);
                     return (IReadOnlyList<DocNode>)Array.Empty<DocNode>();
                 });
 

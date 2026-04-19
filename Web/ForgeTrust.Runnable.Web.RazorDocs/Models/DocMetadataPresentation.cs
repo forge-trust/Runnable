@@ -58,7 +58,7 @@ public static class DocMetadataPresentation
             "start-here" => ("Start Here", "start-here"),
             "troubleshooting" => ("Troubleshooting", "troubleshooting"),
             "glossary" => ("Glossary", "glossary"),
-            "faq" => ("FAQ", "glossary"),
+            "faq" => ("FAQ", "faq"),
             _ => (BuildFallbackLabel(normalizedValue), "neutral")
         };
 
@@ -70,6 +70,18 @@ public static class DocMetadataPresentation
         };
     }
 
+    /// <summary>
+    /// Normalizes a raw metadata token into a lowercase dash-delimited value.
+    /// </summary>
+    /// <param name="value">Raw metadata token that may contain whitespace, underscores, dashes, or line breaks.</param>
+    /// <returns>
+    /// A normalized token, or <see langword="null"/> when <paramref name="value"/> is null, whitespace, or produces
+    /// no non-delimiter segments after trimming and splitting.
+    /// </returns>
+    /// <remarks>
+    /// RazorDocs trims the input, splits on spaces, tabs, carriage returns, line feeds, underscores, and hyphens,
+    /// removes empty segments, lowercases each remaining segment, and rejoins them with <c>-</c>.
+    /// </remarks>
     internal static string? NormalizeToken(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

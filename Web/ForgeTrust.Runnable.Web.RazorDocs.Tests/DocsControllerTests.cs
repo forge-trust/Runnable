@@ -779,6 +779,7 @@ public class DocsControllerTests : IDisposable
         Assert.Equal(JsonValueKind.Null, document.GetProperty("component").ValueKind);
         Assert.Equal(JsonValueKind.Null, document.GetProperty("audience").ValueKind);
         Assert.Equal("Guide", document.GetProperty("pageTypeLabel").GetString());
+        Assert.Equal("guide", document.GetProperty("pageTypeVariant").GetString());
     }
 
     [Fact]

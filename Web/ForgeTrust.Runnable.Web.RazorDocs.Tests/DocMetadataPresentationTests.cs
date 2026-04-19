@@ -13,7 +13,7 @@ public sealed class DocMetadataPresentationTests
     [InlineData("start-here", "Start Here", "start-here")]
     [InlineData("troubleshooting", "Troubleshooting", "troubleshooting")]
     [InlineData("glossary", "Glossary", "glossary")]
-    [InlineData("faq", "FAQ", "glossary")]
+    [InlineData("faq", "FAQ", "faq")]
     public void ResolvePageTypeBadge_ShouldNormalizeKnownValues(string rawValue, string expectedLabel, string expectedVariant)
     {
         var badge = DocMetadataPresentation.ResolvePageTypeBadge(rawValue);

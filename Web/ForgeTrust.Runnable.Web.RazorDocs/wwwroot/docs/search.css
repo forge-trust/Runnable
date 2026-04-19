@@ -67,7 +67,8 @@
 }
 
 .docs-page-badge--api-reference,
-.docs-page-badge--glossary {
+.docs-page-badge--glossary,
+.docs-page-badge--faq {
     border-color: rgba(99, 102, 241, 0.38);
     background: rgba(99, 102, 241, 0.12);
     color: #c7d2fe;

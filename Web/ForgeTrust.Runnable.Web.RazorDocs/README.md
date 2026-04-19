@@ -70,7 +70,7 @@ RazorDocs treats `page_type` metadata as structured UI input, not just as opaque
 
 ### Built-in normalization
 
-- Known values such as `guide`, `example`, `api-reference`, `internals`, `how-to`, `start-here`, `troubleshooting`, and `glossary` render with stable labels and intentional badge variants.
+- Known values such as `guide`, `example`, `api-reference`, `internals`, `how-to`, `start-here`, `troubleshooting`, `glossary`, and `faq` render with stable labels and intentional badge variants.
 - Unknown values still render safely: RazorDocs normalizes whitespace, underscores, and dashes, then falls back to a neutral title-cased badge.
 - Missing or blank `page_type` values render no badge at all instead of leaving empty chrome behind.
 

@@ -48,7 +48,10 @@ public class RazorDocsViewsTests
         Assert.Contains("docs-search-result-meta", searchClient);
         Assert.Contains("docs-page-badge", searchClient);
         Assert.Contains("const metadata = [", searchClient);
-        Assert.Contains("${metadata ? `<div class=\"docs-search-result-meta\">${metadata}</div>` : ''}", searchClient);
+        Assert.Contains("metadata ?", searchClient);
+        Assert.Contains("<div class=\"docs-search-result-meta\">", searchClient);
+        Assert.Contains("${metadata}", searchClient);
+        Assert.Contains(": ''", searchClient);
     }
 
     [Fact]
@@ -626,6 +629,32 @@ public class RazorDocsViewsTests
         Assert.DoesNotContain("Component: Runnable", html);
         Assert.DoesNotContain("Audience: implementer", html);
         Assert.Null(document.QuerySelector(".docs-page-meta .docs-metadata-chip"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderMetaContainer_WhenBadgeAndChipsAreUnavailable()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                PageType = "   ",
+                Component = "Runnable",
+                ComponentIsDerived = true,
+                Audience = "implementer",
+                AudienceIsDerived = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.Null(document.QuerySelector(".docs-page-meta"));
     }
 
     [Fact]

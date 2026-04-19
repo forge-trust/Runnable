@@ -25,6 +25,7 @@ public class DocsControllerTests : IDisposable
     private readonly IMemoryCache _cache;
     private readonly IMemo _memo;
     private readonly ILogger<DocsController> _controllerLoggerFake;
+    private readonly IRazorDocsHtmlSanitizer _sanitizerFake;
 
     public DocsControllerTests()
     {
@@ -35,9 +36,9 @@ public class DocsControllerTests : IDisposable
         var options = new RazorDocsOptions();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
-        var sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
+        _sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
         A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizerFake.Sanitize(A<string>._))
+        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._))
             .ReturnsLazily((string input) => input);
         _memo = new Memo(_cache);
 
@@ -48,7 +49,7 @@ public class DocsControllerTests : IDisposable
             options,
             envFake,
             _memo,
-            sanitizerFake,
+            _sanitizerFake,
             loggerFake
         );
 
@@ -754,7 +755,14 @@ public class DocsControllerTests : IDisposable
     public async Task Search_ShouldStillRenderShell_WhenDocAggregationFails()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
-            .ThrowsAsync(new InvalidOperationException("boom"));
+            .Returns(
+                [
+                    new(
+                        "Home",
+                        "README.md",
+                        "<p>Home</p>")
+                ]);
+        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._)).Throws(new InvalidOperationException("boom"));
 
         var result = await _controller.Search();
 
@@ -762,13 +770,19 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
         Assert.Equal("Search Documentation", model.Title);
         Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+        AssertWarningLogged("fallback link generation failed");
     }
 
     [Fact]
     public async Task Search_ShouldStillRenderShell_WhenDocAggregationTimesOut()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
-            .ThrowsAsync(new OperationCanceledException());
+            .ReturnsLazily(
+                async (string _, CancellationToken _) =>
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(750));
+                    return (IReadOnlyList<DocNode>)Array.Empty<DocNode>();
+                });
 
         var result = await _controller.Search();
 
@@ -776,6 +790,7 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
         Assert.Equal("Search Documentation", model.Title);
         Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+        AssertWarningLogged("fallback link generation exceeded");
     }
 
     [Fact]

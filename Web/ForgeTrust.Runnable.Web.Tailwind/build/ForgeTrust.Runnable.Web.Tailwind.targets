@@ -48,9 +48,13 @@
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and Exists('$(_TailwindToolPathBase).exe')">$(_TailwindToolPathBase).exe</_TailwindToolPath>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathBase)')">$(_TailwindToolPathBase)</_TailwindToolPath>
 
-      <!-- 5. During repo-local development, the runtime projects place the downloaded binaries under obj/. -->
-      <_TailwindToolPathDev>$(MSBuildThisFileDirectory)../runtimes/obj/ForgeTrust.Runnable.Web.Tailwind.Runtime.$(_TailwindTargetRid)/$(Configuration)/$(TargetFramework)/$(_TailwindRuntimeBinaryName)</_TailwindToolPathDev>
-      <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathDev)')">$(_TailwindToolPathDev)</_TailwindToolPath>
+      <!-- 5. During repo-local development, runtime project builds place the downloaded binary under obj/.
+           Current builds use a version-scoped cache folder; keep the legacy flat path as a fallback so
+           existing local obj outputs still work after upgrading the package. -->
+      <_TailwindToolPathDevVersioned>$(MSBuildThisFileDirectory)../runtimes/obj/ForgeTrust.Runnable.Web.Tailwind.Runtime.$(_TailwindTargetRid)/$(Configuration)/$(TargetFramework)/tailwind-$(TailwindVersion)/$(_TailwindRuntimeBinaryName)</_TailwindToolPathDevVersioned>
+      <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathDevVersioned)')">$(_TailwindToolPathDevVersioned)</_TailwindToolPath>
+      <_TailwindToolPathDevLegacy>$(MSBuildThisFileDirectory)../runtimes/obj/ForgeTrust.Runnable.Web.Tailwind.Runtime.$(_TailwindTargetRid)/$(Configuration)/$(TargetFramework)/$(_TailwindRuntimeBinaryName)</_TailwindToolPathDevLegacy>
+      <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathDevLegacy)')">$(_TailwindToolPathDevLegacy)</_TailwindToolPath>
     </PropertyGroup>
 
     <Error Text="Tailwind CSS could not determine a supported runtime identifier for the current build host."

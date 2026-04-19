@@ -155,8 +155,30 @@ public static class ProcessUtils
         }
     }
 
-    private static async Task<string> StreamToLoggerAsync(
-        StreamReader reader,
+    /// <summary>
+    /// Drains a text reader into a captured string while logging completed lines as they arrive.
+    /// </summary>
+    /// <param name="reader">The reader to drain.</param>
+    /// <param name="logger">The logger that receives completed output lines.</param>
+    /// <param name="level">The default log level used for each completed line.</param>
+    /// <param name="fileName">The process name included in structured log messages.</param>
+    /// <param name="cancellationToken">The token used to cancel the drain operation.</param>
+    /// <param name="levelSelector">
+    /// Optional selector that can remap the log level used for each completed line.
+    /// </param>
+    /// <returns>
+    /// The exact text captured from <paramref name="reader" />, including original line terminators.
+    /// </returns>
+    /// <remarks>
+    /// This method is internal so tests can deterministically verify the stream-drain and cancellation
+    /// behavior without depending on timing-sensitive child-process races.
+    /// </remarks>
+    /// <exception cref="OperationCanceledException">
+    /// Thrown when <paramref name="cancellationToken" /> is canceled before the reader is fully drained.
+    /// Any unterminated trailing line is intentionally not logged in that case.
+    /// </exception>
+    internal static async Task<string> StreamToLoggerAsync(
+        TextReader reader,
         ILogger logger,
         LogLevel level,
         string fileName,
@@ -168,48 +190,44 @@ public static class ProcessUtils
         var buffer = new char[1024];
         var previousWasCarriageReturn = false;
 
-        try
+        while (true)
         {
-            while (!cancellationToken.IsCancellationRequested)
+            var charsRead = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (charsRead == 0)
             {
-                var charsRead = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
-                if (charsRead == 0)
+                break;
+            }
+
+            for (var i = 0; i < charsRead; i++)
+            {
+                var current = buffer[i];
+                output.Append(current);
+
+                if (current == '\r')
                 {
-                    break;
+                    LogCapturedLine(logger, level, fileName, currentLine.ToString(), levelSelector);
+                    currentLine.Clear();
+                    previousWasCarriageReturn = true;
+                    continue;
                 }
 
-                for (var i = 0; i < charsRead; i++)
+                if (current == '\n')
                 {
-                    var current = buffer[i];
-                    output.Append(current);
-
-                    if (current == '\r')
+                    if (previousWasCarriageReturn)
                     {
-                        LogCapturedLine(logger, level, fileName, currentLine.ToString(), levelSelector);
-                        currentLine.Clear();
-                        previousWasCarriageReturn = true;
+                        previousWasCarriageReturn = false;
                         continue;
                     }
 
-                    if (current == '\n')
-                    {
-                        if (previousWasCarriageReturn)
-                        {
-                            previousWasCarriageReturn = false;
-                            continue;
-                        }
-
-                        LogCapturedLine(logger, level, fileName, currentLine.ToString(), levelSelector);
-                        currentLine.Clear();
-                        continue;
-                    }
-
-                    previousWasCarriageReturn = false;
-                    currentLine.Append(current);
+                    LogCapturedLine(logger, level, fileName, currentLine.ToString(), levelSelector);
+                    currentLine.Clear();
+                    continue;
                 }
+
+                previousWasCarriageReturn = false;
+                currentLine.Append(current);
             }
         }
-        catch (OperationCanceledException) { }
 
         if (!previousWasCarriageReturn && currentLine.Length > 0)
         {

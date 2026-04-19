@@ -88,6 +88,54 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task ExecuteProcessAsync_ThrowsOperationCanceledException_WhenStreamingCanceledAfterOutputStarts()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var logger = new CancelingLogger(cts, fileNameFilter: null);
+        var (fileName, args) = CreateShellCommand(
+            "for /L %i in (1,1,5000) do @echo line%i",
+            "i=1; while [ \"$i\" -le 5000 ]; do printf 'line%04d\\n' \"$i\"; i=$((i+1)); done");
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            ProcessUtils.ExecuteProcessAsync(
+                fileName,
+                args,
+                Directory.GetCurrentDirectory(),
+                logger,
+                cts.Token,
+                streamOutput: true));
+
+        Assert.True(logger.WasCanceled, "Expected the logger to cancel after streaming output started.");
+    }
+
+    [Fact]
+    public async Task StreamToLoggerAsync_ThrowsAndSkipsIncompleteLine_WhenCanceledDuringDrain()
+    {
+        using var cts = new CancellationTokenSource();
+        var logger = new ListLogger();
+        var reader = new ScriptedTextReader(
+            ReadChunk("done\npartial"),
+            CancelOnRead(cts));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            ProcessUtils.StreamToLoggerAsync(
+                reader,
+                logger,
+                LogLevel.Information,
+                "test-process",
+                cts.Token));
+
+        Assert.Contains(
+            logger.Messages,
+            entry => entry.LogLevel == LogLevel.Information
+                && entry.Message.Contains("test-process", StringComparison.Ordinal)
+                && entry.Message.Contains("done", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            logger.Messages,
+            entry => entry.Message.Contains("partial", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_UsesConfiguredStderrLogLevelSelector_WhenStreaming()
     {
         var logger = new ListLogger();
@@ -293,6 +341,68 @@ public class ProcessUtilsTests
     }
 
     private sealed record LogEntry(LogLevel LogLevel, string Message, Exception? Exception);
+
+    private sealed class ScriptedTextReader(params Func<Memory<char>, CancellationToken, ValueTask<int>>[] steps) : TextReader
+    {
+        private readonly Queue<Func<Memory<char>, CancellationToken, ValueTask<int>>> _steps = new(steps);
+
+        public override async ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_steps.Count == 0)
+            {
+                return 0;
+            }
+
+            return await _steps.Dequeue()(buffer, cancellationToken);
+        }
+    }
+
+    private sealed class CancelingLogger(CancellationTokenSource cts, string? fileNameFilter) : ILogger
+    {
+        public bool WasCanceled { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (WasCanceled)
+            {
+                return;
+            }
+
+            var message = formatter(state, exception);
+            if (fileNameFilter == null || message.Contains(fileNameFilter, StringComparison.Ordinal))
+            {
+                WasCanceled = true;
+                cts.Cancel();
+            }
+        }
+    }
+
+    private static Func<Memory<char>, CancellationToken, ValueTask<int>> ReadChunk(string value)
+    {
+        return (buffer, _) =>
+        {
+            value.AsSpan().CopyTo(buffer.Span);
+            return ValueTask.FromResult(value.Length);
+        };
+    }
+
+    private static Func<Memory<char>, CancellationToken, ValueTask<int>> CancelOnRead(CancellationTokenSource cts)
+    {
+        return (_, cancellationToken) =>
+        {
+            cts.Cancel();
+            return ValueTask.FromCanceled<int>(cancellationToken);
+        };
+    }
 
     private sealed class ThrowingLogger(LogLevel logLevelToThrow) : ILogger
     {

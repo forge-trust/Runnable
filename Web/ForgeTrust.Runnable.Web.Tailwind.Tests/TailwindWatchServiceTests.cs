@@ -149,6 +149,23 @@ public class TailwindWatchServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_LogsError_WhenInputAndOutputDifferOnlyByCase_OnCaseInsensitiveHosts()
+    {
+        _tailwindOptions.InputPath = "Styles/APP.CSS";
+        _tailwindOptions.OutputPath = "styles/app.css";
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)
+        {
+            PathComparisonToUse = StringComparison.OrdinalIgnoreCase
+        };
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.False(service.ProcessExecuted);
+        AssertErrorLogged();
+        A.CallTo(() => _cliManager.GetTailwindPath()).MustNotHaveHappened();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_DoesNotLogError_WhenWatchProcessIsCanceled()
     {
         var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)
@@ -268,6 +285,7 @@ public class TailwindWatchServiceTests
         public IReadOnlyList<string>? ExecutedArgs { get; private set; }
         public CommandResult ResultToReturn { get; set; } = new CommandResult(0, "", "");
         public Exception? ExceptionToThrow { get; set; }
+        public StringComparison? PathComparisonToUse { get; set; }
 
         public TestTailwindWatchService(
             TailwindCliManager cliManager,
@@ -296,6 +314,11 @@ public class TailwindWatchServiceTests
             }
 
             return Task.FromResult(ResultToReturn);
+        }
+
+        internal override StringComparison GetPathComparison()
+        {
+            return PathComparisonToUse ?? base.GetPathComparison();
         }
     }
 

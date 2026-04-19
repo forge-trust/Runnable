@@ -13,7 +13,7 @@ namespace ForgeTrust.Runnable.Web.Tailwind;
 public class TailwindCliManager
 {
     private readonly ILogger<TailwindCliManager> _logger;
-    private readonly string _binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "tailwindcss.exe" : "tailwindcss";
+    private readonly string _binaryName = GetBinaryName();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TailwindCliManager"/> class.
@@ -38,6 +38,16 @@ public class TailwindCliManager
     /// Gets or sets a runtime identifier override for tests that need to exercise non-host RID resolution paths.
     /// </summary>
     internal string? RidOverride { get; set; }
+
+    /// <summary>
+    /// Gets or sets an operating-system detector override for tests that need deterministic platform simulation.
+    /// </summary>
+    internal static Func<OSPlatform, bool>? IsOSPlatformOverride { get; set; }
+
+    /// <summary>
+    /// Gets or sets a process-architecture override for tests that need deterministic RID resolution.
+    /// </summary>
+    internal static Func<Architecture>? ProcessArchitectureOverride { get; set; }
 
     /// <summary>
     /// Gets the path to the Tailwind CLI binary.
@@ -132,19 +142,21 @@ public class TailwindCliManager
     /// </remarks>
     public static string GetCurrentRid()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        var processArchitecture = ProcessArchitectureOverride?.Invoke() ?? RuntimeInformation.ProcessArchitecture;
+
+        if (IsCurrentOsPlatform(OSPlatform.Windows))
         {
-            return ResolveRid(OSPlatform.Windows, RuntimeInformation.ProcessArchitecture);
+            return ResolveRid(OSPlatform.Windows, processArchitecture);
         }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        if (IsCurrentOsPlatform(OSPlatform.Linux))
         {
-            return ResolveRid(OSPlatform.Linux, RuntimeInformation.ProcessArchitecture);
+            return ResolveRid(OSPlatform.Linux, processArchitecture);
         }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        if (IsCurrentOsPlatform(OSPlatform.OSX))
         {
-            return ResolveRid(OSPlatform.OSX, RuntimeInformation.ProcessArchitecture);
+            return ResolveRid(OSPlatform.OSX, processArchitecture);
         }
 
         return "unknown";
@@ -242,6 +254,16 @@ public class TailwindCliManager
         }
 
         return null;
+    }
+
+    private static bool IsCurrentOsPlatform(OSPlatform platform)
+    {
+        return IsOSPlatformOverride?.Invoke(platform) ?? RuntimeInformation.IsOSPlatform(platform);
+    }
+
+    private static string GetBinaryName()
+    {
+        return IsCurrentOsPlatform(OSPlatform.Windows) ? "tailwindcss.exe" : "tailwindcss";
     }
 
     private static IEnumerable<string> EnumerateSelfAndAncestors(DirectoryInfo? startDirectory)

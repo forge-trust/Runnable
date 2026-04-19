@@ -58,7 +58,7 @@ public class TailwindWatchService : BackgroundService
         {
             var inputFullPath = Path.GetFullPath(_options.InputPath, _environment.ContentRootPath);
             var outputFullPath = Path.GetFullPath(_options.OutputPath, _environment.ContentRootPath);
-            var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            var pathComparison = GetPathComparison();
             if (string.Equals(inputFullPath, outputFullPath, pathComparison))
             {
                 _logger.LogError("Tailwind CSS: InputPath and OutputPath must not point to the same file.");
@@ -121,6 +121,18 @@ public class TailwindWatchService : BackgroundService
             cancellationToken,
             streamOutput: true,
             stderrLogLevelSelector: GetTailwindStderrLogLevel);
+    }
+
+    /// <summary>
+    /// Resolves the path-comparison behavior used when validating Tailwind input/output paths.
+    /// </summary>
+    /// <returns>
+    /// <see cref="StringComparison.OrdinalIgnoreCase"/> on Windows, where file paths are conventionally case-insensitive;
+    /// otherwise <see cref="StringComparison.Ordinal"/>.
+    /// </returns>
+    internal virtual StringComparison GetPathComparison()
+    {
+        return OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
     }
 
     private static LogLevel GetTailwindStderrLogLevel(string line)

@@ -38,6 +38,33 @@ public record CommandResult(int ExitCode, string Stdout, string Stderr);
 public static class ProcessUtils
 {
     /// <summary>
+    /// Test hooks that allow deterministic verification of process lifecycle edge cases.
+    /// </summary>
+    /// <remarks>
+    /// Use these hooks only from tests that need to simulate rare runtime conditions such as
+    /// <see cref="Process.Start()"/> returning <see langword="false"/> or process termination throwing during cleanup.
+    /// Production code should continue to use the public <see cref="ExecuteProcessAsync(string, IReadOnlyList{string}, string, ILogger, CancellationToken, bool, Func{string, LogLevel}?)"/>
+    /// overload, which executes real process operations without overrides.
+    /// </remarks>
+    internal sealed record ProcessExecutionHooks
+    {
+        /// <summary>
+        /// Gets or sets an optional process-start override.
+        /// </summary>
+        internal Func<Process, bool>? StartProcessOverride { get; init; }
+
+        /// <summary>
+        /// Gets or sets an optional process-state override for <see cref="Process.HasExited"/>.
+        /// </summary>
+        internal Func<Process, bool>? HasExitedOverride { get; init; }
+
+        /// <summary>
+        /// Gets or sets an optional process-kill override used during cleanup.
+        /// </summary>
+        internal Action<Process>? KillProcessOverride { get; init; }
+    }
+
+    /// <summary>
     /// Executes a process asynchronously and captures its output.
     /// </summary>
     /// <param name="fileName">The path to the executable file to launch.</param>
@@ -79,6 +106,48 @@ public static class ProcessUtils
         bool streamOutput = false,
         Func<string, LogLevel>? stderrLogLevelSelector = null)
     {
+        return await ExecuteProcessAsync(
+            fileName,
+            args,
+            workingDirectory,
+            logger,
+            cancellationToken,
+            streamOutput,
+            stderrLogLevelSelector,
+            hooks: null);
+    }
+
+    /// <summary>
+    /// Executes a process asynchronously with optional lifecycle hooks for deterministic testing.
+    /// </summary>
+    /// <param name="fileName">The path to the executable file to launch.</param>
+    /// <param name="args">The ordered list of command-line arguments to pass to the process.</param>
+    /// <param name="workingDirectory">The working directory used when starting the process.</param>
+    /// <param name="logger">The logger that receives streamed output when <paramref name="streamOutput"/> is enabled.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+    /// <param name="streamOutput">
+    /// If <see langword="true" />, standard output and standard error are logged in real time and also
+    /// captured in the returned <see cref="CommandResult" />.
+    /// </param>
+    /// <param name="stderrLogLevelSelector">
+    /// Optional selector that can remap the log level used for each standard error line when
+    /// <paramref name="streamOutput"/> is enabled.
+    /// </param>
+    /// <param name="hooks">
+    /// Optional lifecycle hooks used by tests to simulate rare process runtime behaviors that are otherwise difficult
+    /// to reproduce deterministically.
+    /// </param>
+    /// <returns>A <see cref="CommandResult"/> containing the process exit code and captured standard output/error.</returns>
+    internal static async Task<CommandResult> ExecuteProcessAsync(
+        string fileName,
+        IReadOnlyList<string> args,
+        string workingDirectory,
+        ILogger logger,
+        CancellationToken cancellationToken,
+        bool streamOutput,
+        Func<string, LogLevel>? stderrLogLevelSelector,
+        ProcessExecutionHooks? hooks)
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = fileName,
@@ -104,7 +173,7 @@ public static class ProcessUtils
         {
             try
             {
-                if (!process.Start())
+                if (!StartProcess(process, hooks))
                 {
                     var exception = new InvalidOperationException($"Failed to start process: {fileName}");
                     logger.LogError(exception, "Failed to start process {FileName}", fileName);
@@ -144,7 +213,7 @@ public static class ProcessUtils
         }
         finally
         {
-            TryKillProcess(process, started, logger);
+            TryKillProcess(process, started, logger, hooks);
 
             if (!outputObserved)
             {
@@ -153,6 +222,11 @@ public static class ProcessUtils
                 await ObserveTaskAsync(stderrTask, "stderr", fileName, logger);
             }
         }
+    }
+
+    private static bool StartProcess(Process process, ProcessExecutionHooks? hooks)
+    {
+        return hooks?.StartProcessOverride?.Invoke(process) ?? process.Start();
     }
 
     /// <summary>
@@ -255,14 +329,21 @@ public static class ProcessUtils
         }
     }
 
-    private static void TryKillProcess(Process process, bool started, ILogger logger)
+    private static void TryKillProcess(Process process, bool started, ILogger logger, ProcessExecutionHooks? hooks)
     {
         if (!started) return;
         try
         {
-            if (!process.HasExited)
+            if (!(hooks?.HasExitedOverride?.Invoke(process) ?? process.HasExited))
             {
-                process.Kill(entireProcessTree: true);
+                if (hooks?.KillProcessOverride is { } killProcessOverride)
+                {
+                    killProcessOverride(process);
+                }
+                else
+                {
+                    process.Kill(entireProcessTree: true);
+                }
             }
         }
         catch (Exception ex)

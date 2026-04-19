@@ -32,6 +32,8 @@ public class TailwindCliManagerTests : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("PATH", _originalPath);
+        TailwindCliManager.IsOSPlatformOverride = null;
+        TailwindCliManager.ProcessArchitectureOverride = null;
 
         if (Directory.Exists(_tempPath))
         {
@@ -87,6 +89,27 @@ public class TailwindCliManagerTests : IDisposable
         var result = _manager.GetTailwindPath();
 
         // Assert
+        Assert.Equal(expectedPath, result);
+    }
+
+    [Fact]
+    public void GetTailwindPath_UsesWindowsBinaryName_WhenWindowsOverrideIsSet()
+    {
+        var pathDir = Path.Combine(_tempPath, "bin");
+        Directory.CreateDirectory(pathDir);
+        var expectedPath = Path.Combine(pathDir, "tailwindcss.exe");
+        File.WriteAllText(expectedPath, "dummy");
+        Environment.SetEnvironmentVariable("PATH", string.Join(Path.PathSeparator, [pathDir, _originalPath ?? string.Empty]));
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+
+        var manager = new TailwindCliManager(_logger)
+        {
+            BaseDirectoryOverride = _tempPath,
+            AssemblyDirectoryOverride = _tempPath
+        };
+
+        var result = manager.GetTailwindPath();
+
         Assert.Equal(expectedPath, result);
     }
 
@@ -281,6 +304,21 @@ public class TailwindCliManagerTests : IDisposable
         Assert.Equal(expectedRid, result);
     }
 
+    [Theory]
+    [MemberData(nameof(CurrentRidOverrideCases))]
+    public void GetCurrentRid_UsesCurrentPlatformOverrides(
+        Func<OSPlatform, bool> osPlatformOverride,
+        Architecture architecture,
+        string expectedRid)
+    {
+        TailwindCliManager.IsOSPlatformOverride = osPlatformOverride;
+        TailwindCliManager.ProcessArchitectureOverride = () => architecture;
+
+        var result = TailwindCliManager.GetCurrentRid();
+
+        Assert.Equal(expectedRid, result);
+    }
+
     public static IEnumerable<object[]> RidMatrixCases()
     {
         yield return [OSPlatform.Windows, Architecture.X64, "win-x64"];
@@ -302,6 +340,14 @@ public class TailwindCliManagerTests : IDisposable
         yield return ["osx-x64", "tailwindcss-macos-x64"];
         yield return ["linux-arm64", "tailwindcss-linux-arm64"];
         yield return ["linux-x64", "tailwindcss-linux-x64"];
+    }
+
+    public static IEnumerable<object[]> CurrentRidOverrideCases()
+    {
+        yield return [(Func<OSPlatform, bool>)(platform => platform == OSPlatform.Windows), Architecture.X64, "win-x64"];
+        yield return [(Func<OSPlatform, bool>)(platform => platform == OSPlatform.Linux), Architecture.Arm64, "linux-arm64"];
+        yield return [(Func<OSPlatform, bool>)(platform => platform == OSPlatform.OSX), Architecture.X64, "osx-x64"];
+        yield return [(Func<OSPlatform, bool>)(_ => false), Architecture.X64, "unknown"];
     }
 
     private static string GetRuntimeProjectBinaryName(string rid) => rid switch

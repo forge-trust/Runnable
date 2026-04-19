@@ -161,6 +161,23 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task StreamToLoggerAsync_DoesNotLogExtraTrailingLine_WhenInputEndsWithNewline()
+    {
+        var logger = new ListLogger();
+        var reader = new ScriptedTextReader(ReadChunk("alpha\n"));
+
+        var output = await ProcessUtils.StreamToLoggerAsync(
+            reader,
+            logger,
+            LogLevel.Information,
+            "test-process",
+            CancellationToken.None);
+
+        Assert.Equal("alpha\n", output);
+        Assert.Single(logger.Messages, entry => entry.Message.Contains("alpha", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_UsesConfiguredStderrLogLevelSelector_WhenStreaming()
     {
         var logger = new ListLogger();
@@ -328,6 +345,62 @@ public class ProcessUtilsTests
             logger.Messages,
             entry => entry.LogLevel == LogLevel.Error
                 && entry.Message.Contains(fileName, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteProcessAsync_LogsAndThrows_WhenProcessStartReturnsFalse()
+    {
+        var logger = new ListLogger();
+        const string fileName = "synthetic-process";
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ProcessUtils.ExecuteProcessAsync(
+                fileName,
+                [],
+                Directory.GetCurrentDirectory(),
+                logger,
+                CancellationToken.None,
+                streamOutput: false,
+                stderrLogLevelSelector: null,
+                hooks: new ProcessUtils.ProcessExecutionHooks
+                {
+                    StartProcessOverride = _ => false
+                }));
+
+        Assert.Equal($"Failed to start process: {fileName}", exception.Message);
+        Assert.Contains(
+            logger.Messages,
+            entry => entry.LogLevel == LogLevel.Error
+                && entry.Message.Contains(fileName, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteProcessAsync_LogsDebug_WhenCleanupKillThrows()
+    {
+        var logger = new ListLogger();
+        var (fileName, args) = CreateShellCommand(
+            "(echo steady) & exit /b 0",
+            "printf 'steady\\n'");
+
+        var result = await ProcessUtils.ExecuteProcessAsync(
+            fileName,
+            args,
+            Directory.GetCurrentDirectory(),
+            logger,
+            CancellationToken.None,
+            streamOutput: false,
+            stderrLogLevelSelector: null,
+            hooks: new ProcessUtils.ProcessExecutionHooks
+            {
+                HasExitedOverride = _ => false,
+                KillProcessOverride = _ => throw new InvalidOperationException("kill failure")
+            });
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(
+            logger.Messages,
+            entry => entry.LogLevel == LogLevel.Debug
+                && entry.Exception?.Message == "kill failure");
     }
 
     private static (string FileName, IReadOnlyList<string> Args) CreateShellCommand(string windowsScript, string unixScript)

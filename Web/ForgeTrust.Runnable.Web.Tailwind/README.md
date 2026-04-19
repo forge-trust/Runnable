@@ -45,6 +45,8 @@ If you want to keep the package-driven build but point it at a different standal
 </PropertyGroup>
 ```
 
+On Windows, `TailwindCliPath` can point at the standalone binary directly or at the npm-generated `.cmd` or `.ps1` shim. The package wraps those shims consistently in both build mode and development watch mode, so the same override works in each flow.
+
 ## Escape hatch (plugin-heavy Tailwind setups)
 
 If your Tailwind configuration depends on npm-only plugins or custom JavaScript tooling, keep your existing Node-based asset pipeline instead of forcing the standalone CLI path.

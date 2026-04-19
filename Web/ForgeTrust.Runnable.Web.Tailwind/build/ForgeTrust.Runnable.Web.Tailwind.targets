@@ -63,6 +63,12 @@
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathDevVersioned)')">$(_TailwindToolPathDevVersioned)</_TailwindToolPath>
       <_TailwindToolPathDevLegacy>$(MSBuildThisFileDirectory)../runtimes/obj/ForgeTrust.Runnable.Web.Tailwind.Runtime.$(_TailwindTargetRid)/$(Configuration)/$(TargetFramework)/$(_TailwindRuntimeBinaryName)</_TailwindToolPathDevLegacy>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathDevLegacy)')">$(_TailwindToolPathDevLegacy)</_TailwindToolPath>
+
+      <_TailwindExecArgs>-i &quot;$(TailwindInputPath)&quot; -o &quot;$(TailwindOutputPath)&quot; --minify</_TailwindExecArgs>
+      <_TailwindToolPathLower Condition="'$(_TailwindToolPath)' != ''">$([System.String]::Copy('$(_TailwindToolPath)').ToLowerInvariant())</_TailwindToolPathLower>
+      <_TailwindExecCommand>&quot;$(_TailwindToolPath)&quot; $(_TailwindExecArgs)</_TailwindExecCommand>
+      <_TailwindExecCommand Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(_TailwindToolPathLower)' != '' and ($([System.String]::Copy('$(_TailwindToolPathLower)').EndsWith('.cmd')) Or $([System.String]::Copy('$(_TailwindToolPathLower)').EndsWith('.bat')))">cmd.exe /d /c &quot;&quot;$(_TailwindToolPath)&quot; $(_TailwindExecArgs)&quot;</_TailwindExecCommand>
+      <_TailwindExecCommand Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(_TailwindToolPathLower)' != '' and $([System.String]::Copy('$(_TailwindToolPathLower)').EndsWith('.ps1'))">powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File &quot;$(_TailwindToolPath)&quot; $(_TailwindExecArgs)</_TailwindExecCommand>
     </PropertyGroup>
 
     <Error Text="Tailwind CSS could not determine a supported runtime identifier for the current build host."
@@ -75,7 +81,7 @@
            Condition="'$(_TailwindToolPath)' == '' or !Exists('$(_TailwindToolPath)')" />
 
     <Message Importance="High" Text="Tailwind CSS: Running build for $(TailwindInputPath) -> $(TailwindOutputPath)" />
-    <Exec Command="&quot;$(_TailwindToolPath)&quot; -i &quot;$(TailwindInputPath)&quot; -o &quot;$(TailwindOutputPath)&quot; --minify" 
+    <Exec Command="$(_TailwindExecCommand)"
           WorkingDirectory="$(MSBuildProjectDirectory)" />
   </Target>
 </Project>

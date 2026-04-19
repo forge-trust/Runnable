@@ -129,9 +129,9 @@ public class TailwindWatchService : BackgroundService
     /// </summary>
     /// <returns>The string-comparison behavior used when evaluating Tailwind input and output paths.</returns>
     /// <remarks>
-    /// Hosts whose default filesystems are typically case-insensitive, such as Windows and default macOS volumes,
-    /// use <see cref="StringComparison.OrdinalIgnoreCase"/>. Other hosts use <see cref="StringComparison.Ordinal"/>.
-    /// Override <see cref="HostPathsAreCaseInsensitive"/> in tests or specialized hosts that need different semantics.
+    /// The default implementation only assumes case-insensitive paths on Windows so development hosts on case-sensitive
+    /// volumes are not rejected by a false positive same-file check. Override <see cref="HostPathsAreCaseInsensitive"/>
+    /// in tests or specialized hosts that know they should compare paths case-insensitively on another platform.
     /// </remarks>
     internal virtual StringComparison GetPathComparison()
     {
@@ -142,12 +142,16 @@ public class TailwindWatchService : BackgroundService
     /// Determines whether the current host should treat filesystem paths as case-insensitive for Tailwind path validation.
     /// </summary>
     /// <returns>
-    /// <see langword="true"/> for hosts that should compare input and output paths case-insensitively; otherwise
-    /// <see langword="false"/>.
+    /// <see langword="true"/> when the host should conservatively compare input and output paths case-insensitively;
+    /// otherwise <see langword="false"/>.
     /// </returns>
+    /// <remarks>
+    /// The default behavior treats only Windows as case-insensitive. Hosts that run on a known case-insensitive
+    /// non-Windows volume can override this method to opt into <see cref="StringComparison.OrdinalIgnoreCase"/>.
+    /// </remarks>
     internal virtual bool HostPathsAreCaseInsensitive()
     {
-        return OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+        return OperatingSystem.IsWindows();
     }
 
     private static LogLevel GetTailwindStderrLogLevel(string line)

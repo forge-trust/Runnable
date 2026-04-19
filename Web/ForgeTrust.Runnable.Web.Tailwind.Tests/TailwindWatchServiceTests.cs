@@ -172,6 +172,23 @@ public class TailwindWatchServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_StartsWatchProcess_WhenInputAndOutputDifferOnlyByCase_OnCaseSensitiveHosts()
+    {
+        _tailwindOptions.InputPath = "Styles/APP.CSS";
+        _tailwindOptions.OutputPath = "styles/app.css";
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)
+        {
+            HostPathsAreCaseInsensitiveOverride = false
+        };
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.True(service.ProcessExecuted);
+        AssertErrorNotLogged();
+        A.CallTo(() => _cliManager.GetTailwindPath()).MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_DoesNotLogError_WhenWatchProcessIsCanceled()
     {
         var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)

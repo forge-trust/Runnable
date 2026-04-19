@@ -82,7 +82,7 @@ public class FeaturedLandingNavigationRegressionTests
         var diagnosticListener = new DiagnosticListener(nameof(FeaturedLandingNavigationRegressionTests));
         services.AddSingleton<DiagnosticSource>(diagnosticListener);
         services.AddSingleton(diagnosticListener);
-        services.AddSingleton<IWebHostEnvironment>(new TestWebHostEnvironment(webRoot));
+        services.AddSingleton<IWebHostEnvironment>(_ => new TestWebHostEnvironment(webRoot));
         services.AddSingleton<IConfiguration>(_ => configuration);
         services.AddMemoryCache();
         services.AddSingleton<IMemo, Memo>();

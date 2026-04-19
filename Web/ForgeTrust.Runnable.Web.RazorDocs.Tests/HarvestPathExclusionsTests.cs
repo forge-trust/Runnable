@@ -42,6 +42,25 @@ public class HarvestPathExclusionsTests
     }
 
     [Fact]
+    public void ShouldExcludeFilePath_WhenCustomExcludedDirectoriesAreProvided_UsesSharedHiddenDirectoryRules()
+    {
+        IReadOnlySet<string> excludedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "TestResults"
+        };
+
+        Assert.True(HarvestPathExclusions.ShouldExcludeFilePath("artifacts/TestResults/README.md", excludedDirectories));
+        Assert.False(HarvestPathExclusions.ShouldExcludeFilePath("src/Tests/README.md", excludedDirectories));
+        Assert.True(HarvestPathExclusions.ShouldExcludeFilePath(".github/README.md", excludedDirectories));
+    }
+
+    [Fact]
+    public void ShouldExcludeFilePath_WhenCustomExcludedDirectoriesAreNull_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => HarvestPathExclusions.ShouldExcludeFilePath("README.md", null!));
+    }
+
+    [Fact]
     public void ShouldExcludeFilePath_WhenPathIsNull_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => HarvestPathExclusions.ShouldExcludeFilePath(null!));

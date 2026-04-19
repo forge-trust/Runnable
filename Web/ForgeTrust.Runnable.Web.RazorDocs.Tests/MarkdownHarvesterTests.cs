@@ -194,6 +194,24 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldReadSingleMdYamlSidecar()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), "# Guide");
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md.yaml"), "title: YAML Sidecar Title");
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = Assert.Single(results);
+
+        Assert.Equal("YAML Sidecar Title", doc.Title);
+        Assert.Equal("YAML Sidecar Title", doc.Metadata?.Title);
+        A.CallTo(_loggerFake)
+            .Where(
+                call => call.Method.Name == nameof(ILogger.Log)
+                        && call.GetArgument<LogLevel>(0) == LogLevel.Warning)
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldPreferInlineFrontMatterOverSidecarMetadata()
     {
         await File.WriteAllTextAsync(

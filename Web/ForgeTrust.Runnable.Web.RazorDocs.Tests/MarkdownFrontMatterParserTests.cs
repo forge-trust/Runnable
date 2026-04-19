@@ -199,6 +199,12 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void ParseMetadataYaml_ShouldThrowArgumentNullException_WhenYamlIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => MarkdownFrontMatterParser.ParseMetadataYaml(null!));
+    }
+
+    [Fact]
     public void ParseMetadataYaml_ShouldNormalizeSameSchema_AsInlineFrontMatter()
     {
         var yaml = """

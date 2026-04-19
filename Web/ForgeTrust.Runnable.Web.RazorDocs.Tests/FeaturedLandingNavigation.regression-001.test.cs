@@ -57,7 +57,7 @@ public class FeaturedLandingNavigationRegressionTests
         var html = await RenderIndexViewAsync(services);
         var document = new HtmlParser().ParseDocument(html);
 
-        var featuredLink = document.QuerySelector("a.group[href='/docs/Web/README.md.html']");
+        var featuredLink = document.QuerySelector("a[href='/docs/Web/README.md.html']");
 
         Assert.NotNull(featuredLink);
         Assert.Equal("doc-content", featuredLink!.GetAttribute("data-turbo-frame"));

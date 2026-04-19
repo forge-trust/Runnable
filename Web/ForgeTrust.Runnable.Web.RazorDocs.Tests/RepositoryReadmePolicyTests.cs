@@ -1,8 +1,10 @@
+using ForgeTrust.Runnable.Web.RazorDocs.Services;
+
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
 public sealed class RepositoryReadmePolicyTests
 {
-    private static readonly HashSet<string> ExcludedDirectorySegments = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> AuthoredReadmeExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
     {
         "bin",
         "obj",
@@ -31,31 +33,7 @@ public sealed class RepositoryReadmePolicyTests
         return Directory
             .EnumerateFiles(repoRoot, "README.md", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(repoRoot, path).Replace('\\', '/'))
-            .Where(path => !ShouldExcludePath(path))
+            .Where(path => !HarvestPathExclusions.ShouldExcludeFilePath(path, AuthoredReadmeExcludedDirectories))
             .ToArray();
-    }
-
-    private static bool ShouldExcludePath(string relativePath)
-    {
-        var segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length <= 1)
-        {
-            return false;
-        }
-
-        foreach (var directorySegment in segments[..^1])
-        {
-            if (directorySegment.StartsWith(".", StringComparison.Ordinal))
-            {
-                return true;
-            }
-
-            if (ExcludedDirectorySegments.Contains(directorySegment))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

@@ -818,7 +818,6 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchIndex_ShouldReturnJsonPayload_WithNormalizedPageTypeBadgeFields()
     public async Task Search_ShouldSkipDuplicateFallbackLinks_WhenOneDocMatchesMultipleBuckets()
     {
         var docs = new List<DocNode>

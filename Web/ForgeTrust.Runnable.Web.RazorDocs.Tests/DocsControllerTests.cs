@@ -818,6 +818,31 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_ShouldSkipHiddenFromSearchFallback_WhenBuildingRecoveryLinks()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Hidden guide",
+                "guides/hidden-guide",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "guide",
+                    HideFromSearch = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Href == "/docs/guides/hidden-guide");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+    }
+
+    [Fact]
     public async Task Search_ShouldSkipDuplicateFallbackLinks_WhenOneDocMatchesMultipleBuckets()
     {
         var docs = new List<DocNode>

@@ -35,7 +35,7 @@ public sealed class RazorDocsSearchFacetsRegression1Tests
                 snippet = "setup and install",
                 pageType = "guide",
                 audience = string.Empty,
-                component = string.Empty,
+                component = "CLI",
                 aliases = Array.Empty<string>(),
                 keywords = Array.Empty<string>(),
                 status = string.Empty,
@@ -55,7 +55,7 @@ public sealed class RazorDocsSearchFacetsRegression1Tests
                 snippet = "example walk-through",
                 pageType = "example",
                 audience = string.Empty,
-                component = string.Empty,
+                component = "SDK",
                 aliases = Array.Empty<string>(),
                 keywords = Array.Empty<string>(),
                 status = string.Empty,
@@ -82,6 +82,11 @@ public sealed class RazorDocsSearchFacetsRegression1Tests
 
         Assert.Equal(0, await page.GetByRole(AriaRole.Heading, new() { Name = "Status" }).CountAsync());
         Assert.Equal(0, await page.Locator("[data-rw-facet-key='status']").CountAsync());
+        var componentSelect = page.Locator("select[data-rw-facet-key='component']");
+        Assert.Equal(1, await componentSelect.CountAsync());
+        var componentLabelId = await componentSelect.First.GetAttributeAsync("aria-labelledby");
+        Assert.False(string.IsNullOrWhiteSpace(componentLabelId));
+        Assert.Equal("Component", await page.Locator($"#{componentLabelId}").TextContentAsync());
 
         await page.GotoAsync($"{_fixture.DocsUrl}/search?status=beta");
         await WaitForSearchPageSettledAsync(page);

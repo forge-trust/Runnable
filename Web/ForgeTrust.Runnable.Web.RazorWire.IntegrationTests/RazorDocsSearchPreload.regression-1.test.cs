@@ -54,7 +54,14 @@ public sealed class RazorDocsSearchPreloadRegression1Tests
             """
             () => {
               const results = document.getElementById('docs-search-page-results');
-              return results && results.getAttribute('aria-busy') === 'false';
+              const failure = document.getElementById('docs-search-page-failure');
+              const hasIndexResource = performance
+                .getEntriesByType('resource')
+                .some(entry => entry.name.includes('/docs/search-index.json'));
+              return results
+                && results.getAttribute('aria-busy') === 'false'
+                && (!failure || failure.hidden)
+                && hasIndexResource;
             }
             """,
             null,

@@ -1400,12 +1400,17 @@
     }
 
     const fragment = document.createDocumentFragment();
-    view.facets.forEach((facet) => {
+    view.facets.forEach((facet, index) => {
       const group = createElement('section', 'docs-search-page-filter-group');
-      group.append(createElement('h2', 'docs-search-page-filter-label', facet.label));
+      const heading = createElement('h2', 'docs-search-page-filter-label', facet.label);
+      const headingId = `docs-search-page-filter-label-${facet.key || `facet-${index}`}`;
+      heading.id = headingId;
+      group.append(heading);
 
       if (facet.kind === 'select') {
         const select = createElement('select', 'docs-search-page-select');
+        select.id = `docs-search-page-select-${facet.key || `facet-${index}`}`;
+        select.setAttribute('aria-labelledby', headingId);
         select.dataset.rwFacetKey = facet.key;
         const emptyOption = createElement('option', null, `All ${facet.label}`);
         emptyOption.value = '';
@@ -1458,7 +1463,7 @@
       const button = createElement('button', null, 'Clear');
       button.type = 'button';
       button.dataset.rwClearFacetKey = filter.key;
-      button.setAttribute('aria-label', `Clear ${filter.label} filter`);
+      button.setAttribute('aria-label', `Clear ${filter.label} filter${filter.displayValue ? `: ${filter.displayValue}` : ''}`);
       pill.append(button);
       fragment.append(pill);
     });
@@ -1570,6 +1575,12 @@
   }
 
   async function loadSearchPageData() {
+    if (searchData.index) {
+      searchPageState.loadState = 'ready';
+      renderSearchPage();
+      return;
+    }
+
     searchPageState.loadState = 'loading';
     renderSearchPage();
 

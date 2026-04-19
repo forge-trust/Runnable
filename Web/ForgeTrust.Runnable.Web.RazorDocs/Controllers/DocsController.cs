@@ -452,6 +452,7 @@ public class DocsController : Controller
             .Where(
                 doc => !doc.IsDirectory
                        && doc.Metadata?.HideFromPublicNav != true
+                       && doc.Metadata?.HideFromSearch != true
                        && predicate(doc))
             .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)

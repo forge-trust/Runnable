@@ -553,6 +553,13 @@
     animation: docs-search-skeleton 1.4s ease-in-out infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .docs-search-skeleton {
+        animation: none;
+        background-position: 0 0;
+    }
+}
+
 .docs-search-skeleton-title {
     height: 1rem;
     width: min(20rem, 60%);

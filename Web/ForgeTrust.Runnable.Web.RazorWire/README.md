@@ -166,6 +166,9 @@ Wraps content in a `<turbo-frame>`.
 - `loading`: load strategy such as `lazy`.
 - `permanent`: persists the element across Turbo page transitions.
 - `swr`: enables stale-while-revalidate behavior.
+- `client-module`: client module path or name to mount for hybrid islands.
+- `client-strategy`: mount timing such as `load`, `visible`, or `idle`.
+- `client-props`: JSON payload passed to the client module's mount function.
 
 ```html
 <rw:island id="sidebar" src="/Reactivity/Sidebar" loading="lazy" permanent="true">

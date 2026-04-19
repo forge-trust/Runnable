@@ -314,7 +314,7 @@
     try {
       // Keep the request credential mode aligned with the layout preload so
       // the browser can reuse the preloaded response instead of warning.
-      response = await fetch(indexUrl, { credentials: 'include', signal: controller.signal });
+      response = await fetch(indexUrl, { credentials: 'same-origin', signal: controller.signal });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         throw new Error('Search index request timed out.');

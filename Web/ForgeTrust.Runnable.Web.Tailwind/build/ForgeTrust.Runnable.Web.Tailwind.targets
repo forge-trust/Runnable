@@ -12,7 +12,8 @@
 
   <ItemGroup>
     <_TailwindTemplates Include="**/*.cshtml;**/*.html;**/*.razor" Exclude="bin/**;obj/**" />
-    <_TailwindConfigs Include="tailwind.config.js;postcss.config.js" />
+    <_TailwindConfigs Include="tailwind.config.js" Condition="Exists('tailwind.config.js')" />
+    <_TailwindConfigs Include="postcss.config.js" Condition="Exists('postcss.config.js')" />
   </ItemGroup>
 
   <Target Name="RunTailwindBuild" AfterTargets="ResolveProjectReferences" BeforeTargets="PrepareResources;Compile"

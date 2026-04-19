@@ -72,12 +72,13 @@ public class TailwindWatchService : BackgroundService
                 "-o", _options.OutputPath,
                 "--watch"
             };
+            var invocation = TailwindCliManager.BuildInvocation(tailwindPath, args);
 
             _logger.LogInformation("Starting Tailwind CSS watch mode: {TailwindPath} {Args}", tailwindPath, string.Join(" ", args));
 
             var result = await ExecuteTailwindProcessAsync(
-                tailwindPath,
-                args,
+                invocation.FileName,
+                invocation.Arguments,
                 _environment.ContentRootPath,
                 stoppingToken);
 
@@ -126,13 +127,27 @@ public class TailwindWatchService : BackgroundService
     /// <summary>
     /// Resolves the path-comparison behavior used when validating Tailwind input/output paths.
     /// </summary>
-    /// <returns>
-    /// <see cref="StringComparison.OrdinalIgnoreCase"/> on Windows, where file paths are conventionally case-insensitive;
-    /// otherwise <see cref="StringComparison.Ordinal"/>.
-    /// </returns>
+    /// <returns>The string-comparison behavior used when evaluating Tailwind input and output paths.</returns>
+    /// <remarks>
+    /// Hosts whose default filesystems are typically case-insensitive, such as Windows and default macOS volumes,
+    /// use <see cref="StringComparison.OrdinalIgnoreCase"/>. Other hosts use <see cref="StringComparison.Ordinal"/>.
+    /// Override <see cref="HostPathsAreCaseInsensitive"/> in tests or specialized hosts that need different semantics.
+    /// </remarks>
     internal virtual StringComparison GetPathComparison()
     {
-        return OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return HostPathsAreCaseInsensitive() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    }
+
+    /// <summary>
+    /// Determines whether the current host should treat filesystem paths as case-insensitive for Tailwind path validation.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> for hosts that should compare input and output paths case-insensitively; otherwise
+    /// <see langword="false"/>.
+    /// </returns>
+    internal virtual bool HostPathsAreCaseInsensitive()
+    {
+        return OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
     }
 
     private static LogLevel GetTailwindStderrLogLevel(string line)

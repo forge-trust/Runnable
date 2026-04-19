@@ -66,9 +66,9 @@
     </PropertyGroup>
 
     <Error Text="Tailwind CSS could not determine a supported runtime identifier for the current build host."
-           Condition="'$(_TailwindTargetRid)' == ''" />
+           Condition="'$(_TailwindToolPath)' == '' and '$(_TailwindTargetRid)' == ''" />
     <Error Text="Tailwind CSS version could not be resolved. Set TailwindVersion explicitly or ensure build/tailwind.version is available next to ForgeTrust.Runnable.Web.Tailwind.targets."
-           Condition="'$(TailwindVersion)' == ''" />
+           Condition="'$(_TailwindToolPath)' == '' and '$(TailwindVersion)' == ''" />
     <Error Text="TailwindCliPath was set to '$(TailwindCliPath)', but the resolved file '$(_TailwindCliPathFull)' does not exist."
            Condition="'$(TailwindCliPath)' != '' and !Exists('$(_TailwindCliPathFull)')" />
     <Error Text="Tailwind CLI binary not found. Please ensure a 'ForgeTrust.Runnable.Web.Tailwind.Runtime.*' package for your platform is installed or set TailwindCliPath to a local Tailwind CLI binary."

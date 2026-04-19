@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Web.Tailwind.Tests;
 
-public class TailwindWatchServiceTests
+public class TailwindWatchServiceTests : IDisposable
 {
     private static readonly string TestContentRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "tailwind-watch-tests"));
     private readonly TailwindCliManager _cliManager;
@@ -34,6 +34,12 @@ public class TailwindWatchServiceTests
         A.CallTo(() => _environment.EnvironmentName).Returns(Environments.Development);
         A.CallTo(() => _environment.ContentRootPath).Returns(TestContentRoot);
         A.CallTo(() => _cliManager.GetTailwindPath()).Returns("/path/to/tailwind");
+    }
+
+    public void Dispose()
+    {
+        TailwindCliManager.IsOSPlatformOverride = null;
+        GC.SuppressFinalize(this);
     }
 
     [Fact]
@@ -155,7 +161,7 @@ public class TailwindWatchServiceTests
         _tailwindOptions.OutputPath = "styles/app.css";
         var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)
         {
-            PathComparisonToUse = StringComparison.OrdinalIgnoreCase
+            HostPathsAreCaseInsensitiveOverride = true
         };
 
         await service.ExecuteAsyncPublic(CancellationToken.None);
@@ -206,6 +212,53 @@ public class TailwindWatchServiceTests
 
         Assert.False(service.ProcessExecuted);
         AssertErrorLogged();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UsesCmdLauncher_ForWindowsCmdShim()
+    {
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+        A.CallTo(() => _cliManager.GetTailwindPath()).Returns(@"C:\tools\tailwindcss.cmd");
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment);
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.True(service.ProcessExecuted);
+        Assert.Equal("cmd.exe", service.ExecutedFileName);
+        Assert.Equal(
+            ["/d", "/c", @"C:\tools\tailwindcss.cmd", "-i", "input.css", "-o", "output.css", "--watch"],
+            service.ExecutedArgs);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UsesPowerShellLauncher_ForWindowsPowerShellShim()
+    {
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+        A.CallTo(() => _cliManager.GetTailwindPath()).Returns(@"C:\tools\tailwindcss.ps1");
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment);
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.True(service.ProcessExecuted);
+        Assert.Equal("powershell.exe", service.ExecutedFileName);
+        Assert.Equal(
+            ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", @"C:\tools\tailwindcss.ps1", "-i", "input.css", "-o", "output.css", "--watch"],
+            service.ExecutedArgs);
+    }
+
+    [Theory]
+    [InlineData(true, StringComparison.OrdinalIgnoreCase)]
+    [InlineData(false, StringComparison.Ordinal)]
+    public void GetPathComparison_UsesHostCaseSensitivity(bool hostPathsAreCaseInsensitive, StringComparison expectedComparison)
+    {
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)
+        {
+            HostPathsAreCaseInsensitiveOverride = hostPathsAreCaseInsensitive
+        };
+
+        var result = service.GetPathComparison();
+
+        Assert.Equal(expectedComparison, result);
     }
 
     [Fact]
@@ -285,7 +338,7 @@ public class TailwindWatchServiceTests
         public IReadOnlyList<string>? ExecutedArgs { get; private set; }
         public CommandResult ResultToReturn { get; set; } = new CommandResult(0, "", "");
         public Exception? ExceptionToThrow { get; set; }
-        public StringComparison? PathComparisonToUse { get; set; }
+        public bool? HostPathsAreCaseInsensitiveOverride { get; set; }
 
         public TestTailwindWatchService(
             TailwindCliManager cliManager,
@@ -316,9 +369,9 @@ public class TailwindWatchServiceTests
             return Task.FromResult(ResultToReturn);
         }
 
-        internal override StringComparison GetPathComparison()
+        internal override bool HostPathsAreCaseInsensitive()
         {
-            return PathComparisonToUse ?? base.GetPathComparison();
+            return HostPathsAreCaseInsensitiveOverride ?? base.HostPathsAreCaseInsensitive();
         }
     }
 

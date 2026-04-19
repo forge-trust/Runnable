@@ -12,6 +12,13 @@ namespace ForgeTrust.Runnable.Web.Tailwind;
 /// </summary>
 public class TailwindCliManager
 {
+    /// <summary>
+    /// Represents the concrete process invocation required to launch the resolved Tailwind CLI.
+    /// </summary>
+    /// <param name="FileName">The executable or launcher to start.</param>
+    /// <param name="Arguments">The complete ordered argument list to pass to <paramref name="FileName" />.</param>
+    internal sealed record TailwindCliInvocation(string FileName, IReadOnlyList<string> Arguments);
+
     private readonly ILogger<TailwindCliManager> _logger;
     private readonly string _binaryName = GetBinaryName();
 
@@ -59,7 +66,7 @@ public class TailwindCliManager
     /// <item><description>RID-specific runtime assets under <see cref="AppContext.BaseDirectory"/>.</description></item>
     /// <item><description>A flat binary next to the application under <see cref="AppContext.BaseDirectory"/>.</description></item>
     /// <item><description>RID-specific runtime assets relative to this assembly, including local development runtime build outputs when running inside this repository.</description></item>
-    /// <item><description>The system <c>PATH</c> as an escape hatch for custom or Node-managed Tailwind setups.</description></item>
+    /// <item><description>The system <c>PATH</c> as an escape hatch for custom or Node-managed Tailwind setups, including Windows shell shims such as <c>.cmd</c> and <c>.ps1</c>.</description></item>
     /// </list>
     /// If none of these locations contain a compatible binary, the method throws <see cref="FileNotFoundException"/>.
     /// </remarks>
@@ -127,6 +134,45 @@ public class TailwindCliManager
         throw new FileNotFoundException(
             $"Tailwind CLI not found. Please ensure a 'ForgeTrust.Runnable.Web.Tailwind.Runtime.*' package for your platform is installed or tailwindcss is on PATH. (Missing: {_binaryName})",
             _binaryName);
+    }
+
+    /// <summary>
+    /// Builds the process invocation needed to execute a resolved Tailwind CLI path.
+    /// </summary>
+    /// <param name="tailwindPath">The resolved Tailwind CLI path returned by <see cref="GetTailwindPath"/>.</param>
+    /// <param name="tailwindArgs">The Tailwind CLI arguments to forward to the process.</param>
+    /// <returns>
+    /// A <see cref="TailwindCliInvocation"/> describing the executable to launch and the full ordered argument list.
+    /// </returns>
+    /// <remarks>
+    /// Windows PATH resolution can return Node-managed shell shims such as <c>.cmd</c> or <c>.ps1</c>. These files
+    /// cannot be launched reliably with <see cref="System.Diagnostics.ProcessStartInfo.UseShellExecute"/> disabled, so
+    /// they are wrapped with <c>cmd.exe</c> or <c>powershell.exe</c> as appropriate.
+    /// </remarks>
+    internal static TailwindCliInvocation BuildInvocation(string tailwindPath, IReadOnlyList<string> tailwindArgs)
+    {
+        if (!IsCurrentOsPlatform(OSPlatform.Windows))
+        {
+            return new TailwindCliInvocation(tailwindPath, tailwindArgs);
+        }
+
+        var extension = Path.GetExtension(tailwindPath);
+        if (string.Equals(extension, ".cmd", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(extension, ".bat", StringComparison.OrdinalIgnoreCase))
+        {
+            return new TailwindCliInvocation(
+                "cmd.exe",
+                CreateInvocationArguments("/d", "/c", tailwindPath, tailwindArgs));
+        }
+
+        if (string.Equals(extension, ".ps1", StringComparison.OrdinalIgnoreCase))
+        {
+            return new TailwindCliInvocation(
+                "powershell.exe",
+                CreateInvocationArguments("-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", tailwindPath, tailwindArgs));
+        }
+
+        return new TailwindCliInvocation(tailwindPath, tailwindArgs);
     }
 
     /// <summary>
@@ -284,15 +330,114 @@ public class TailwindCliManager
             return false;
         }
 
-        foreach (var p in values.Split(Path.PathSeparator))
+        foreach (var p in values.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            var fullPath = Path.Combine(p, fileName);
-            if (File.Exists(fullPath))
+            foreach (var candidateName in EnumeratePathSearchNames(fileName))
             {
-                path = fullPath;
-                return true;
+                var fullPath = Path.Combine(p, candidateName);
+                if (File.Exists(fullPath))
+                {
+                    path = fullPath;
+                    return true;
+                }
             }
         }
+
         return false;
+    }
+
+    private static IReadOnlyList<string> CreateInvocationArguments(
+        string firstArg,
+        string secondArg,
+        string thirdArg,
+        IReadOnlyList<string> tailwindArgs)
+    {
+        var arguments = new List<string>(tailwindArgs.Count + 3)
+        {
+            firstArg,
+            secondArg,
+            thirdArg
+        };
+        arguments.AddRange(tailwindArgs);
+        return arguments;
+    }
+
+    private static IReadOnlyList<string> CreateInvocationArguments(
+        string firstArg,
+        string secondArg,
+        string thirdArg,
+        string fourthArg,
+        string fifthArg,
+        string sixthArg,
+        IReadOnlyList<string> tailwindArgs)
+    {
+        var arguments = new List<string>(tailwindArgs.Count + 6)
+        {
+            firstArg,
+            secondArg,
+            thirdArg,
+            fourthArg,
+            fifthArg,
+            sixthArg
+        };
+        arguments.AddRange(tailwindArgs);
+        return arguments;
+    }
+
+    private static IEnumerable<string> EnumeratePathSearchNames(string fileName)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            fileName
+        };
+        yield return fileName;
+
+        if (!IsCurrentOsPlatform(OSPlatform.Windows))
+        {
+            yield break;
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(fileName);
+        if (string.IsNullOrEmpty(baseName))
+        {
+            yield break;
+        }
+
+        foreach (var extension in GetWindowsPathExtensions())
+        {
+            var candidate = baseName + extension;
+            if (seen.Add(candidate))
+            {
+                yield return candidate;
+            }
+        }
+    }
+
+    private static IEnumerable<string> GetWindowsPathExtensions()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var extension in new[] { ".exe", ".cmd", ".ps1" })
+        {
+            if (seen.Add(extension))
+            {
+                yield return extension;
+            }
+        }
+
+        var pathExtensions = Environment.GetEnvironmentVariable("PATHEXT");
+        if (string.IsNullOrWhiteSpace(pathExtensions))
+        {
+            yield break;
+        }
+
+        foreach (var rawExtension in pathExtensions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var extension = rawExtension.StartsWith(".", StringComparison.Ordinal) ? rawExtension : "." + rawExtension;
+            if (seen.Add(extension))
+            {
+                yield return extension;
+            }
+        }
     }
 }

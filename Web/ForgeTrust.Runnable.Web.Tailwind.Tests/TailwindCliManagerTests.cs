@@ -6,7 +6,9 @@ using Microsoft.Extensions.Logging;
 namespace ForgeTrust.Runnable.Web.Tailwind.Tests;
 
 [CollectionDefinition("EnvVarIsolation", DisableParallelization = true)]
-public sealed class EnvVarIsolationCollection;
+public sealed class EnvVarIsolationCollection
+{
+}
 
 [Collection("EnvVarIsolation")]
 public class TailwindCliManagerTests : IDisposable
@@ -16,6 +18,8 @@ public class TailwindCliManagerTests : IDisposable
     private readonly ILogger<TailwindCliManager> _logger;
     private readonly TailwindCliManager _manager;
     private readonly string _binaryName;
+    private readonly string _currentHostRid;
+    private readonly string _currentHostRuntimeProjectBinaryName;
 
     public TailwindCliManagerTests()
     {
@@ -26,6 +30,9 @@ public class TailwindCliManagerTests : IDisposable
         _manager.BaseDirectoryOverride = _tempPath;
         _manager.AssemblyDirectoryOverride = Path.Combine(_tempPath, "isolated-assembly");
         _binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "tailwindcss.exe" : "tailwindcss";
+        _currentHostRid = GetSupportedHostRid();
+        _currentHostRuntimeProjectBinaryName = GetRuntimeProjectBinaryName(_currentHostRid);
+        _manager.RidOverride = _currentHostRid;
         _originalPath = Environment.GetEnvironmentVariable("PATH");
     }
 
@@ -47,8 +54,7 @@ public class TailwindCliManagerTests : IDisposable
     public void GetTailwindPath_ReturnsRuntimePath_IfFound()
     {
         // Arrange
-        var rid = TailwindCliManager.GetCurrentRid();
-        var runtimeNativeDir = Path.Combine(_tempPath, "runtimes", rid, "native");
+        var runtimeNativeDir = Path.Combine(_tempPath, "runtimes", _currentHostRid, "native");
         Directory.CreateDirectory(runtimeNativeDir);
         var expectedPath = Path.Combine(runtimeNativeDir, _binaryName);
         File.WriteAllText(expectedPath, "dummy");
@@ -105,7 +111,8 @@ public class TailwindCliManagerTests : IDisposable
         var manager = new TailwindCliManager(_logger)
         {
             BaseDirectoryOverride = _tempPath,
-            AssemblyDirectoryOverride = _tempPath
+            AssemblyDirectoryOverride = _tempPath,
+            RidOverride = "win-x64"
         };
 
         var result = manager.GetTailwindPath();
@@ -136,14 +143,13 @@ public class TailwindCliManagerTests : IDisposable
     [Fact]
     public void GetTailwindPath_ReturnsAssemblyFallbackRuntimePath_IfFound()
     {
-        var rid = TailwindCliManager.GetCurrentRid();
         var baseDir = Path.Combine(_tempPath, "app-base");
         var assemblyDir = Path.Combine(_tempPath, "assembly-base");
         Directory.CreateDirectory(baseDir);
         _manager.BaseDirectoryOverride = baseDir;
         _manager.AssemblyDirectoryOverride = assemblyDir;
 
-        var runtimeNativeDir = Path.Combine(assemblyDir, "runtimes", rid, "native");
+        var runtimeNativeDir = Path.Combine(assemblyDir, "runtimes", _currentHostRid, "native");
         Directory.CreateDirectory(runtimeNativeDir);
         var expectedPath = Path.Combine(runtimeNativeDir, _binaryName);
 
@@ -157,7 +163,6 @@ public class TailwindCliManagerTests : IDisposable
     [Fact]
     public void GetTailwindPath_ReturnsDevelopmentRuntimeProjectPath_IfFound()
     {
-        var rid = TailwindCliManager.GetCurrentRid();
         var baseDir = Path.Combine(_tempPath, "examples", "sample-app", "bin", "Debug", "net10.0");
         var assemblyDir = Path.Combine(baseDir, "assembly-shadow");
         Directory.CreateDirectory(baseDir);
@@ -170,11 +175,11 @@ public class TailwindCliManagerTests : IDisposable
             "ForgeTrust.Runnable.Web.Tailwind",
             "runtimes",
             "obj",
-            $"ForgeTrust.Runnable.Web.Tailwind.Runtime.{rid}",
+            $"ForgeTrust.Runnable.Web.Tailwind.Runtime.{_currentHostRid}",
             "Debug",
             "net10.0");
         Directory.CreateDirectory(runtimeProjectDir);
-        var expectedPath = Path.Combine(runtimeProjectDir, GetRuntimeProjectBinaryName(rid));
+        var expectedPath = Path.Combine(runtimeProjectDir, _currentHostRuntimeProjectBinaryName);
         File.WriteAllText(expectedPath, "dummy");
 
         var result = _manager.GetTailwindPath();
@@ -214,7 +219,6 @@ public class TailwindCliManagerTests : IDisposable
     [Fact]
     public void GetTailwindPath_ReturnsDevelopmentRuntimeProjectPath_FromAssemblyDirectory_WhenBaseDirectoryShapeIsUnsupported()
     {
-        var rid = TailwindCliManager.GetCurrentRid();
         var baseDir = Path.Combine(_tempPath, "examples", "sample-app");
         var assemblyDir = Path.Combine(_tempPath, "examples", "shadow-app", "bin", "Debug", "net10.0");
         Directory.CreateDirectory(baseDir);
@@ -228,11 +232,11 @@ public class TailwindCliManagerTests : IDisposable
             "ForgeTrust.Runnable.Web.Tailwind",
             "runtimes",
             "obj",
-            $"ForgeTrust.Runnable.Web.Tailwind.Runtime.{rid}",
+            $"ForgeTrust.Runnable.Web.Tailwind.Runtime.{_currentHostRid}",
             "Debug",
             "net10.0");
         Directory.CreateDirectory(runtimeProjectDir);
-        var expectedPath = Path.Combine(runtimeProjectDir, GetRuntimeProjectBinaryName(rid));
+        var expectedPath = Path.Combine(runtimeProjectDir, _currentHostRuntimeProjectBinaryName);
         File.WriteAllText(expectedPath, "dummy");
 
         var result = _manager.GetTailwindPath();
@@ -243,14 +247,13 @@ public class TailwindCliManagerTests : IDisposable
     [Fact]
     public void GetTailwindPath_ThrowsFileNotFoundException_WhenSupportedRidHasNoDevelopmentRuntimeProjectInAncestorTree()
     {
-        var rid = TailwindCliManager.GetCurrentRid();
         var baseDir = Path.Combine(_tempPath, "examples", "sample-app", "bin", "Debug", "net10.0");
         var assemblyDir = Path.Combine(_tempPath, "shadow", "bin", "Debug", "net10.0");
         Directory.CreateDirectory(baseDir);
         Directory.CreateDirectory(assemblyDir);
         _manager.BaseDirectoryOverride = baseDir;
         _manager.AssemblyDirectoryOverride = assemblyDir;
-        _manager.RidOverride = rid;
+        _manager.RidOverride = _currentHostRid;
         Environment.SetEnvironmentVariable("PATH", string.Empty);
 
         Assert.Throws<FileNotFoundException>(() => _manager.GetTailwindPath());
@@ -277,6 +280,76 @@ public class TailwindCliManagerTests : IDisposable
 
         // Act & Assert
         Assert.Throws<FileNotFoundException>(() => _manager.GetTailwindPath());
+    }
+
+    [Fact]
+    public void GetTailwindPath_ReturnsWindowsCmdShim_IfFoundInPath()
+    {
+        var pathDir = Path.Combine(_tempPath, "bin");
+        Directory.CreateDirectory(pathDir);
+        var expectedPath = Path.Combine(pathDir, "tailwindcss.cmd");
+        File.WriteAllText(expectedPath, "@echo off");
+        Environment.SetEnvironmentVariable("PATH", string.Join(Path.PathSeparator, [pathDir, _originalPath ?? string.Empty]));
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+
+        var manager = new TailwindCliManager(_logger)
+        {
+            BaseDirectoryOverride = _tempPath,
+            AssemblyDirectoryOverride = _tempPath,
+            RidOverride = "win-x64"
+        };
+
+        var result = manager.GetTailwindPath();
+
+        Assert.Equal(expectedPath, result);
+    }
+
+    [Fact]
+    public void GetTailwindPath_ReturnsWindowsPowerShellShim_IfFoundInPath()
+    {
+        var pathDir = Path.Combine(_tempPath, "bin");
+        Directory.CreateDirectory(pathDir);
+        var expectedPath = Path.Combine(pathDir, "tailwindcss.ps1");
+        File.WriteAllText(expectedPath, "Write-Output 'tailwind'");
+        Environment.SetEnvironmentVariable("PATH", string.Join(Path.PathSeparator, [pathDir, _originalPath ?? string.Empty]));
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+
+        var manager = new TailwindCliManager(_logger)
+        {
+            BaseDirectoryOverride = _tempPath,
+            AssemblyDirectoryOverride = _tempPath,
+            RidOverride = "win-x64"
+        };
+
+        var result = manager.GetTailwindPath();
+
+        Assert.Equal(expectedPath, result);
+    }
+
+    [Fact]
+    public void BuildInvocation_UsesCommandPrompt_ForWindowsBatchShim()
+    {
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+        var invocation = TailwindCliManager.BuildInvocation(
+            @"C:\tools\tailwindcss.cmd",
+            ["-i", "app.css", "-o", "site.css"]);
+
+        Assert.Equal("cmd.exe", invocation.FileName);
+        Assert.Equal(["/d", "/c", @"C:\tools\tailwindcss.cmd", "-i", "app.css", "-o", "site.css"], invocation.Arguments);
+    }
+
+    [Fact]
+    public void BuildInvocation_UsesPowerShell_ForWindowsPowerShellShim()
+    {
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+        var invocation = TailwindCliManager.BuildInvocation(
+            @"C:\tools\tailwindcss.ps1",
+            ["-i", "app.css", "-o", "site.css"]);
+
+        Assert.Equal("powershell.exe", invocation.FileName);
+        Assert.Equal(
+            ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", @"C:\tools\tailwindcss.ps1", "-i", "app.css", "-o", "site.css"],
+            invocation.Arguments);
     }
 
     [Fact]
@@ -359,4 +432,24 @@ public class TailwindCliManagerTests : IDisposable
         "linux-x64" => "tailwindcss-linux-x64",
         _ => throw new InvalidOperationException($"Unsupported RID for test: {rid}")
     };
+
+    private static string GetSupportedHostRid()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return "win-x64";
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            return "osx-x64";
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            return "linux-x64";
+        }
+
+        throw new PlatformNotSupportedException("Tailwind CLI manager tests require a supported host operating system.");
+    }
 }

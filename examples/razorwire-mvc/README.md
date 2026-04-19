@@ -1,77 +1,133 @@
 # RazorWire MVC Example
 
-This project is a reference implementation demonstrating how to build modern, reactive web applications using **RazorWire** within an ASP.NET Core MVC architecture.
+This sample is the concrete proof behind the RazorWire package README. It shows how returned Razor fragments, islands, and SSE fit into a normal ASP.NET Core MVC app without a separate client rendering stack.
 
-It showcases the core "HTML-over-the-wire" capabilities provided by the `ForgeTrust.Runnable.Web.RazorWire` library, including Turbo Frames (Islands), Turbo Streams, and Server-Sent Events (SSE).
+## Start Here: Return Razor Fragments
 
-## Features
+1. Run the application from the repository root:
 
-#### 🏝️ Islands (Turbo Frames)
+   ```bash
+   dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
+   ```
 
-RazorWire allows you to isolate regions of a page ("Islands") that can load or update independently.
-*   **Example**: The Sidebar and User List in the Reactivity demo are loaded as separate frames (`<turbo-frame>`).
-*   **Code**: See `ReactivityController.Sidebar()` and `RazorWireBridge.Frame()`.
+   This assumes you are in a clone of this repository with the .NET 10 SDK installed.
 
-### 📡 Real-time Streaming (SSE)
+   If you `cd examples/razorwire-mvc` first, `dotnet run` also works from there.
 
-Updates can be pushed from the server to connected clients via Server-Sent Events.
-*   **Example**: When a user posts a message or joins, the "User List" and "Messages" sections update in real-time for all connected clients.
-*   **Hub**: The `IRazorWireStreamHub` is used to publish updates to the `reactivity` channel.
+2. Open `http://localhost:5233/Reactivity` or use the port printed in the console if it differs.
+3. Wait for the `Permanent Island` sidebar to load.
+4. Click the `+` button in the counter widget.
+5. Watch `Instance Score` and `Session Score` update in place without a full page reload.
 
-### ⚡ Form Enhancement
+That is the core RazorWire workflow in one interaction: a normal MVC form posts, the controller returns targeted Razor fragments, and the UI updates only where it needs to.
 
-Forms are enhanced to perform partial page updates without full reloads.
-*   **Example**: The "Join" and "Send Message" forms return Turbo Stream responses (appending messages, updating counts) instead of redirecting.
-*   **Code**: See `ReactivityController.RegisterUser` and usage of `this.RazorWireStream()`.
+## What Just Happened
+
+```text
+/Reactivity
+  -> loads the Permanent Island from /Reactivity/Sidebar
+  -> renders the Counter view component inside that island
+  -> posts the counter form to ReactivityController.IncrementCounter
+  -> returns a RazorWire stream with targeted updates
+  -> updates the two counters and replaces the hidden input for the next click
+```
+
+## Files Behind the Hero Flow
+
+- `examples/razorwire-mvc/Views/Reactivity/Index.cshtml` loads the permanent island with `src="/Reactivity/Sidebar"`.
+- `examples/razorwire-mvc/Views/Shared/_Sidebar.cshtml` hosts the island content and invokes the `Counter` view component.
+- `examples/razorwire-mvc/Views/Shared/Components/Counter/Default.cshtml` renders the counter values plus the `IncrementCounter` form.
+- `examples/razorwire-mvc/Controllers/ReactivityController.cs` returns the targeted stream updates.
+- `examples/razorwire-mvc/Views/Reactivity/_CounterInput.cshtml` replaces the hidden `clientCount` input after each click.
+
+## Proof Slice
+
+`examples/razorwire-mvc/Views/Shared/Components/Counter/Default.cshtml`
+
+```cshtml
+<div id="instance-score-value" class="text-2xl font-black text-indigo-600 tabular-nums">@Model</div>
+<div id="session-score-value" class="text-2xl font-black text-indigo-400 tabular-nums">0</div>
+
+<form asp-controller="Reactivity" asp-action="IncrementCounter" method="post" rw-active="true" data-counter-form>
+    <input type="hidden" name="clientCount" id="client-count-input" value="0" />
+    <button type="submit">+</button>
+</form>
+```
+
+`examples/razorwire-mvc/Controllers/ReactivityController.cs`
+
+```csharp
+[HttpPost]
+[ValidateAntiForgeryToken]
+public IActionResult IncrementCounter([FromForm] int clientCount)
+{
+    CounterViewComponent.Increment();
+    clientCount++;
+
+    if (Request.IsTurboRequest())
+    {
+        return this.RazorWireStream()
+            .Update("instance-score-value", CounterViewComponent.Count.ToString())
+            .Update("session-score-value", clientCount.ToString())
+            .ReplacePartial("client-count-input", "_CounterInput", clientCount)
+            .BuildResult();
+    }
+
+    var referer = Request.Headers["Referer"].ToString();
+    return Url.IsLocalUrl(referer) ? Redirect(referer) : RedirectToAction(nameof(Index));
+}
+```
+
+`examples/razorwire-mvc/Views/Reactivity/_CounterInput.cshtml`
+
+```cshtml
+<input type='hidden' name='clientCount' id='client-count-input' value='@Model' />
+```
+
+## If Your Result Differs
+
+- If the page loads on a different port, use the URL printed by `dotnet run`.
+- If clicking `+` gives you a bare `400 Bad Request`, check the package docs for [Security & Anti-Forgery](../../Web/ForgeTrust.Runnable.Web.RazorWire/Docs/antiforgery.md). That is the first thing to verify when you copy this pattern into another page or app.
+- If the form does not update in place, check the same anti-forgery guidance first, then confirm you are still posting with `rw-active="true"` and returning a RazorWire stream from `IncrementCounter`.
+- If you want the broader sample context instead of the focused proof, continue below.
+
+## Broader Sample Features
+
+### Islands
+
+The sample uses `rw:island` to load and persist independent UI regions.
+
+- `ReactivityController.Sidebar()` returns the permanent sidebar island.
+- `ReactivityController.UserList()` returns the `UserList` view component inside its own island.
+- `Views/Home/Index.cshtml`, `Views/Reactivity/Index.cshtml`, and `Views/Navigation/Index.cshtml` all reuse the same `permanent-island` so it can persist across page transitions.
+
+### Live Updates over SSE
+
+The sample also demonstrates live multi-client updates.
+
+- `Views/Reactivity/Index.cshtml` includes `<rw:stream-source id="rw-stream-reactivity" channel="reactivity" permanent="true" />`.
+- `ReactivityController.PublishMessage()` pushes new messages to every connected client.
+- `ReactivityController.BroadcastUserPresenceAsync()` updates the user list and online count across sessions.
+
+### Registration and Message Publishing
+
+The reactivity page includes two additional form flows:
+
+- `Views/Reactivity/_UserRegistration.cshtml` posts to `RegisterUser` and swaps the register and message forms.
+- `Views/Reactivity/_MessageForm.cshtml` posts to `PublishMessage` and prepends messages into the live feed.
+
+Those flows are richer than the counter demo, but the counter is the cleanest first proof because it does not depend on stream-hub context to feel convincing.
 
 ## Project Structure
 
-*   **Controllers/ReactivityController.cs**: The main demo controller. It handles:
-  *   Rendering the main view.
-  *   Serving partial "Islands" (Sidebar, UserList).
-  *   Handling form POSTs and returning Stream responses.
-  *   Broadcasting updates via the Stream Hub.
-*   **Views/Reactivity/**: Contains the Razor views and partials for the demo.
-*   **Services/**: Simple in-memory services (`UserPresenceService`) to simulate state for the demo.
+- `Controllers/ReactivityController.cs`: main demo controller for islands, form posts, and stream responses.
+- `Views/Reactivity/`: reactivity page plus registration, message, and counter partials.
+- `Views/Shared/`: shared island and view component rendering.
+- `ViewComponents/`: view component entry points such as `Counter` and `UserList`.
+- `Services/`: in-memory sample services such as `UserPresenceService` and `MessageStore`.
 
-## Getting Started
+## Development Notes
 
-1.  **Run the application from the repository root**:
+To enable Razor Runtime Compilation and live static asset updates in the sample, run in the `Development` environment, for example with `ASPNETCORE_ENVIRONMENT=Development`.
 
-    ```bash
-    dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
-    ```
-
-    If you `cd examples/razorwire-mvc` first, `dotnet run` also works from there.
-
-2.  **Open the demo**:
-    Navigate to `http://localhost:5233` (or the port indicated in the console).
-    
-    > **Note**: To enable Razor Runtime Compilation and live static asset updates (e.g. for `razorwire.js`), ensure the application is running in the `Development` environment (e.g. `ASPNETCORE_ENVIRONMENT=Development`). This allows you to edit views and internal scripts and see changes on refresh without rebuilding.
-    >
-    > **Tip**: Local assets (like `site.js` and `site.css`) automatically receive version hashes for cache busting. You can still use `asp-append-version="true"` explicitly if desired.
-3.  **Test Reactivity**:
-    *   Open the app in multiple browser tabs.
-    *   Join with a username in one tab.
-    *   Observe the "Online Users" count update instantly in other tabs.
-    *   Send a message to see it appear everywhere.
-
-## Key Concepts
-
-**RazorWire Bridge**
-Helper methods to return Turbo-compatible responses.
-```csharp
-// Return a Frame (Island)
-return RazorWireBridge.Frame(this, "my-island-id", "_PartialViewName");
-
-// Return a Stream (Update)
-return this.RazorWireStream()
-    .Append("chat-list", "<li>New Message</li>")
-    .BuildResult();
-```
-
-**Stream Hub**
-Publishing updates to subscribers.
-```csharp
-await _hub.PublishAsync("channel-name", streamHtml);
-```
+Local assets such as `site.js` and `site.css` automatically receive version hashes for cache busting. You can still use `asp-append-version="true"` explicitly if you want to make that behavior obvious in markup.

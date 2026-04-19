@@ -71,7 +71,7 @@ public sealed class RazorDocsSearchPlaywrightTests
     }
 
     [Fact]
-    public async Task SlashShortcut_DoesNotFocusHiddenSidebarInput_OnMobileDocsPage()
+    public async Task SlashShortcut_NavigatesToWorkspace_WhenSidebarSearchIsHidden_OnMobileDocsPage()
     {
         await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
         {
@@ -85,10 +85,11 @@ public sealed class RazorDocsSearchPlaywrightTests
 
         await page.GotoAsync(_fixture.DocsUrl);
         await WaitForSidebarSearchReadyAsync(page);
-        await page.FocusAsync("#docs-sidebar-open");
 
         await page.Keyboard.PressAsync("/");
-        await ExpectActiveElementIdAsync(page, "docs-sidebar-open");
+        await WaitForPathAsync(page, "/docs/search");
+        await WaitForSearchPageSettledAsync(page);
+        await ExpectActiveElementIdAsync(page, "docs-search-page-input");
     }
 
     [Fact]

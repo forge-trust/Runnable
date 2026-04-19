@@ -639,6 +639,19 @@
     return false;
   }
 
+  function activateSearchEntryPoint() {
+    if (focusVisibleSearchInput()) {
+      return true;
+    }
+
+    if (!isSearchPageVisible()) {
+      navigateToSearchPageWithQuery(getCurrentSearchQuery());
+      return true;
+    }
+
+    return false;
+  }
+
   function shouldTargetDocsFrame(href) {
     const url = toUrl(href);
     return Boolean(url && url.origin === window.location.origin && isDocsPath(url.pathname) && url.pathname !== '/docs');
@@ -1676,7 +1689,7 @@
           return;
         }
 
-        if (focusVisibleSearchInput()) {
+        if (activateSearchEntryPoint()) {
           event.preventDefault();
         }
         return;

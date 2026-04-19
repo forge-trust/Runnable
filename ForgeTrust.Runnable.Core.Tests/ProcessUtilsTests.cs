@@ -69,6 +69,25 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task ExecuteProcessAsync_ThrowsOperationCanceledException_WhenCanceled_WithStreaming()
+    {
+        var logger = new ListLogger();
+        var (fileName, args) = CreateShellCommand(
+            "(echo streamed) & ping -n 30 127.0.0.1 >NUL",
+            "printf 'streamed\\n'; sleep 30");
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            ProcessUtils.ExecuteProcessAsync(
+                fileName,
+                args,
+                Directory.GetCurrentDirectory(),
+                logger,
+                cts.Token,
+                streamOutput: true));
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_UsesConfiguredStderrLogLevelSelector_WhenStreaming()
     {
         var logger = new ListLogger();

@@ -5,11 +5,31 @@ using Microsoft.Extensions.Logging;
 namespace ForgeTrust.Runnable.Core;
 
 /// <summary>
-/// Represents the result of a command execution.
+/// Represents the captured result of a completed process execution.
 /// </summary>
-/// <param name="ExitCode">The exit code returned by the process.</param>
-/// <param name="Stdout">The standard output string.</param>
-/// <param name="Stderr">The standard error string.</param>
+/// <remarks>
+/// <para>
+/// <see cref="Stdout" /> and <see cref="Stderr" /> are captured independently per stream. They are not a
+/// merged chronological timeline, so callers that care about exact interleaving between standard output and
+/// standard error must preserve that ordering separately.
+/// </para>
+/// <para>
+/// <see cref="ExitCode" /> reflects the process exit value and may be non-zero without an exception being
+/// thrown. Startup failures and cancellation are surfaced as exceptions instead of a <see cref="CommandResult" />.
+/// </para>
+/// </remarks>
+/// <param name="ExitCode">
+/// The exit code returned by the process. A non-zero value indicates command failure, but it is still returned
+/// normally to the caller rather than being promoted to an exception.
+/// </param>
+/// <param name="Stdout">
+/// The exact text captured from standard output. This contains only the stdout stream and may be empty even when
+/// the process wrote diagnostics to standard error.
+/// </param>
+/// <param name="Stderr">
+/// The exact text captured from standard error. This contains only the stderr stream and may be empty even when
+/// the process produced standard output.
+/// </param>
 public record CommandResult(int ExitCode, string Stdout, string Stderr);
 
 /// <summary>

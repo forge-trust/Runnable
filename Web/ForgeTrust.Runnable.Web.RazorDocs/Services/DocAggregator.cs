@@ -341,6 +341,7 @@ public class DocAggregator
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .Take(MaxHeadingsPerDocument)
                         .ToList();
+                    var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(d.Metadata?.PageType);
 
                     return new
                     {
@@ -352,8 +353,10 @@ public class DocAggregator
                         bodyText,
                         snippet,
                         pageType = d.Metadata?.PageType,
-                        audience = d.Metadata?.Audience,
-                        component = d.Metadata?.Component,
+                        pageTypeLabel = pageTypeBadge?.Label,
+                        pageTypeVariant = pageTypeBadge?.Variant,
+                        audience = d.Metadata?.AudienceIsDerived == true ? null : d.Metadata?.Audience,
+                        component = d.Metadata?.ComponentIsDerived == true ? null : d.Metadata?.Component,
                         aliases = d.Metadata?.Aliases ?? [],
                         keywords = d.Metadata?.Keywords ?? [],
                         status = d.Metadata?.Status,

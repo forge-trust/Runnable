@@ -64,6 +64,25 @@ featured_pages:
 - If a featured path is missing, hidden from public navigation, or duplicated, RazorDocs skips it and logs a warning.
 - If all featured entries are skipped, RazorDocs falls back to the neutral docs index instead of rendering broken cards.
 
+## Metadata-Driven Page Type Display
+
+RazorDocs treats `page_type` metadata as structured UI input, not just as opaque search metadata. The built-in landing cards, detail pages, and search results all normalize the same metadata through `DocMetadataPresentation.ResolvePageTypeBadge()`.
+
+### Built-in normalization
+
+- Known values such as `guide`, `example`, `api-reference`, `internals`, `how-to`, `start-here`, `troubleshooting`, and `glossary` render with stable labels and intentional badge variants.
+- Unknown values still render safely: RazorDocs normalizes whitespace, underscores, and dashes, then falls back to a neutral title-cased badge.
+- Missing or blank `page_type` values render no badge at all instead of leaving empty chrome behind.
+
+### Search payload contract
+
+The `/docs/search-index.json` payload continues to emit the raw `pageType` metadata value and now also includes:
+
+- `pageTypeLabel` for the normalized display label used by the built-in search UI
+- `pageTypeVariant` for the built-in badge variant suffix used by CSS classes such as `docs-page-badge--guide`
+
+These fields let custom search clients stay visually aligned with the landing and detail experiences without re-implementing the mapping table.
+
 ## Related Projects
 
 - [ForgeTrust.Runnable.Web.RazorDocs.Standalone](../ForgeTrust.Runnable.Web.RazorDocs.Standalone/README.md) for the runnable/exportable host used in docs export and smoke testing

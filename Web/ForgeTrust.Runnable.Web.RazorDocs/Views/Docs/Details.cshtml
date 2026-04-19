@@ -7,6 +7,13 @@
     var showSummary = !string.IsNullOrWhiteSpace(summary) && Model.Metadata?.SummaryIsDerived != true;
     ViewData["Title"] = resolvedTitle;
     var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+    var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(Model.Metadata?.PageType);
+    var component = Model.Metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(Model.Metadata?.Component)
+        ? null
+        : Model.Metadata!.Component!.Trim();
+    var audience = Model.Metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(Model.Metadata?.Audience)
+        ? null
+        : Model.Metadata!.Audience!.Trim();
     var normalizedPath = Model.Path.Trim().Trim('/');
     var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                           || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
@@ -89,6 +96,23 @@
             }
         }
     </nav>
+    @if (pageTypeBadge is not null || component is not null || audience is not null)
+    {
+        <div class="docs-page-meta">
+            @if (pageTypeBadge is not null)
+            {
+                <span class="docs-page-badge docs-page-badge--@pageTypeBadge.Variant">@pageTypeBadge.Label</span>
+            }
+            @if (component is not null)
+            {
+                <span class="docs-metadata-chip">Component: @component</span>
+            }
+            @if (audience is not null)
+            {
+                <span class="docs-metadata-chip">Audience: @audience</span>
+            }
+        </div>
+    }
     @if (!isCSharpApiDoc)
     {
         <h1 class="text-3xl font-bold text-white tracking-tight">@resolvedTitle</h1>

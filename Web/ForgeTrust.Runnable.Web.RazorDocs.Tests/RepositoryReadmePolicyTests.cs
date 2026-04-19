@@ -40,6 +40,13 @@ public sealed class RepositoryReadmePolicyTests
     }
 
     [Fact]
+    public void StartsWithYamlFrontMatter_ShouldReturnTrue_WhenContentStartsWithYamlMarkerUsingCrLf()
+    {
+        Assert.True(
+            StartsWithYamlFrontMatter("---\r\ntitle: Portable Docs\r\n---\r\n# Heading\r\n"));
+    }
+
+    [Fact]
     public void StartsWithYamlFrontMatter_ShouldReturnFalse_WhenContentDoesNotStartWithYamlMarker()
     {
         Assert.False(

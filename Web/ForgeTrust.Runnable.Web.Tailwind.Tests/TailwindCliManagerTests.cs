@@ -15,6 +15,7 @@ public class TailwindCliManagerTests : IDisposable
 {
     private readonly string _tempPath;
     private readonly string? _originalPath;
+    private readonly string? _originalPathExt;
     private readonly ILogger<TailwindCliManager> _logger;
     private readonly TailwindCliManager _manager;
     private readonly string _binaryName;
@@ -34,11 +35,13 @@ public class TailwindCliManagerTests : IDisposable
         _currentHostRuntimeProjectBinaryName = GetRuntimeProjectBinaryName(_currentHostRid);
         _manager.RidOverride = _currentHostRid;
         _originalPath = Environment.GetEnvironmentVariable("PATH");
+        _originalPathExt = Environment.GetEnvironmentVariable("PATHEXT");
     }
 
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("PATH", _originalPath);
+        Environment.SetEnvironmentVariable("PATHEXT", _originalPathExt);
         TailwindCliManager.IsOSPlatformOverride = null;
         TailwindCliManager.ProcessArchitectureOverride = null;
 
@@ -350,6 +353,69 @@ public class TailwindCliManagerTests : IDisposable
         Assert.Equal(
             ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", @"C:\tools\tailwindcss.ps1", "-i", "app.css", "-o", "site.css"],
             invocation.Arguments);
+    }
+
+    [Fact]
+    public void BuildInvocation_ReturnsDirectInvocation_ForWindowsExecutable()
+    {
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+        var arguments = new[] { "-i", "app.css", "-o", "site.css" };
+
+        var invocation = TailwindCliManager.BuildInvocation(
+            @"C:\tools\tailwindcss.exe",
+            arguments);
+
+        Assert.Equal(@"C:\tools\tailwindcss.exe", invocation.FileName);
+        Assert.Equal(arguments, invocation.Arguments);
+    }
+
+    [Fact]
+    public void GetTailwindPath_ThrowsFileNotFoundException_WhenNonWindowsPathProbeHasNoMatches()
+    {
+        TailwindCliManager.IsOSPlatformOverride = _ => false;
+        Environment.SetEnvironmentVariable("PATH", Path.Combine(_tempPath, "missing-bin"));
+
+        Assert.Throws<FileNotFoundException>(() => _manager.GetTailwindPath());
+    }
+
+    [Fact]
+    public void GetTailwindPath_ThrowsFileNotFoundException_WhenWindowsPathProbeHasNoMatchesAndPathExtIsUnavailable()
+    {
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+        Environment.SetEnvironmentVariable("PATH", Path.Combine(_tempPath, "missing-bin"));
+        Environment.SetEnvironmentVariable("PATHEXT", null);
+
+        var manager = new TailwindCliManager(_logger)
+        {
+            BaseDirectoryOverride = _tempPath,
+            AssemblyDirectoryOverride = _tempPath,
+            RidOverride = "win-x64"
+        };
+
+        Assert.Throws<FileNotFoundException>(() => manager.GetTailwindPath());
+    }
+
+    [Fact]
+    public void GetTailwindPath_ReturnsWindowsPathValue_FromNormalizedPathExtExtension()
+    {
+        var pathDir = Path.Combine(_tempPath, "bin-custom-ext");
+        Directory.CreateDirectory(pathDir);
+        var expectedPath = Path.Combine(pathDir, "tailwindcss.COM");
+        File.WriteAllText(expectedPath, "dummy");
+        Environment.SetEnvironmentVariable("PATH", string.Join(Path.PathSeparator, [pathDir, _originalPath ?? string.Empty]));
+        Environment.SetEnvironmentVariable("PATHEXT", "EXE;COM");
+        TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
+
+        var manager = new TailwindCliManager(_logger)
+        {
+            BaseDirectoryOverride = _tempPath,
+            AssemblyDirectoryOverride = _tempPath,
+            RidOverride = "win-x64"
+        };
+
+        var result = manager.GetTailwindPath();
+
+        Assert.Equal(expectedPath, result);
     }
 
     [Fact]

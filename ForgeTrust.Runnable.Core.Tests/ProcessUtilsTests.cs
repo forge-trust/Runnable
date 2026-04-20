@@ -178,6 +178,27 @@ public class ProcessUtilsTests
     }
 
     [Fact]
+    public async Task StreamToLoggerAsync_LogsFinalLine_WhenInputEndsWithoutNewline()
+    {
+        var logger = new ListLogger();
+        var reader = new ScriptedTextReader(ReadChunk("alpha"));
+
+        var output = await ProcessUtils.StreamToLoggerAsync(
+            reader,
+            logger,
+            LogLevel.Information,
+            "test-process",
+            CancellationToken.None);
+
+        Assert.Equal("alpha", output);
+        Assert.Single(
+            logger.Messages,
+            entry => entry.LogLevel == LogLevel.Information
+                && entry.Message.Contains("test-process", StringComparison.Ordinal)
+                && entry.Message.Contains("alpha", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteProcessAsync_UsesConfiguredStderrLogLevelSelector_WhenStreaming()
     {
         var logger = new ListLogger();

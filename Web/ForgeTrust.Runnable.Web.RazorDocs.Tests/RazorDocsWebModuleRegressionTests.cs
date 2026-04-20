@@ -19,6 +19,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 public class RazorDocsWebModuleRegressionTests
 {
     private const string PackagedAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";
+    private const string PackagedStylesheetPath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css";
     private const string RootStylesheetPath = "/css/site.gen.css";
 
     [Fact]
@@ -281,6 +282,120 @@ public class RazorDocsWebModuleRegressionTests
         }
     }
 
+    [Fact]
+    public async Task ConfigureEndpoints_Issue001_RedirectsRootStylesheetToPackagedContent_WhenRazorDocsIsRootModule()
+    {
+        var module = new RazorDocsWebModule();
+        var context = new StartupContext([], module);
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+
+        using var app = builder.Build();
+        module.ConfigureEndpoints(context, app);
+
+        await app.StartAsync();
+
+        try
+        {
+            var server = app.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            await AssertRedirectAsync(client, RootStylesheetPath, PackagedStylesheetPath);
+            await AssertRedirectAsync(client, $"{RootStylesheetPath}?v=42", $"{PackagedStylesheetPath}?v=42");
+            await AssertRedirectAsync(client, HttpMethod.Head, RootStylesheetPath, PackagedStylesheetPath);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfigureEndpoints_Issue001_DoesNotRedirectRootStylesheet_WhenRazorDocsIsEmbedded()
+    {
+        var module = new RazorDocsWebModule();
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+
+        using var app = builder.Build();
+        module.ConfigureEndpoints(context, app);
+
+        await app.StartAsync();
+
+        try
+        {
+            var server = app.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            await AssertDoesNotRedirectAsync(client, RootStylesheetPath);
+            await AssertDoesNotRedirectAsync(client, HttpMethod.Head, $"{RootStylesheetPath}?v=42");
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfigureEndpoints_Issue001_PreservesPathBaseInRootStylesheetRedirect_WhenRazorDocsIsRootModule()
+    {
+        var module = new RazorDocsWebModule();
+        var context = new StartupContext([], module);
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+
+        using var app = builder.Build();
+        app.UsePathBase("/some-base");
+        module.ConfigureEndpoints(context, app);
+
+        await app.StartAsync();
+
+        try
+        {
+            var server = app.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            await AssertRedirectAsync(
+                client,
+                $"/some-base{RootStylesheetPath}?v=42",
+                $"/some-base{PackagedStylesheetPath}?v=42");
+            await AssertRedirectAsync(
+                client,
+                HttpMethod.Head,
+                $"/some-base{RootStylesheetPath}?cache=abc",
+                $"/some-base{PackagedStylesheetPath}?cache=abc");
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
     private static async Task AssertRedirectAsync(HttpClient client, string requestPath, string expectedLocation)
     {
         await AssertRedirectAsync(client, HttpMethod.Get, requestPath, expectedLocation);
@@ -293,6 +408,20 @@ public class RazorDocsWebModuleRegressionTests
 
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);
         Assert.Equal(expectedLocation, response.Headers.Location?.OriginalString);
+    }
+
+    private static async Task AssertDoesNotRedirectAsync(HttpClient client, string requestPath)
+    {
+        await AssertDoesNotRedirectAsync(client, HttpMethod.Get, requestPath);
+    }
+
+    private static async Task AssertDoesNotRedirectAsync(HttpClient client, HttpMethod method, string requestPath)
+    {
+        using var request = new HttpRequestMessage(method, requestPath);
+        using var response = await client.SendAsync(request);
+
+        Assert.NotEqual(HttpStatusCode.Found, response.StatusCode);
+        Assert.Null(response.Headers.Location);
     }
 
     private static async Task AssertRuntimeManifestContainsSubPathAsync(string manifestPath, string expectedSubPath)

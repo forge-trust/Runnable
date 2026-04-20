@@ -1,3 +1,9 @@
+@{
+    var isSearchPage = string.Equals(
+        ViewContext.RouteData.Values["action"]?.ToString(),
+        "Search",
+        StringComparison.OrdinalIgnoreCase);
+}
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-slate-900 border-slate-800" style="scrollbar-gutter: stable;">
 <head>
@@ -329,9 +335,15 @@
         }
     </style>
     <link rel="stylesheet" href="~/docs/search.css" />
-    <link rel="preload" href="~/docs/search-index.json" as="fetch" crossorigin="use-credentials" />
+    @if (isSearchPage)
+    {
+        <link rel="preload" href="~/docs/search-index.json" as="fetch" crossorigin="use-credentials" />
+    }
     <rw:scripts/>
-    <script src="~/docs/minisearch.min.js" defer></script>
+    @if (isSearchPage)
+    {
+        <script src="~/docs/minisearch.min.js" defer data-rw-search-runtime="minisearch"></script>
+    }
     <script src="~/docs/search-client.js" defer></script>
 </head>
 <body class="h-full flex flex-col text-slate-200 overflow-hidden">
@@ -376,8 +388,9 @@
                    autocomplete="off" />
             <p id="docs-search-status" class="mt-1 text-xs text-slate-500" aria-live="polite"></p>
             <ul id="docs-search-results" class="hidden" role="listbox" aria-label="Search results"></ul>
-            <a href="/docs/search" class="mt-2 inline-block text-xs text-cyan-400 hover:text-cyan-300">
-                Advanced search
+            <a href="/docs/search" class="docs-search-shell-cta">
+                <span>Open Search Workspace</span>
+                <span class="docs-search-shell-cta-hint">Cmd/Ctrl+K</span>
             </a>
         </div>
         <nav class="flex-grow overflow-y-auto px-4 pb-4 space-y-1 min-h-0" aria-label="Documentation navigation">
@@ -402,7 +415,10 @@
                 </svg>
             </button>
             <a href="/docs" class="text-lg font-semibold text-white">RazorDocs</a>
-            <a href="/docs/search" class="ml-auto text-xs font-semibold uppercase tracking-wide text-cyan-300 hover:text-cyan-200">Search</a>
+            <a href="/docs/search" class="ml-auto inline-flex items-center gap-2 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/15">
+                <span>Search</span>
+                <span aria-hidden="true">/</span>
+            </a>
         </header>
         <rw:island id="doc-content">
             <div class="max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">

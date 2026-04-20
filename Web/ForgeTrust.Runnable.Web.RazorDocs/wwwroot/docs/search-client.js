@@ -1769,41 +1769,26 @@
     bindSearchPage();
   }
 
-  function getCurrentUrlKey() {
-    return `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  }
-
   installDocsPartialHook();
   const hasTurbo = typeof window !== 'undefined'
     && (Object.prototype.hasOwnProperty.call(window, 'Turbo')
       || typeof window.Turbo !== 'undefined'
       || document.documentElement.hasAttribute('data-turbo'));
-  let lastInitializedUrlKey = null;
 
   function runInit() {
     init().catch((error) => console.error('Search init failed:', error));
   }
 
-  function runInitForCurrentUrl() {
-    runInit();
-    lastInitializedUrlKey = getCurrentUrlKey();
-  }
-
   if (hasTurbo) {
-    document.addEventListener('turbo:load', () => {
-      const currentUrlKey = getCurrentUrlKey();
-      if (currentUrlKey === lastInitializedUrlKey) {
-        return;
-      }
-
-      runInitForCurrentUrl();
-    });
+    // Turbo can refresh the current URL with fresh DOM, so we re-run init on
+    // every load and rely on element-level bound flags to avoid duplicate hooks.
+    document.addEventListener('turbo:load', runInit);
     document.addEventListener('turbo:frame-load', initOnTurboFrameLoad);
 
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', runInitForCurrentUrl, { once: true });
+      document.addEventListener('DOMContentLoaded', runInit, { once: true });
     } else {
-      runInitForCurrentUrl();
+      runInit();
     }
   } else if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', runInit, { once: true });

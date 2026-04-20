@@ -6,10 +6,11 @@ namespace ForgeTrust.Runnable.Web.RazorDocs;
 /// Resolves stylesheet paths for RazorDocs hosts.
 /// </summary>
 /// <remarks>
-/// When the current application's root module lives in the RazorDocs assembly, RazorDocs static web assets are
-/// rooted at the application base path, so the generated stylesheet is served from <c>~/css/site.gen.css</c>.
-/// When RazorDocs is consumed from another host assembly, the same stylesheet is served from the Razor Class
-/// Library asset path under <c>~/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css</c>.
+/// When the current application's root module lives in the RazorDocs assembly, RazorDocs layouts preserve the
+/// historical root stylesheet URL at <c>~/css/site.gen.css</c>. Published and exported hosts may only materialize
+/// the packaged Razor Class Library asset path, so <see cref="RazorDocsWebModule"/> also preserves the root URL via
+/// a compatibility redirect to <c>~/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css</c>.
+/// When RazorDocs is consumed from another host assembly, layouts link directly to that packaged asset path.
 /// </remarks>
 internal sealed class RazorDocsAssetPathResolver
 {

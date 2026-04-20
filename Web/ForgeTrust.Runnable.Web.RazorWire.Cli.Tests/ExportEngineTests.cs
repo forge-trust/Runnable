@@ -485,6 +485,39 @@ public class ExportEngineTests
     }
 
     [Fact]
+    public async Task RunAsync_Should_Export_Redirected_Stylesheet_To_Original_Route_Path()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var client = new HttpClient(
+                new RedirectFollowingHandler(new RedirectedStylesheetHandler()))
+            {
+                BaseAddress = new Uri("http://localhost:5000")
+            };
+            A.CallTo(() => _httpClientFactory.CreateClient("ExportEngine")).Returns(client);
+
+            var context = new ExportContext(tempDir, null, "http://localhost:5000");
+            await _sut.RunAsync(context);
+
+            var rootStylesheetPath = Path.Combine(tempDir, "css", "site.gen.css");
+            Assert.True(File.Exists(rootStylesheetPath), "Expected redirected root stylesheet to be exported.");
+
+            var stylesheet = await File.ReadAllTextAsync(rootStylesheetPath);
+            Assert.Contains(".docs-content { color: cyan; }", stylesheet);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    [Fact]
     public void MapHtmlFilePathToPartialPath_Should_Append_Partial_Suffix()
     {
         var htmlPath = Path.Combine("dist", "docs", "topic.html");
@@ -738,6 +771,49 @@ public class ExportEngineTests
         }
     }
 
+    private sealed class RedirectedStylesheetHandler : HttpMessageHandler
+    {
+        private const string RootStylesheetPath = "/css/site.gen.css";
+        private const string PackagedStylesheetPath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css";
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri?.AbsolutePath ?? "/";
+
+            if (path == "/" || path == "/index")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        $"""<html><body><link rel="stylesheet" href="{RootStylesheetPath}"></body></html>""",
+                        Encoding.UTF8,
+                        "text/html")
+                });
+            }
+
+            if (path == RootStylesheetPath)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Found)
+                {
+                    Headers =
+                    {
+                        Location = new Uri(PackagedStylesheetPath, UriKind.Relative)
+                    }
+                });
+            }
+
+            if (path == PackagedStylesheetPath)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(".docs-content { color: cyan; }", Encoding.UTF8, "text/css")
+                });
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
     private sealed class DocsPartialHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -846,6 +922,48 @@ public class ExportEngineTests
             }
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class RedirectFollowingHandler : DelegatingHandler
+    {
+        public RedirectFollowingHandler(HttpMessageHandler innerHandler)
+            : base(innerHandler)
+        {
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            const int maxRedirects = 10;
+            var currentRequest = request;
+            var response = await base.SendAsync(currentRequest, cancellationToken);
+
+            for (var redirectCount = 0; redirectCount < maxRedirects; redirectCount++)
+            {
+                if (!IsRedirect(response.StatusCode) || response.Headers.Location is null)
+                {
+                    return response;
+                }
+
+                var redirectUri = response.Headers.Location.IsAbsoluteUri
+                    ? response.Headers.Location
+                    : new Uri(currentRequest.RequestUri!, response.Headers.Location);
+
+                response.Dispose();
+                currentRequest = new HttpRequestMessage(currentRequest.Method, redirectUri);
+                response = await base.SendAsync(currentRequest, cancellationToken);
+            }
+
+            return response;
+        }
+
+        private static bool IsRedirect(HttpStatusCode statusCode)
+        {
+            return statusCode is HttpStatusCode.Moved
+                or HttpStatusCode.Redirect
+                or HttpStatusCode.RedirectMethod
+                or HttpStatusCode.TemporaryRedirect
+                or HttpStatusCode.PermanentRedirect;
         }
     }
 

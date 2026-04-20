@@ -11,6 +11,8 @@ namespace ForgeTrust.Runnable.Web.RazorDocs;
 public class RazorDocsWebModule : IRunnableWebModule
 {
     private const string RazorDocsStaticAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";
+    private const string RazorDocsPackagedStylesheetPath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css";
+    private const string RazorDocsRootStylesheetPath = "/css/site.gen.css";
 
     /// <inheritdoc />
     public bool IncludeAsApplicationPart => true;
@@ -80,6 +82,13 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <param name="endpoints">Endpoint route builder used to map the module's routes.</param>
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
+        if (ShouldPreserveRootStylesheetPath(context))
+        {
+            // Published/exported standalone hosts can resolve the packaged stylesheet only under /_content.
+            // Preserve the historical root stylesheet URL so docs HTML and static exports stay portable.
+            MapLegacyAssetRedirect(endpoints, RazorDocsRootStylesheetPath, RazorDocsPackagedStylesheetPath);
+        }
+
         // Preserve the historical /docs asset URLs even though the assets now live in the RazorDocs RCL package.
         MapLegacyAssetRedirect(endpoints, "/docs/search.css", $"{RazorDocsStaticAssetBasePath}/search.css");
         MapLegacyAssetRedirect(endpoints, "/docs/minisearch.min.js", $"{RazorDocsStaticAssetBasePath}/minisearch.min.js");
@@ -140,5 +149,10 @@ public class RazorDocsWebModule : IRunnableWebModule
                 context.Response.Redirect(redirectPath, permanent: false);
                 return Task.CompletedTask;
             });
+    }
+
+    private static bool ShouldPreserveRootStylesheetPath(StartupContext context)
+    {
+        return context.RootModuleAssembly == typeof(RazorDocsWebModule).Assembly;
     }
 }

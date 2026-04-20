@@ -1,6 +1,7 @@
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorWire;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs;
 
@@ -24,11 +25,15 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// Registers services required by the RazorDocs module into the provided service collection.
     /// </summary>
     /// <remarks>
-    /// Adds HTML sanitizer, Markdown and C# harvesters, and the documentation aggregator.
+    /// Adds the RazorDocs harvesting, aggregation, and sanitization services via <c>services.AddRazorDocs()</c>.
+    /// RazorDocs styling is compiled into the package during the RazorDocs build and the layout resolves the correct
+    /// static asset path for root-module versus embedded consumer hosts, so hosts do not register
+    /// <c>services.AddTailwind()</c> just to light up the embedded docs UI.
     /// </remarks>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddRazorDocs();
+        services.Replace(ServiceDescriptor.Singleton(RazorDocsAssetPathResolver.CreateForRootModule(context.RootModuleAssembly)));
     }
 
     /// <summary>

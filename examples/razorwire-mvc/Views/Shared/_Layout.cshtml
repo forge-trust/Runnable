@@ -1,60 +1,15 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="h-full bg-slate-50" style="scrollbar-gutter: stable;">
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>@ViewData["Title"] - RazorWire</title>
     <meta name="view-transition" content="same-origin"/>
-    <script src="https://unpkg.com/@@tailwindcss/browser@4.1.18" integrity="sha384-y0axVOJIfo0bJOmTOnyRyUjrqjUotl7L/k6mzSwu2SSrB3r7P+b0cSFkiod+js0X" crossorigin="anonymous"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-    <style type="text/tailwindcss">
-        @@theme {
-            --font-outfit: "Outfit", ui-sans-serif, system-ui;
-        }
-        body {
-            font-family: var(--font-outfit);
-        }
-
-        turbo-frame {
-            display: block;
-        }
-
-        ::view-transition-old(root),
-        ::view-transition-new(root) {
-            /* Soften the swap to mask minor layout differences */
-            animation-duration: 0.2s;
-        }
-
-        /* Synchronized Inchworm Crawl - Soft Landing */
-        @@keyframes inchworm-crawl {
-            0% { transform: scale(1, 1); }
-            25% { transform: scale(1.1, 0.9); }
-            50% { transform: scale(1, 1); }
-            100% { transform: scale(1, 1); }
-        }
-
-        ::view-transition-group(permanent-island) {
-            animation-duration: 1.5s;
-            /* cubic-bezier(0.5, 0, 0.2, 1) provides a very smooth deceleration/landing */
-            animation-timing-function: cubic-bezier(0.5, 0, 0.2, 1);
-        }
-
-        ::view-transition-old(permanent-island),
-        ::view-transition-new(permanent-island) {
-            /* Ensure the snapshots fill the container perfectly to avoid sub-pixel popping */
-            height: 100%;
-            width: 100%;
-        }
-
-        ::view-transition-image-pair(permanent-island) {
-            /* Single synchronized scale run */
-            animation: inchworm-crawl 1.5s cubic-bezier(0.5, 0, 0.2, 1);
-        }
-    </style>
     <rw:scripts/>
-    <link rel="stylesheet" href="~/css/site.css"/>
+    <link rel="stylesheet" href="~/css/site.gen.css" asp-append-version="true"/>
     <script src="~/js/site.js" data-turbo-eval="false"></script>
 </head>
 <body class="h-full flex flex-col font-outfit text-slate-900 overflow-x-hidden">

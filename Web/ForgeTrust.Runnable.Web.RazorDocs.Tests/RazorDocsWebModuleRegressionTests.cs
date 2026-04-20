@@ -18,6 +18,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 public class RazorDocsWebModuleRegressionTests
 {
     private const string PackagedAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";
+    private const string RootStylesheetPath = "/css/site.gen.css";
 
     [Fact]
     public void ConfigureWebOptions_Issue001_EnablesStaticWebAssets()
@@ -62,6 +63,82 @@ public class RazorDocsWebModuleRegressionTests
             Assert.Equal("text/css", response.Content.Headers.ContentType?.MediaType);
             Assert.False(string.IsNullOrWhiteSpace(body));
             Assert.Contains("#docs-search-shell", body);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfigureWebOptions_Issue001_ServesRootStylesheetEndToEnd()
+    {
+        var module = new RazorDocsWebModule();
+        var startup = new TestRazorDocsStartup(module);
+        var context = new StartupContext([], module);
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+        builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        try
+        {
+            var server = host.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            using var response = await client.GetAsync(RootStylesheetPath);
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(RootStylesheetPath, response.RequestMessage?.RequestUri?.AbsolutePath);
+            Assert.Equal("text/css", response.Content.Headers.ContentType?.MediaType);
+            Assert.False(string.IsNullOrWhiteSpace(body));
+            Assert.Contains(".docs-content", body);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfigureWebOptions_Issue001_EmitsRootStylesheetPath_WhenApplicationNameIsCustomized()
+    {
+        var module = new RazorDocsWebModule();
+        var startup = new TestRazorDocsStartup(module);
+        var context = new StartupContext([], module, "CustomDocsHost");
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+        builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        try
+        {
+            var server = host.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            using var docsResponse = await client.GetAsync("/docs");
+            var html = await docsResponse.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, docsResponse.StatusCode);
+            Assert.Contains("href=\"/css/site.gen.css", html);
+            Assert.DoesNotContain("/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css", html);
         }
         finally
         {

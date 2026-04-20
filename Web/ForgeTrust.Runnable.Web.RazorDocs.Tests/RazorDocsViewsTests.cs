@@ -33,7 +33,9 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-results\"", layout);
         Assert.Contains("href=\"~/docs/search.css\"", layout);
         Assert.Contains("href=\"~/docs/search-index.json\"", layout);
-        Assert.Contains("crossorigin=\"anonymous\"", layout);
+        Assert.Contains("var isSearchPage = string.Equals(", layout);
+        Assert.Contains("crossorigin=\"use-credentials\"", layout);
+        Assert.Contains("data-rw-search-runtime=\"minisearch\"", layout);
         Assert.Contains("src=\"~/docs/search-client.js\"", layout);
     }
 
@@ -68,13 +70,12 @@ public class RazorDocsViewsTests
         Assert.Contains("'pageTypeVariant'", searchClient);
         Assert.Contains("function renderPageTypeBadge(item)", searchClient);
         Assert.Contains("docs-search-option-title-row", searchClient);
-        Assert.Contains("docs-search-result-meta", searchClient);
         Assert.Contains("docs-page-badge", searchClient);
-        Assert.Contains("const metadata = [", searchClient);
-        Assert.Contains("metadata ?", searchClient);
-        Assert.Contains("<div class=\"docs-search-result-meta\">", searchClient);
-        Assert.Contains("${metadata}", searchClient);
-        Assert.Contains(": ''", searchClient);
+        Assert.Contains("function createSearchResultArticle(doc, queryTokens)", searchClient);
+        Assert.Contains("docs-search-result-badges", searchClient);
+        Assert.Contains("createSearchResultBadge(formatFacetValue(doc.pageType))", searchClient);
+        Assert.Contains("createSearchResultBadge(formatFacetValue(doc.component))", searchClient);
+        Assert.Contains("createSearchResultBadge(formatFacetValue(doc.audience), true)", searchClient);
     }
 
     [Fact]
@@ -683,16 +684,72 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task SearchView_ShouldRenderSearchPageShell()
     {
-        using var services = CreateServiceProvider(CreateDocs());
+        var docs = CreateDocs();
+        docs.Add(
+            new(
+                "Quick Example",
+                "examples/quick-start",
+                "<p>Example body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "example"
+                }));
+
+        using var services = CreateServiceProvider(docs);
 
         var html = await RenderDocsViewAsync(
             services,
             "Search",
-            c => Task.FromResult(c.Search()));
+            c => c.Search());
 
         Assert.Contains("id=\"docs-search-page-input\"", html);
+        Assert.Contains("id=\"docs-search-page-status\"", html);
+        Assert.Contains("id=\"docs-search-page-filters-toggle\"", html);
+        Assert.Contains("id=\"docs-search-page-filters-panel\"", html);
+        Assert.Contains("id=\"docs-search-page-starter\"", html);
+        Assert.Contains("data-rw-search-suggestion=\"getting started\"", html);
+        Assert.Contains("id=\"docs-search-page-failure\"", html);
+        Assert.Contains("id=\"docs-search-page-retry\"", html);
+        Assert.Contains("docs-search-page-failure-link", html);
+        Assert.Contains("href=\"/docs/search-index.json\"", html);
+        Assert.Contains("data-rw-search-runtime=\"minisearch\"", html);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", html);
+        Assert.Contains("data-turbo-action=\"advance\"", html);
         Assert.Contains("id=\"docs-search-page-results\"", html);
         Assert.Contains("Search Documentation", html);
+        Assert.Contains("id=\"docs-search-input\"", html);
+    }
+
+    [Fact]
+    public async Task SearchView_ShouldRenderTopLevelFailureFallbackLink_ForDocsIndexRecovery()
+    {
+        using var services = CreateServiceProvider([]);
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Search",
+            c => c.Search());
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var recoveryLink = document.QuerySelector("a.docs-search-page-failure-link[href='/docs']");
+
+        Assert.NotNull(recoveryLink);
+        Assert.Equal("_top", recoveryLink!.GetAttribute("data-turbo-frame"));
+    }
+
+    [Fact]
+    public async Task IndexView_ShouldNotRenderSearchWorkspaceOnlyAssets()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Index",
+            c => c.Index());
+
+        Assert.DoesNotContain("href=\"/docs/search-index.json\"", html);
+        Assert.DoesNotContain("data-rw-search-runtime=\"minisearch\"", html);
+        Assert.Contains("src=\"/docs/search-client.js\"", html);
         Assert.Contains("id=\"docs-search-input\"", html);
     }
 
@@ -1001,10 +1058,13 @@ public class RazorDocsViewsTests
         httpContext.Response.Body = new MemoryStream();
 
         var controller = ActivatorUtilities.CreateInstance<DocsController>(scopedServices);
+        var routeData = new RouteData();
+        routeData.Values["controller"] = "Docs";
+        routeData.Values["action"] = actionName;
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = httpContext,
-            RouteData = new RouteData(),
+            RouteData = routeData,
             ActionDescriptor = new ControllerActionDescriptor
             {
                 ControllerName = "Docs",

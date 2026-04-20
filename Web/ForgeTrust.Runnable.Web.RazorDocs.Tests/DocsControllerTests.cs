@@ -25,6 +25,7 @@ public class DocsControllerTests : IDisposable
     private readonly IMemoryCache _cache;
     private readonly IMemo _memo;
     private readonly ILogger<DocsController> _controllerLoggerFake;
+    private readonly IRazorDocsHtmlSanitizer _sanitizerFake;
 
     public DocsControllerTests()
     {
@@ -35,9 +36,9 @@ public class DocsControllerTests : IDisposable
         var options = new RazorDocsOptions();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
-        var sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
+        _sanitizerFake = A.Fake<IRazorDocsHtmlSanitizer>();
         A.CallTo(() => envFake.ContentRootPath).Returns(Path.GetTempPath());
-        A.CallTo(() => sanitizerFake.Sanitize(A<string>._))
+        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._))
             .ReturnsLazily((string input) => input);
         _memo = new Memo(_cache);
 
@@ -48,7 +49,7 @@ public class DocsControllerTests : IDisposable
             options,
             envFake,
             _memo,
-            sanitizerFake,
+            _sanitizerFake,
             loggerFake
         );
 
@@ -705,10 +706,167 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public void Search_ShouldReturnView()
+    public async Task Search_ShouldReturnViewModelWithFallbackLinks()
     {
-        var result = _controller.Search();
-        Assert.IsType<ViewResult>(result);
+        var docs = new List<DocNode>
+        {
+            new(
+                "Guide",
+                "guides/start",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "guide",
+                    Order = 1
+                }),
+            new(
+                "Example",
+                "examples/hello",
+                "<p>Example body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "example",
+                    Order = 2
+                }),
+            new(
+                "API",
+                "Namespaces/ForgeTrust.Runnable.Web",
+                "<p>API body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "api-reference",
+                    Order = 3
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.Equal("Search Documentation", model.Title);
+        Assert.Equal(3, model.FailureFallbackLinks.Count);
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Browse guides");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Open an example");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Explore API reference");
+    }
+
+    [Fact]
+    public async Task Search_ShouldStillRenderShell_WhenDocAggregationFails()
+    {
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+                [
+                    new(
+                        "Home",
+                        "README.md",
+                        "<p>Home</p>")
+                ]);
+        A.CallTo(() => _sanitizerFake.Sanitize(A<string>._)).Throws(new InvalidOperationException("boom"));
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.Equal("Search Documentation", model.Title);
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+        AssertWarningLogged("fallback link generation failed");
+    }
+
+    [Fact]
+    public async Task Search_ShouldStillRenderShell_WhenDocAggregationTimesOut()
+    {
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .ReturnsLazily(
+                async (string _, CancellationToken cancellationToken) =>
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken);
+                    return (IReadOnlyList<DocNode>)Array.Empty<DocNode>();
+                });
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.Equal("Search Documentation", model.Title);
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+        AssertWarningLogged("fallback link generation exceeded");
+    }
+
+    [Fact]
+    public async Task Search_ShouldSkipHiddenNamespacesFallback_WhenBuildingRecoveryLinks()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Namespaces",
+                "Namespaces",
+                "<p>Namespace index</p>",
+                Metadata: new DocMetadata
+                {
+                    HideFromPublicNav = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Title == "Browse namespaces");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+    }
+
+    [Fact]
+    public async Task Search_ShouldSkipHiddenFromSearchFallback_WhenBuildingRecoveryLinks()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Hidden guide",
+                "guides/hidden-guide",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "guide",
+                    HideFromSearch = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Href == "/docs/guides/hidden-guide");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+    }
+
+    [Fact]
+    public async Task Search_ShouldSkipDuplicateFallbackLinks_WhenOneDocMatchesMultipleBuckets()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Shared Example",
+                "guides/shared-example",
+                "<p>Shared body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "example"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Search();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+        var sharedHref = DocAggregator.BuildSearchDocUrl("guides/shared-example");
+
+        Assert.Equal(1, model.FailureFallbackLinks.Count(link => link.Href == sharedHref));
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Browse guides");
+        Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Title == "Open an example");
     }
 
     [Fact]
@@ -724,10 +882,15 @@ public class DocsControllerTests : IDisposable
                 {
                     Summary = "Get started quickly.",
                     PageType = "guide",
+                    Audience = "developer",
                     Component = "Runnable",
                     Aliases = ["quickstart"],
                     Keywords = ["install"],
-                    NavGroup = "Start Here"
+                    Status = "stable",
+                    NavGroup = "Start Here",
+                    Order = 7,
+                    RelatedPages = ["examples/hello-world", "Namespaces/ForgeTrust.Runnable"],
+                    Breadcrumbs = ["Guides", "Getting Started"]
                 })
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
@@ -743,10 +906,19 @@ public class DocsControllerTests : IDisposable
         Assert.Equal("guide", document.GetProperty("pageType").GetString());
         Assert.Equal("Guide", document.GetProperty("pageTypeLabel").GetString());
         Assert.Equal("guide", document.GetProperty("pageTypeVariant").GetString());
+        Assert.Equal("developer", document.GetProperty("audience").GetString());
         Assert.Equal("Runnable", document.GetProperty("component").GetString());
+        Assert.Equal("stable", document.GetProperty("status").GetString());
         Assert.Equal("Start Here", document.GetProperty("navGroup").GetString());
+        Assert.Equal(7, document.GetProperty("order").GetInt32());
         Assert.Equal("quickstart", document.GetProperty("aliases").EnumerateArray().Single().GetString());
         Assert.Equal("install", document.GetProperty("keywords").EnumerateArray().Single().GetString());
+        Assert.Equal(
+            ["examples/hello-world", "Namespaces/ForgeTrust.Runnable"],
+            document.GetProperty("relatedPages").EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+        Assert.Equal(
+            ["Guides", "Getting Started"],
+            document.GetProperty("breadcrumbs").EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
     }
 
     [Fact]

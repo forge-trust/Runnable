@@ -18,6 +18,8 @@ public sealed class RazorDocsIntegrationCollection : ICollectionFixture<RazorDoc
 [Trait("Category", "Integration")]
 public sealed class RazorDocsSearchPlaywrightTests
 {
+    private const string SearchIndexPath = "/docs/search-index.json";
+    private const string MiniSearchRuntimePath = "/docs/minisearch.min.js";
     private readonly RazorDocsPlaywrightFixture _fixture;
 
     public RazorDocsSearchPlaywrightTests(RazorDocsPlaywrightFixture fixture)
@@ -35,15 +37,385 @@ public sealed class RazorDocsSearchPlaywrightTests
         await WaitForSidebarSearchReadyAsync(page);
         await RunSidebarSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
 
-        await page.GetByRole(AriaRole.Link, new PageGetByRoleOptions
-        {
-            Name = "Advanced search",
-            Exact = true
-        }).First.ClickAsync();
+        await page.ClickAsync(".docs-search-shell-cta");
         await WaitForPathAsync(page, "/docs/search");
-
+        await WaitForSearchPageSettledAsync(page);
         await RunAdvancedSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
         await RunSidebarSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
+    }
+
+    [Fact]
+    public async Task SlashShortcut_FocusesVisibleSearchInput_WithoutStealingEditableFocus()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.DocsUrl);
+        await WaitForSidebarSearchReadyAsync(page);
+
+        await page.Keyboard.PressAsync("/");
+        await ExpectActiveElementIdAsync(page, "docs-search-input");
+
+        await page.EvaluateAsync(
+            """
+            () => {
+              const textarea = document.createElement('textarea');
+              textarea.id = 'qa-editable';
+              document.body.append(textarea);
+              textarea.focus();
+            }
+            """);
+
+        await page.Keyboard.PressAsync("/");
+        await ExpectActiveElementIdAsync(page, "qa-editable");
+    }
+
+    [Fact]
+    public async Task SlashShortcut_NavigatesToWorkspace_WhenSidebarSearchIsHidden_OnMobileDocsPage()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize
+            {
+                Width = 390,
+                Height = 844
+            }
+        });
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.DocsUrl);
+        await WaitForSidebarSearchReadyAsync(page);
+
+        await page.Keyboard.PressAsync("/");
+        await WaitForPathAsync(page, "/docs/search");
+        await WaitForSearchPageSettledAsync(page);
+        await ExpectActiveElementIdAsync(page, "docs-search-page-input");
+    }
+
+    [Fact]
+    public async Task SearchShortcut_NavigatesToWorkspace_AndPreservesSidebarQuery()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.DocsUrl);
+        await WaitForSidebarSearchReadyAsync(page);
+        await RunSidebarSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
+
+        await page.Keyboard.PressAsync(GetSearchWorkspaceShortcut());
+        await WaitForPathAsync(page, "/docs/search");
+        await WaitForSearchPageSettledAsync(page);
+
+        Assert.Equal(_fixture.SearchQuery, await page.InputValueAsync("#docs-search-page-input"));
+        Assert.Contains($"q={Uri.EscapeDataString(_fixture.SearchQuery)}", page.Url, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SearchPage_SupportsFilterOnlyBrowse_FromSharedUrl()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        var url = $"{_fixture.DocsUrl}/search?pageType={Uri.EscapeDataString(_fixture.BrowsePageType)}";
+        await page.GotoAsync(url);
+        await WaitForSearchPageSettledAsync(page);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+
+        Assert.Equal(string.Empty, await page.InputValueAsync("#docs-search-page-input"));
+        Assert.Contains("pageType=", page.Url, StringComparison.Ordinal);
+        Assert.Contains(
+            "page(s) for the current filters.",
+            await page.TextContentAsync("#docs-search-page-results-meta"),
+            StringComparison.Ordinal);
+        Assert.False(await page.GetByText("Search is temporarily unavailable").IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task SearchPage_BackAndForward_RestoreQueryFiltersAndResults()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search?q={Uri.EscapeDataString(_fixture.SearchQuery)}");
+        await WaitForSearchPageSettledAsync(page);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+        var initialResultCount = await page.Locator("#docs-search-page-results .docs-search-result").CountAsync();
+        Assert.True(initialResultCount > 0);
+
+        var filterValue = await page.Locator("[data-rw-facet-key='pageType']:not([disabled])")
+            .First
+            .EvaluateAsync<string>("element => element.getAttribute('data-rw-facet-value') || ''");
+
+        Assert.False(string.IsNullOrWhiteSpace(filterValue));
+
+        await page.ClickAsync($"[data-rw-facet-key='pageType'][data-rw-facet-value='{filterValue}']");
+        await page.WaitForFunctionAsync(
+            "(expected) => new URLSearchParams(window.location.search).get('pageType') === expected",
+            filterValue,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+        var filteredResultCount = await page.Locator("#docs-search-page-results .docs-search-result").CountAsync();
+        Assert.True(filteredResultCount > 0);
+
+        await page.GoBackAsync();
+        await page.WaitForFunctionAsync(
+            "(query) => { const params = new URLSearchParams(window.location.search); return params.get('q') === query && !params.get('pageType'); }",
+            _fixture.SearchQuery,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        await WaitForSearchPageSettledAsync(page);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+
+        Assert.Equal(_fixture.SearchQuery, await page.InputValueAsync("#docs-search-page-input"));
+        Assert.False(await page.Locator("#docs-search-page-active-filters").IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-results .docs-search-result").CountAsync() > 0);
+
+        await page.GoForwardAsync();
+        await page.WaitForFunctionAsync(
+            "(args) => { const params = new URLSearchParams(window.location.search); return params.get('q') === args.query && params.get('pageType') === args.pageType; }",
+            new { query = _fixture.SearchQuery, pageType = filterValue },
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        await WaitForSearchPageSettledAsync(page);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+
+        Assert.Equal(_fixture.SearchQuery, await page.InputValueAsync("#docs-search-page-input"));
+        Assert.True(await page.Locator("#docs-search-page-active-filters").IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-results .docs-search-result").CountAsync() > 0);
+    }
+
+    [Fact]
+    public async Task SearchPage_StarterChips_PopulateQueryAndRunImmediately()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search");
+        await WaitForSearchPageSettledAsync(page);
+        await page.WaitForSelectorAsync("#docs-search-page-starter", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        var chip = page.Locator("[data-rw-search-suggestion]").Nth(1);
+        var chipQuery = await chip.GetAttributeAsync("data-rw-search-suggestion");
+        Assert.False(string.IsNullOrWhiteSpace(chipQuery));
+
+        await chip.ClickAsync();
+        await page.WaitForFunctionAsync(
+            "(expected) => new URLSearchParams(window.location.search).get('q') === expected",
+            chipQuery,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        await WaitForSearchPageSettledAsync(page);
+
+        Assert.Equal(chipQuery, await page.InputValueAsync("#docs-search-page-input"));
+        Assert.False(await page.Locator("#docs-search-page-starter").IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task SearchPage_UsesTopLevelNavigation_ForDocumentationIndexRecoveryLink()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+        var payload = JsonSerializer.Serialize(new
+        {
+            metadata = new
+            {
+                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+                version = "1",
+                engine = "minisearch"
+            },
+            documents = new[]
+            {
+                new
+                {
+                    id = "misc/overview",
+                    path = "/docs/misc/overview",
+                    title = "Misc Overview",
+                    summary = "Misc summary",
+                    headings = Array.Empty<string>(),
+                    bodyText = "miscellaneous body",
+                    snippet = "miscellaneous body",
+                    pageType = "reference-note",
+                    audience = string.Empty,
+                    component = string.Empty,
+                    aliases = Array.Empty<string>(),
+                    keywords = Array.Empty<string>(),
+                    status = string.Empty,
+                    navGroup = "Misc",
+                    order = 1,
+                    relatedPages = Array.Empty<string>(),
+                    breadcrumbs = Array.Empty<string>()
+                }
+            }
+        });
+
+        await page.RouteAsync(
+            $"**{SearchIndexPath}",
+            async route =>
+            {
+                await route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 200,
+                    ContentType = "application/json",
+                    Body = payload
+                });
+            });
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search?q={Uri.EscapeDataString("no-such-query")}");
+        await WaitForSearchPageSettledAsync(page);
+
+        var docsIndexLink = page.GetByRole(AriaRole.Link, new PageGetByRoleOptions
+        {
+            Name = "Documentation index",
+            Exact = true
+        });
+
+        await docsIndexLink.WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = 30_000
+        });
+
+        Assert.Equal("_top", await docsIndexLink.GetAttributeAsync("data-turbo-frame"));
+    }
+
+    [Fact]
+    public async Task SearchPage_ShowsFailureState_AndRetryRecovers()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.RouteAsync(
+            $"**{SearchIndexPath}",
+            async route =>
+            {
+                await route.FulfillAsync(new RouteFulfillOptions
+                {
+                    Status = 503,
+                    ContentType = "application/json",
+                    Body = "{}"
+                });
+            });
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search");
+        await page.WaitForSelectorAsync("#docs-search-page-failure", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        Assert.True(await page.Locator("#docs-search-page-retry").IsVisibleAsync());
+        Assert.True(await page.Locator(".docs-search-page-failure-link").First.IsVisibleAsync());
+
+        await page.EvaluateAsync(
+            """
+            () => {
+              history.pushState({ rwDocsSearch: true }, "", `${window.location.pathname}?q=retry-test&pageType=guide`);
+              history.back();
+            }
+            """);
+        await page.WaitForSelectorAsync("#docs-search-page-failure", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+        Assert.Equal("false", await page.GetAttributeAsync("#docs-search-page-results", "aria-busy"));
+
+        await page.UnrouteAsync($"**{SearchIndexPath}");
+        await page.ClickAsync("#docs-search-page-retry");
+        await WaitForSearchPageSettledAsync(page);
+
+        Assert.False(await page.Locator("#docs-search-page-failure").IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-starter").IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task SearchPage_RetryRecovers_WhenMiniSearchRuntimeFirstLoadDoesNotInitialize()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+        var runtimeRequests = 0;
+
+        await page.RouteAsync(
+            $"**{MiniSearchRuntimePath}",
+            async route =>
+            {
+                var attempt = System.Threading.Interlocked.Increment(ref runtimeRequests);
+                if (attempt == 1)
+                {
+                    await route.FulfillAsync(new RouteFulfillOptions
+                    {
+                        Status = 200,
+                        ContentType = "application/javascript",
+                        Body = "window.__rwMiniSearchRuntimeIntercept = 1;"
+                    });
+                    return;
+                }
+
+                await route.ContinueAsync();
+            });
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search");
+        await page.WaitForSelectorAsync("#docs-search-page-failure", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        Assert.Equal(1, runtimeRequests);
+        Assert.Equal(
+            "true",
+            await page.GetAttributeAsync("script[data-rw-search-runtime=\"minisearch\"]", "data-rw-search-failed"));
+
+        await page.ClickAsync("#docs-search-page-retry");
+        await WaitForSearchPageSettledAsync(page);
+
+        Assert.Equal(2, runtimeRequests);
+        Assert.False(await page.Locator("#docs-search-page-failure").IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-starter").IsVisibleAsync());
+    }
+
+    [Fact]
+    public async Task SidebarSearch_LazyLoadsResources_OnOrdinaryDocsPages()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+        var searchIndexRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        page.Request += (_, request) =>
+        {
+            if (request.Url.Contains(SearchIndexPath, StringComparison.Ordinal))
+            {
+                searchIndexRequested.TrySetResult();
+            }
+        };
+
+        await page.GotoAsync(_fixture.DocsUrl);
+        await WaitForSidebarSearchReadyAsync(page);
+        Assert.False(await page.EvaluateAsync<bool>("() => Boolean(document.querySelector('script[data-rw-search-runtime=\"minisearch\"]'))"));
+
+        await page.WaitForTimeoutAsync(500);
+        Assert.False(searchIndexRequested.Task.IsCompleted);
+
+        await page.FocusAsync("#docs-search-input");
+        await WaitForTaskAsync(searchIndexRequested.Task, TimeSpan.FromSeconds(15));
+
+        Assert.True(await page.EvaluateAsync<bool>("() => Boolean(document.querySelector('script[data-rw-search-runtime=\"minisearch\"]'))"));
     }
 
     private static async Task WaitForSidebarSearchReadyAsync(IPage page)
@@ -53,11 +425,10 @@ public sealed class RazorDocsSearchPlaywrightTests
             Timeout = 30_000,
             State = WaitForSelectorState.Attached
         });
-        await page.WaitForSelectorAsync("#docs-search-results", new PageWaitForSelectorOptions
-        {
-            Timeout = 30_000,
-            State = WaitForSelectorState.Attached
-        });
+        await page.WaitForFunctionAsync(
+            "() => document.documentElement.getAttribute('data-rw-search-shortcuts-bound') === '1'",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
     }
 
     private static async Task RunSidebarSearchAndAssertResultsAsync(IPage page, string query)
@@ -71,16 +442,52 @@ public sealed class RazorDocsSearchPlaywrightTests
 
     private static async Task RunAdvancedSearchAndAssertResultsAsync(IPage page, string query)
     {
-        await page.WaitForSelectorAsync("#docs-search-page-input", new PageWaitForSelectorOptions
-        {
-            Timeout = 30_000,
-            State = WaitForSelectorState.Attached
-        });
+        await WaitForSearchPageSettledAsync(page);
         await page.FillAsync("#docs-search-page-input", query);
         await page.WaitForFunctionAsync(
             "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
             null,
             new PageWaitForFunctionOptions { Timeout = 30_000 });
+    }
+
+    private static async Task WaitForSearchPageSettledAsync(IPage page)
+    {
+        await page.WaitForSelectorAsync("#docs-search-page-input", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Attached
+        });
+        await page.WaitForFunctionAsync(
+            """
+            () => {
+              const results = document.getElementById('docs-search-page-results');
+              return results && results.getAttribute('aria-busy') === 'false';
+            }
+            """,
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+    }
+
+    private static async Task ExpectActiveElementIdAsync(IPage page, string expectedId)
+    {
+        await page.WaitForFunctionAsync(
+            "(expectedId) => document.activeElement && document.activeElement.id === expectedId",
+            expectedId,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+    }
+
+    private static async Task WaitForTaskAsync(Task task, TimeSpan timeout)
+    {
+        var completedTask = await Task.WhenAny(task, Task.Delay(timeout));
+        Assert.True(
+            ReferenceEquals(completedTask, task),
+            $"Timed out after {timeout.TotalSeconds} seconds waiting for the expected browser event.");
+        await task;
+    }
+
+    private static string GetSearchWorkspaceShortcut()
+    {
+        return OperatingSystem.IsMacOS() ? "Meta+K" : "Control+K";
     }
 
     private static async Task WaitForPathAsync(IPage page, string expectedPath)
@@ -112,6 +519,7 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
     public IBrowser Browser { get; private set; } = null!;
     public string DocsUrl { get; private set; } = string.Empty;
     public string SearchQuery { get; private set; } = "Namespaces";
+    public string BrowsePageType { get; private set; } = "guide";
 
     public async Task InitializeAsync()
     {
@@ -275,6 +683,7 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
 
                 await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
                 using var payload = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                BrowsePageType = ResolveBrowsePageType(payload.RootElement);
                 resolvedQuery = ResolveSearchQuery(payload.RootElement);
                 return true;
             });
@@ -355,6 +764,29 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
         }
 
         return "Namespaces";
+    }
+
+    private static string ResolveBrowsePageType(JsonElement payload)
+    {
+        if (!payload.TryGetProperty("documents", out var documents) || documents.ValueKind != JsonValueKind.Array)
+        {
+            return "guide";
+        }
+
+        foreach (var document in documents.EnumerateArray())
+        {
+            if (document.TryGetProperty("pageType", out var pageType)
+                && pageType.ValueKind == JsonValueKind.String)
+            {
+                var value = pageType.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+        }
+
+        return "guide";
     }
 
     private static IEnumerable<string> EnumerateCandidateText(JsonElement document)

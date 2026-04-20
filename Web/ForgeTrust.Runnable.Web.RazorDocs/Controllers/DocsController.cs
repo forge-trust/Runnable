@@ -16,6 +16,7 @@ public class DocsController : Controller
     private const string NeutralLandingDescription = "Welcome to the technical documentation. Select a topic from the sidebar to verify implementation details and usage guides.";
     private const string CuratedLandingDescription = "Start with the proof paths that answer the first evaluator questions, then drill into guides, examples, and API details.";
     private static readonly TimeSpan SearchIndexCacheDuration = DocAggregator.SnapshotCacheDuration;
+    private static readonly TimeSpan SearchShellFallbackBudget = TimeSpan.FromMilliseconds(500);
 
     private readonly DocAggregator _aggregator;
     private readonly ILogger<DocsController> _logger;
@@ -94,13 +95,45 @@ public class DocsController : Controller
     }
 
     /// <summary>
-    /// Displays the dedicated docs search page.
+    /// Displays the dedicated docs search workspace shell.
     /// </summary>
-    /// <returns>A view result displaying the search page interface.</returns>
-    public IActionResult Search()
+    /// <remarks>
+    /// The action returns a <see cref="SearchPageViewModel"/> immediately so the workspace can render starter,
+    /// loading, and retry UI before the client downloads the search index. Fallback link generation shares a linked
+    /// cancellation token with the current request and is capped by <see cref="SearchShellFallbackBudget"/> so slow
+    /// aggregation does not block the shell from rendering. If aggregation times out or throws, the view still
+    /// renders with default recovery links.
+    /// </remarks>
+    /// <returns>
+    /// A <see cref="ViewResult"/> whose model is a <see cref="SearchPageViewModel"/> describing the search shell and
+    /// its server-rendered recovery paths.
+    /// </returns>
+    public async Task<IActionResult> Search()
     {
         ViewData["Title"] = "Search";
-        return View();
+        IReadOnlyList<DocNode> docs = [];
+
+        try
+        {
+            using var fallbackBudgetCts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
+            fallbackBudgetCts.CancelAfter(SearchShellFallbackBudget);
+            docs = await _aggregator.GetDocsAsync(fallbackBudgetCts.Token);
+        }
+        catch (OperationCanceledException) when (!HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogWarning(
+                "Docs search shell fallback link generation exceeded the {BudgetMs}ms budget. Rendering the shell with default recovery links.",
+                SearchShellFallbackBudget.TotalMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Docs search shell fallback link generation failed. Rendering the shell with default recovery links.");
+        }
+
+        var model = BuildSearchPageViewModel(docs);
+        return View(model);
     }
 
     /// <summary>
@@ -326,6 +359,108 @@ public class DocsController : Controller
             .FirstOrDefault();
     }
 
+    private static SearchPageViewModel BuildSearchPageViewModel(IReadOnlyList<DocNode> docs)
+    {
+        return new SearchPageViewModel(
+            Title: "Search Documentation",
+            Orientation: "Search across guides, examples, and API reference, or browse by filter when you are not sure what the corpus contains yet.",
+            StarterHint: "Try a starter query, or open filters to browse by page type, component, audience, or status before typing.",
+            SearchPlaceholder: "Search by topic, component, or page type",
+            SuggestedQueries: ["getting started", "example", "api reference"],
+            FailureFallbackLinks: BuildSearchFallbackLinks(docs));
+    }
+
+    private static IReadOnlyList<SearchPageFallbackLink> BuildSearchFallbackLinks(IReadOnlyList<DocNode> docs)
+    {
+        var links = new List<SearchPageFallbackLink>();
+
+        TryAddFallbackLink(
+            links,
+            SelectFallbackDoc(
+                docs,
+                doc => HasPageType(doc, "guide", "concept", "tutorial", "troubleshooting")
+                       || doc.Path.StartsWith("guides/", StringComparison.OrdinalIgnoreCase)),
+            "Browse guides",
+            "Open a high-signal guide while search is unavailable.");
+
+        TryAddFallbackLink(
+            links,
+            SelectFallbackDoc(
+                docs,
+                doc => HasPageType(doc, "example")
+                       || doc.Path.StartsWith("examples/", StringComparison.OrdinalIgnoreCase)),
+            "Open an example",
+            "Jump into a working example to keep moving.");
+
+        TryAddFallbackLink(
+            links,
+            SelectFallbackDoc(
+                docs,
+                doc => HasPageType(doc, "api-reference", "api")
+                       || doc.Path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase)),
+            "Explore API reference",
+            "Browse the reference surface directly while search recovers.");
+
+        if (links.Count < 3)
+        {
+            var namespacesRoot = SelectFallbackDoc(
+                docs,
+                doc => string.Equals(doc.Path, "Namespaces", StringComparison.OrdinalIgnoreCase));
+            TryAddFallbackLink(
+                links,
+                namespacesRoot,
+                "Browse namespaces",
+                "Use the namespace index when you need the reference map.");
+        }
+
+        if (links.Count < 3)
+        {
+            links.Add(
+                new SearchPageFallbackLink(
+                    "Documentation index",
+                    "/docs",
+                    "Return to the docs index and keep exploring from there."));
+        }
+
+        return links;
+    }
+
+    private static void TryAddFallbackLink(
+        ICollection<SearchPageFallbackLink> links,
+        DocNode? doc,
+        string title,
+        string description)
+    {
+        if (doc is null)
+        {
+            return;
+        }
+
+        var href = DocAggregator.BuildSearchDocUrl(doc.Path);
+        if (links.Any(link => string.Equals(link.Href, href, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        links.Add(new SearchPageFallbackLink(title, href, description));
+    }
+
+    private static DocNode? SelectFallbackDoc(
+        IEnumerable<DocNode> docs,
+        Func<DocNode, bool> predicate)
+    {
+        return docs
+            .Where(
+                doc => !doc.IsDirectory
+                       && doc.Metadata?.HideFromPublicNav != true
+                       && doc.Metadata?.HideFromSearch != true
+                       && predicate(doc))
+            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
+            .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+    }
+
     private static string NormalizeLookupPath(string path)
     {
         var sanitized = path.Trim().Replace('\\', '/').Trim('/');
@@ -393,5 +528,16 @@ public class DocsController : Controller
         return string.IsNullOrWhiteSpace(summary)
             ? CuratedLandingDescription
             : summary.Trim();
+    }
+
+    private static bool HasPageType(DocNode doc, params string[] expectedTypes)
+    {
+        var pageType = doc.Metadata?.PageType;
+        if (string.IsNullOrWhiteSpace(pageType))
+        {
+            return false;
+        }
+
+        return expectedTypes.Any(expected => string.Equals(pageType, expected, StringComparison.OrdinalIgnoreCase));
     }
 }

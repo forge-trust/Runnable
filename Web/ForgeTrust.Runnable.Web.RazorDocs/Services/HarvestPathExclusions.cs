@@ -23,8 +23,21 @@ internal static class HarvestPathExclusions
     /// <param name="filePath">The relative file path to check.</param>
     /// <returns><c>true</c> if the file should be excluded; otherwise, <c>false</c>.</returns>
     public static bool ShouldExcludeFilePath(string filePath)
+        => ShouldExcludeFilePath(filePath, ExcludedDirectories);
+
+    /// <summary>
+    /// Determines whether a file should be excluded based on shared hidden-directory rules and a caller-supplied
+    /// set of explicitly excluded directory names.
+    /// </summary>
+    /// <param name="filePath">The relative file path to check.</param>
+    /// <param name="excludedDirectories">
+    /// Directory names that should always be excluded in addition to the shared hidden-directory behavior.
+    /// </param>
+    /// <returns><c>true</c> if the file should be excluded; otherwise, <c>false</c>.</returns>
+    internal static bool ShouldExcludeFilePath(string filePath, IReadOnlySet<string> excludedDirectories)
     {
         ArgumentNullException.ThrowIfNull(filePath);
+        ArgumentNullException.ThrowIfNull(excludedDirectories);
 
         var segments = filePath.Split(
             [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\'],
@@ -37,7 +50,7 @@ internal static class HarvestPathExclusions
 
         foreach (var directorySegment in segments[..^1])
         {
-            if (ExcludedDirectories.Contains(directorySegment))
+            if (excludedDirectories.Contains(directorySegment))
             {
                 return true;
             }

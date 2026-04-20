@@ -1,25 +1,3 @@
----
-title: Runnable
-summary: Runnable gives .NET teams a modular startup pipeline for web, console, and distributed apps. Start with the pillar you need, then drill into concrete examples and API reference.
-featured_pages:
-  - question: How do I ship a web app with Runnable?
-    path: Web/README.md
-    supporting_copy: See the web surface that composes middleware, endpoints, and host startup without a monolithic Program.cs.
-    order: 10
-  - question: Show me a working app, not just abstractions
-    path: examples/web-app/README.md
-    supporting_copy: Walk through a minimal ASP.NET Core app that uses Runnable modules end to end.
-    order: 20
-  - question: How does this fit distributed systems?
-    path: Aspire/README.md
-    supporting_copy: See how the same modular approach extends into .NET Aspire and service-default composition.
-    order: 30
-  - question: What about CLI and worker flows?
-    path: Console/README.md
-    supporting_copy: Follow the console tooling for commands, critical services, and shared startup patterns.
-    order: 40
----
-
 # Runnable
 
 > ⚠️ **Under Construction:** This library is actively being developed and is not intended for production use yet.

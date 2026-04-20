@@ -1,5 +1,6 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Markdig;
+using YamlDotNet.Core;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
@@ -8,6 +9,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// </summary>
 public class MarkdownHarvester : IDocHarvester
 {
+    private static readonly string[] SidecarExtensions = [".yml", ".yaml"];
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
     private readonly Func<string, CancellationToken, Task<string>> _readAllTextAsync;
@@ -67,6 +69,8 @@ public class MarkdownHarvester : IDocHarvester
 
                 var content = await _readAllTextAsync(file, cancellationToken);
                 var (markdownBody, frontMatterMetadata) = MarkdownFrontMatterParser.Extract(content);
+                var sidecarMetadata = await ReadMetadataSidecarAsync(file, relativePath, cancellationToken);
+                var explicitMetadata = DocMetadata.Merge(frontMatterMetadata, sidecarMetadata);
                 var html = Markdown.ToHtml(markdownBody, _pipeline);
                 var title = Path.GetFileNameWithoutExtension(file);
 
@@ -76,11 +80,11 @@ public class MarkdownHarvester : IDocHarvester
                     title = string.IsNullOrEmpty(parentDir) ? "Home" : Path.GetFileName(parentDir);
                 }
 
-                var resolvedTitle = frontMatterMetadata?.Title ?? title;
+                var resolvedTitle = explicitMetadata?.Title ?? title;
                 var metadata = DocMetadataFactory.CreateMarkdownMetadata(
                     relativePath,
                     resolvedTitle,
-                    frontMatterMetadata,
+                    explicitMetadata,
                     ExtractSummary(markdownBody));
 
                 nodes.Add(new DocNode(resolvedTitle, relativePath, html, Metadata: metadata));
@@ -96,6 +100,78 @@ public class MarkdownHarvester : IDocHarvester
         }
 
         return nodes;
+    }
+
+    /// <summary>
+    /// Reads an optional paired sidecar metadata file for a Markdown source document.
+    /// </summary>
+    /// <param name="markdownFilePath">The absolute Markdown file path.</param>
+    /// <param name="relativeMarkdownPath">The Markdown file path relative to the harvest root.</param>
+    /// <param name="cancellationToken">A token that can cancel sidecar discovery or file reads.</param>
+    /// <returns>The parsed sidecar metadata, or <c>null</c> when no valid sidecar applies.</returns>
+    /// <remarks>
+    /// RazorDocs supports paired metadata files named <c>{file}.yml</c> and <c>{file}.yaml</c> such as
+    /// <c>README.md.yml</c>. When both extensions exist for the same Markdown file, RazorDocs logs a warning and ignores
+    /// both sidecars until the ambiguity is removed. Inline front matter remains the primary metadata source and overrides
+    /// any overlapping sidecar fields.
+    /// </remarks>
+    internal async Task<DocMetadata?> ReadMetadataSidecarAsync(
+        string markdownFilePath,
+        string relativeMarkdownPath,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(markdownFilePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(relativeMarkdownPath);
+
+        var existingSidecars = SidecarExtensions
+            .Select(extension => markdownFilePath + extension)
+            .Where(File.Exists)
+            .ToArray();
+
+        if (existingSidecars.Length == 0)
+        {
+            return null;
+        }
+
+        if (existingSidecars.Length > 1)
+        {
+            _logger.LogWarning(
+                "Ignoring metadata sidecars for {MarkdownPath} because both {FirstSidecar} and {SecondSidecar} exist. Keep only one sidecar extension per Markdown file.",
+                relativeMarkdownPath,
+                Path.GetFileName(existingSidecars[0]),
+                Path.GetFileName(existingSidecars[1]));
+            return null;
+        }
+
+        var sidecarPath = existingSidecars[0];
+
+        try
+        {
+            var yaml = await _readAllTextAsync(sidecarPath, cancellationToken);
+            return MarkdownFrontMatterParser.ParseMetadataYaml(yaml);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (YamlException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Ignoring metadata sidecar {SidecarPath} for {MarkdownPath} because the YAML could not be parsed.",
+                Path.GetFileName(sidecarPath),
+                relativeMarkdownPath);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Ignoring metadata sidecar {SidecarPath} for {MarkdownPath} because it could not be read.",
+                Path.GetFileName(sidecarPath),
+                relativeMarkdownPath);
+            return null;
+        }
     }
 
     internal static string? ExtractSummary(string markdown)

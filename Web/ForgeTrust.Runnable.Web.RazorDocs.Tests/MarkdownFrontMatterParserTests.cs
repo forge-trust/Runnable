@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using YamlDotNet.Core;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -195,5 +196,52 @@ public sealed class MarkdownFrontMatterParserTests
         Assert.Empty(metadata.Breadcrumbs!);
         Assert.Empty(metadata.FeaturedPages!);
         Assert.Empty(metadata.RelatedPages!);
+    }
+
+    [Fact]
+    public void ParseMetadataYaml_ShouldThrowArgumentNullException_WhenYamlIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => MarkdownFrontMatterParser.ParseMetadataYaml(null!));
+    }
+
+    [Fact]
+    public void ParseMetadataYaml_ShouldNormalizeSameSchema_AsInlineFrontMatter()
+    {
+        var yaml = """
+            title: Quickstart
+            summary: >
+              Build forms, streams,
+              and handlers together.
+            featured_pages:
+              - question: Where do I start?
+                path: guides/intro.md
+                supporting_copy: Start with the intro guide.
+                order: 10
+            """;
+
+        var metadata = MarkdownFrontMatterParser.ParseMetadataYaml(yaml);
+
+        Assert.NotNull(metadata);
+        Assert.Equal("Quickstart", metadata!.Title);
+        Assert.Equal("Build forms, streams, and handlers together.", metadata.Summary);
+        var featuredPage = Assert.Single(metadata.FeaturedPages!);
+        Assert.Equal("Where do I start?", featuredPage.Question);
+        Assert.Equal("guides/intro.md", featuredPage.Path);
+        Assert.Equal("Start with the intro guide.", featuredPage.SupportingCopy);
+        Assert.Equal(10, featuredPage.Order);
+    }
+
+    [Fact]
+    public void ParseMetadataYaml_ShouldReturnNull_WhenDocumentIsYamlNull()
+    {
+        var metadata = MarkdownFrontMatterParser.ParseMetadataYaml("null");
+
+        Assert.Null(metadata);
+    }
+
+    [Fact]
+    public void ParseMetadataYaml_ShouldThrow_WhenYamlIsInvalid()
+    {
+        Assert.Throws<YamlException>(() => MarkdownFrontMatterParser.ParseMetadataYaml("title: ["));
     }
 }

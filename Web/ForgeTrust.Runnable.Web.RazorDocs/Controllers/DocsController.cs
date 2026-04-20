@@ -33,11 +33,12 @@ public class DocsController : Controller
     }
 
     /// <summary>
-    /// Displays the documentation index view containing either curated proof paths from the repository-root landing doc or the neutral docs landing fallback.
+    /// Displays the documentation index view containing either curated proof paths from the repository-root landing doc metadata or the neutral docs landing fallback.
     /// </summary>
     /// <returns>
     /// A view result whose model is a <see cref="DocLandingViewModel"/>. The model includes curated featured cards when the
-    /// repository-root <c>README.md</c> authors <c>featured_pages</c>; otherwise it includes the neutral fallback landing data.
+    /// repository-root <c>README.md</c> metadata authors <c>featured_pages</c> through inline front matter or a paired
+    /// sidecar such as <c>README.md.yml</c>; otherwise it includes the neutral fallback landing data.
     /// </returns>
     public async Task<IActionResult> Index()
     {

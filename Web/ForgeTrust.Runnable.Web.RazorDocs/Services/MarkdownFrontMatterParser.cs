@@ -26,7 +26,7 @@ internal static class MarkdownFrontMatterParser
 
         try
         {
-            return (body, Parse(frontMatter));
+            return (body, ParseMetadataYaml(frontMatter));
         }
         catch (YamlException)
         {
@@ -36,9 +36,21 @@ internal static class MarkdownFrontMatterParser
         }
     }
 
-    private static DocMetadata? Parse(string frontMatter)
+    /// <summary>
+    /// Parses a YAML metadata document into normalized documentation metadata.
+    /// </summary>
+    /// <param name="yaml">The raw YAML content to deserialize.</param>
+    /// <returns>The normalized metadata model, or <c>null</c> when the YAML document is explicitly empty or null.</returns>
+    /// <remarks>
+    /// This entry point is shared by inline Markdown front matter and paired sidecar metadata files so both authoring styles
+    /// normalize through the same schema, defaults, and empty-list handling.
+    /// </remarks>
+    /// <exception cref="YamlException">Thrown when <paramref name="yaml"/> cannot be parsed as YAML.</exception>
+    internal static DocMetadata? ParseMetadataYaml(string yaml)
     {
-        var document = Deserializer.Deserialize<FrontMatterDocument>(frontMatter);
+        ArgumentNullException.ThrowIfNull(yaml);
+
+        var document = Deserializer.Deserialize<FrontMatterDocument>(yaml);
         if (document is null)
         {
             return null;

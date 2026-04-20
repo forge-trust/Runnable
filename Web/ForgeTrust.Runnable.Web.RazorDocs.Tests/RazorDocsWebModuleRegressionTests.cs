@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using FakeItEasy;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
@@ -147,6 +148,52 @@ public class RazorDocsWebModuleRegressionTests
     }
 
     [Fact]
+    public async Task StandaloneBuild_Issue001_IncludesGeneratedStylesheetInRuntimeAndPackManifests()
+    {
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        var buildCoordinates = GetCurrentBuildCoordinates();
+
+        var standaloneRuntimeManifestPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs.Standalone",
+            "bin",
+            buildCoordinates.Configuration,
+            buildCoordinates.TargetFramework,
+            "ForgeTrust.Runnable.Web.RazorDocs.Standalone.staticwebassets.runtime.json");
+        var razorDocsRuntimeManifestPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs.Standalone",
+            "bin",
+            buildCoordinates.Configuration,
+            buildCoordinates.TargetFramework,
+            "ForgeTrust.Runnable.Web.RazorDocs.staticwebassets.runtime.json");
+        var razorDocsPackManifestPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "obj",
+            buildCoordinates.Configuration,
+            buildCoordinates.TargetFramework,
+            "staticwebassets.pack.json");
+
+        Assert.True(
+            File.Exists(standaloneRuntimeManifestPath),
+            $"Expected the standalone host build to emit '{standaloneRuntimeManifestPath}'.");
+        Assert.True(
+            File.Exists(razorDocsRuntimeManifestPath),
+            $"Expected the standalone host build to emit '{razorDocsRuntimeManifestPath}'.");
+        Assert.True(
+            File.Exists(razorDocsPackManifestPath),
+            $"Expected the RazorDocs package build to emit '{razorDocsPackManifestPath}'.");
+
+        await AssertRuntimeManifestContainsSubPathAsync(standaloneRuntimeManifestPath, "css/site.gen.css");
+        await AssertRuntimeManifestContainsSubPathAsync(razorDocsRuntimeManifestPath, "css/site.gen.css");
+        await AssertPackManifestContainsPathAsync(razorDocsPackManifestPath, "staticwebassets/css/site.gen.css");
+    }
+
+    [Fact]
     public async Task ConfigureEndpoints_Issue001_RedirectsLegacySearchAssetsToPackagedContent()
     {
         var module = new RazorDocsWebModule();
@@ -248,11 +295,91 @@ public class RazorDocsWebModuleRegressionTests
         Assert.Equal(expectedLocation, response.Headers.Location?.OriginalString);
     }
 
+    private static async Task AssertRuntimeManifestContainsSubPathAsync(string manifestPath, string expectedSubPath)
+    {
+        await using var stream = File.OpenRead(manifestPath);
+        using var document = await JsonDocument.ParseAsync(stream);
+
+        Assert.True(
+            JsonContainsPropertyValue(document.RootElement, "SubPath", expectedSubPath),
+            $"Expected '{manifestPath}' to contain a SubPath of '{expectedSubPath}'.");
+    }
+
+    private static async Task AssertPackManifestContainsPathAsync(string manifestPath, string expectedPackagePath)
+    {
+        await using var stream = File.OpenRead(manifestPath);
+        using var document = await JsonDocument.ParseAsync(stream);
+
+        var files = document.RootElement.GetProperty("Files");
+        Assert.Contains(
+            files.EnumerateArray(),
+            file => file.TryGetProperty("PackagePath", out var packagePath)
+                && string.Equals(packagePath.GetString(), expectedPackagePath, StringComparison.Ordinal));
+    }
+
+    private static bool JsonContainsPropertyValue(JsonElement element, string propertyName, string expectedValue)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, propertyName, StringComparison.Ordinal)
+                        && string.Equals(property.Value.GetString(), expectedValue, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+
+                    if (JsonContainsPropertyValue(property.Value, propertyName, expectedValue))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (JsonContainsPropertyValue(item, propertyName, expectedValue))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            default:
+                return false;
+        }
+    }
+
     private static StartupContext CreateStartupContext()
     {
         var rootModule = A.Fake<IRunnableHostModule>();
         var environmentProvider = A.Fake<IEnvironmentProvider>();
         return new StartupContext(Array.Empty<string>(), rootModule, "TestApp", environmentProvider);
+    }
+
+    private static BuildCoordinates GetCurrentBuildCoordinates()
+    {
+        var trimmedBaseDirectory = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var current = new DirectoryInfo(trimmedBaseDirectory);
+        var segmentsBelowBin = new List<string>();
+
+        while (current is not null && !string.Equals(current.Name, "bin", StringComparison.OrdinalIgnoreCase))
+        {
+            segmentsBelowBin.Add(current.Name);
+            current = current.Parent;
+        }
+
+        if (current is null || segmentsBelowBin.Count < 2)
+        {
+            throw new InvalidOperationException(
+                $"Could not determine build configuration and target framework from '{AppContext.BaseDirectory}'.");
+        }
+
+        return new BuildCoordinates(
+            segmentsBelowBin[^1],
+            segmentsBelowBin[^2]);
     }
 
     private sealed class TestRazorDocsStartup : WebStartup<RazorDocsWebModule>
@@ -266,4 +393,6 @@ public class RazorDocsWebModuleRegressionTests
 
         protected override RazorDocsWebModule CreateRootModule() => _module;
     }
+
+    private sealed record BuildCoordinates(string Configuration, string TargetFramework);
 }

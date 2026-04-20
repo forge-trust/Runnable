@@ -40,7 +40,9 @@ public class TailwindOptions
     /// </summary>
     /// <remarks>
     /// Defaults to <c>wwwroot/css/site.gen.css</c>. The value should be a non-empty relative path whose parent
-    /// directory exists and is writable. Avoid pointing this at the same file as <see cref="InputPath"/>.
+    /// directory exists and is writable. Keep the output under <c>wwwroot/</c> when the generated stylesheet
+    /// needs to participate in ASP.NET Core static web asset discovery for build and publish output. Avoid
+    /// pointing this at the same file as <see cref="InputPath"/>.
     /// </remarks>
     public string OutputPath { get; set; } = "wwwroot/css/site.gen.css";
 }

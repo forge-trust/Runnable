@@ -1,6 +1,7 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
 using ForgeTrust.Runnable.Web.RazorWire;
+using ForgeTrust.Runnable.Web.Tailwind;
 
 namespace RazorWireWebExample;
 
@@ -19,6 +20,7 @@ public class RazorWireExampleModule : IRunnableWebModule
         services.AddSingleton<Services.IUserPresenceService, Services.InMemoryUserPresenceService>();
         services.AddSingleton<Services.IMessageStore, Services.InMemoryMessageStore>();
         services.AddHostedService<Services.UserPresenceBackgroundService>();
+        services.AddTailwind();
     }
 
     /// <summary>

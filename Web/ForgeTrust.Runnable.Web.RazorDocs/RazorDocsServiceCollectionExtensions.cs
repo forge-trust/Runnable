@@ -49,6 +49,7 @@ public static class RazorDocsServiceCollectionExtensions
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<RazorDocsOptions>, RazorDocsOptionsValidator>());
         services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<RazorDocsOptions>>().Value);
+        services.TryAddSingleton(RazorDocsAssetPathResolver.CreateDefault());
         services.AddMemoryCache();
         services.TryAddSingleton<IMemo, Memo>();
         services.TryAddSingleton<IRazorDocsHtmlSanitizer, RazorDocsHtmlSanitizer>();

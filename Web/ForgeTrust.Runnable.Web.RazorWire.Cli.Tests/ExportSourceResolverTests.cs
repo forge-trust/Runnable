@@ -878,7 +878,7 @@ public class ExportSourceResolverTests
         var propsPath = Path.Combine(tempDir.FullPath, "Identity.props");
         var projectPath = Path.Combine(tempDir.FullPath, "Main.csproj");
 
-        File.WriteAllText(propsPath, 
+        File.WriteAllText(propsPath,
             """
             <Project>
               <PropertyGroup>

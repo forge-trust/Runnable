@@ -74,4 +74,14 @@ junit.xml
 
 # Tooling output
 .codex-review
+/full_comments.json
+/reviewer_comments.json
+/pr_data.json
 .gstack/
+
+# Tailwind binary
+**/tailwindcss
+**/tailwindcss.exe
+
+# Generated assets
+**/*.gen.css

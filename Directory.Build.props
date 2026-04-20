@@ -7,8 +7,11 @@
     <IsTestProject Condition="$(_NormalizedProjectName.EndsWith('.tests')) OR $(_NormalizedProjectDir.Contains('/tests/')) OR $(_NormalizedProjectDir.Contains('.tests'))">true</IsTestProject>
     <IsBenchmarkProject Condition="$(_NormalizedProjectDir.Contains('/benchmarks/')) OR $(_NormalizedProjectName.Contains('benchmarks'))">true</IsBenchmarkProject>
     <IsExampleProject Condition="$(_NormalizedProjectDir.Contains('/examples/'))">true</IsExampleProject>
+    <IsTailwindRuntimeProject Condition="$(_NormalizedProjectDir.Contains('/web/forgetrust.runnable.web.tailwind/runtimes')) AND $(_NormalizedProjectName.StartsWith('forgetrust.runnable.web.tailwind.runtime.'))">true</IsTailwindRuntimeProject>
     
     <GenerateDocumentationFile Condition="'$(IsTestProject)' != 'true' AND '$(IsBenchmarkProject)' != 'true' AND '$(IsExampleProject)' != 'true'">true</GenerateDocumentationFile>
     <WarningsAsErrors Condition="'$(IsTestProject)' != 'true' AND '$(IsBenchmarkProject)' != 'true' AND '$(IsExampleProject)' != 'true'">$(WarningsAsErrors);CS1591</WarningsAsErrors>
+    <BaseIntermediateOutputPath Condition="'$(IsTailwindRuntimeProject)' == 'true'">obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath Condition="'$(IsTailwindRuntimeProject)' == 'true'">$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
   </PropertyGroup>
 </Project>

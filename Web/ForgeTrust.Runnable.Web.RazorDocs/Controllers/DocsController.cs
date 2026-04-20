@@ -186,7 +186,7 @@ public class DocsController : Controller
     }
 
     /// <summary>
-    /// Checks whether the current user has permission to initiate a cache refresh. 
+    /// Checks whether the current user has permission to initiate a cache refresh.
     /// </summary>
     /// <returns><c>true</c> if the user is authenticated; otherwise, <c>false</c>.</returns>
     internal bool CanRefreshCache()

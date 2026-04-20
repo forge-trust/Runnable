@@ -4,6 +4,7 @@ using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Controllers;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using ForgeTrust.Runnable.Web.Tailwind;
 using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -82,17 +83,24 @@ public class RazorDocsWebModuleTests
         Assert.Contains(
             services,
             s => s.ServiceType == typeof(IRazorDocsHtmlSanitizer) && s.Lifetime == ServiceLifetime.Singleton);
+        Assert.Contains(services, s => s.ServiceType == typeof(RazorDocsAssetPathResolver));
+        Assert.DoesNotContain(services, s => s.ServiceType == typeof(TailwindCliManager));
+        Assert.DoesNotContain(
+            services,
+            s => s.ServiceType == typeof(IHostedService) && s.ImplementationType == typeof(TailwindWatchService));
         Assert.Contains(services, s => s.ServiceType == typeof(IMemoryCache));
         Assert.Contains(services, s => s.ServiceType == typeof(IMemo));
 
         using var serviceProvider = services.BuildServiceProvider();
         var sanitizer = Assert.IsType<RazorDocsHtmlSanitizer>(
             serviceProvider.GetRequiredService<IRazorDocsHtmlSanitizer>());
+        var assetPathResolver = serviceProvider.GetRequiredService<RazorDocsAssetPathResolver>();
         Assert.NotNull(serviceProvider.GetService<IOptions<RazorDocsOptions>>());
         Assert.NotNull(serviceProvider.GetService<RazorDocsOptions>());
         Assert.NotNull(serviceProvider.GetRequiredService<IMemoryCache>());
         Assert.NotNull(serviceProvider.GetRequiredService<IMemo>());
         Assert.NotNull(serviceProvider.GetRequiredService<DocAggregator>());
+        Assert.Equal(RazorDocsAssetPathResolver.PackagedStylesheetPath, assetPathResolver.StylesheetPath);
         Assert.Contains("section", sanitizer.InnerSanitizer.AllowedTags);
         Assert.Contains("article", sanitizer.InnerSanitizer.AllowedTags);
         Assert.Contains("header", sanitizer.InnerSanitizer.AllowedTags);
@@ -128,6 +136,26 @@ public class RazorDocsWebModuleTests
         Assert.Contains("details", razorDocsSanitizer.InnerSanitizer.AllowedTags);
         Assert.Contains("summary", razorDocsSanitizer.InnerSanitizer.AllowedTags);
         Assert.Contains("open", razorDocsSanitizer.InnerSanitizer.AllowedAttributes);
+    }
+
+    [Fact]
+    public void ConfigureServices_ShouldUseRootStylesheetPath_WhenRazorDocsIsTheRootModule()
+    {
+        var envFake = A.Fake<IEnvironmentProvider>();
+        var webHostEnvironment = A.Fake<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
+        A.CallTo(() => webHostEnvironment.ContentRootPath).Returns(Path.GetTempPath());
+        var context = new StartupContext(Array.Empty<string>(), _module, "CustomDocsHost", envFake);
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton(webHostEnvironment);
+        services.AddLogging();
+
+        _module.ConfigureServices(context, services);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var assetPathResolver = serviceProvider.GetRequiredService<RazorDocsAssetPathResolver>();
+
+        Assert.Equal(RazorDocsAssetPathResolver.RootStylesheetPath, assetPathResolver.StylesheetPath);
     }
 
     [Fact]

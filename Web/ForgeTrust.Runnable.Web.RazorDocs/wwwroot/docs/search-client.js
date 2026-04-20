@@ -1774,19 +1774,42 @@
     && (Object.prototype.hasOwnProperty.call(window, 'Turbo')
       || typeof window.Turbo !== 'undefined'
       || document.documentElement.hasAttribute('data-turbo'));
+  let skipNextTurboLoadInit = false;
 
   function runInit() {
     init().catch((error) => console.error('Search init failed:', error));
   }
 
+  function isCurrentSearchDomBound() {
+    const sidebar = getSidebarSearchElements();
+    if (sidebar.input?.getAttribute(sidebarBoundAttribute) === '1') {
+      return true;
+    }
+
+    const page = getSearchPageElements();
+    return page.root?.getAttribute(searchPageBoundAttribute) === '1';
+  }
+
   if (hasTurbo) {
-    // Turbo can refresh the current URL with fresh DOM, so we re-run init on
-    // every load and rely on element-level bound flags to avoid duplicate hooks.
-    document.addEventListener('turbo:load', runInit);
+    document.addEventListener('turbo:load', () => {
+      if (skipNextTurboLoadInit && isCurrentSearchDomBound()) {
+        skipNextTurboLoadInit = false;
+        return;
+      }
+
+      skipNextTurboLoadInit = false;
+      runInit();
+    });
     document.addEventListener('turbo:frame-load', initOnTurboFrameLoad);
 
+    // The initial page load still needs an eager bootstrap so search works
+    // before Turbo emits its first load event for the document.
     if (document.readyState === 'loading') {
+      skipNextTurboLoadInit = true;
       document.addEventListener('DOMContentLoaded', runInit, { once: true });
+    } else if (document.readyState === 'interactive') {
+      skipNextTurboLoadInit = true;
+      runInit();
     } else {
       runInit();
     }

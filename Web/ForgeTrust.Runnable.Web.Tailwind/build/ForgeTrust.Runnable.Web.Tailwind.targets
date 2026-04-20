@@ -16,6 +16,23 @@
     <_TailwindConfigs Include="postcss.config.js" Condition="Exists('postcss.config.js')" />
   </ItemGroup>
 
+  <Target Name="ValidateTailwindBuildPaths"
+          BeforeTargets="RunTailwindBuild"
+          Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')">
+    <PropertyGroup>
+      <_TailwindInputPathFull>$([System.IO.Path]::GetFullPath('$(TailwindInputPath)', '$(MSBuildProjectDirectory)'))</_TailwindInputPathFull>
+      <_TailwindOutputPathFull>$([System.IO.Path]::GetFullPath('$(TailwindOutputPath)', '$(MSBuildProjectDirectory)'))</_TailwindOutputPathFull>
+      <_TailwindInputPathComparable>$(_TailwindInputPathFull)</_TailwindInputPathComparable>
+      <_TailwindOutputPathComparable>$(_TailwindOutputPathFull)</_TailwindOutputPathComparable>
+      <_TailwindInputPathComparable Condition="$([MSBuild]::IsOSPlatform('Windows'))">$([System.String]::Copy('$(_TailwindInputPathFull)').ToUpperInvariant())</_TailwindInputPathComparable>
+      <_TailwindOutputPathComparable Condition="$([MSBuild]::IsOSPlatform('Windows'))">$([System.String]::Copy('$(_TailwindOutputPathFull)').ToUpperInvariant())</_TailwindOutputPathComparable>
+      <_TailwindSameInputOutput>$([System.String]::Copy('$(_TailwindInputPathComparable)').Equals('$(_TailwindOutputPathComparable)'))</_TailwindSameInputOutput>
+    </PropertyGroup>
+
+    <Error Text="TailwindInputPath and TailwindOutputPath must point to different files."
+           Condition="'$(_TailwindSameInputOutput)' == 'True'" />
+  </Target>
+
   <Target Name="RunTailwindBuild" AfterTargets="ResolveProjectReferences" BeforeTargets="PrepareResources;Compile"
           Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')"
           Inputs="$(TailwindInputPath);@(_TailwindTemplates);@(_TailwindConfigs)" 

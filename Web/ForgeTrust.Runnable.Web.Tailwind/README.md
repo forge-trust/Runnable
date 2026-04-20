@@ -31,6 +31,8 @@ Reference the generated stylesheet from your layout:
 <link rel="stylesheet" href="~/css/site.gen.css" asp-append-version="true" />
 ```
 
+Keep `InputPath` and `OutputPath` pointed at different files. The build target and the development watch service both reject configurations where the two paths resolve to the same file, even if one path uses a normalized relative form such as `./wwwroot/css/../css/app.css`.
+
 ## CI
 
 `ForgeTrust.Runnable.Web.Tailwind` hooks into the normal `dotnet build` and `dotnet publish` pipeline through MSBuild targets, so the default integration does not require a separate `npm install` or `npm run build` step in CI.

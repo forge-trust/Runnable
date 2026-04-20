@@ -46,8 +46,18 @@ internal sealed class RazorDocsAssetPathResolver
     internal static RazorDocsAssetPathResolver CreateForRootModule(Assembly rootModuleAssembly)
     {
         return new RazorDocsAssetPathResolver(
-            rootModuleAssembly == RazorDocsAssembly
+            IsRootModuleAssembly(rootModuleAssembly)
                 ? RootStylesheetPath
                 : PackagedStylesheetPath);
+    }
+
+    /// <summary>
+    /// Determines whether the supplied root module assembly belongs to the RazorDocs standalone host.
+    /// </summary>
+    /// <param name="rootModuleAssembly">The assembly that owns the current host's root module.</param>
+    /// <returns><see langword="true"/> when RazorDocs is the root module; otherwise, <see langword="false"/>.</returns>
+    internal static bool IsRootModuleAssembly(Assembly rootModuleAssembly)
+    {
+        return rootModuleAssembly == RazorDocsAssembly;
     }
 }

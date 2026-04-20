@@ -160,6 +160,6 @@ public class RazorDocsWebModule : IRunnableWebModule
 
     private static bool ShouldPreserveRootStylesheetPath(StartupContext context)
     {
-        return context.RootModuleAssembly == typeof(RazorDocsWebModule).Assembly;
+        return RazorDocsAssetPathResolver.IsRootModuleAssembly(context.RootModuleAssembly);
     }
 }

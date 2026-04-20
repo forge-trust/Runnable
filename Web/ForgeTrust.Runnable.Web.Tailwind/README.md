@@ -31,6 +31,12 @@ Reference the generated stylesheet from your layout:
 <link rel="stylesheet" href="~/css/site.gen.css" asp-append-version="true" />
 ```
 
+When `OutputPath` stays under `wwwroot/`, the generated file is registered as an ASP.NET Core static web
+asset on clean builds and publish runs. That means Razor Class Libraries and other package-style consumers can
+serve the generated CSS without checking `site.gen.css` into source control first.
+That registration also stays in place for projects that disable the SDK's default content items and rely on the
+package to declare the generated web-root asset explicitly.
+
 Keep `InputPath` and `OutputPath` pointed at different files. The build target and the development watch service both reject configurations where the two paths resolve to the same file, even if one path uses a normalized relative form such as `./wwwroot/css/../css/app.css`.
 
 ## CI
@@ -60,6 +66,7 @@ If your custom setup still uses the standalone CLI but stores it outside the pac
 ## Notes
 
 - The generated CSS file is intended to be build output and is commonly ignored in source control.
+- Generated CSS outside `wwwroot/` still builds locally, but it is not exposed automatically through the static web asset pipeline.
 - The platform-specific `ForgeTrust.Runnable.Web.Tailwind.Runtime.*` packages are support packages consumed transitively by this package and are not usually installed directly.
 - Tailwind CLI selection follows the current build host, not `RuntimeIdentifier`, because the standalone CLI runs during the build. Cross-targeted builds still execute the host-compatible binary.
 - Windows Arm64 hosts intentionally use the `win-x64` runtime under emulation. There is no `ForgeTrust.Runnable.Web.Tailwind.Runtime.win-arm64` package because Tailwind `v4.1.18` does not ship a native Windows Arm64 standalone CLI.

@@ -8,12 +8,33 @@
     <_TailwindVersionFileSource>$(MSBuildThisFileDirectory)..\tailwind.version</_TailwindVersionFileSource>
     <_TailwindVersionFile Condition="Exists('$(_TailwindVersionFilePackage)')">$(_TailwindVersionFilePackage)</_TailwindVersionFile>
     <_TailwindVersionFile Condition="'$(_TailwindVersionFile)' == '' and Exists('$(_TailwindVersionFileSource)')">$(_TailwindVersionFileSource)</_TailwindVersionFile>
+    <_TailwindOutputPathNormalized>$([System.String]::Copy('$(TailwindOutputPath)').Replace('\', '/'))</_TailwindOutputPathNormalized>
+    <_TailwindOutputPathNormalized Condition="$([System.String]::Copy('$(_TailwindOutputPathNormalized)').StartsWith('./'))">$([System.String]::Copy('$(_TailwindOutputPathNormalized)').Substring(2))</_TailwindOutputPathNormalized>
+    <_TailwindOutputIsWebRootAsset>false</_TailwindOutputIsWebRootAsset>
+    <_TailwindOutputIsWebRootAsset Condition="'$(_TailwindOutputPathNormalized)' == 'wwwroot' or $([System.String]::Copy('$(_TailwindOutputPathNormalized)').StartsWith('wwwroot/'))">true</_TailwindOutputIsWebRootAsset>
+    <_TailwindUsesSdkDefaultContentItems>true</_TailwindUsesSdkDefaultContentItems>
+    <_TailwindUsesSdkDefaultContentItems Condition="'$(EnableDefaultItems)' == 'false' or '$(EnableDefaultContentItems)' == 'false'">false</_TailwindUsesSdkDefaultContentItems>
   </PropertyGroup>
 
   <ItemGroup>
     <_TailwindTemplates Include="**/*.cshtml;**/*.html;**/*.razor" Exclude="bin/**;obj/**" />
     <_TailwindConfigs Include="tailwind.config.js" Condition="Exists('tailwind.config.js')" />
     <_TailwindConfigs Include="postcss.config.js" Condition="Exists('postcss.config.js')" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TailwindEnabled)' == 'true' and '$(_TailwindOutputIsWebRootAsset)' == 'true' and ('$(_TailwindUsesSdkDefaultContentItems)' == 'false' or !Exists('$(TailwindOutputPath)'))">
+    <!--
+      Declare the generated output as project content up front so a clean build can include it in the
+      static web asset manifest once RunTailwindBuild materializes the file under wwwroot/. Keep the
+      explicit item for consumers that disable the SDK's default content globs because they do not pick
+      up existing wwwroot files on subsequent incremental builds.
+    -->
+    <Content Include="$(TailwindOutputPath)">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Pack>false</Pack>
+      <Visible>false</Visible>
+    </Content>
   </ItemGroup>
 
   <Target Name="ValidateTailwindBuildPaths"

@@ -518,6 +518,22 @@ public class ExportEngineTests
     }
 
     [Fact]
+    public async Task RedirectFollowingHandler_Should_StopAfterConfiguredRedirectLimit()
+    {
+        var loopHandler = new RedirectLoopHandler();
+        using var client = new HttpClient(new RedirectFollowingHandler(loopHandler, maxRedirects: 3))
+        {
+            BaseAddress = new Uri("http://localhost:5000")
+        };
+
+        using var response = await client.GetAsync("/");
+
+        Assert.Equal(HttpStatusCode.Found, response.StatusCode);
+        Assert.Equal("/loop", response.Headers.Location?.OriginalString);
+        Assert.Equal(4, loopHandler.CallCount);
+    }
+
+    [Fact]
     public void MapHtmlFilePathToPartialPath_Should_Append_Partial_Suffix()
     {
         var htmlPath = Path.Combine("dist", "docs", "topic.html");
@@ -925,36 +941,73 @@ public class ExportEngineTests
         }
     }
 
+    private sealed class RedirectLoopHandler : HttpMessageHandler
+    {
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CallCount++;
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Found)
+            {
+                Headers =
+                {
+                    Location = new Uri("/loop", UriKind.Relative)
+                }
+            });
+        }
+    }
+
     private sealed class RedirectFollowingHandler : DelegatingHandler
     {
-        public RedirectFollowingHandler(HttpMessageHandler innerHandler)
+        private readonly int _maxRedirects;
+
+        public RedirectFollowingHandler(HttpMessageHandler innerHandler, int maxRedirects = 10)
             : base(innerHandler)
         {
+            _maxRedirects = maxRedirects;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            const int maxRedirects = 10;
             var currentRequest = request;
+            HttpRequestMessage? ownedRedirectRequest = null;
             var response = await base.SendAsync(currentRequest, cancellationToken);
 
-            for (var redirectCount = 0; redirectCount < maxRedirects; redirectCount++)
+            try
             {
-                if (!IsRedirect(response.StatusCode) || response.Headers.Location is null)
+                for (var redirectCount = 0; redirectCount < _maxRedirects; redirectCount++)
                 {
-                    return response;
+                    if (!IsRedirect(response.StatusCode) || response.Headers.Location is null)
+                    {
+                        return response;
+                    }
+
+                    var currentRequestUri = currentRequest.RequestUri;
+                    if (currentRequestUri is null || !currentRequestUri.IsAbsoluteUri)
+                    {
+                        return response;
+                    }
+
+                    var redirectUri = response.Headers.Location.IsAbsoluteUri
+                        ? response.Headers.Location
+                        : new Uri(currentRequestUri, response.Headers.Location);
+
+                    response.Dispose();
+                    ownedRedirectRequest?.Dispose();
+
+                    ownedRedirectRequest = new HttpRequestMessage(currentRequest.Method, redirectUri);
+                    currentRequest = ownedRedirectRequest;
+                    response = await base.SendAsync(currentRequest, cancellationToken);
                 }
 
-                var redirectUri = response.Headers.Location.IsAbsoluteUri
-                    ? response.Headers.Location
-                    : new Uri(currentRequest.RequestUri!, response.Headers.Location);
-
-                response.Dispose();
-                currentRequest = new HttpRequestMessage(currentRequest.Method, redirectUri);
-                response = await base.SendAsync(currentRequest, cancellationToken);
+                return response;
             }
-
-            return response;
+            finally
+            {
+                ownedRedirectRequest?.Dispose();
+            }
         }
 
         private static bool IsRedirect(HttpStatusCode statusCode)

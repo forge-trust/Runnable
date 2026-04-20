@@ -78,6 +78,13 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <summary>
     /// Adds the module's default catch-all controller route for documentation endpoints.
     /// </summary>
+    /// <remarks>
+    /// When RazorDocs is the root module assembly, standalone and static-export hosts preserve the historical
+    /// <c>/css/site.gen.css</c> URL by redirecting it to the packaged Razor Class Library stylesheet at
+    /// <c>/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css</c>. Embedded hosts do not register that
+    /// redirect because they already link to the packaged asset directly. Redirects preserve the request
+    /// <see cref="HttpRequest.PathBase"/> and query string so legacy links continue to work behind a virtual path.
+    /// </remarks>
     /// <param name="context">Startup context for the application and environment.</param>
     /// <param name="endpoints">Endpoint route builder used to map the module's routes.</param>
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)

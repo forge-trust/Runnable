@@ -127,8 +127,7 @@ internal static class DocContentLinkRewriter
             return true;
         }
 
-        if (Uri.TryCreate(trimmedHref, UriKind.Absolute, out _)
-            || trimmedHref.StartsWith("//", StringComparison.Ordinal))
+        if (trimmedHref.StartsWith("//", StringComparison.Ordinal))
         {
             return false;
         }
@@ -141,13 +140,18 @@ internal static class DocContentLinkRewriter
         if (path.StartsWith("/", StringComparison.Ordinal))
         {
             var rootedTarget = path.TrimStart('/');
-            if (!LooksLikeDocTarget(rootedTarget))
+            if (!LooksLikeRootedDocTarget(rootedTarget))
             {
                 return false;
             }
 
             docsHref = BuildDocsHref(rootedTarget, query, fragment);
             return true;
+        }
+
+        if (Uri.TryCreate(trimmedHref, UriKind.Absolute, out _))
+        {
+            return false;
         }
 
         var resolvedTarget = ResolveRelativePath(sourcePath, path);
@@ -167,6 +171,12 @@ internal static class DocContentLinkRewriter
 
     private static bool LooksLikeDocTarget(string path)
     {
+        return LooksLikeRootedDocTarget(path)
+               || path.EndsWith(".html", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeRootedDocTarget(string path)
+    {
         if (string.IsNullOrWhiteSpace(path))
         {
             return false;
@@ -174,7 +184,6 @@ internal static class DocContentLinkRewriter
 
         return path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
                || path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
-               || path.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
                || path.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                || path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
     }

@@ -47,6 +47,30 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void RewriteInternalDocLinks_ShouldRewriteRootedMarkdownLinks_ToCanonicalDocsRoutes()
+    {
+        var html = "<p><a href=\"/releases/unreleased.md\">Unreleased</a></p>";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/README.md", html);
+
+        Assert.Contains("href=\"/docs/releases/unreleased.md.html\"", rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.Contains("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteInternalDocLinks_ShouldLeaveRootedNonDocHtmlLinksUnchanged()
+    {
+        var html = "<p><a href=\"/privacy.html\">Privacy</a></p>";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/README.md", html);
+
+        Assert.Contains("href=\"/privacy.html\"", rewritten);
+        Assert.DoesNotContain("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.DoesNotContain("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldLeaveExternalAndNewTabLinksUnchanged()
     {
         var html = """

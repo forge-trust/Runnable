@@ -1,0 +1,20 @@
+title: Releases
+summary: Start with the public release hub, then drill into the unreleased proof artifact, the compact changelog, and the pre-1.0 upgrade policy.
+page_type: guide
+nav_group: Releases
+order: 10
+breadcrumbs:
+  - Releases
+trust:
+  status: Release contract
+  summary: This hub is the public agreement for how Runnable explains unreleased work, tagged releases, and upgrade risk before automation is in place.
+  freshness: Updated whenever the release policy, release-note structure, or public proof artifacts change on main.
+  change_scope: Repository-wide. Runnable plans to release the entire monorepo in unison.
+  migration:
+    label: Read the pre-1.0 upgrade policy
+    href: /docs/releases/upgrade-policy.md.html
+  archive: Tagged release notes will live beside this page under /docs/releases/ and remain linked from CHANGELOG.md.
+  sources:
+    - CHANGELOG.md
+    - releases/unreleased.md
+    - releases/release-authoring-checklist.md

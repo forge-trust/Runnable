@@ -35,6 +35,14 @@ public sealed class RazorDocsLandingPlaywrightTests
         Assert.DoesNotContain(
             "Welcome to the technical documentation.",
             await page.InnerTextAsync("body"));
+        Assert.Equal("/docs/releases/README.md.html", await page.GetAttributeAsync("main a.group", "href"));
+
+        await AssertFeaturedCardAsync(
+            page,
+            "/docs/releases/README.md.html",
+            "What is shipping next, and how risky is the upgrade?",
+            "Releases",
+            "GUIDE");
 
         await AssertFeaturedCardAsync(
             page,
@@ -60,7 +68,41 @@ public sealed class RazorDocsLandingPlaywrightTests
             "What about CLI and worker flows?",
             "Console",
             "GUIDE");
+    }
 
+    [Fact]
+    public async Task Landing_NavigatesToReleaseHub_AndUnreleasedProofArtifact()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.DocsUrl);
+        await page.Locator("main a[href='/docs/releases/README.md.html']").ClickAsync();
+        await WaitForPathAsync(page, "/docs/releases/README.md.html");
+        await page.WaitForSelectorAsync(".docs-trust-bar", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        Assert.Equal("Releases", (await page.TextContentAsync("h1"))?.Trim());
+        Assert.Contains("Release contract", await page.InnerTextAsync(".docs-trust-bar"), StringComparison.OrdinalIgnoreCase);
+
+        await page.Locator(".docs-content a[href='./unreleased.md']").First.ClickAsync();
+        await page.WaitForFunctionAsync(
+            "() => document.querySelector('h1')?.textContent?.trim() === 'Unreleased'",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+        await page.WaitForSelectorAsync(".docs-trust-bar", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        Assert.Equal("Unreleased", (await page.TextContentAsync("h1"))?.Trim());
+        var trustText = await page.InnerTextAsync(".docs-trust-bar");
+        Assert.Contains("provisional", trustText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Repository-wide", trustText, StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task AssertFeaturedCardAsync(
@@ -82,5 +124,13 @@ public sealed class RazorDocsLandingPlaywrightTests
         Assert.Contains(title, cardText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(badge, cardText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Open page", cardText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task WaitForPathAsync(IPage page, string expectedPath)
+    {
+        await page.WaitForFunctionAsync(
+            "path => window.location.pathname === path",
+            expectedPath,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
     }
 }

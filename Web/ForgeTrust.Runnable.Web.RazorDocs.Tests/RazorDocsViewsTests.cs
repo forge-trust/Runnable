@@ -682,6 +682,75 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderTrustBar_WhenTrustMetadataIsPresent()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Unreleased",
+            "releases/unreleased.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Status = "Unreleased",
+                    Summary = "This page is provisional until the tag is cut.",
+                    Freshness = "Updated on main.",
+                    ChangeScope = "Repository-wide.",
+                    Archive = "Tagged release notes keep the durable record.",
+                    Sources = ["CHANGELOG.md", "releases/unreleased.md"],
+                    Migration = new DocTrustLink
+                    {
+                        Label = "Read the upgrade policy",
+                        Href = "/docs/releases/upgrade-policy.md.html"
+                    }
+                }
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var trustBar = document.QuerySelector(".docs-trust-bar");
+        Assert.NotNull(trustBar);
+        Assert.Equal("Unreleased", trustBar!.QuerySelector(".docs-trust-bar-status-badge")?.TextContent.Trim());
+        Assert.Contains("Repository-wide.", trustBar.TextContent);
+        Assert.Contains("CHANGELOG.md", trustBar.TextContent);
+
+        var migrationLink = trustBar.QuerySelector("a.docs-trust-bar-link[href='/docs/releases/upgrade-policy.md.html']");
+        Assert.NotNull(migrationLink);
+        Assert.Equal("doc-content", migrationLink!.GetAttribute("data-turbo-frame"));
+        Assert.Equal("advance", migrationLink.GetAttribute("data-turbo-action"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderTrustBar_WhenTrustMetadataHasNoDisplayableValues()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Unreleased",
+            "releases/unreleased.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Sources = Array.Empty<string>()
+                }
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.Null(document.QuerySelector(".docs-trust-bar"));
+    }
+
+    [Fact]
     public async Task SearchView_ShouldRenderSearchPageShell()
     {
         var docs = CreateDocs();

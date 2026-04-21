@@ -14,6 +14,44 @@ Documentation site generation and hosting for Runnable web applications.
 - Search UI assets and the `/docs` MVC surface used by RazorDocs consumers
 - Precompiled Tailwind-powered styling with layout-time path resolution for root-module and embedded hosts
 
+## Styling Boundary
+
+When choosing where a new RazorDocs style should live, use this order:
+
+1. If the surface needs a reusable component contract or a selector shared across CSS and JavaScript, use a semantic class.
+2. Otherwise, if RazorDocs does not fully control the nested content markup, use wrapper-scoped semantic CSS.
+3. Otherwise, for one-off package chrome that RazorDocs owns directly, prefer Tailwind utility classes in markup.
+
+This section is the normative source of truth for the boundary. `DESIGN.md` explains why the rule exists and how to review edge cases. `ROADMAP.md` only points future work back to this contract.
+
+### Decision Matrix
+
+| Surface | Default | Why | Real examples | Exception / note |
+| --- | --- | --- | --- | --- |
+| One-off owned package chrome in Razor views | Prefer Tailwind utility classes in markup | RazorDocs fully owns the markup, so local utility classes keep intent obvious where the change happens | docs landing shell in `Views/Docs/Index.cshtml`, sidebar shell and layout framing in `Views/Shared/_Layout.cshtml`, one-off page header spacing in `Views/Docs/Details.cshtml` | If the same styling contract repeats across package surfaces, promote it to a semantic component class instead of copying long utility strings |
+| Reusable owned package components or stable cross-file UI selectors | Use semantic component classes | Shared selectors keep repeated UI stable across Razor, CSS, and sometimes JavaScript | `docs-page-badge`, `docs-metadata-chip`, `docs-search-page`, `docs-search-page-filters-toggle`, `docs-search-page-active-filters` | Utilities can still handle surrounding layout and one-off placement |
+| Harvested or generated document bodies that RazorDocs does not fully author element by element | Use wrapper-scoped semantic CSS such as `.docs-content ...` | RazorDocs cannot safely push utility classes into nested harvested HTML | headings, paragraphs, code blocks, overload groups, and namespace sections inside `.docs-content` in `Views/Docs/Details.cshtml` and `wwwroot/css/app.css` | Do not rewrite harvested nested HTML just to satisfy utility-class purity |
+| JavaScript-generated or stateful UI that needs shared CSS and JavaScript hooks | Use semantic hook classes, then style them in CSS | Runtime UI needs stable names both the stylesheet and script can rely on | search result rows, filter chips, active-filter pills, and state containers in `wwwroot/docs/search.css` and `wwwroot/docs/search-client.js` | Use `id` values where uniqueness or ARIA wiring require them, but keep reusable styling and state contracts on semantic classes |
+
+### Common Calls
+
+- New one-off page header spacing or typography in owned Razor markup: use Tailwind utilities in the view.
+- New reusable badge, metadata chip, or shared search workspace shell element: add or extend a semantic component class, then use utilities around it only when they are purely local.
+- Restyling paragraphs, headings, or code blocks inside `.docs-content`: update wrapper-scoped CSS instead of pushing utility classes into harvested HTML.
+- New search filter pill, active-filter surface, or other stateful search UI: use a semantic hook class because CSS and JavaScript both need to recognize it.
+
+### Terms
+
+- **Package chrome**: one-off layout and presentation markup that RazorDocs owns directly, such as page shells, spacing, and framing.
+- **Harvested content**: nested documentation HTML that RazorDocs renders but does not fully author element by element, such as the body inside `.docs-content`.
+- **Stable selector / hook**: a semantic class or required unique `id` that Razor, CSS, accessibility wiring, and sometimes JavaScript rely on consistently across files.
+
+### Pitfalls
+
+- Do not refactor between utilities and semantic CSS for purity alone. Follow the surface contract unless a real usability or maintainability problem exists.
+- Do not treat required `id` values, such as `docs-search-page-input` or `docs-search-page-filters-panel`, as the reusable styling contract. They exist for uniqueness, targeting, and ARIA relationships.
+- Do not add semantic classes to static package chrome when plain utilities are clearer and the styling is truly local.
+
 ## Configuration
 
 Source-backed docs are configured via `RazorDocsOptions`:

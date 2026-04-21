@@ -81,4 +81,5 @@ Primary issues:
 - These phases are intended to be additive. Phase 2 should consume the Phase 1 foundation rather than reworking it.
 - Phase 1 made the metadata pipeline page-agnostic on purpose. Phase 2 should first consume that seam from the repo-root `README.md`, then reuse it for non-root landing pages without introducing a parallel content system.
 - `Runnable` remains the first proof site, but the roadmap should favor reusable RazorDocs capabilities over one-off customizations.
+- Future RazorDocs styling work should follow the package-level styling boundary contract documented in `README.md` and explained in `DESIGN.md`, rather than reopening Tailwind-versus-semantic-CSS debates from scratch.
 - Future phases can expand into more explicit agent-facing features once the evaluator experience and search relevance are working well.

@@ -35,6 +35,62 @@ If a new surface starts to feel like a feature grid, a landing page, or an AI-ge
 - Result lists should read like an editorial index with strong rows, not isolated product cards
 - Keep shadows minimal; contrast and spacing should carry the layout
 
+## Styling Boundary
+
+RazorDocs uses two different styling tools because it is solving two different problems.
+
+Owned package chrome is local product UI. Harvested content is nested document output. Stateful search UI also needs selectors that both CSS and JavaScript can trust. Treating those as the same problem is how teams end up arguing about style purity instead of making the interface easier to maintain.
+
+### Default Rule
+
+Use this order when deciding where a new style belongs:
+
+1. Reusable component contract or shared CSS and JavaScript hook: semantic class.
+2. Unowned nested content rendered inside a package wrapper: wrapper-scoped semantic CSS.
+3. One-off package chrome that RazorDocs owns directly: Tailwind utilities in markup.
+
+`README.md` is the fast rulebook for this decision. This document explains why the rule exists and where contributors usually get tripped up.
+
+### Why Ownership Beats Style Purity
+
+- One-off owned chrome is easiest to read when the intent stays in the Razor markup that owns it.
+- Harvested content is safest to style through a wrapper such as `.docs-content` because RazorDocs does not control each nested node or authoring shape.
+- Reusable package components deserve semantic names even when RazorDocs owns the markup, because repeated UI contracts are easier to review and update when they have one stable selector.
+- Search surfaces need semantic hooks because the stylesheet and `search-client.js` both rely on the same stable names across loading, empty, failure, and active-filter states.
+
+### Edge Cases
+
+#### Reusable owned package UI
+
+Classes such as `docs-page-badge` and `docs-metadata-chip` are not a failure of utility-first styling. They are the right tool when a repeated package component needs one stable contract across multiple views and stylesheets.
+
+#### Search workspace hooks
+
+The search workspace renders semantic classes such as `docs-search-page`, `docs-search-page-filters-toggle`, and `docs-search-page-active-filters` directly in Razor, then extends those hooks in CSS and JavaScript. That is intentional. Shared hooks keep stateful UI readable and stable.
+
+#### Required `id` values
+
+Some search controls still need unique `id` values such as `docs-search-page-input` and `docs-search-page-filters-panel`. Those support uniqueness, accessibility relationships, and DOM targeting. They do not replace semantic classes as the reusable styling contract.
+
+### Anti-Patterns
+
+Avoid these by default:
+
+- adding semantic classes to static package chrome when local utilities are clearer
+- forcing repeated package UI back into long utility strings when a shared component class is already the simpler contract
+- pushing utility classes into harvested nested HTML that RazorDocs does not fully own
+- treating shared CSS and JavaScript hook classes as a failure of Tailwind instead of a legitimate integration seam
+- moving styles across the boundary without a concrete user-facing benefit
+
+### Review Questions
+
+When reviewing a change, ask:
+
+- Does this surface need a reusable selector that more than one file depends on?
+- Does RazorDocs fully own this markup, or is it styling nested harvested content?
+- Will a future contributor understand where the style belongs without reading half the package?
+- Is this change improving usability or maintainability, or just chasing stylistic consistency?
+
 ## Search Workspace
 
 `/docs/search` is a search-first workspace.

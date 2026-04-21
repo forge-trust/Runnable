@@ -37,7 +37,7 @@ public sealed class RazorDocsSearchPlaywrightTests
         await WaitForSidebarSearchReadyAsync(page);
         await RunSidebarSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
 
-        await page.ClickAsync(".docs-search-shell-cta");
+        await page.ClickAsync("#docs-search-shell a[href='/docs/search']");
         await WaitForPathAsync(page, "/docs/search");
         await WaitForSearchPageSettledAsync(page);
         await RunAdvancedSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
@@ -67,7 +67,7 @@ public sealed class RazorDocsSearchPlaywrightTests
             }
             """);
 
-        await page.ClickAsync(".docs-search-shell-cta");
+        await page.ClickAsync("#docs-search-shell a[href='/docs/search']");
         await page.WaitForFunctionAsync(
             """
             () => {
@@ -363,7 +363,7 @@ public sealed class RazorDocsSearchPlaywrightTests
         });
 
         Assert.True(await page.Locator("#docs-search-page-retry").IsVisibleAsync());
-        Assert.True(await page.Locator(".docs-search-page-failure-link").First.IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-failure a[href]").First.IsVisibleAsync());
 
         await page.EvaluateAsync(
             """

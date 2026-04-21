@@ -133,6 +133,27 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldRewriteInternalDocLinks_AfterSanitizing()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Releases",
+                "releases/README.md",
+                "<p><a href=\"./unreleased.md\">Unreleased</a> <a href=\"https://example.com/releases\">External</a></p>")
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+
+        Assert.Contains("href=\"/docs/releases/unreleased.md.html\"", result.Content);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", result.Content);
+        Assert.Contains("data-turbo-action=\"advance\"", result.Content);
+        Assert.Contains("href=\"https://example.com/releases\"", result.Content);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldHandleDuplicatePaths_ByKeepingFirst()
     {
         // Arrange

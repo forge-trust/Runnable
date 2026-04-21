@@ -117,6 +117,10 @@ public sealed record DocMetadata
 
     internal bool? NavGroupIsDerived { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether authored breadcrumb labels align with the path-derived breadcrumb targets that
+    /// RazorDocs can safely reuse for rendering.
+    /// </summary>
     internal bool? BreadcrumbsMatchPathTargets { get; init; }
 
     internal static DocMetadata? Merge(DocMetadata? primary, DocMetadata? fallback)

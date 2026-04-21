@@ -36,15 +36,23 @@ internal static class DocMetadataFactory
         bool? summaryIsDerived = string.IsNullOrWhiteSpace(merged.Summary)
             ? null
             : string.IsNullOrWhiteSpace(explicitMetadata?.Summary);
+        var authoredBreadcrumbCount = explicitMetadata?.Breadcrumbs?
+            .Count(label => !string.IsNullOrWhiteSpace(label))
+            ?? 0;
         var breadcrumbs = merged.Breadcrumbs is { Count: > 0 }
             ? merged.Breadcrumbs
             : BuildDefaultBreadcrumbs(normalizedNavGroup, resolvedTitle);
+        bool? breadcrumbsMatchPathTargets = authoredBreadcrumbCount > 0
+                                            && authoredBreadcrumbCount == GetMarkdownBreadcrumbTargetCount(path)
+            ? true
+            : null;
 
         return merged with
         {
             NavGroup = normalizedNavGroup,
             SummaryIsDerived = summaryIsDerived,
-            Breadcrumbs = breadcrumbs
+            Breadcrumbs = breadcrumbs,
+            BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets
         };
     }
 
@@ -224,6 +232,21 @@ internal static class DocMetadataFactory
         return string.Equals(navGroup, resolvedTitle, StringComparison.OrdinalIgnoreCase)
             ? [navGroup]
             : [navGroup, resolvedTitle];
+    }
+
+    private static int GetMarkdownBreadcrumbTargetCount(string path)
+    {
+        var segments = NormalizePath(path)
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        if (segments.Count > 1
+            && segments[^1].Equals("README.md", StringComparison.OrdinalIgnoreCase))
+        {
+            segments.RemoveAt(segments.Count - 1);
+        }
+
+        return segments.Count;
     }
 
     private static IReadOnlyList<string> BuildApiReferenceBreadcrumbs(string title, string namespaceName)

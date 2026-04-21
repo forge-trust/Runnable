@@ -47,8 +47,7 @@ jobs:
                 per_page: 100
               });
             const changedFiles = files.map(file => file.filename);
-            const touchesUnreleased = changedFiles.includes("releases/unreleased.md")
-              || changedFiles.includes("releases/unreleased.md.yml");
+            const touchesUnreleased = changedFiles.includes("releases/unreleased.md");
 
             const failures = [];
 

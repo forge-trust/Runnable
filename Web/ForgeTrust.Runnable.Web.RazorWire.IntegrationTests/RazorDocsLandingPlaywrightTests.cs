@@ -88,7 +88,8 @@ public sealed class RazorDocsLandingPlaywrightTests
         Assert.Equal("Releases", (await page.TextContentAsync("h1"))?.Trim());
         Assert.Contains("Release contract", await page.InnerTextAsync(".docs-trust-bar"), StringComparison.OrdinalIgnoreCase);
 
-        await page.Locator(".docs-content a[href='./unreleased.md']").First.ClickAsync();
+        await page.Locator(".docs-content a[href='/docs/releases/unreleased.md.html']").First.ClickAsync();
+        await WaitForPathAsync(page, "/docs/releases/unreleased.md.html");
         await page.WaitForFunctionAsync(
             "() => document.querySelector('h1')?.textContent?.trim() === 'Unreleased'",
             null,

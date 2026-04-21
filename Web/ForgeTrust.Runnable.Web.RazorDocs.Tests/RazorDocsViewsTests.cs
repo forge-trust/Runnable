@@ -533,6 +533,48 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldCollapseNestedReadmePathBreadcrumbs()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Releases",
+            "releases/README.md",
+            "<p>Guide body</p>");
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">releases</span>", html);
+        Assert.DoesNotContain(">README.md</span>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_ForNestedReadmeLandings()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Releases",
+            "releases/README.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["Releases"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">Releases</span>", html);
+        Assert.DoesNotContain(">releases</span>", html);
+        Assert.DoesNotContain(">README.md</span>", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldNotRenderDerivedSummaryBlurb()
     {
         using var services = CreateServiceProvider(CreateDocs());

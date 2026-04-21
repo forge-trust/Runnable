@@ -22,6 +22,51 @@ public sealed class DocMetadataFactoryTests
         Assert.Equal(["Concepts", "Quickstart"], metadata.Breadcrumbs);
     }
 
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldMarkExplicitBreadcrumbs_WhenTheyAlignWithPathTargets()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "releases/unreleased.md",
+            "Unreleased",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Releases", "Unreleased"]
+            },
+            null);
+
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldTreatNestedReadmeAsDirectoryLanding_ForBreadcrumbAlignment()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "releases/README.md",
+            "Releases",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Releases"]
+            },
+            null);
+
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldNotMarkExplicitBreadcrumbs_WhenTargetCountDoesNotMatch()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "CHANGELOG.md",
+            "Changelog",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Releases", "Changelog"]
+            },
+            null);
+
+        Assert.Null(metadata.BreadcrumbsMatchPathTargets);
+    }
+
     [Theory]
     [InlineData("Tests/guide.md")]
     [InlineData("test/guide.md")]

@@ -68,13 +68,21 @@
     }
     else
     {
-        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var segments = normalizedPath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+        if (segments.Count > 1
+            && string.Equals(segments[^1], "README.md", StringComparison.OrdinalIgnoreCase))
+        {
+            segments.RemoveAt(segments.Count - 1);
+        }
+
         var current = string.Empty;
-        for (var i = 0; i < segments.Length; i++)
+        for (var i = 0; i < segments.Count; i++)
         {
             var segment = segments[i];
             current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
-            var isLast = i == segments.Length - 1;
+            var isLast = i == segments.Count - 1;
             var href = isLast ? null : $"/docs/{current}.html";
             parsedBreadcrumbs.Add((segment, href));
         }

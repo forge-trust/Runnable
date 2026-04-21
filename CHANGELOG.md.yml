@@ -4,7 +4,6 @@ page_type: release-log
 nav_group: Releases
 order: 20
 breadcrumbs:
-  - Releases
   - Changelog
 trust:
   status: Changelog contract

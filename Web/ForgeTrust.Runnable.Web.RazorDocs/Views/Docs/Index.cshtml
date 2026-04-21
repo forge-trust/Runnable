@@ -19,11 +19,14 @@
                     Understand what the system is for, see it working, then choose the next implementation route with context.
                 </p>
             </div>
-            <a href="@Model.StartHereHref"
-               class="inline-flex items-center gap-2 self-start rounded-full border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition-colors hover:border-cyan-400 hover:bg-cyan-500/15">
-                Open Start Here
-                <span aria-hidden="true">-&gt;</span>
-            </a>
+            @if (!string.IsNullOrWhiteSpace(Model.StartHereHref))
+            {
+                <a href="@Model.StartHereHref"
+                   class="inline-flex items-center gap-2 self-start rounded-full border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition-colors hover:border-cyan-400 hover:bg-cyan-500/15">
+                    Open Start Here
+                    <span aria-hidden="true">-&gt;</span>
+                </a>
+            }
         </div>
 
         @if (Model.FeaturedPages.Count > 0)

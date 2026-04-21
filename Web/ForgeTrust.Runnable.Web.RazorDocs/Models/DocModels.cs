@@ -388,9 +388,9 @@ public sealed record DocLandingViewModel
     public DocNode? LandingDoc { get; init; }
 
     /// <summary>
-    /// Gets the href for the section-level <c>Start Here</c> route.
+    /// Gets the href for the section-level <c>Start Here</c> route when that section exists in the current public docs corpus.
     /// </summary>
-    public string StartHereHref { get; init; } = "/docs/sections/start-here";
+    public string? StartHereHref { get; init; }
 
     /// <summary>
     /// Gets the visible documentation nodes used by the neutral fallback landing state.

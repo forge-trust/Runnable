@@ -157,6 +157,7 @@ public class DocsControllerTests : IDisposable
         Assert.Equal(
             "Start with the strongest proof path, then branch into guides, examples, and reference once you know where you want to go deeper.",
             model.Description);
+        Assert.Null(model.StartHereHref);
         Assert.Single(model.VisibleDocs);
     }
 
@@ -176,6 +177,7 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
         Assert.Equal("Documentation", model.Heading);
+        Assert.Null(model.StartHereHref);
         Assert.Equal(2, model.VisibleDocs.Count);
     }
 
@@ -201,7 +203,33 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
+        Assert.Null(model.StartHereHref);
         Assert.Equal(2, model.VisibleDocs.Count);
+    }
+
+    [Fact]
+    public async Task Index_ShouldExposeStartHereHref_WhenStartHereSectionExists()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Home", "README.md", "<p>Home</p>"),
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Start here."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        Assert.Equal("/docs/sections/start-here", model.StartHereHref);
     }
 
     [Fact]
@@ -680,6 +708,33 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
         Assert.Equal("Guide", model.Title);
         Assert.Equal("Guide", model.Document.Title);
+    }
+
+    [Fact]
+    public async Task Details_ShouldHonorMetadataBreadcrumbs_ForNonApiPublicDocs_WhenTargetsMatch()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "content",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "How-to Guides",
+                    Breadcrumbs = ["Get Started", "Quickstart"],
+                    BreadcrumbsMatchPathTargets = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("guides/quickstart.md");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal(["Get Started", "Quickstart"], model.Breadcrumbs.Select(crumb => crumb.Label).ToArray());
+        Assert.Equal("/docs/guides.html", model.Breadcrumbs[0].Href);
+        Assert.Null(model.Breadcrumbs[1].Href);
     }
 
     [Fact]

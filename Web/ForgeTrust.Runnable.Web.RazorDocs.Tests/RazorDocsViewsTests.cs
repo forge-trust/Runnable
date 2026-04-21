@@ -301,7 +301,7 @@ public class RazorDocsViewsTests
         Assert.Contains("Documentation", html);
         Assert.DoesNotContain("Show me internals", html);
         Assert.Contains("Follow the proof path first.", html);
-        Assert.Contains("Open Start Here", html);
+        Assert.DoesNotContain("Open Start Here", html);
     }
 
     [Fact]
@@ -527,6 +527,34 @@ public class RazorDocsViewsTests
         Assert.Equal(new[] { "API Reference", "ForgeTrust", "Runnable", "Web" }, breadcrumbTexts);
         Assert.Contains("href=\"/docs/Namespaces.html\"", html);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.html\"", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_ForEditorialDocs_WhenTargetsAreKnownToMatch()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "How-to Guides",
+                Breadcrumbs = ["Get Started", "Quickstart"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
+
+        Assert.Equal(new[] { "Get Started", "Quickstart" }, breadcrumbTexts);
     }
 
     [Fact]
@@ -1177,25 +1205,6 @@ public class RazorDocsViewsTests
         string resolvedTitle,
         DocPublicSection? publicSection)
     {
-        if (publicSection is { } section && section != DocPublicSection.ApiReference)
-        {
-            var sectionLabel = DocPublicSectionCatalog.GetLabel(section);
-            return string.Equals(sectionLabel, resolvedTitle, StringComparison.OrdinalIgnoreCase)
-                ? [new DocBreadcrumbViewModel { Label = sectionLabel }]
-                :
-                [
-                    new DocBreadcrumbViewModel
-                    {
-                        Label = sectionLabel,
-                        Href = DocPublicSectionCatalog.GetHref(section)
-                    },
-                    new DocBreadcrumbViewModel
-                    {
-                        Label = resolvedTitle
-                    }
-                ];
-        }
-
         var normalizedPath = doc.Path.Trim().Trim('/');
         var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                               || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
@@ -1250,6 +1259,25 @@ public class RazorDocsViewsTests
                                         && metadataBreadcrumbCount == parsedBreadcrumbs.Count;
         if (!canUseMetadataBreadcrumbs)
         {
+            if (publicSection is { } section && section != DocPublicSection.ApiReference)
+            {
+                var sectionLabel = DocPublicSectionCatalog.GetLabel(section);
+                return string.Equals(sectionLabel, resolvedTitle, StringComparison.OrdinalIgnoreCase)
+                    ? [new DocBreadcrumbViewModel { Label = sectionLabel }]
+                    :
+                    [
+                        new DocBreadcrumbViewModel
+                        {
+                            Label = sectionLabel,
+                            Href = DocPublicSectionCatalog.GetHref(section)
+                        },
+                        new DocBreadcrumbViewModel
+                        {
+                            Label = resolvedTitle
+                        }
+                    ];
+            }
+
             return parsedBreadcrumbs;
         }
 

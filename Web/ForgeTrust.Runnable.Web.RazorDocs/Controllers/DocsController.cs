@@ -248,7 +248,7 @@ public class DocsController : Controller
             Heading = landingDoc is not null ? GetCuratedHeading(landingDoc) : NeutralLandingHeading,
             Description = landingDoc is not null ? GetCuratedDescription(landingDoc) : NeutralLandingDescription,
             LandingDoc = landingDoc,
-            StartHereHref = DocPublicSectionCatalog.GetHref(DocPublicSection.StartHere),
+            StartHereHref = startHereSection is null ? null : DocPublicSectionCatalog.GetHref(DocPublicSection.StartHere),
             VisibleDocs = visibleDocs,
             FeaturedPages = featuredPages,
             SecondarySections = BuildSecondarySections(sections, docs)
@@ -560,25 +560,6 @@ public class DocsController : Controller
         DocSectionSnapshot? currentSectionSnapshot,
         string resolvedTitle)
     {
-        if (currentSectionSnapshot is not null && currentSectionSnapshot.Section != DocPublicSection.ApiReference)
-        {
-            var sectionHref = DocPublicSectionCatalog.GetHref(currentSectionSnapshot.Section);
-            return string.Equals(currentSectionSnapshot.Label, resolvedTitle, StringComparison.OrdinalIgnoreCase)
-                ? [new DocBreadcrumbViewModel { Label = currentSectionSnapshot.Label }]
-                :
-                [
-                    new DocBreadcrumbViewModel
-                    {
-                        Label = currentSectionSnapshot.Label,
-                        Href = sectionHref
-                    },
-                    new DocBreadcrumbViewModel
-                    {
-                        Label = resolvedTitle
-                    }
-                ];
-        }
-
         var normalizedPath = doc.Path.Trim().Trim('/');
         var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                               || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
@@ -633,6 +614,25 @@ public class DocsController : Controller
                                         && metadataBreadcrumbCount == parsedBreadcrumbs.Count;
         if (!canUseMetadataBreadcrumbs)
         {
+            if (currentSectionSnapshot is not null && currentSectionSnapshot.Section != DocPublicSection.ApiReference)
+            {
+                var sectionHref = DocPublicSectionCatalog.GetHref(currentSectionSnapshot.Section);
+                return string.Equals(currentSectionSnapshot.Label, resolvedTitle, StringComparison.OrdinalIgnoreCase)
+                    ? [new DocBreadcrumbViewModel { Label = currentSectionSnapshot.Label }]
+                    :
+                    [
+                        new DocBreadcrumbViewModel
+                        {
+                            Label = currentSectionSnapshot.Label,
+                            Href = sectionHref
+                        },
+                        new DocBreadcrumbViewModel
+                        {
+                            Label = resolvedTitle
+                        }
+                    ];
+            }
+
             return parsedBreadcrumbs;
         }
 

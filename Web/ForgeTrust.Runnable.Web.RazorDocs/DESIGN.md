@@ -37,9 +37,9 @@ If a new surface starts to feel like a feature grid, a landing page, or an AI-ge
 
 ## Styling Boundary
 
-RazorDocs uses two different styling tools because it is solving two different problems.
+RazorDocs uses multiple styling patterns because it is solving different ownership and stability problems.
 
-Owned package chrome is local product UI. Harvested content is nested document output. Stateful search UI also needs selectors that both CSS and JavaScript can trust. Treating those as the same problem is how teams end up arguing about style purity instead of making the interface easier to maintain.
+Owned package chrome is local product UI. Harvested content is nested document output. Stateful search UI also needs selectors that both CSS and JavaScript can trust. Treating those surfaces as one blanket styling problem is how teams end up arguing about style purity instead of making the interface easier to maintain.
 
 ### Default Rule
 

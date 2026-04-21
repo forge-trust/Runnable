@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
@@ -12,7 +13,18 @@ internal static class DocMetadataFactory
         DocMetadata? explicitMetadata,
         string? derivedSummary)
     {
-        var defaultNavGroup = GetDefaultMarkdownNavGroup(path);
+        return CreateMarkdownMetadata(path, resolvedTitle, explicitMetadata, derivedSummary, logger: null);
+    }
+
+    internal static DocMetadata CreateMarkdownMetadata(
+        string path,
+        string resolvedTitle,
+        DocMetadata? explicitMetadata,
+        string? derivedSummary,
+        ILogger? logger)
+    {
+        var defaultSection = GetDefaultMarkdownSection(path);
+        var defaultNavGroup = DocPublicSectionCatalog.GetLabel(defaultSection);
         var isInternalPath = IsInternalPath(path);
         var defaults = new DocMetadata
         {
@@ -32,7 +44,8 @@ internal static class DocMetadataFactory
         };
 
         var merged = DocMetadata.Merge(explicitMetadata, defaults) ?? new DocMetadata();
-        var normalizedNavGroup = NormalizeMetadataValue(merged.NavGroup) ?? defaultNavGroup;
+        var normalizedExplicitNavGroup = NormalizeExplicitNavGroup(path, explicitMetadata?.NavGroup, defaultSection, logger);
+        var normalizedNavGroup = normalizedExplicitNavGroup ?? defaultNavGroup;
         bool? summaryIsDerived = string.IsNullOrWhiteSpace(merged.Summary)
             ? null
             : string.IsNullOrWhiteSpace(explicitMetadata?.Summary);
@@ -43,6 +56,7 @@ internal static class DocMetadataFactory
         return merged with
         {
             NavGroup = normalizedNavGroup,
+            NavGroupIsDerived = normalizedExplicitNavGroup is not null ? false : true,
             SummaryIsDerived = summaryIsDerived,
             Breadcrumbs = breadcrumbs
         };
@@ -60,7 +74,7 @@ internal static class DocMetadataFactory
             AudienceIsDerived = false,
             Component = DeriveComponentFromNamespace(namespaceName),
             ComponentIsDerived = false,
-            NavGroup = "API Reference",
+            NavGroup = DocPublicSectionCatalog.GetLabel(DocPublicSection.ApiReference),
             NavGroupIsDerived = false,
             HideFromPublicNav = isInternalNamespace,
             HideFromSearch = isInternalNamespace,
@@ -90,25 +104,41 @@ internal static class DocMetadataFactory
         return IsInternalPath(NormalizePath(path)) ? "contributor" : "implementer";
     }
 
-    private static string? GetDefaultMarkdownNavGroup(string path)
+    private static DocPublicSection GetDefaultMarkdownSection(string path)
     {
         var normalizedPath = NormalizePath(path);
         if (path.Equals("README.md", StringComparison.OrdinalIgnoreCase))
         {
-            return "Start Here";
+            return DocPublicSection.StartHere;
         }
 
         if (normalizedPath.Contains("examples/", StringComparison.OrdinalIgnoreCase))
         {
-            return "Examples";
+            return DocPublicSection.Examples;
         }
 
         if (IsInternalPath(normalizedPath))
         {
-            return "Internals";
+            return DocPublicSection.Internals;
         }
 
-        return null;
+        var fileName = Path.GetFileNameWithoutExtension(normalizedPath);
+        if (IsStartHereLikeName(fileName))
+        {
+            return DocPublicSection.StartHere;
+        }
+
+        if (ContainsAny(normalizedPath, "concept", "architecture", "explanation", "glossary"))
+        {
+            return DocPublicSection.Concepts;
+        }
+
+        if (ContainsAny(normalizedPath, "troubleshoot", "faq", "debug", "failure", "error"))
+        {
+            return DocPublicSection.Troubleshooting;
+        }
+
+        return DocPublicSection.HowToGuides;
     }
 
     internal static string? DeriveComponentFromPath(string path)
@@ -209,9 +239,57 @@ internal static class DocMetadataFactory
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
+    private static string? NormalizeExplicitNavGroup(
+        string path,
+        string? explicitNavGroup,
+        DocPublicSection defaultSection,
+        ILogger? logger)
+    {
+        var normalized = NormalizeMetadataValue(explicitNavGroup);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (DocPublicSectionCatalog.TryResolve(normalized, out var section))
+        {
+            return DocPublicSectionCatalog.GetLabel(section);
+        }
+
+        logger?.LogWarning(
+            "Ignoring invalid nav_group value '{NavGroup}' on {DocPath}. Falling back to derived public section '{SectionLabel}'.",
+            explicitNavGroup,
+            path,
+            DocPublicSectionCatalog.GetLabel(defaultSection));
+
+        return null;
+    }
+
     private static string NormalizePath(string path)
     {
         return path.Replace('\\', '/');
+    }
+
+    private static bool ContainsAny(string value, params string[] needles)
+    {
+        return needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsStartHereLikeName(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        return fileName.Equals("quickstart", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("getting-started", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("getting_started", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("start-here", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("start_here", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("intro", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("introduction", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("overview", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyList<string>? BuildDefaultBreadcrumbs(string? navGroup, string resolvedTitle)

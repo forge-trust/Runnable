@@ -97,9 +97,10 @@ public class RazorDocsViewsTests
         var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
 
         Assert.Contains("Documentation Index", html);
+        Assert.Contains("href=\"/docs/sections/api-reference\"", html);
         Assert.Contains("href=\"/docs/Namespaces.html\"", html);
         Assert.Contains("data-doc-anchor-link=\"true\"", html);
-        Assert.Contains("href=\"/docs/src/Example.cs.html#Example.Run\"", html);
+        Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.Runnable.Web.html#ForgeTrust.Runnable.Web.AspireApp\"", html);
         Assert.Contains("ForgeTrust", html);
     }
 
@@ -144,7 +145,7 @@ public class RazorDocsViewsTests
         Assert.Contains(">Runnable</h1>", html);
         Assert.Contains("Proof before promises.", html);
         Assert.Contains("How does composition work?", html);
-        Assert.Contains(">Composition</h2>", html);
+        Assert.Contains(">Composition</h3>", html);
         Assert.Contains("Follow the composition model.", html);
         Assert.Contains("Guide", html);
         Assert.Contains("docs-page-badge--guide", html);
@@ -299,7 +300,8 @@ public class RazorDocsViewsTests
 
         Assert.Contains("Documentation", html);
         Assert.DoesNotContain("Show me internals", html);
-        Assert.Contains("articles", html);
+        Assert.Contains("Follow the proof path first.", html);
+        Assert.Contains("Open Start Here", html);
     }
 
     [Fact]
@@ -428,10 +430,15 @@ public class RazorDocsViewsTests
             services,
             "/Views/Docs/Details.cshtml",
             doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
 
-        Assert.Contains(">guides</a>", html);
+        Assert.Contains("guides", breadcrumbTexts);
         Assert.Contains(">Quickstart</h1>", html);
-        Assert.Contains(">quickstart.md</span>", html);
+        Assert.Contains("quickstart.md", breadcrumbTexts);
         Assert.DoesNotContain("Start Here", html);
     }
 
@@ -453,9 +460,14 @@ public class RazorDocsViewsTests
             services,
             "/Views/Docs/Details.cshtml",
             doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
 
-        Assert.Contains(">guides</a>", html);
-        Assert.Contains(">quickstart.md</span>", html);
+        Assert.Contains("guides", breadcrumbTexts);
+        Assert.Contains("quickstart.md", breadcrumbTexts);
         Assert.DoesNotContain(">Start Here</a>", html);
     }
 
@@ -477,9 +489,14 @@ public class RazorDocsViewsTests
             services,
             "/Views/Docs/Details.cshtml",
             doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
 
-        Assert.Contains(">guides</a>", html);
-        Assert.Contains(">quickstart.md</span>", html);
+        Assert.Contains("guides", breadcrumbTexts);
+        Assert.Contains("quickstart.md", breadcrumbTexts);
         Assert.DoesNotContain(">Start Here</a>", html);
     }
 
@@ -501,8 +518,13 @@ public class RazorDocsViewsTests
             services,
             "/Views/Docs/Details.cshtml",
             doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
 
-        Assert.Contains(">API Reference</a>", html);
+        Assert.Equal(new[] { "API Reference", "ForgeTrust", "Runnable", "Web" }, breadcrumbTexts);
         Assert.Contains("href=\"/docs/Namespaces.html\"", html);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.html\"", html);
     }
@@ -1077,9 +1099,10 @@ public class RazorDocsViewsTests
 
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         {
-            Model = model
+            Model = null
         };
         configureViewData?.Invoke(viewData);
+        viewData.Model = AdaptViewModel(viewName, model, viewData);
 
         var result = new ViewResult
         {
@@ -1100,6 +1123,191 @@ public class RazorDocsViewsTests
         return await reader.ReadToEndAsync();
     }
 
+    private static object AdaptViewModel(string viewName, object model, ViewDataDictionary viewData)
+    {
+        if (viewName.EndsWith("/Views/Docs/Details.cshtml", StringComparison.OrdinalIgnoreCase)
+            && model is DocNode doc)
+        {
+            return CreateDetailsViewModel(doc);
+        }
+
+        if (viewName.EndsWith("/Views/Shared/Components/Sidebar/Default.cshtml", StringComparison.OrdinalIgnoreCase)
+            && model is IEnumerable<IGrouping<string, DocNode>> groupedDocs)
+        {
+            return CreateSidebarViewModel(groupedDocs, viewData);
+        }
+
+        return model;
+    }
+
+    private static DocDetailsViewModel CreateDetailsViewModel(DocNode doc)
+    {
+        var resolvedTitle = string.IsNullOrWhiteSpace(doc.Metadata?.Title)
+            ? doc.Title
+            : doc.Metadata!.Title!.Trim();
+        var publicSection = DocPublicSectionCatalog.TryResolve(doc.Metadata?.NavGroup, out var section)
+            ? section
+            : (DocPublicSection?)null;
+        var summary = doc.Metadata?.Summary;
+
+        return new DocDetailsViewModel
+        {
+            Document = doc,
+            Title = resolvedTitle,
+            Summary = summary,
+            ShowSummary = !string.IsNullOrWhiteSpace(summary) && doc.Metadata?.SummaryIsDerived != true,
+            IsCSharpApiDoc = doc.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase),
+            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType),
+            Component = doc.Metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(doc.Metadata?.Component)
+                ? null
+                : doc.Metadata!.Component!.Trim(),
+            Audience = doc.Metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(doc.Metadata?.Audience)
+                ? null
+                : doc.Metadata!.Audience!.Trim(),
+            Breadcrumbs = CreateDetailsBreadcrumbs(doc, resolvedTitle, publicSection),
+            PublicSection = publicSection,
+            PublicSectionLabel = publicSection is null ? null : DocPublicSectionCatalog.GetLabel(publicSection.Value),
+            PublicSectionHref = publicSection is null ? null : DocPublicSectionCatalog.GetHref(publicSection.Value),
+            PublicSectionPurpose = publicSection is null ? null : DocPublicSectionCatalog.GetPurpose(publicSection.Value)
+        };
+    }
+
+    private static IReadOnlyList<DocBreadcrumbViewModel> CreateDetailsBreadcrumbs(
+        DocNode doc,
+        string resolvedTitle,
+        DocPublicSection? publicSection)
+    {
+        if (publicSection is { } section && section != DocPublicSection.ApiReference)
+        {
+            var sectionLabel = DocPublicSectionCatalog.GetLabel(section);
+            return string.Equals(sectionLabel, resolvedTitle, StringComparison.OrdinalIgnoreCase)
+                ? [new DocBreadcrumbViewModel { Label = sectionLabel }]
+                :
+                [
+                    new DocBreadcrumbViewModel
+                    {
+                        Label = sectionLabel,
+                        Href = DocPublicSectionCatalog.GetHref(section)
+                    },
+                    new DocBreadcrumbViewModel
+                    {
+                        Label = resolvedTitle
+                    }
+                ];
+        }
+
+        var normalizedPath = doc.Path.Trim().Trim('/');
+        var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
+                              || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
+        var metadataBreadcrumbs = doc.Metadata?.Breadcrumbs?
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .Select(label => label.Trim())
+            .ToList();
+        var parsedBreadcrumbs = new List<DocBreadcrumbViewModel>();
+
+        if (isNamespacePath)
+        {
+            parsedBreadcrumbs.Add(new DocBreadcrumbViewModel { Label = "Namespaces", Href = "/docs/Namespaces.html" });
+
+            if (normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+            {
+                var fullNamespace = normalizedPath["Namespaces/".Length..];
+                var parts = fullNamespace.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                for (var i = 0; i < parts.Length; i++)
+                {
+                    var prefix = string.Join(".", parts.Take(i + 1));
+                    var isLast = i == parts.Length - 1;
+                    parsedBreadcrumbs.Add(
+                        new DocBreadcrumbViewModel
+                        {
+                            Label = parts[i],
+                            Href = isLast ? null : $"/docs/Namespaces/{prefix}.html"
+                        });
+                }
+            }
+        }
+        else
+        {
+            var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var current = string.Empty;
+            for (var i = 0; i < segments.Length; i++)
+            {
+                var segment = segments[i];
+                current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
+                var isLast = i == segments.Length - 1;
+                parsedBreadcrumbs.Add(
+                    new DocBreadcrumbViewModel
+                    {
+                        Label = segment,
+                        Href = isLast ? null : $"/docs/{current}.html"
+                    });
+            }
+        }
+
+        var metadataBreadcrumbCount = metadataBreadcrumbs?.Count ?? 0;
+        var canUseMetadataBreadcrumbs = metadataBreadcrumbCount > 0
+                                        && doc.Metadata?.BreadcrumbsMatchPathTargets == true
+                                        && metadataBreadcrumbCount == parsedBreadcrumbs.Count;
+        if (!canUseMetadataBreadcrumbs)
+        {
+            return parsedBreadcrumbs;
+        }
+
+        return metadataBreadcrumbs!
+            .Select(
+                (label, index) => new DocBreadcrumbViewModel
+                {
+                    Label = label,
+                    Href = parsedBreadcrumbs[index].Href
+                })
+            .ToList();
+    }
+
+    private static DocSidebarViewModel CreateSidebarViewModel(
+        IEnumerable<IGrouping<string, DocNode>> groupedDocs,
+        ViewDataDictionary viewData)
+    {
+        var namespacePrefixes = viewData["NamespacePrefixes"] as IReadOnlyList<string>;
+        var sections = groupedDocs
+            .Select(
+                group =>
+                {
+                    var section = ResolveSidebarSection(group.Key, group);
+                    var snapshot = new DocSectionSnapshot
+                    {
+                        Section = section,
+                        Label = DocPublicSectionCatalog.GetLabel(section),
+                        Slug = DocPublicSectionCatalog.GetSlug(section),
+                        VisiblePages = group.ToList()
+                    };
+
+                    return new DocSidebarSectionViewModel
+                    {
+                        Section = section,
+                        Label = DocPublicSectionCatalog.GetLabel(section),
+                        Slug = DocPublicSectionCatalog.GetSlug(section),
+                        Href = DocPublicSectionCatalog.GetHref(section),
+                        Groups = DocSectionDisplayBuilder.BuildGroups(snapshot, namespacePrefixes: namespacePrefixes)
+                    };
+                })
+            .ToList();
+
+        return new DocSidebarViewModel { Sections = sections };
+    }
+
+    private static DocPublicSection ResolveSidebarSection(string groupKey, IEnumerable<DocNode> docs)
+    {
+        if (DocPublicSectionCatalog.TryResolve(groupKey, out var section))
+        {
+            return section;
+        }
+
+        return groupKey.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
+               || docs.Any(doc => doc.Path.StartsWith("Namespaces", StringComparison.OrdinalIgnoreCase))
+            ? DocPublicSection.ApiReference
+            : DocPublicSection.HowToGuides;
+    }
+
     private static List<IGrouping<string, DocNode>> CreateGroupedSidebarModel(params (string Group, DocNode Node)[] items)
     {
         return items
@@ -1112,19 +1320,25 @@ public class RazorDocsViewsTests
     {
         return
         [
-            new("Namespaces", "Namespaces", "<p>Namespace root</p>"),
-            new("ForgeTrust", "Namespaces/ForgeTrust", "<p>ForgeTrust namespace</p>"),
-            new("Runnable", "Namespaces/ForgeTrust.Runnable", "<p>Runnable namespace</p>"),
-            new("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web namespace</p>"),
-            new("Api", "Namespaces/ForgeTrust.Runnable.Web.Api", "<p>Api namespace</p>"),
-            new("AspireApp", "Namespaces/ForgeTrust.Runnable.Web#ForgeTrust.Runnable.Web.AspireApp", string.Empty, "Namespaces/ForgeTrust.Runnable.Web"),
+            new("Namespaces", "Namespaces", "<p>Namespace root</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("ForgeTrust", "Namespaces/ForgeTrust", "<p>ForgeTrust namespace</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Runnable", "Namespaces/ForgeTrust.Runnable", "<p>Runnable namespace</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web namespace</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Api", "Namespaces/ForgeTrust.Runnable.Web.Api", "<p>Api namespace</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new(
+                "AspireApp",
+                "Namespaces/ForgeTrust.Runnable.Web#ForgeTrust.Runnable.Web.AspireApp",
+                string.Empty,
+                "Namespaces/ForgeTrust.Runnable.Web",
+                Metadata: new DocMetadata { NavGroup = "API Reference" }),
             new("RunAsync", "Namespaces/ForgeTrust.Runnable.Web#ForgeTrust.Runnable.Web.AspireApp.RunAsync(System.String[])", string.Empty, "Namespaces/ForgeTrust.Runnable.Web"),
             new(
                 "Example",
                 "src/Example.cs",
-                "<section id='example' class='doc-type'><header class='doc-type-header'><span class='doc-kind'>Type</span><h2>Example</h2></header><div class='doc-body'><p>Example body</p></div></section>"),
-            new("Run", "src/Example.cs#Example.Run", string.Empty, "src/Example.cs"),
-            new("Guide", "guides/intro.md", "<p>Guide body</p>")
+                "<section id='example' class='doc-type'><header class='doc-type-header'><span class='doc-kind'>Type</span><h2>Example</h2></header><div class='doc-body'><p>Example body</p></div></section>",
+                Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Run", "src/Example.cs#Example.Run", string.Empty, "src/Example.cs", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Guide", "guides/intro.md", "<p>Guide body</p>", Metadata: new DocMetadata { NavGroup = "How-to Guides" })
         ];
     }
 

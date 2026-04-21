@@ -69,6 +69,7 @@ internal static class MarkdownFrontMatterParser
             Status = Normalize(document.Status),
             NavGroup = Normalize(document.NavGroup),
             Order = document.Order,
+            SectionLanding = document.SectionLanding,
             HideFromPublicNav = document.HideFromPublicNav,
             HideFromSearch = document.HideFromSearch,
             RelatedPages = NormalizeList(document.RelatedPages),
@@ -179,6 +180,8 @@ internal static class MarkdownFrontMatterParser
         public string? NavGroup { get; init; }
 
         public int? Order { get; init; }
+
+        public bool? SectionLanding { get; init; }
 
         public bool? HideFromPublicNav { get; init; }
 

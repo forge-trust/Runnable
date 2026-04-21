@@ -154,7 +154,9 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
         Assert.Equal("Documentation", model.Heading);
-        Assert.Equal("Welcome to the technical documentation. Select a topic from the sidebar to verify implementation details and usage guides.", model.Description);
+        Assert.Equal(
+            "Start with the strongest proof path, then branch into guides, examples, and reference once you know where you want to go deeper.",
+            model.Description);
         Assert.Single(model.VisibleDocs);
     }
 
@@ -433,7 +435,7 @@ public class DocsControllerTests : IDisposable
         var featuredPage = Assert.Single(model.FeaturedPages);
         Assert.Equal("Documentation", model.Heading);
         Assert.Equal(
-            "Start with the proof paths that answer the first evaluator questions, then drill into guides, examples, and API details.",
+            "Start with the proof path that answers the first evaluator questions, then move into the sections that fit your next decision.",
             model.Description);
         Assert.Equal("Composition Guide", featuredPage.Question);
         Assert.Equal("Composition Guide", featuredPage.Title);
@@ -583,8 +585,9 @@ public class DocsControllerTests : IDisposable
 
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocNode>(viewResult.Model);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
         Assert.Equal("Title", model.Title);
+        Assert.Equal("Title", model.Document.Title);
     }
 
     [Fact]
@@ -643,8 +646,9 @@ public class DocsControllerTests : IDisposable
 
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocNode>(viewResult.Model);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
         Assert.Equal("Title", model.Title);
+        Assert.Equal("Title", model.Document.Title);
     }
 
     [Fact]
@@ -659,8 +663,9 @@ public class DocsControllerTests : IDisposable
 
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocNode>(viewResult.Model);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
         Assert.Equal("Legacy", model.Title);
+        Assert.Equal("Legacy", model.Document.Title);
     }
 
     [Fact]
@@ -672,8 +677,9 @@ public class DocsControllerTests : IDisposable
         var result = await _controller.Details("guides\\intro.md");
 
         var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocNode>(viewResult.Model);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
         Assert.Equal("Guide", model.Title);
+        Assert.Equal("Guide", model.Document.Title);
     }
 
     [Fact]

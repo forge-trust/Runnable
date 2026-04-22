@@ -37,6 +37,34 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
     }
 
     /// <summary>
+    /// Starts the web host with Runnable Web's deterministic development-port fallback when the caller has not
+    /// explicitly configured a port or URL through command-line arguments or environment variables.
+    /// </summary>
+    /// <param name="args">The command-line arguments supplied by the caller.</param>
+    /// <returns>A task that completes when the web host run exits.</returns>
+    public new Task RunAsync(string[] args)
+    {
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            args,
+            Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory,
+            Environment.GetEnvironmentVariable);
+
+        if (resolution.AppliedPort is null)
+        {
+            return base.RunAsync(args);
+        }
+
+        GetStartupLogger()
+            .LogInformation(
+                "No explicit web port or URL was configured. Defaulting to deterministic development port {Port} for '{SeedPath}'. Override with --port, --urls, or ASPNETCORE_URLS.",
+                resolution.AppliedPort.Value,
+                resolution.SeedPath);
+
+        return base.RunAsync(resolution.Args);
+    }
+
+    /// <summary>
     /// Collects and caches all IRunnableWebModule instances found in the provided startup context. This method is idempotent.
     /// </summary>
     /// <param name="context">The startup context whose dependencies and root module are inspected for web modules.</param>

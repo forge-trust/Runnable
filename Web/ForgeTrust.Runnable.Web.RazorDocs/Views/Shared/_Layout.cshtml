@@ -331,7 +331,7 @@
                 closeSidebar();
             }
 
-            const anchorLink = clickTarget.closest("a[data-doc-anchor-link='true']");
+            const anchorLink = clickTarget.closest("a[data-doc-anchor-link='true'], a[data-doc-outline-link='true']");
             if (!anchorLink) {
                 return;
             }

@@ -194,7 +194,7 @@ public class DocAggregator
     public async Task<IReadOnlyList<DocSectionSnapshot>> GetPublicSectionsAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
-        return snapshot.PublicSections;
+        return ClonePublicSections(snapshot.PublicSections);
     }
 
     /// <summary>
@@ -208,7 +208,8 @@ public class DocAggregator
         CancellationToken cancellationToken = default)
     {
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
-        return snapshot.PublicSections.FirstOrDefault(item => item.Section == section);
+        var sectionSnapshot = snapshot.PublicSections.FirstOrDefault(item => item.Section == section);
+        return sectionSnapshot is null ? null : CloneSectionSnapshot(sectionSnapshot);
     }
 
     /// <summary>
@@ -385,11 +386,24 @@ public class DocAggregator
                     Label = DocPublicSectionCatalog.GetLabel(section),
                     Slug = DocPublicSectionCatalog.GetSlug(section),
                     LandingDoc = landingDoc,
-                    VisiblePages = sectionDocs
+                    VisiblePages = sectionDocs.ToArray()
                 });
         }
 
-        return sections;
+        return sections.ToArray();
+    }
+
+    private static IReadOnlyList<DocSectionSnapshot> ClonePublicSections(IReadOnlyList<DocSectionSnapshot> sections)
+    {
+        return sections.Select(CloneSectionSnapshot).ToArray();
+    }
+
+    private static DocSectionSnapshot CloneSectionSnapshot(DocSectionSnapshot snapshot)
+    {
+        return snapshot with
+        {
+            VisiblePages = snapshot.VisiblePages.ToArray()
+        };
     }
 
     private static DocNode? ResolveSectionLandingDoc(

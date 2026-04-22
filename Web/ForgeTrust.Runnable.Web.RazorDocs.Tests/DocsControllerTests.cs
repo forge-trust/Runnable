@@ -308,6 +308,31 @@ public class DocsControllerTests : IDisposable
         Assert.Equal("/docs", model.DocsHomeHref);
     }
 
+    [Theory]
+    [InlineData("api")]
+    [InlineData("reference")]
+    [InlineData("API Reference")]
+    public async Task Section_ShouldRedirectAliasSectionRequests_ToCanonicalSlug(string requestedSlug)
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Service API",
+                "api/service.md",
+                "<p>API body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Section(requestedSlug);
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs/sections/api-reference", redirect.Url);
+    }
+
     [Fact]
     public async Task Index_ShouldSkipHiddenFeaturedPages_AndFallbackWhenNoVisibleEntriesRemain()
     {

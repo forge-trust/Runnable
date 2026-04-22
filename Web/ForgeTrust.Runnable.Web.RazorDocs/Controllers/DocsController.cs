@@ -66,6 +66,11 @@ public class DocsController : Controller
 
         if (!DocPublicSectionCatalog.TryResolveSlug(sectionSlug, out var section))
         {
+            if (DocPublicSectionCatalog.TryResolve(sectionSlug, out var aliasSection))
+            {
+                return Redirect(DocPublicSectionCatalog.GetHref(aliasSection));
+            }
+
             return View("Section", BuildUnavailableSectionViewModel(null, startHereHref));
         }
 

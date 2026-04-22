@@ -2,8 +2,27 @@ using ForgeTrust.Runnable.Web.RazorDocs.Models;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 
+/// <summary>
+/// Shapes public-section snapshots into the grouped link structures used by section pages and the shared sidebar.
+/// </summary>
 internal static class DocSectionDisplayBuilder
 {
+    /// <summary>
+    /// Builds grouped section links for one public section snapshot.
+    /// </summary>
+    /// <param name="snapshot">The public-section snapshot to group for display.</param>
+    /// <param name="currentHref">
+    /// The current docs href, if known. When provided, matching links are marked current for accessibility and styling.
+    /// </param>
+    /// <param name="namespacePrefixes">
+    /// Optional namespace prefixes used to shorten API-reference labels and family headings. When omitted, API-reference
+    /// groups derive prefixes from the visible pages in <paramref name="snapshot"/>.
+    /// </param>
+    /// <returns>The grouped link model for the supplied section snapshot.</returns>
+    /// <remarks>
+    /// Editorial sections stay flat and task-oriented, while <see cref="DocPublicSection.ApiReference"/> delegates to the
+    /// namespace-aware grouping path so API reference content stays organized by family.
+    /// </remarks>
     internal static IReadOnlyList<DocSectionGroupViewModel> BuildGroups(
         DocSectionSnapshot snapshot,
         string? currentHref = null,

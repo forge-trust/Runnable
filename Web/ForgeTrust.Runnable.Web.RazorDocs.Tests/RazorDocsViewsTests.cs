@@ -357,6 +357,42 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SectionView_ShouldShowStartHereCta_WhenStartHereSectionExistsAndNotViewingIt()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Start here."
+                }),
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "Understand the concepts."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("concepts"));
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var actionLinks = document.QuerySelectorAll("div.mt-6.flex.flex-wrap.gap-3 > a").ToArray();
+
+        Assert.Contains(
+            actionLinks,
+            link => string.Equals(link.GetAttribute("href"), "/docs/sections/start-here", StringComparison.Ordinal));
+        Assert.Contains(actionLinks, link => link.TextContent.Contains("Start Here", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SidebarView_ShouldRenderAriaCurrentAttributes_UsingConditionalAttributeValues()
     {
         using var services = CreateServiceProvider(CreateDocs());

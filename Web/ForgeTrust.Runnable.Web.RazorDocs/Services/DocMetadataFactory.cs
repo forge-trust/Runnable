@@ -3,10 +3,21 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
+/// <summary>
+/// Builds normalized RazorDocs metadata defaults and fallbacks for harvested documentation nodes.
+/// </summary>
 internal static class DocMetadataFactory
 {
     private const string RunnableNamespacePrefix = "ForgeTrust.Runnable.";
 
+    /// <summary>
+    /// Creates normalized metadata for a Markdown documentation node without emitting normalization warnings.
+    /// </summary>
+    /// <param name="path">The source path used for default section, page-type, and audience inference.</param>
+    /// <param name="resolvedTitle">The resolved display title for the Markdown node.</param>
+    /// <param name="explicitMetadata">Optional authored metadata that should override inferred defaults.</param>
+    /// <param name="derivedSummary">Optional summary text derived from the document body.</param>
+    /// <returns>The merged metadata with inferred defaults, normalized nav-group handling, and fallback breadcrumbs.</returns>
     internal static DocMetadata CreateMarkdownMetadata(
         string path,
         string resolvedTitle,
@@ -16,6 +27,22 @@ internal static class DocMetadataFactory
         return CreateMarkdownMetadata(path, resolvedTitle, explicitMetadata, derivedSummary, logger: null);
     }
 
+    /// <summary>
+    /// Creates normalized metadata for a Markdown documentation node and optionally logs authored nav-group fallback warnings.
+    /// </summary>
+    /// <param name="path">The source path used for default section, page-type, and audience inference.</param>
+    /// <param name="resolvedTitle">The resolved display title for the Markdown node.</param>
+    /// <param name="explicitMetadata">Optional authored metadata that should override inferred defaults.</param>
+    /// <param name="derivedSummary">Optional summary text derived from the document body.</param>
+    /// <param name="logger">
+    /// An optional logger that receives warnings when authored <c>nav_group</c> values do not resolve to a built-in public
+    /// section and RazorDocs falls back to the derived section assignment.
+    /// </param>
+    /// <returns>The merged metadata with normalized section labels, fallback breadcrumbs, and derived-field flags.</returns>
+    /// <remarks>
+    /// This shared internal entry point normalizes explicit public-section selection, preserves authored metadata where valid,
+    /// derives title/summary fallback semantics, and rebuilds default breadcrumbs when authors do not supply them explicitly.
+    /// </remarks>
     internal static DocMetadata CreateMarkdownMetadata(
         string path,
         string resolvedTitle,
@@ -62,6 +89,12 @@ internal static class DocMetadataFactory
         };
     }
 
+    /// <summary>
+    /// Creates canonical metadata for an API-reference documentation node.
+    /// </summary>
+    /// <param name="title">The display title for the API node.</param>
+    /// <param name="namespaceName">The owning namespace used for component inference and breadcrumb generation.</param>
+    /// <returns>Metadata configured for API-reference navigation, contributor visibility, and namespace breadcrumbs.</returns>
     internal static DocMetadata CreateApiReferenceMetadata(string title, string namespaceName)
     {
         var isInternalNamespace = IsInternalNamespace(namespaceName);
@@ -141,6 +174,11 @@ internal static class DocMetadataFactory
         return DocPublicSection.HowToGuides;
     }
 
+    /// <summary>
+    /// Derives the owning Runnable component name from a documentation path when possible.
+    /// </summary>
+    /// <param name="path">The documentation path whose segments should be inspected.</param>
+    /// <returns>The inferred component name, or <see langword="null"/> when no component hint can be derived.</returns>
     internal static string? DeriveComponentFromPath(string path)
     {
         foreach (var segment in path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries))
@@ -154,6 +192,11 @@ internal static class DocMetadataFactory
         return path.Contains("Runnable", StringComparison.OrdinalIgnoreCase) ? "Runnable" : null;
     }
 
+    /// <summary>
+    /// Derives the owning Runnable component name from a namespace.
+    /// </summary>
+    /// <param name="namespaceName">The namespace to inspect.</param>
+    /// <returns>The inferred component name, or <see langword="null"/> when the namespace is blank.</returns>
     internal static string? DeriveComponentFromNamespace(string namespaceName)
     {
         if (string.IsNullOrWhiteSpace(namespaceName))

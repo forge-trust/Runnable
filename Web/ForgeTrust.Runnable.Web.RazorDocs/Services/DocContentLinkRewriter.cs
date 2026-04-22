@@ -171,11 +171,16 @@ internal static class DocContentLinkRewriter
 
     private static bool LooksLikeDocTarget(string path)
     {
-        return LooksLikeRootedDocTarget(path)
-               || path.EndsWith(".html", StringComparison.OrdinalIgnoreCase);
+        return LooksLikeSourceDocTarget(path)
+               || LooksLikeCanonicalDocTarget(path);
     }
 
     private static bool LooksLikeRootedDocTarget(string path)
+    {
+        return LooksLikeDocTarget(path);
+    }
+
+    private static bool LooksLikeSourceDocTarget(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -186,6 +191,20 @@ internal static class DocContentLinkRewriter
                || path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
                || path.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                || path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeCanonicalDocTarget(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        return path.EndsWith(".md.html", StringComparison.OrdinalIgnoreCase)
+               || path.EndsWith(".cs.html", StringComparison.OrdinalIgnoreCase)
+               || path.Equals("Namespaces.html", StringComparison.OrdinalIgnoreCase)
+               || (path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase)
+                   && path.EndsWith(".html", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string ResolveRelativePath(string sourcePath, string relativePath)

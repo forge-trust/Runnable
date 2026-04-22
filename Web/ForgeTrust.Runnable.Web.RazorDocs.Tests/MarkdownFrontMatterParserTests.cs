@@ -138,6 +138,28 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void Extract_ShouldTreatBlankMigrationLinkFieldsAsMissing()
+    {
+        var markdown = """
+            ---
+            trust:
+              status: Unreleased
+              migration:
+                label: "   "
+                href: "   "
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        Assert.NotNull(metadata?.Trust);
+        Assert.Equal("Unreleased", metadata!.Trust!.Status);
+        Assert.Null(metadata.Trust.Migration);
+    }
+
+    [Fact]
     public void Extract_ShouldReturnOriginalMarkdown_WhenFrontMatterIsInvalid()
     {
         var markdown = """

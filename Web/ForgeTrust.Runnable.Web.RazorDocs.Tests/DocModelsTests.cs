@@ -231,4 +231,93 @@ public class DocModelsTests
 
         Assert.Same(primary, merged);
     }
+
+    [Fact]
+    public void DocTrustMetadataMerge_ShouldReturnFallback_WhenPrimaryIsNull()
+    {
+        var fallback = new DocTrustMetadata
+        {
+            Status = "Published"
+        };
+
+        var merged = DocTrustMetadata.Merge(null, fallback);
+
+        Assert.Same(fallback, merged);
+    }
+
+    [Fact]
+    public void DocTrustMetadataMerge_ShouldReturnPrimary_WhenFallbackIsNull()
+    {
+        var primary = new DocTrustMetadata
+        {
+            Status = "Published"
+        };
+
+        var merged = DocTrustMetadata.Merge(primary, null);
+
+        Assert.Same(primary, merged);
+    }
+
+    [Fact]
+    public void DocTrustMetadataMerge_ShouldTreatBlankFallbackValuesAsMissing()
+    {
+        var merged = DocTrustMetadata.Merge(
+            new DocTrustMetadata
+            {
+                Summary = "   "
+            },
+            new DocTrustMetadata
+            {
+                Summary = "\t"
+            });
+
+        Assert.NotNull(merged);
+        Assert.Null(merged!.Summary);
+    }
+
+    [Fact]
+    public void DocTrustLinkMerge_ShouldReturnFallback_WhenPrimaryIsNull()
+    {
+        var fallback = new DocTrustLink
+        {
+            Label = "Upgrade guide"
+        };
+
+        var merged = DocTrustLink.Merge(null, fallback);
+
+        Assert.Same(fallback, merged);
+    }
+
+    [Fact]
+    public void DocTrustLinkMerge_ShouldReturnPrimary_WhenFallbackIsNull()
+    {
+        var primary = new DocTrustLink
+        {
+            Label = "Upgrade guide"
+        };
+
+        var merged = DocTrustLink.Merge(primary, null);
+
+        Assert.Same(primary, merged);
+    }
+
+    [Fact]
+    public void DocTrustLinkMerge_ShouldTreatBlankFallbackValuesAsMissing()
+    {
+        var merged = DocTrustLink.Merge(
+            new DocTrustLink
+            {
+                Label = "   ",
+                Href = " "
+            },
+            new DocTrustLink
+            {
+                Label = "\t",
+                Href = "\n"
+            });
+
+        Assert.NotNull(merged);
+        Assert.Null(merged!.Label);
+        Assert.Null(merged.Href);
+    }
 }

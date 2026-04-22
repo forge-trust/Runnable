@@ -154,6 +154,23 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldFallbackToEmptyContent_WhenSanitizerReturnsNull()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Title", "path", "<p>content</p>")
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+        A.CallTo(() => _sanitizerFake.Sanitize("<p>content</p>"))
+            .ReturnsLazily(static (string _) => (string)null!);
+
+        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+
+        Assert.Equal(string.Empty, result.Content);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldHandleDuplicatePaths_ByKeepingFirst()
     {
         // Arrange

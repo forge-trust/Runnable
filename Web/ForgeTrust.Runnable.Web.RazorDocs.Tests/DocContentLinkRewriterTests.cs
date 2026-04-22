@@ -112,6 +112,33 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void RewriteInternalDocLinks_ShouldRewriteRelativeCanonicalMarkdownLinks_ToDocsRoutes()
+    {
+        var html = "<p><a href=\"../CHANGELOG.md.html\">Changelog</a></p>";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/README.md", html);
+
+        Assert.Contains("href=\"/docs/CHANGELOG.md.html\"", rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.Contains("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteInternalDocLinks_ShouldLeaveRelativeNonDocHtmlLinksUnchanged()
+    {
+        var html = "<p><a href=\"../privacy.html\">Privacy</a> <a href=\"../../status.html\">Status</a></p>";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks(
+            "releases/templates/tagged-release-template.md",
+            html);
+
+        Assert.Contains("href=\"../privacy.html\"", rewritten);
+        Assert.Contains("href=\"../../status.html\"", rewritten);
+        Assert.DoesNotContain("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.DoesNotContain("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldAppendAttributes_ToSelfClosingAnchors()
     {
         var html = "<a href=\"./unreleased.md\" />";

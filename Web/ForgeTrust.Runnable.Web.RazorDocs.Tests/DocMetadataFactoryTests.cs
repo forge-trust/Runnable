@@ -123,6 +123,18 @@ public sealed class DocMetadataFactoryTests
     }
 
     [Theory]
+    [InlineData("concepts/architecture.md", "Concepts")]
+    [InlineData("docs/troubleshoot-error.md", "Troubleshooting")]
+    public void CreateMarkdownMetadata_ShouldClassifyConceptAndTroubleshootingPaths(
+        string path,
+        string expectedNavGroup)
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(path, "Doc", null, null);
+
+        Assert.Equal(expectedNavGroup, metadata.NavGroup);
+    }
+
+    [Theory]
     [InlineData("start_here")]
     [InlineData("Start-Here")]
     public void CreateMarkdownMetadata_ShouldNormalizeExplicitNavGroupAliases(string explicitNavGroup)

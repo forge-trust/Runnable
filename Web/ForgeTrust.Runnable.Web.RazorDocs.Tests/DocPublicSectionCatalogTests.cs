@@ -34,4 +34,16 @@ public sealed class DocPublicSectionCatalogTests
         Assert.Equal(expectedResolved, resolved);
         Assert.Equal(expectedSection ?? default, section);
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void TryResolveSlug_ShouldRejectBlankValues(string? slug)
+    {
+        var resolved = DocPublicSectionCatalog.TryResolveSlug(slug, out var section);
+
+        Assert.False(resolved);
+        Assert.Equal(default, section);
+    }
 }

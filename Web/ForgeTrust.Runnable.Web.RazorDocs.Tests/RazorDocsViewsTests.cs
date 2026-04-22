@@ -384,6 +384,27 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SectionView_ShouldRenderAvailabilityMessage_WhenSectionIsUnavailable()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("start-here"));
+
+        Assert.Contains("This section may be hidden from the public shell", html);
+    }
+
+    [Fact]
     public async Task SectionView_ShouldHideStartHereCta_WhenViewingStartHereSection()
     {
         var docs = new List<DocNode>
@@ -701,6 +722,44 @@ public class RazorDocsViewsTests
         Assert.Contains("In this section", html);
         Assert.Contains("Deep dive summary.", html);
         Assert.Contains("Jump to section", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderSectionLandingGroupTitles_WhenGroupsHaveTitles()
+    {
+        var landingDoc = new DocNode(
+            "Namespaces",
+            "Namespaces",
+            "<p>Namespace root</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "API Reference",
+                PageType = "api-reference",
+                SectionLanding = true
+            });
+        var fooBar = new DocNode(
+            "Foo.Bar",
+            "Namespaces/Foo.Bar",
+            "<p>Foo.Bar namespace</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "API Reference",
+                PageType = "api-reference"
+            });
+        var fooBaz = new DocNode(
+            "Foo.Baz",
+            "Namespaces/Foo.Baz",
+            "<p>Foo.Baz namespace</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "API Reference",
+                PageType = "api-reference"
+            });
+
+        var html = await RenderDetailsViewAsync(landingDoc, fooBar, fooBaz);
+
+        Assert.Contains(">Bar<", html);
+        Assert.Contains(">Baz<", html);
     }
 
     [Fact]

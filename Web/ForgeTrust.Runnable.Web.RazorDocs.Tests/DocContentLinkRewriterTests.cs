@@ -47,6 +47,18 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void RewriteInternalDocLinks_ShouldDecorateDocsLandingLinks_WithoutChangingTheirRoutes()
+    {
+        var html = "<p><a href=\"/docs\">Docs home</a></p>";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/unreleased.md", html);
+
+        Assert.Contains("href=\"/docs\"", rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.Contains("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldRewriteRootedMarkdownLinks_ToCanonicalDocsRoutes()
     {
         var html = "<p><a href=\"/releases/unreleased.md\">Unreleased</a></p>";
@@ -54,6 +66,35 @@ public sealed class DocContentLinkRewriterTests
         var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/README.md", html);
 
         Assert.Contains("href=\"/docs/releases/unreleased.md.html\"", rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.Contains("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteInternalDocLinks_ShouldRewriteRootLevelRelativeLinks_AndUseSourcePathWithoutFragments()
+    {
+        var html = """
+            <p>
+              <a href="./README.md">Start here</a>
+              <a href="#summary">Summary</a>
+            </p>
+            """;
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("CHANGELOG.md#history", html);
+
+        Assert.Contains("href=\"/docs/README.md.html\"", rewritten);
+        Assert.Contains("href=\"/docs/CHANGELOG.md.html#summary\"", rewritten);
+        Assert.Contains("data-doc-anchor-link=\"true\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteInternalDocLinks_ShouldRewriteRelativeLinks_WhenSourcePathIsEmpty()
+    {
+        var html = "<p><a href=\"./README.md\">Start here</a></p>";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks(string.Empty, html);
+
+        Assert.Contains("href=\"/docs/README.md.html\"", rewritten);
         Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
         Assert.Contains("data-turbo-action=\"advance\"", rewritten);
     }
@@ -68,6 +109,19 @@ public sealed class DocContentLinkRewriterTests
         Assert.Contains("href=\"/privacy.html\"", rewritten);
         Assert.DoesNotContain("data-turbo-frame=\"doc-content\"", rewritten);
         Assert.DoesNotContain("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteInternalDocLinks_ShouldAppendAttributes_ToSelfClosingAnchors()
+    {
+        var html = "<a href=\"./unreleased.md\" />";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/README.md", html);
+
+        Assert.Contains("href=\"/docs/releases/unreleased.md.html\"", rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.Contains("data-turbo-action=\"advance\"", rewritten);
+        Assert.EndsWith("/>", rewritten, StringComparison.Ordinal);
     }
 
     [Fact]

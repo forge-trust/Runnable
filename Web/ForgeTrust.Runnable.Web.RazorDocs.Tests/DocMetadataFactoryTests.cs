@@ -67,6 +67,21 @@ public sealed class DocMetadataFactoryTests
         Assert.Null(metadata.BreadcrumbsMatchPathTargets);
     }
 
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldTreatExtensionlessInternalPathsAsInternal()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "docs/benchmarks",
+            "Benchmarks",
+            null,
+            null);
+
+        Assert.Equal("internals", metadata.PageType);
+        Assert.Equal("contributor", metadata.Audience);
+        Assert.True(metadata.HideFromPublicNav);
+        Assert.True(metadata.HideFromSearch);
+    }
+
     [Theory]
     [InlineData("Tests/guide.md")]
     [InlineData("test/guide.md")]
@@ -134,6 +149,16 @@ public sealed class DocMetadataFactoryTests
     }
 
     [Theory]
+    [InlineData("guides/quickstart.md", null)]
+    [InlineData("docs/Runnable/overview.md", "Runnable")]
+    public void DeriveComponentFromPath_ShouldReturnExpectedComponent(string path, string? expectedComponent)
+    {
+        var component = DocMetadataFactory.DeriveComponentFromPath(path);
+
+        Assert.Equal(expectedComponent, component);
+    }
+
+    [Theory]
     [InlineData("ForgeTrust.Runnable.Web.Tests", true)]
     [InlineData("ForgeTrust.Runnable.Web.RazorWire.Cli.Tests", true)]
     [InlineData("RunnableBenchmarks.Web", true)]
@@ -153,6 +178,14 @@ public sealed class DocMetadataFactoryTests
 
         Assert.Equal(["Namespaces", "Web"], metadata.Breadcrumbs);
         Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void DeriveComponentFromNamespace_ShouldReturnOriginalValue_WhenFallbackNamespaceHasNoSegments()
+    {
+        var component = DocMetadataFactory.DeriveComponentFromNamespace(".");
+
+        Assert.Equal(".", component);
     }
 
     [Theory]

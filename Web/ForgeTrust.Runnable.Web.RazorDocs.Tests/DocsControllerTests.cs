@@ -233,6 +233,57 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Section_ShouldNotExposeStartHereHref_WhenStartHereSectionIsUnavailable()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "Understand the concepts."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Section("concepts");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocSectionPageViewModel>(viewResult.Model);
+        Assert.False(model.IsUnavailable);
+        Assert.Null(model.StartHereHref);
+        Assert.Equal("/docs", model.DocsHomeHref);
+    }
+
+    [Fact]
+    public async Task Section_ShouldNotExposeStartHereHref_OnUnavailablePage_WhenStartHereSectionIsUnavailable()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Section("start-here");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocSectionPageViewModel>(viewResult.Model);
+        Assert.True(model.IsUnavailable);
+        Assert.Null(model.StartHereHref);
+        Assert.Equal("/docs", model.DocsHomeHref);
+    }
+
+    [Fact]
     public async Task Index_ShouldSkipHiddenFeaturedPages_AndFallbackWhenNoVisibleEntriesRemain()
     {
         var docs = new List<DocNode>

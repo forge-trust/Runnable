@@ -305,6 +305,30 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SectionView_ShouldHideStartHereCta_WhenStartHereSectionIsUnavailable()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "Understand the concepts."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("concepts"));
+
+        Assert.DoesNotContain("href=\"/docs/sections/start-here\"", html);
+        Assert.DoesNotContain(">Start Here<", html);
+        Assert.Contains("href=\"/docs\"", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderNamespaceBreadcrumbLinks()
     {
         using var services = CreateServiceProvider(CreateDocs());

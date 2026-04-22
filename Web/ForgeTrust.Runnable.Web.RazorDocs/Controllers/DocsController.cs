@@ -61,16 +61,18 @@ public class DocsController : Controller
     /// </returns>
     public async Task<IActionResult> Section(string sectionSlug)
     {
+        var sections = await _aggregator.GetPublicSectionsAsync(HttpContext.RequestAborted);
+        var startHereHref = ResolveStartHereHref(sections);
+
         if (!DocPublicSectionCatalog.TryResolveSlug(sectionSlug, out var section))
         {
-            return View("Section", BuildUnavailableSectionViewModel(null));
+            return View("Section", BuildUnavailableSectionViewModel(null, startHereHref));
         }
 
-        var sections = await _aggregator.GetPublicSectionsAsync(HttpContext.RequestAborted);
         var snapshot = sections.FirstOrDefault(item => item.Section == section);
         if (snapshot is null)
         {
-            return View("Section", BuildUnavailableSectionViewModel(section));
+            return View("Section", BuildUnavailableSectionViewModel(section, startHereHref));
         }
 
         if (snapshot.LandingDoc is not null)
@@ -78,7 +80,7 @@ public class DocsController : Controller
             return Redirect($"/docs/{GetSnapshotCanonicalPath(snapshot.LandingDoc)}");
         }
 
-        return View("Section", BuildSectionPageViewModel(snapshot));
+        return View("Section", BuildSectionPageViewModel(snapshot, startHereHref));
     }
 
     /// <summary>
@@ -364,7 +366,9 @@ public class DocsController : Controller
         return candidates.Select(CreateSectionLink).ToList();
     }
 
-    private DocSectionPageViewModel BuildSectionPageViewModel(DocSectionSnapshot snapshot)
+    private DocSectionPageViewModel BuildSectionPageViewModel(
+        DocSectionSnapshot snapshot,
+        string? startHereHref)
     {
         var currentHref = DocPublicSectionCatalog.GetHref(snapshot.Section);
         var sparseRoutes = snapshot.VisiblePages.Count <= 1
@@ -380,7 +384,7 @@ public class DocsController : Controller
             KeyRoutes = sparseRoutes,
             Groups = DocSectionDisplayBuilder.BuildGroups(snapshot, currentHref),
             DocsHomeHref = "/docs",
-            StartHereHref = DocPublicSectionCatalog.GetHref(DocPublicSection.StartHere)
+            StartHereHref = startHereHref
         };
     }
 
@@ -395,7 +399,9 @@ public class DocsController : Controller
             .ToList();
     }
 
-    private DocSectionPageViewModel BuildUnavailableSectionViewModel(DocPublicSection? section)
+    private DocSectionPageViewModel BuildUnavailableSectionViewModel(
+        DocPublicSection? section,
+        string? startHereHref)
     {
         var heading = section is null
             ? SectionUnavailableHeading
@@ -412,8 +418,15 @@ public class DocsController : Controller
             IsUnavailable = true,
             AvailabilityMessage = "This section may be hidden from the public shell, moved to a different route, or not have any visible pages yet.",
             DocsHomeHref = "/docs",
-            StartHereHref = DocPublicSectionCatalog.GetHref(DocPublicSection.StartHere)
+            StartHereHref = startHereHref
         };
+    }
+
+    private static string? ResolveStartHereHref(IReadOnlyList<DocSectionSnapshot> sections)
+    {
+        return sections.Any(snapshot => snapshot.Section == DocPublicSection.StartHere)
+            ? DocPublicSectionCatalog.GetHref(DocPublicSection.StartHere)
+            : null;
     }
 
     private DocDetailsViewModel BuildDetailsViewModel(

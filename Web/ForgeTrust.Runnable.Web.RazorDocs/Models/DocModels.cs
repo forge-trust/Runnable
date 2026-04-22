@@ -641,9 +641,9 @@ public sealed record DocSectionPageViewModel
     public string DocsHomeHref { get; init; } = "/docs";
 
     /// <summary>
-    /// Gets the canonical <c>Start Here</c> section route.
+    /// Gets the href for the section-level <c>Start Here</c> route when that section exists in the current public docs corpus.
     /// </summary>
-    public string StartHereHref { get; init; } = "/docs/sections/start-here";
+    public string? StartHereHref { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the route resolved to an unavailable section surface.

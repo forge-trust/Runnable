@@ -71,6 +71,28 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void RewriteInternalDocLinks_ShouldLeaveAnchorsWithoutNavigableDocTargetsUnchanged()
+    {
+        var html = """
+            <p>
+              <a href="   ">Empty</a>
+              <a href="//example.com/releases">Scheme relative</a>
+              <a href="?view=compact">Query only</a>
+              <a href="/">Site root</a>
+            </p>
+            """;
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/README.md", html);
+
+        Assert.Contains("href=\"   \"", rewritten);
+        Assert.Contains("href=\"//example.com/releases\"", rewritten);
+        Assert.Contains("href=\"?view=compact\"", rewritten);
+        Assert.Contains("href=\"/\"", rewritten);
+        Assert.DoesNotContain("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.DoesNotContain("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldLeaveExternalAndNewTabLinksUnchanged()
     {
         var html = """

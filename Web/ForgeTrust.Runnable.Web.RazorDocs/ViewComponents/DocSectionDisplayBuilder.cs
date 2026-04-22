@@ -81,7 +81,7 @@ internal static class DocSectionDisplayBuilder
         }
 
         var namespaceNodes = rootItems
-            .Where(doc => doc.Path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+            .Where(doc => doc.Path.Trim(' ', '/').StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         groups.AddRange(
@@ -144,6 +144,7 @@ internal static class DocSectionDisplayBuilder
             Summary = string.IsNullOrWhiteSpace(doc.Metadata?.Summary) ? null : doc.Metadata!.Summary!.Trim(),
             PageTypeBadge = badge,
             Children = children,
+            UseAnchorNavigation = true,
             IsCurrent = IsCurrentLink(currentHref, href)
         };
     }

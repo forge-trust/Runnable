@@ -450,6 +450,55 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public void BuildGroups_ShouldSetUseAnchorNavigation_OnTopLevelSectionLinks()
+    {
+        var snapshot = new DocSectionSnapshot
+        {
+            Section = DocPublicSection.HowToGuides,
+            Label = "How-to Guides",
+            Slug = "how-to-guides",
+            VisiblePages =
+            [
+                new(
+                    "Guide",
+                    "guides/guide.md",
+                    "<p>Guide body</p>",
+                    Metadata: new DocMetadata
+                    {
+                        Summary = "Follow this guide."
+                    })
+            ]
+        };
+
+        var groups = DocSectionDisplayBuilder.BuildGroups(snapshot);
+        var link = Assert.Single(Assert.Single(groups).Links);
+
+        Assert.True(link.UseAnchorNavigation);
+    }
+
+    [Fact]
+    public void BuildGroups_ShouldIncludeSlashPaddedNamespacePaths_InApiReferenceGroups()
+    {
+        var snapshot = new DocSectionSnapshot
+        {
+            Section = DocPublicSection.ApiReference,
+            Label = "API Reference",
+            Slug = "api-reference",
+            VisiblePages =
+            [
+                new("Namespaces", "Namespaces", "<p>Namespaces</p>", CanonicalPath: "Namespaces.html"),
+                new("Foo", "/Namespaces/Foo", "<p>Foo namespace</p>", CanonicalPath: "Namespaces/Foo.html")
+            ]
+        };
+
+        var groups = DocSectionDisplayBuilder.BuildGroups(snapshot, namespacePrefixes: ["Foo"]);
+
+        Assert.Contains(
+            groups.SelectMany(group => group.Links),
+            link => string.Equals(link.Href, "/docs/Namespaces/Foo.html", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderNamespaceBreadcrumbLinks()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -1304,6 +1353,32 @@ public class RazorDocsViewsTests
                || docs.Any(doc => doc.Path.StartsWith("Namespaces", StringComparison.OrdinalIgnoreCase))
             ? DocPublicSection.ApiReference
             : DocPublicSection.HowToGuides;
+    }
+
+    [Fact]
+    public void ResolveSidebarSection_ShouldFallbackToHowToGuides_ForUnknownGroups()
+    {
+        var docs = new[]
+        {
+            new DocNode("Guide", "guides/guide.md", "<p>Guide</p>")
+        };
+
+        var section = ResolveSidebarSection("Custom Group", docs);
+
+        Assert.Equal(DocPublicSection.HowToGuides, section);
+    }
+
+    [Fact]
+    public void ResolveSidebarSection_ShouldFallbackToApiReference_WhenNamespaceDocsArePresent()
+    {
+        var docs = new[]
+        {
+            new DocNode("Foo", "Namespaces/Foo", "<p>Namespace</p>")
+        };
+
+        var section = ResolveSidebarSection("Custom Group", docs);
+
+        Assert.Equal(DocPublicSection.ApiReference, section);
     }
 
     private static List<IGrouping<string, DocNode>> CreateGroupedSidebarModel(params (string Group, DocNode Node)[] items)

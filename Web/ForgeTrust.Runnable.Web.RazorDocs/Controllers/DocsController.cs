@@ -286,17 +286,6 @@ public class DocsController : Controller
             .Take(DefaultProofPathStageLabels.Length)
             .ToList();
 
-        if (candidates.Count == 0 && startHereSection.VisiblePages.Count > 0)
-        {
-            candidates = startHereSection.VisiblePages
-                .Where(doc => !string.Equals(doc.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase))
-                .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
-                .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
-                .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
-                .Take(DefaultProofPathStageLabels.Length)
-                .ToList();
-        }
-
         return candidates
             .Select(
                 (doc, index) => new DocLandingFeaturedPageViewModel

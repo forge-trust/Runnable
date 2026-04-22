@@ -82,8 +82,9 @@ public sealed class RazorDocsShellPlaywrightTests
                 && openButton?.getAttribute('aria-expanded') === 'false'
                 && Boolean(sidebarOverlay)
                 && window.getComputedStyle(sidebarOverlay).display === 'none'
-                && !main?.hasAttribute('inert')
-                && !main?.hasAttribute('aria-hidden')
+                && Boolean(main)
+                && !main.hasAttribute('inert')
+                && !main.hasAttribute('aria-hidden')
                 && document.activeElement === openButton;
             }
             """,

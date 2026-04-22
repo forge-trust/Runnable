@@ -33,11 +33,15 @@ public sealed class RazorDocsShellPlaywrightTests
               const sidebar = document.getElementById('docs-sidebar');
               const sidebarOverlay = document.getElementById('docs-sidebar-overlay');
               const openButton = document.getElementById('docs-sidebar-open');
+              const main = document.getElementById('main-content');
               return Boolean(sidebar)
                 && sidebar.getAttribute('aria-hidden') === 'true'
                 && openButton?.getAttribute('aria-expanded') === 'false'
                 && Boolean(sidebarOverlay)
-                && window.getComputedStyle(sidebarOverlay).display === 'none';
+                && window.getComputedStyle(sidebarOverlay).display === 'none'
+                && Boolean(main)
+                && !main.hasAttribute('inert')
+                && !main.hasAttribute('aria-hidden');
             }
             """,
             null,
@@ -158,7 +162,10 @@ public sealed class RazorDocsShellPlaywrightTests
             },
             new PageWaitForFunctionOptions { Timeout = 30_000 });
 
-        Assert.Contains(targetUri.AbsolutePath, page.Url, StringComparison.Ordinal);
+        var navigatedUri = new Uri(page.Url);
+        Assert.Equal(
+            targetUri.AbsolutePath + targetUri.Fragment,
+            navigatedUri.AbsolutePath + navigatedUri.Fragment);
         Assert.True(await page.Locator("#docs-sidebar").IsVisibleAsync());
         Assert.True(await page.Locator("#docs-search-shell").IsVisibleAsync());
     }

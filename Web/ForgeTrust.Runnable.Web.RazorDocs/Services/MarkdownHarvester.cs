@@ -1,5 +1,8 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Markdig;
+using Markdig.Renderers.Html;
+using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
 using YamlDotNet.Core;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -10,6 +13,8 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 public class MarkdownHarvester : IDocHarvester
 {
     private static readonly string[] SidecarExtensions = [".yml", ".yaml"];
+    private const int MinOutlineHeadingLevel = 2;
+    private const int MaxOutlineHeadingLevel = 3;
     private readonly MarkdownPipeline _pipeline;
     private readonly ILogger<MarkdownHarvester> _logger;
     private readonly Func<string, CancellationToken, Task<string>> _readAllTextAsync;
@@ -71,7 +76,6 @@ public class MarkdownHarvester : IDocHarvester
                 var (markdownBody, frontMatterMetadata) = MarkdownFrontMatterParser.Extract(content);
                 var sidecarMetadata = await ReadMetadataSidecarAsync(file, relativePath, cancellationToken);
                 var explicitMetadata = DocMetadata.Merge(frontMatterMetadata, sidecarMetadata);
-                var html = Markdown.ToHtml(markdownBody, _pipeline);
                 var title = Path.GetFileNameWithoutExtension(file);
 
                 if (title.Equals("README", StringComparison.OrdinalIgnoreCase))
@@ -81,13 +85,16 @@ public class MarkdownHarvester : IDocHarvester
                 }
 
                 var resolvedTitle = explicitMetadata?.Title ?? title;
+                var document = Markdown.Parse(markdownBody, _pipeline);
+                var html = Markdown.ToHtml(document, _pipeline);
                 var metadata = DocMetadataFactory.CreateMarkdownMetadata(
                     relativePath,
                     resolvedTitle,
                     explicitMetadata,
                     ExtractSummary(markdownBody));
+                var outline = ExtractOutline(document);
 
-                nodes.Add(new DocNode(resolvedTitle, relativePath, html, Metadata: metadata));
+                nodes.Add(new DocNode(resolvedTitle, relativePath, html, Metadata: metadata, Outline: outline));
             }
             catch (OperationCanceledException)
             {
@@ -242,5 +249,101 @@ public class MarkdownHarvester : IDocHarvester
         return index + 1 < value.Length
                && value[index] == '.'
                && value[index + 1] == ' ';
+    }
+
+    internal static IReadOnlyList<DocOutlineItem> ExtractOutline(MarkdownDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        return document
+            .Descendants<HeadingBlock>()
+            .Where(heading => heading.Level >= MinOutlineHeadingLevel && heading.Level <= MaxOutlineHeadingLevel)
+                .Select(
+                    heading =>
+                    {
+                        var id = HtmlAttributesExtensions.GetAttributes(heading).Id;
+                        var title = NormalizeHeadingText(ExtractInlineText(heading.Inline));
+
+                        if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(title))
+                        {
+                            return null;
+                        }
+
+                        return new DocOutlineItem
+                        {
+                            Id = id,
+                            Title = title,
+                            Level = heading.Level
+                        };
+                    })
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .ToArray();
+    }
+
+    private static string ExtractInlineText(ContainerInline? inline)
+    {
+        if (inline is null)
+        {
+            return string.Empty;
+        }
+
+        var builder = new System.Text.StringBuilder();
+        AppendInlineText(builder, inline.FirstChild);
+        return builder.ToString();
+    }
+
+    private static void AppendInlineText(System.Text.StringBuilder builder, Inline? inline)
+    {
+        while (inline is not null)
+        {
+            switch (inline)
+            {
+                case LiteralInline literal:
+                    builder.Append(literal.Content.ToString());
+                    break;
+                case CodeInline code:
+                    builder.Append(code.Content);
+                    break;
+                case LineBreakInline:
+                    builder.Append(' ');
+                    break;
+                case ContainerInline container:
+                    AppendInlineText(builder, container.FirstChild);
+                    break;
+            }
+
+            inline = inline.NextSibling;
+        }
+    }
+
+    private static string NormalizeHeadingText(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new System.Text.StringBuilder(value.Length);
+        var pendingSpace = false;
+
+        foreach (var ch in value)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                pendingSpace = builder.Length > 0;
+                continue;
+            }
+
+            if (pendingSpace)
+            {
+                builder.Append(' ');
+                pendingSpace = false;
+            }
+
+            builder.Append(ch);
+        }
+
+        return builder.ToString().Trim();
     }
 }

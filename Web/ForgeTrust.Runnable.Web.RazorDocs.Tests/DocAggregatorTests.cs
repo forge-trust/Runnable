@@ -333,6 +333,109 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldResolveOutlineSequenceNeighbors_AndRelatedPages()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Intro",
+                "guides/intro.md",
+                "<p>Intro</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 10,
+                    Summary = "Start here."
+                }),
+            new(
+                "Example",
+                "guides/example.md",
+                "<p>Example</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 20,
+                    Summary = "Middle step.",
+                    RelatedPages = ["guides/troubleshooting.md"]
+                },
+                Outline:
+                [
+                    new DocOutlineItem
+                    {
+                        Title = "Install",
+                        Id = "install",
+                        Level = 2
+                    }
+                ]),
+            new(
+                "Troubleshooting",
+                "guides/troubleshooting.md",
+                "<p>Troubleshooting</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 30,
+                    Summary = "Recover quickly."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var details = await _aggregator.GetDocDetailsAsync("guides/example.md");
+
+        Assert.NotNull(details);
+        Assert.Equal("Example", details!.Document.Title);
+        Assert.Equal("Install", Assert.Single(details.Outline).Title);
+        Assert.Equal("/docs/guides/intro.md.html", details.PreviousPage?.Href);
+        Assert.Equal("/docs/guides/troubleshooting.md.html", details.NextPage?.Href);
+        Assert.Empty(details.RelatedPages);
+    }
+
+    [Fact]
+    public async Task GetSearchIndexPayloadAsync_ShouldUseTypedOutlineHeadings()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Guide",
+                "guides/guide.md",
+                "<p>Body</p>",
+                Metadata: new DocMetadata
+                {
+                    Summary = "Guide summary."
+                },
+                Outline:
+                [
+                    new DocOutlineItem
+                    {
+                        Title = "Install",
+                        Id = "install",
+                        Level = 2
+                    },
+                    new DocOutlineItem
+                    {
+                        Title = "Verify",
+                        Id = "verify",
+                        Level = 3
+                    }
+                ])
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var payload = await _aggregator.GetSearchIndexPayloadAsync();
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var headings = document.RootElement
+            .GetProperty("documents")[0]
+            .GetProperty("headings")
+            .EnumerateArray()
+            .Select(item => item.GetString() ?? string.Empty)
+            .ToArray();
+
+        Assert.Equal(["Install", "Verify"], headings);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldSkipCanceledHarvester_AndContinue()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))

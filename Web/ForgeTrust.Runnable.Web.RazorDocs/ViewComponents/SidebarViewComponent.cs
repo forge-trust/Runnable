@@ -49,13 +49,36 @@ public class SidebarViewComponent : ViewComponent
             .ToList();
         var groupedDocs = docs
             .GroupBy(GetGroupName)
-            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var namespacePrefixes = _namespacePrefixes.Length > 0
             ? _namespacePrefixes
             : GetDerivedNamespacePrefixes(docs);
-        ViewData["NamespacePrefixes"] = namespacePrefixes;
-        return View(groupedDocs);
+        var model = BuildViewModel(groupedDocs, namespacePrefixes);
+
+        return View(model);
+    }
+
+    internal static DocSidebarViewModel BuildViewModel(
+        IReadOnlyList<IGrouping<string, DocNode>> groupedDocs,
+        IReadOnlyList<string> namespacePrefixes)
+    {
+        var normalizedNamespacePrefixes = namespacePrefixes
+            .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
+            .Select(prefix => prefix.Trim())
+            .OrderByDescending(prefix => prefix.Length)
+            .ToArray();
+
+        var groups = groupedDocs
+            .Select(group => BuildGroup(group, normalizedNamespacePrefixes))
+            .ToArray();
+
+        return new DocSidebarViewModel
+        {
+            NamespacePrefixes = normalizedNamespacePrefixes,
+            Groups = groups
+        };
     }
 
     /// <summary>
@@ -76,6 +99,118 @@ public class SidebarViewComponent : ViewComponent
     private static string GetGroupName(string path)
     {
         return SidebarDisplayHelper.GetGroupName(path);
+    }
+
+    private static DocSidebarGroupViewModel BuildGroup(
+        IGrouping<string, DocNode> group,
+        IReadOnlyList<string> namespacePrefixes)
+    {
+        return string.Equals(group.Key, "Namespaces", StringComparison.OrdinalIgnoreCase)
+            ? BuildNamespaceGroup(group, namespacePrefixes)
+            : BuildStandardGroup(group);
+    }
+
+    private static DocSidebarGroupViewModel BuildNamespaceGroup(
+        IGrouping<string, DocNode> group,
+        IReadOnlyList<string> namespacePrefixes)
+    {
+        var rootItems = group
+            .Where(d => string.IsNullOrEmpty(d.ParentPath))
+            .OrderBy(d => d.Metadata?.Order ?? int.MaxValue)
+            .ThenBy(d => SidebarDisplayHelper.GetFullNamespaceName(d), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var namespaceRoot = rootItems
+            .FirstOrDefault(n => n.Path.Trim().Trim('/').Equals("Namespaces", StringComparison.OrdinalIgnoreCase));
+        var namespaceNodes = rootItems
+            .Where(n => n.Path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var sections = namespaceNodes
+            .GroupBy(n => SidebarDisplayHelper.GetNamespaceFamily(SidebarDisplayHelper.GetFullNamespaceName(n), namespacePrefixes))
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(
+                family => new DocSidebarSectionViewModel
+                {
+                    Title = family.Key,
+                    Items = family
+                        .OrderBy(n => n.Metadata?.Order ?? int.MaxValue)
+                        .ThenBy(n => SidebarDisplayHelper.GetFullNamespaceName(n), StringComparer.OrdinalIgnoreCase)
+                        .Select(
+                            namespaceNode => new DocSidebarItemViewModel
+                            {
+                                Title = SidebarDisplayHelper.GetNamespaceDisplayName(
+                                    SidebarDisplayHelper.GetFullNamespaceName(namespaceNode),
+                                    namespacePrefixes),
+                                Href = BuildDocHref(namespaceNode),
+                                Children = BuildAnchorChildren(group, namespaceNode.Path)
+                            })
+                        .ToArray()
+                })
+            .ToArray();
+
+        return new DocSidebarGroupViewModel
+        {
+            Title = group.Key,
+            RootLink = namespaceRoot is null
+                ? null
+                : new DocSidebarItemViewModel
+                {
+                    Title = namespaceRoot.Title,
+                    Href = BuildDocHref(namespaceRoot)
+                },
+            Sections = sections
+        };
+    }
+
+    private static DocSidebarGroupViewModel BuildStandardGroup(IGrouping<string, DocNode> group)
+    {
+        var rootItems = group
+            .Where(d => string.IsNullOrEmpty(d.ParentPath))
+            .OrderBy(d => d.Metadata?.Order ?? int.MaxValue)
+            .ThenBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+            .Select(
+                docNode => new DocSidebarItemViewModel
+                {
+                    Title = docNode.Title,
+                    Href = BuildDocHref(docNode),
+                    Children = BuildAnchorChildren(group, docNode.Path)
+                })
+            .ToArray();
+
+        return new DocSidebarGroupViewModel
+        {
+            Title = group.Key,
+            Sections =
+            [
+                new DocSidebarSectionViewModel
+                {
+                    Items = rootItems
+                }
+            ]
+        };
+    }
+
+    private static IReadOnlyList<DocSidebarItemViewModel> BuildAnchorChildren(
+        IEnumerable<DocNode> docs,
+        string parentPath)
+    {
+        return docs
+            .Where(d => d.ParentPath == parentPath && SidebarDisplayHelper.IsTypeAnchorNode(d))
+            .OrderBy(d => d.Metadata?.Order ?? int.MaxValue)
+            .ThenBy(d => d.Title, StringComparer.OrdinalIgnoreCase)
+            .Select(
+                doc => new DocSidebarItemViewModel
+                {
+                    Title = doc.Title,
+                    Href = BuildDocHref(doc),
+                    IsAnchorLink = true
+                })
+            .ToArray();
+    }
+
+    private static string BuildDocHref(DocNode doc)
+    {
+        return $"/docs/{doc.CanonicalPath ?? doc.Path}";
     }
 
     /// <summary>

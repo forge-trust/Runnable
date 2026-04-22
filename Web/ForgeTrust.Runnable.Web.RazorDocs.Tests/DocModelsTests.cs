@@ -14,6 +14,7 @@ public class DocModelsTests
             Summary = "Summary",
             SummaryIsDerived = true,
             PageType = "guide",
+            SequenceKey = "getting-started",
             FeaturedPages =
             [
                 new DocFeaturedPageDefinition
@@ -25,7 +26,20 @@ public class DocModelsTests
             Aliases = ["alias-one"],
             RedirectAliases = ["legacy/alias"]
         };
-        var node = new DocNode("Title", "path/to/file", "content", Metadata: metadata);
+        var node = new DocNode(
+            "Title",
+            "path/to/file",
+            "content",
+            Metadata: metadata,
+            Outline:
+            [
+                new DocOutlineItem
+                {
+                    Title = "Install",
+                    Id = "install",
+                    Level = 2
+                }
+            ]);
 
         // Act & Assert
         Assert.Equal("Title", node.Title);
@@ -40,9 +54,11 @@ public class DocModelsTests
         Assert.Equal("Summary", node.Metadata?.Summary);
         Assert.True(node.Metadata?.SummaryIsDerived);
         Assert.Equal("guide", node.Metadata?.PageType);
+        Assert.Equal("getting-started", node.Metadata?.SequenceKey);
         Assert.Single(node.Metadata?.FeaturedPages!);
         Assert.Equal(["alias-one"], node.Metadata?.Aliases);
         Assert.Equal(["legacy/alias"], node.Metadata?.RedirectAliases);
+        Assert.Equal("Install", Assert.Single(node.Outline!).Title);
     }
 
     [Fact]
@@ -54,6 +70,7 @@ public class DocModelsTests
             SummaryIsDerived = false,
             Aliases = ["alpha"],
             RedirectAliases = ["legacy/primary"],
+            SequenceKey = "proof-path",
             HideFromSearch = true
         };
         var fallback = new DocMetadata
@@ -85,6 +102,7 @@ public class DocModelsTests
         Assert.Equal("Fallback question", featuredPages[0].Question);
         Assert.Equal(["alpha"], merged.Aliases);
         Assert.Equal(["legacy/primary"], merged.RedirectAliases);
+        Assert.Equal("proof-path", merged.SequenceKey);
         Assert.Equal(["keyword"], merged.Keywords);
         Assert.True(merged.HideFromSearch);
         Assert.True(merged.HideFromPublicNav);

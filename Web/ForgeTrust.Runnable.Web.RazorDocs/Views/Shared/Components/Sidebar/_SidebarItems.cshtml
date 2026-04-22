@@ -1,0 +1,25 @@
+@model IReadOnlyList<ForgeTrust.Runnable.Web.RazorDocs.Models.DocSidebarItemViewModel>
+
+<ul class="space-y-1">
+    @foreach (var item in Model)
+    {
+        <li>
+            <a href="@item.Href"
+               data-doc-anchor-link="@(item.IsAnchorLink ? "true" : null)"
+               data-turbo-frame="doc-content"
+               data-turbo-action="advance"
+               class="@(item.IsAnchorLink
+                   ? "block px-4 py-1 text-xs text-slate-500 hover:text-cyan-400 transition-colors"
+                   : "block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all")">
+                @item.Title
+            </a>
+
+            @if (item.Children.Count > 0)
+            {
+                <div class="ml-4 mt-1 border-l border-slate-800">
+                    @await Html.PartialAsync("~/Views/Shared/Components/Sidebar/_SidebarItems.cshtml", item.Children)
+                </div>
+            }
+        </li>
+    }
+</ul>

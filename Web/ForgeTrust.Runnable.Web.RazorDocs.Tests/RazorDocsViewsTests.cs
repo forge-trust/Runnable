@@ -388,7 +388,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains(">Fallback Title</h1>", html);
     }
@@ -409,7 +409,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains(">Fallback Title</h1>", html);
     }
@@ -430,7 +430,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains(">Authored Title</h1>", html);
         Assert.DoesNotContain(">Fallback Title</h1>", html);
@@ -452,7 +452,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains(">guides</a>", html);
         Assert.Contains(">Quickstart</h1>", html);
@@ -477,7 +477,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains(">guides</a>", html);
         Assert.Contains(">quickstart.md</span>", html);
@@ -501,7 +501,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains(">guides</a>", html);
         Assert.Contains(">quickstart.md</span>", html);
@@ -525,7 +525,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains(">API Reference</a>", html);
         Assert.Contains("href=\"/docs/Namespaces.html\"", html);
@@ -549,7 +549,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.DoesNotContain("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the first paragraph.</p>", html);
     }
@@ -571,7 +571,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
     }
@@ -592,7 +592,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
 
         Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
     }
@@ -615,7 +615,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Equal("API Reference", document.QuerySelector(".docs-page-meta .docs-page-badge")?.TextContent.Trim());
@@ -646,7 +646,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Equal("Guide", document.QuerySelector(".docs-page-meta .docs-page-badge")?.TextContent.Trim());
@@ -675,10 +675,83 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Docs/Details.cshtml",
-            doc);
+            CreateDetailsViewModel(doc));
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Null(document.QuerySelector(".docs-page-meta"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderOutlineSection_WhenOutlineEntriesExist()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<h2 id='install'>Install</h2><h3 id='verify'>Verify</h3>");
+        var model = CreateDetailsViewModel(
+            doc,
+            outline:
+            [
+                new DocOutlineItem
+                {
+                    Title = "Install",
+                    Id = "install",
+                    Level = 2
+                },
+                new DocOutlineItem
+                {
+                    Title = "Verify",
+                    Id = "verify",
+                    Level = 3
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.Contains("id=\"docs-page-outline\"", html);
+        Assert.Contains("href=\"#install\"", html);
+        Assert.Contains("data-doc-outline-link=\"true\"", html);
+        Assert.Contains("href=\"#verify\"", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderWayfindingSections_WhenLinksExist()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            previousPage: new DocPageLinkViewModel
+            {
+                Title = "Intro",
+                Href = "/docs/guides/intro.md.html",
+                Summary = "Start here."
+            },
+            nextPage: new DocPageLinkViewModel
+            {
+                Title = "Troubleshooting",
+                Href = "/docs/guides/troubleshooting.md.html",
+                Summary = "Recover quickly."
+            },
+            relatedPages:
+            [
+                new DocPageLinkViewModel
+                {
+                    Title = "Reference",
+                    Href = "/docs/guides/reference.md.html"
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.Contains("id=\"docs-page-wayfinding\"", html);
+        Assert.Contains("data-doc-wayfinding=\"previous\"", html);
+        Assert.Contains("data-doc-wayfinding=\"next\"", html);
+        Assert.Contains("data-doc-related-link=\"true\"", html);
     }
 
     [Fact]
@@ -791,7 +864,8 @@ public class RazorDocsViewsTests
         };
         using var services = CreateServiceProvider(docs);
 
-        var grouped = CreateGroupedSidebarModel(
+        var model = CreateSidebarViewModel(
+            ["Contoso.Product."],
             ("Namespaces", docs[0]),
             ("Namespaces", docs[1]),
             ("Namespaces", docs[2]));
@@ -799,11 +873,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Shared/Components/Sidebar/Default.cshtml",
-            grouped,
-            viewData =>
-            {
-                viewData["NamespacePrefixes"] = new[] { "Contoso.Product." };
-            });
+            model);
 
         var twoIndex = html.IndexOf("href=\"/docs/Namespaces/Contoso.Product.Feature.Two\"", StringComparison.Ordinal);
         var oneIndex = html.IndexOf("href=\"/docs/Namespaces/Contoso.Product.Feature.One\"", StringComparison.Ordinal);
@@ -827,7 +897,8 @@ public class RazorDocsViewsTests
         };
         using var services = CreateServiceProvider(docs);
 
-        var grouped = CreateGroupedSidebarModel(
+        var model = CreateSidebarViewModel(
+            ["ForgeTrust.Runnable."],
             ("Namespaces", docs[0]),
             ("Namespaces", docs[1]),
             ("Namespaces", docs[2]),
@@ -838,11 +909,7 @@ public class RazorDocsViewsTests
         var canonicalHtml = await RenderViewAsync(
             services,
             "/Views/Shared/Components/Sidebar/Default.cshtml",
-            grouped,
-            viewData =>
-            {
-                viewData["NamespacePrefixes"] = new[] { "ForgeTrust.Runnable." };
-            });
+            model);
 
         Assert.Contains("href=\"/docs/Namespaces.html\"", canonicalHtml);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.Runnable.Web.html\"", canonicalHtml);
@@ -854,7 +921,7 @@ public class RazorDocsViewsTests
         var nullPrefixHtml = await RenderViewAsync(
             services,
             "/Views/Shared/Components/Sidebar/Default.cshtml",
-            grouped);
+            CreateSidebarViewModel([], ("Namespaces", docs[0]), ("Namespaces", docs[1]), ("Namespaces", docs[2]), ("docs", docs[3]), ("docs", docs[4]), ("docs", docs[5])));
         Assert.Contains("href=\"/docs/Namespaces.html\"", nullPrefixHtml);
     }
 
@@ -873,7 +940,8 @@ public class RazorDocsViewsTests
         // This test renders the sidebar with a direct model, so CreateServiceProvider docs are intentionally irrelevant.
         using var services = CreateServiceProvider(CreateDocs());
 
-        var grouped = CreateGroupedSidebarModel(
+        var model = CreateSidebarViewModel(
+            ["ForgeTrust.Runnable."],
             ("Namespaces", docs[0]),
             ("Namespaces", docs[1]),
             ("Namespaces", docs[2]),
@@ -884,11 +952,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Shared/Components/Sidebar/Default.cshtml",
-            grouped,
-            viewData =>
-            {
-                viewData["NamespacePrefixes"] = new[] { "ForgeTrust.Runnable." };
-            });
+            model);
 
         Assert.Contains("href=\"/docs/Namespaces\"", html);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.Runnable.Web\"", html);
@@ -1129,12 +1193,33 @@ public class RazorDocsViewsTests
         return await reader.ReadToEndAsync();
     }
 
-    private static List<IGrouping<string, DocNode>> CreateGroupedSidebarModel(params (string Group, DocNode Node)[] items)
+    private static DocDetailsViewModel CreateDetailsViewModel(
+        DocNode doc,
+        IReadOnlyList<DocOutlineItem>? outline = null,
+        DocPageLinkViewModel? previousPage = null,
+        DocPageLinkViewModel? nextPage = null,
+        IReadOnlyList<DocPageLinkViewModel>? relatedPages = null)
     {
-        return items
+        return new DocDetailsViewModel
+        {
+            Document = doc,
+            Outline = outline ?? doc.Outline ?? [],
+            PreviousPage = previousPage,
+            NextPage = nextPage,
+            RelatedPages = relatedPages ?? []
+        };
+    }
+
+    private static DocSidebarViewModel CreateSidebarViewModel(
+        IReadOnlyList<string> namespacePrefixes,
+        params (string Group, DocNode Node)[] items)
+    {
+        var grouped = items
             .GroupBy(item => item.Group, item => item.Node)
             .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        return SidebarViewComponent.BuildViewModel(grouped, namespacePrefixes);
     }
 
     private static List<DocNode> CreateDocs()

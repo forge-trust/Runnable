@@ -43,7 +43,7 @@ public class DocsController : Controller
     public async Task<IActionResult> Index()
     {
         var docs = await _aggregator.GetDocsAsync(HttpContext.RequestAborted);
-        var viewModel = BuildLandingViewModel(docs);
+        var viewModel = await BuildLandingViewModelAsync(docs);
 
         return View(viewModel);
     }
@@ -69,7 +69,7 @@ public class DocsController : Controller
             return NotFound();
         }
 
-        var doc = await _aggregator.GetDocByPathAsync(resolvedPath, HttpContext.RequestAborted);
+        var doc = await _aggregator.GetDocDetailsAsync(resolvedPath, HttpContext.RequestAborted);
         if (doc == null
             && servesPartial
             && resolvedPath.EndsWith("/index", StringComparison.OrdinalIgnoreCase))
@@ -77,7 +77,7 @@ public class DocsController : Controller
             var fallbackPath = resolvedPath[..^"/index".Length];
             if (!string.IsNullOrWhiteSpace(fallbackPath))
             {
-                doc = await _aggregator.GetDocByPathAsync(fallbackPath, HttpContext.RequestAborted);
+                doc = await _aggregator.GetDocDetailsAsync(fallbackPath, HttpContext.RequestAborted);
             }
         }
 
@@ -194,14 +194,14 @@ public class DocsController : Controller
         return User?.Identity?.IsAuthenticated == true;
     }
 
-    private DocLandingViewModel BuildLandingViewModel(IReadOnlyList<DocNode> docs)
+    private async Task<DocLandingViewModel> BuildLandingViewModelAsync(IReadOnlyList<DocNode> docs)
     {
         var visibleDocs = docs
             .Where(d => d.Metadata?.HideFromPublicNav != true)
             .ToList();
         var landingDoc = docs.FirstOrDefault(
             d => string.Equals(d.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase));
-        var featuredPages = ResolveFeaturedPages(landingDoc, docs);
+        var featuredPages = await ResolveFeaturedPagesAsync(landingDoc);
         var hasFeaturedPages = featuredPages.Count > 0;
 
         return new DocLandingViewModel
@@ -214,14 +214,13 @@ public class DocsController : Controller
         };
     }
 
-    private List<DocLandingFeaturedPageViewModel> ResolveFeaturedPages(DocNode? landingDoc, IReadOnlyList<DocNode> docs)
+    private async Task<List<DocLandingFeaturedPageViewModel>> ResolveFeaturedPagesAsync(DocNode? landingDoc)
     {
         if (landingDoc?.Metadata?.FeaturedPages is not { Count: > 0 } featuredDefinitions)
         {
             return [];
         }
 
-        var lookup = BuildDocLookup(docs);
         var resolvedCards = new List<DocLandingFeaturedPageViewModel>();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -238,7 +237,7 @@ public class DocsController : Controller
                 continue;
             }
 
-            var destination = ResolveDocByPath(definition.Path!, lookup);
+            var destination = await _aggregator.GetDocByPathAsync(definition.Path!, HttpContext.RequestAborted);
             if (destination is null)
             {
                 _logger.LogWarning(
@@ -288,75 +287,6 @@ public class DocsController : Controller
         }
 
         return resolvedCards;
-    }
-
-    private sealed class DocLookupBucket
-    {
-        public List<DocNode> OrderedDocs { get; } = [];
-
-        public HashSet<DocNode> SeenDocs { get; } = [];
-    }
-
-    private static Dictionary<string, DocLookupBucket> BuildDocLookup(IEnumerable<DocNode> docs)
-    {
-        var lookup = new Dictionary<string, DocLookupBucket>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var doc in docs)
-        {
-            AddLookupEntry(lookup, NormalizeLookupPath(doc.Path), doc);
-            AddLookupEntry(lookup, NormalizeLookupPath(GetSnapshotCanonicalPath(doc)), doc);
-        }
-
-        return lookup;
-    }
-
-    private static void AddLookupEntry(Dictionary<string, DocLookupBucket> lookup, string key, DocNode doc)
-    {
-        if (!lookup.TryGetValue(key, out var bucket))
-        {
-            bucket = new DocLookupBucket();
-            lookup[key] = bucket;
-        }
-
-        if (bucket.SeenDocs.Add(doc))
-        {
-            bucket.OrderedDocs.Add(doc);
-        }
-    }
-
-    private static DocNode? ResolveDocByPath(
-        string path,
-        IReadOnlyDictionary<string, DocLookupBucket> lookup)
-    {
-        var lookupPath = NormalizeLookupPath(path);
-        var lookupCanonicalPath = NormalizeCanonicalPath(path);
-
-        if (!lookup.TryGetValue(lookupPath, out var bucket) || bucket.OrderedDocs.Count == 0)
-        {
-            return null;
-        }
-
-        var candidates = bucket.OrderedDocs;
-
-        var exactCanonicalMatch = candidates.FirstOrDefault(
-            doc => string.Equals(
-                       NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
-                       lookupCanonicalPath,
-                       StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(
-                       NormalizeCanonicalPath(doc.Path),
-                       lookupCanonicalPath,
-                       StringComparison.OrdinalIgnoreCase));
-        if (exactCanonicalMatch is not null)
-        {
-            return exactCanonicalMatch;
-        }
-
-        return candidates
-            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
-            .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
-            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
     }
 
     private static SearchPageViewModel BuildSearchPageViewModel(IReadOnlyList<DocNode> docs)
@@ -461,40 +391,11 @@ public class DocsController : Controller
             .FirstOrDefault();
     }
 
-    private static string NormalizeLookupPath(string path)
-    {
-        var sanitized = path.Trim().Replace('\\', '/').Trim('/');
-        var hashIndex = sanitized.IndexOf('#');
-        if (hashIndex >= 0)
-        {
-            sanitized = sanitized[..hashIndex];
-        }
-
-        return sanitized;
-    }
-
-    private static string NormalizeCanonicalPath(string path)
-    {
-        return path.Trim().Replace('\\', '/').Trim('/');
-    }
-
     private static string GetSnapshotCanonicalPath(DocNode doc)
     {
         return doc.CanonicalPath
                ?? throw new InvalidOperationException(
                    $"DocsController requires snapshot canonical paths. Doc '{doc.Path}' was missing CanonicalPath.");
-    }
-
-    private static string? GetFragment(string path)
-    {
-        var canonical = NormalizeCanonicalPath(path);
-        var hashIndex = canonical.IndexOf('#');
-        if (hashIndex < 0 || hashIndex == canonical.Length - 1)
-        {
-            return null;
-        }
-
-        return canonical[(hashIndex + 1)..];
     }
 
     private static string? GetSupportingText(DocFeaturedPageDefinition definition, DocNode destination)

@@ -212,6 +212,7 @@ public sealed class MarkdownFrontMatterParserTests
             summary: >
               Build forms, streams,
               and handlers together.
+            sequence_key: onboarding
             featured_pages:
               - question: Where do I start?
                 path: guides/intro.md
@@ -224,6 +225,7 @@ public sealed class MarkdownFrontMatterParserTests
         Assert.NotNull(metadata);
         Assert.Equal("Quickstart", metadata!.Title);
         Assert.Equal("Build forms, streams, and handlers together.", metadata.Summary);
+        Assert.Equal("onboarding", metadata.SequenceKey);
         var featuredPage = Assert.Single(metadata.FeaturedPages!);
         Assert.Equal("Where do I start?", featuredPage.Question);
         Assert.Equal("guides/intro.md", featuredPage.Path);

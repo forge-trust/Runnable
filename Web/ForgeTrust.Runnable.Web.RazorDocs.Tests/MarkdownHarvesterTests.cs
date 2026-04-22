@@ -125,6 +125,7 @@ public class MarkdownHarvesterTests : IDisposable
             keywords: [turbo, streams]
             nav_group: Start Here
             order: 10
+            sequence_key: getting-started
             hide_from_public_nav: true
             hide_from_search: false
             related_pages:
@@ -155,11 +156,47 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal(["turbo", "streams"], doc.Metadata?.Keywords);
         Assert.Equal("Start Here", doc.Metadata?.NavGroup);
         Assert.Equal(10, doc.Metadata?.Order);
+        Assert.Equal("getting-started", doc.Metadata?.SequenceKey);
         Assert.True(doc.Metadata?.HideFromPublicNav);
         Assert.False(doc.Metadata?.HideFromSearch);
         Assert.Equal(["Security & Anti-Forgery"], doc.Metadata?.RelatedPages);
         Assert.Equal("start/quickstart", doc.Metadata?.CanonicalSlug);
         Assert.Equal(["Start Here", "Quickstart"], doc.Metadata?.Breadcrumbs);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldCaptureOutlineFromMarkdownAst()
+    {
+        var content = """
+            # Quickstart
+
+            Intro paragraph.
+
+            ## Install
+
+            ### Verify Setup
+
+            #### Deep Detail
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), content);
+
+        var doc = Assert.Single(await _harvester.HarvestAsync(_testRoot));
+
+        Assert.NotNull(doc.Outline);
+        Assert.Collection(
+            doc.Outline!,
+            first =>
+            {
+                Assert.Equal("Install", first.Title);
+                Assert.Equal("install", first.Id);
+                Assert.Equal(2, first.Level);
+            },
+            second =>
+            {
+                Assert.Equal("Verify Setup", second.Title);
+                Assert.Equal("verify-setup", second.Id);
+                Assert.Equal(3, second.Level);
+            });
     }
 
     [Fact]

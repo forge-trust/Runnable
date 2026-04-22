@@ -127,6 +127,40 @@ featured_pages:
 - Do not use a sidecar as a second secret metadata system. It supports the same `DocMetadata` schema as inline front matter, and it is best reserved for files whose Markdown needs to stay portable on other surfaces.
 - README portability matters most at the repository and package level. In this repo, authored `README.md` files should stay free of inline front matter so GitHub renders them cleanly.
 
+## Metadata-Driven Wayfinding
+
+RazorDocs can render two kinds of page-local wayfinding on details pages without scraping rendered HTML after the fact:
+
+- `On this page` links come from the harvested `DocNode.Outline` contract.
+- `Previous` and `Next` proof-path links come from explicit metadata, not folder inference.
+
+### Sequence contract
+
+Use `sequence_key` together with `order` when a set of pages should behave like one proof path:
+
+```yaml
+sequence_key: razorwire-proof
+order: 20
+related_pages:
+  - Web/ForgeTrust.Runnable.Web.RazorWire/README.md
+  - Web/ForgeTrust.Runnable.Web.RazorWire/Docs/antiforgery.md
+```
+
+- `sequence_key` opt-ins a page to a specific sequence. Pages do not join a sequence just because they share a folder.
+- `order` determines the relative previous/next position inside that sequence.
+- `related_pages` stays independent from sequencing and can point to source paths, canonical docs paths, or exact page titles.
+
+### Resolution rules
+
+- Previous/next links render only when the current page has both `sequence_key` and `order`.
+- RazorDocs only sequences navigable pages. Fragment-only anchor stubs and pages hidden from public navigation do not appear in proof-path navigation.
+- Related pages are deduplicated against the current page and any resolved previous/next neighbors.
+
+### Pitfalls
+
+- Do not rely on filename prefixes or folder adjacency for proof-path behavior in this slice. Use explicit `sequence_key` values instead.
+- Do not expect `related_pages` to imply ordering. Related links stay unordered beyond the authored list order.
+
 ## Metadata-Driven Page Type Display
 
 RazorDocs treats `page_type` metadata as structured UI input, not just as opaque search metadata. The built-in landing cards, detail pages, and search results all normalize the same metadata through `DocMetadataPresentation.ResolvePageTypeBadge()`.
@@ -145,6 +179,16 @@ The `/docs/search-index.json` payload continues to emit the raw `pageType` metad
 - `pageTypeVariant` for the built-in badge variant suffix used by CSS classes such as `docs-page-badge--guide`
 
 These fields let custom search clients stay visually aligned with the landing and detail experiences without re-implementing the mapping table.
+
+## Custom Harvester Outline Contract
+
+The built-in Markdown and C# harvesters now populate `DocNode.Outline` directly during harvest. Custom `IDocHarvester` implementations should do the same when they want:
+
+- `On this page` links on details views
+- heading metadata in `/docs/search-index.json`
+- stable behavior without re-parsing rendered HTML later
+
+Each outline entry should provide the rendered fragment `Id`, the reader-facing `Title`, and the normalized heading `Level`.
 
 ## Related Projects
 

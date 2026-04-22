@@ -583,8 +583,8 @@ public class DocsControllerTests : IDisposable
 
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocNode>(viewResult.Model);
-        Assert.Equal("Title", model.Title);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal("Title", model.Document.Title);
     }
 
     [Fact]
@@ -643,8 +643,8 @@ public class DocsControllerTests : IDisposable
 
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocNode>(viewResult.Model);
-        Assert.Equal("Title", model.Title);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal("Title", model.Document.Title);
     }
 
     [Fact]
@@ -659,8 +659,8 @@ public class DocsControllerTests : IDisposable
 
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocNode>(viewResult.Model);
-        Assert.Equal("Legacy", model.Title);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal("Legacy", model.Document.Title);
     }
 
     [Fact]
@@ -672,8 +672,8 @@ public class DocsControllerTests : IDisposable
         var result = await _controller.Details("guides\\intro.md");
 
         var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocNode>(viewResult.Model);
-        Assert.Equal("Guide", model.Title);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal("Guide", model.Document.Title);
     }
 
     [Fact]
@@ -889,6 +889,7 @@ public class DocsControllerTests : IDisposable
                     Status = "stable",
                     NavGroup = "Start Here",
                     Order = 7,
+                    SequenceKey = "getting-started",
                     RelatedPages = ["examples/hello-world", "Namespaces/ForgeTrust.Runnable"],
                     Breadcrumbs = ["Guides", "Getting Started"]
                 })
@@ -911,6 +912,7 @@ public class DocsControllerTests : IDisposable
         Assert.Equal("stable", document.GetProperty("status").GetString());
         Assert.Equal("Start Here", document.GetProperty("navGroup").GetString());
         Assert.Equal(7, document.GetProperty("order").GetInt32());
+        Assert.Equal("getting-started", document.GetProperty("sequenceKey").GetString());
         Assert.Equal("quickstart", document.GetProperty("aliases").EnumerateArray().Single().GetString());
         Assert.Equal("install", document.GetProperty("keywords").EnumerateArray().Single().GetString());
         Assert.Equal(

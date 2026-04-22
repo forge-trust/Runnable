@@ -73,15 +73,12 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var grouped = Assert.IsAssignableFrom<IEnumerable<IGrouping<string, DocNode>>>(viewResult.ViewData!.Model).ToList();
-
-            Assert.Equal(new[] { "docs", "General", "src" }, grouped.Select(g => g.Key).ToArray());
-            Assert.Single(grouped.Single(g => g.Key == "General"));
-            Assert.Single(grouped.Single(g => g.Key == "docs"));
-            Assert.Single(grouped.Single(g => g.Key == "src"));
+            Assert.Equal(new[] { "docs", "General", "src" }, model.Groups.Select(g => g.Title).ToArray());
+            Assert.Single(Assert.Single(model.Groups, g => g.Title == "General").Sections.Single().Items);
+            Assert.Single(Assert.Single(model.Groups, g => g.Title == "docs").Sections.Single().Items);
+            Assert.Single(Assert.Single(model.Groups, g => g.Title == "src").Sections.Single().Items);
         }
     }
 
@@ -112,13 +109,10 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var grouped = Assert.IsAssignableFrom<IEnumerable<IGrouping<string, DocNode>>>(viewResult.ViewData!.Model).ToList();
-
-            var startHereGroup = grouped.Single(g => g.Key == "Start Here");
-            var visibleDoc = Assert.Single(startHereGroup);
+            var startHereGroup = Assert.Single(model.Groups, g => g.Title == "Start Here");
+            var visibleDoc = Assert.Single(startHereGroup.Sections.Single().Items);
             Assert.Equal("Quickstart", visibleDoc.Title);
         }
     }
@@ -140,14 +134,12 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var grouped = Assert.IsAssignableFrom<IEnumerable<IGrouping<string, DocNode>>>(viewResult.ViewData!.Model).ToList();
-
-            var namespacesGroup = Assert.Single(grouped);
-            Assert.Equal("Namespaces", namespacesGroup.Key);
-            Assert.Single(namespacesGroup);
+            var namespacesGroup = Assert.Single(model.Groups);
+            Assert.Equal("Namespaces", namespacesGroup.Title);
+            Assert.Single(namespacesGroup.Sections);
+            Assert.Single(namespacesGroup.Sections.Single().Items);
         }
     }
 
@@ -168,13 +160,10 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var grouped = Assert.IsAssignableFrom<IEnumerable<IGrouping<string, DocNode>>>(viewResult.ViewData!.Model).ToList();
-
-            var startHereGroup = Assert.Single(grouped);
-            Assert.Equal("Start Here", startHereGroup.Key);
+            var startHereGroup = Assert.Single(model.Groups);
+            Assert.Equal("Start Here", startHereGroup.Title);
         }
     }
 
@@ -189,13 +178,10 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var grouped = Assert.IsAssignableFrom<IEnumerable<IGrouping<string, DocNode>>>(viewResult.ViewData!.Model).ToList();
-
-            Assert.Contains(grouped, g => g.Key == "Namespaces");
-            Assert.DoesNotContain(grouped, g => g.Key == "General" && g.Any(n => n.Path == "Namespaces"));
+            Assert.Contains(model.Groups, g => g.Title == "Namespaces");
+            Assert.DoesNotContain(model.Groups, g => g.Title == "General");
         }
     }
 
@@ -216,11 +202,9 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var prefixes = Assert.IsType<string[]>(viewResult.ViewData!["NamespacePrefixes"]);
-            Assert.Equal(new[] { "Contoso.Product.", "Contoso.Product" }, prefixes);
+            Assert.Equal(new[] { "Contoso.Product.", "Contoso.Product" }, model.NamespacePrefixes);
         }
     }
 
@@ -235,11 +219,9 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var prefixes = Assert.IsType<string[]>(viewResult.ViewData!["NamespacePrefixes"]);
-            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, prefixes);
+            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, model.NamespacePrefixes);
         }
     }
 
@@ -254,11 +236,9 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var prefixes = Assert.IsType<string[]>(viewResult.ViewData!["NamespacePrefixes"]);
-            Assert.Empty(prefixes);
+            Assert.Empty(model.NamespacePrefixes);
         }
     }
 
@@ -270,11 +250,9 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var prefixes = Assert.IsType<string[]>(viewResult.ViewData!["NamespacePrefixes"]);
-            Assert.Empty(prefixes);
+            Assert.Empty(model.NamespacePrefixes);
         }
     }
 
@@ -293,11 +271,9 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var prefixes = Assert.IsType<string[]>(viewResult.ViewData!["NamespacePrefixes"]);
-            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, prefixes);
+            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, model.NamespacePrefixes);
         }
     }
 
@@ -312,12 +288,17 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var result = await component.InvokeAsync();
+            var model = await InvokeAsync(component);
 
-            var viewResult = Assert.IsType<ViewViewComponentResult>(result);
-            var prefixes = Assert.IsType<string[]>(viewResult.ViewData!["NamespacePrefixes"]);
-            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, prefixes);
+            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, model.NamespacePrefixes);
         }
+    }
+
+    private static async Task<DocSidebarViewModel> InvokeAsync(SidebarViewComponent component)
+    {
+        var result = await component.InvokeAsync();
+        var viewResult = Assert.IsType<ViewViewComponentResult>(result);
+        return Assert.IsType<DocSidebarViewModel>(viewResult.ViewData!.Model);
     }
 
     private static (SidebarViewComponent Component, MemoryCache Cache, Memo Memo) CreateComponent(

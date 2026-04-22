@@ -66,6 +66,16 @@ public sealed record DocMetadata
     public int? Order { get; init; }
 
     /// <summary>
+    /// Gets the explicit sequence identifier used to connect pages into one proof path.
+    /// </summary>
+    /// <remarks>
+    /// RazorDocs does not infer sequence membership from folders or filenames in this slice. Pages participate in
+    /// next/previous wayfinding only when authors opt them into the same <see cref="SequenceKey"/> and assign
+    /// comparable <see cref="Order"/> values.
+    /// </remarks>
+    public string? SequenceKey { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the page should be hidden from public navigation.
     /// </summary>
     public bool? HideFromPublicNav { get; init; }
@@ -181,6 +191,7 @@ public sealed record DocMetadata
             NavGroup = navGroup,
             NavGroupIsDerived = navGroupIsDerived,
             Order = primary.Order ?? fallback.Order,
+            SequenceKey = PreferNonBlank(primary.SequenceKey, fallback.SequenceKey),
             HideFromPublicNav = primary.HideFromPublicNav ?? fallback.HideFromPublicNav,
             HideFromSearch = primary.HideFromSearch ?? fallback.HideFromSearch,
             RelatedPages = MergeLists(primary.RelatedPages, fallback.RelatedPages),
@@ -237,6 +248,27 @@ public sealed record DocMetadata
 }
 
 /// <summary>
+/// Represents one navigable heading captured while harvesting a documentation page.
+/// </summary>
+public sealed record DocOutlineItem
+{
+    /// <summary>
+    /// Gets the heading text shown in the page-local outline and search metadata.
+    /// </summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the HTML fragment identifier that anchors this outline item within the page.
+    /// </summary>
+    public string Id { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the normalized heading level for this entry.
+    /// </summary>
+    public int Level { get; init; }
+}
+
+/// <summary>
 /// Represents a documentation node within the repository.
 /// </summary>
 /// <param name="Title">The display title of the document.</param>
@@ -246,6 +278,7 @@ public sealed record DocMetadata
 /// <param name="IsDirectory">Indicates if this node represents a directory container.</param>
 /// <param name="CanonicalPath">The browser-facing docs route path used for linking and lookup.</param>
 /// <param name="Metadata">Structured metadata associated with the documentation node.</param>
+/// <param name="Outline">Structured in-page outline entries captured during harvesting.</param>
 public record DocNode(
     string Title,
     string Path,
@@ -253,7 +286,8 @@ public record DocNode(
     string? ParentPath = null,
     bool IsDirectory = false,
     string? CanonicalPath = null,
-    DocMetadata? Metadata = null);
+    DocMetadata? Metadata = null,
+    IReadOnlyList<DocOutlineItem>? Outline = null);
 
 /// <summary>
 /// Defines one authored featured-page entry for a docs landing surface.

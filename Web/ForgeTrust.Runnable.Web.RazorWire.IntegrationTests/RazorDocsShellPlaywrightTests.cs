@@ -31,9 +31,13 @@ public sealed class RazorDocsShellPlaywrightTests
             """
             () => {
               const sidebar = document.getElementById('docs-sidebar');
+              const sidebarOverlay = document.getElementById('docs-sidebar-overlay');
+              const openButton = document.getElementById('docs-sidebar-open');
               return Boolean(sidebar)
-                && sidebar.classList.contains('-translate-x-full')
-                && sidebar.getAttribute('aria-hidden') === 'true';
+                && sidebar.getAttribute('aria-hidden') === 'true'
+                && openButton?.getAttribute('aria-expanded') === 'false'
+                && Boolean(sidebarOverlay)
+                && window.getComputedStyle(sidebarOverlay).display === 'none';
             }
             """,
             null,
@@ -44,11 +48,16 @@ public sealed class RazorDocsShellPlaywrightTests
             """
             () => {
               const sidebar = document.getElementById('docs-sidebar');
+              const sidebarOverlay = document.getElementById('docs-sidebar-overlay');
+              const openButton = document.getElementById('docs-sidebar-open');
               const main = document.getElementById('main-content');
               return Boolean(sidebar)
-                && !sidebar.classList.contains('-translate-x-full')
+                && sidebar.getAttribute('aria-hidden') === 'false'
                 && sidebar.getAttribute('role') === 'dialog'
                 && sidebar.getAttribute('aria-modal') === 'true'
+                && openButton?.getAttribute('aria-expanded') === 'true'
+                && Boolean(sidebarOverlay)
+                && window.getComputedStyle(sidebarOverlay).display !== 'none'
                 && main?.hasAttribute('inert')
                 && main.getAttribute('aria-hidden') === 'true'
                 && sidebar.contains(document.activeElement);
@@ -65,11 +74,14 @@ public sealed class RazorDocsShellPlaywrightTests
             """
             () => {
               const sidebar = document.getElementById('docs-sidebar');
+              const sidebarOverlay = document.getElementById('docs-sidebar-overlay');
               const main = document.getElementById('main-content');
               const openButton = document.getElementById('docs-sidebar-open');
               return Boolean(sidebar)
-                && sidebar.classList.contains('-translate-x-full')
                 && sidebar.getAttribute('aria-hidden') === 'true'
+                && openButton?.getAttribute('aria-expanded') === 'false'
+                && Boolean(sidebarOverlay)
+                && window.getComputedStyle(sidebarOverlay).display === 'none'
                 && !main?.hasAttribute('inert')
                 && !main?.hasAttribute('aria-hidden')
                 && document.activeElement === openButton;
@@ -90,20 +102,45 @@ public sealed class RazorDocsShellPlaywrightTests
 
         await page.GotoAsync(_fixture.DocsUrl);
 
-        var link = page.Locator("nav[aria-label='Documentation navigation'] a[data-turbo-frame='doc-content']:not([data-doc-anchor-link='true'])").First;
-        await link.WaitForAsync(new LocatorWaitForOptions
+        var links = page.Locator("nav[aria-label='Documentation navigation'] a[data-turbo-frame='doc-content']:not([data-doc-anchor-link='true'])");
+        await links.First.WaitForAsync(new LocatorWaitForOptions
         {
             State = WaitForSelectorState.Visible,
             Timeout = 30_000
         });
 
-        var targetHref = await link.GetAttributeAsync("href");
-        Assert.False(string.IsNullOrWhiteSpace(targetHref));
+        var currentUri = new Uri(page.Url);
+        var currentTarget = currentUri.AbsolutePath + currentUri.Fragment;
+        var linkCount = await links.CountAsync();
+        ILocator? selectedLink = null;
+        Uri? targetUri = null;
 
-        var targetUri = new Uri(new Uri(_fixture.DocsUrl), targetHref!);
+        for (var index = 0; index < linkCount; index++)
+        {
+            var candidate = links.Nth(index);
+            var candidateHref = await candidate.GetAttributeAsync("href");
+            if (string.IsNullOrWhiteSpace(candidateHref))
+            {
+                continue;
+            }
+
+            var resolvedTarget = new Uri(new Uri(_fixture.DocsUrl), candidateHref);
+            var resolvedPathAndFragment = resolvedTarget.AbsolutePath + resolvedTarget.Fragment;
+            if (string.Equals(resolvedPathAndFragment, currentTarget, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            selectedLink = candidate;
+            targetUri = resolvedTarget;
+            break;
+        }
+
+        Assert.NotNull(selectedLink);
+        Assert.NotNull(targetUri);
         var initialContent = await page.Locator("#doc-content").InnerHTMLAsync();
 
-        await link.ClickAsync();
+        await selectedLink!.ClickAsync();
         await page.WaitForFunctionAsync(
             """
             (args) => {

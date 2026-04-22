@@ -305,6 +305,61 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task IndexView_ShouldRenderStartHereCta_AndSecondarySectionRoutes()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Home", "README.md", "<p>Home</p>"),
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here"
+                }),
+            new(
+                "Concept Landing",
+                "concepts/landing.md",
+                "<p>Concept landing</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    SectionLanding = true,
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Learn the mental model",
+                            Path = "concepts/deep-dive.md"
+                        }
+                    ]
+                }),
+            new(
+                "Deep Dive",
+                "concepts/deep-dive.md",
+                "<p>Deep dive</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "The deeper summary.",
+                    PageType = "guide"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
+
+        Assert.Contains("href=\"/docs/sections/start-here\"", html);
+        Assert.Contains("Open Start Here", html);
+        Assert.Contains("href=\"/docs/sections/concepts\"", html);
+        Assert.Contains("Build the mental model before you choose an implementation path.", html);
+        Assert.Contains("Learn the mental model", html);
+        Assert.Contains("Guide", html);
+        Assert.Contains("The deeper summary.", html);
+    }
+
+    [Fact]
     public async Task SectionView_ShouldHideStartHereCta_WhenStartHereSectionIsUnavailable()
     {
         var docs = new List<DocNode>
@@ -390,6 +445,84 @@ public class RazorDocsViewsTests
             actionLinks,
             link => string.Equals(link.GetAttribute("href"), "/docs/sections/start-here", StringComparison.Ordinal));
         Assert.Contains(actionLinks, link => link.TextContent.Contains("Start Here", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SectionView_ShouldRenderSparseRoutes_WithBadgesAndSummaries()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here"
+                }),
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "Understand the concepts.",
+                    PageType = "guide"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("concepts"));
+
+        Assert.Contains("This section is still growing", html);
+        Assert.Contains("Understand the concepts.", html);
+        Assert.Contains("docs-page-badge--guide", html);
+    }
+
+    [Fact]
+    public async Task SectionView_ShouldRenderGroupedLinks_BadgesSummariesAndChildren()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Namespaces",
+                "Namespaces",
+                "<p>Namespace root</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference",
+                    PageType = "api-reference"
+                }),
+            new(
+                "Foo",
+                "Namespaces/Foo",
+                "<p>Foo namespace</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference",
+                    PageType = "api-reference",
+                    Summary = "Foo namespace summary."
+                }),
+            new(
+                "FooService",
+                "Namespaces/Foo#FooService",
+                string.Empty,
+                ParentPath: "Namespaces/Foo",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference",
+                    PageType = "api-reference"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("api-reference"));
+
+        Assert.Contains("Browse the public pages here.", html);
+        Assert.Contains("Foo namespace summary.", html);
+        Assert.Contains("docs-page-badge--api-reference", html);
+        Assert.Contains("FooService", html);
     }
 
     [Fact]
@@ -513,6 +646,61 @@ public class RazorDocsViewsTests
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.html\"", html);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.Runnable.html\"", html);
         Assert.Contains(">Web</h1>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderSectionLandingChrome_WithFeaturedPagesAndSectionGroups()
+    {
+        var landingDoc = new DocNode(
+            "Concept Landing",
+            "concepts/landing.md",
+            "<p>Landing body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts",
+                SectionLanding = true,
+                Summary = "Landing summary.",
+                FeaturedPages =
+                [
+                    new DocFeaturedPageDefinition
+                    {
+                        Question = "Go deeper",
+                        Path = "concepts/deep-dive.md",
+                        SupportingCopy = "Follow the next route."
+                    }
+                ]
+            });
+        var deepDive = new DocNode(
+            "Deep Dive",
+            "concepts/deep-dive.md",
+            "<p>Deep dive body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts",
+                Summary = "Deep dive summary.",
+                PageType = "guide"
+            });
+        var anchor = new DocNode(
+            "Jump to section",
+            "concepts/deep-dive.md#jump",
+            string.Empty,
+            ParentPath: "concepts/deep-dive.md",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts"
+            });
+
+        var html = await RenderDetailsViewAsync(landingDoc, deepDive, anchor);
+
+        Assert.Contains("Section landing", html);
+        Assert.Contains("Use this section as the entry point.", html);
+        Assert.Contains("href=\"/docs/sections/concepts\"", html);
+        Assert.Contains("Next steps", html);
+        Assert.Contains("Go deeper", html);
+        Assert.Contains("Follow the next route.", html);
+        Assert.Contains("In this section", html);
+        Assert.Contains("Deep dive summary.", html);
+        Assert.Contains("Jump to section", html);
     }
 
     [Fact]

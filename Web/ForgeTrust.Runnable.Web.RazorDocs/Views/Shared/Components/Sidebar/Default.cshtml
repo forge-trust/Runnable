@@ -7,7 +7,7 @@
             <div class="flex items-center justify-between gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-slate-900/70">
                 <a href="@sidebarSection.Href"
                    class="text-xs font-semibold uppercase tracking-[0.18em] @(sidebarSection.IsActive ? "text-cyan-300" : "text-slate-400 hover:text-cyan-300")"
-                   @(sidebarSection.IsActive ? "aria-current=\"location\"" : null)>
+                   aria-current="@(sidebarSection.IsActive ? "location" : null)">
                     @sidebarSection.Label
                 </a>
                 <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600 transition-transform group-open:rotate-90" aria-hidden="true">›</span>
@@ -31,7 +31,7 @@
                                    data-turbo-frame="doc-content"
                                    data-turbo-action="advance"
                                    class="block rounded-lg px-2 py-1.5 text-sm font-medium transition-colors @(link.IsCurrent ? "bg-slate-900 text-cyan-200" : "text-slate-400 hover:bg-slate-900 hover:text-cyan-300")"
-                                   @(link.IsCurrent ? "aria-current=\"page\"" : null)>
+                                   aria-current="@(link.IsCurrent ? "page" : null)">
                                     @link.Title
                                 </a>
 
@@ -46,7 +46,7 @@
                                                    data-turbo-frame="doc-content"
                                                    data-turbo-action="advance"
                                                    class="block px-4 py-1 text-xs transition-colors @(child.IsCurrent ? "text-cyan-300" : "text-slate-500 hover:text-cyan-300")"
-                                                   @(child.IsCurrent ? "aria-current=\"page\"" : null)>
+                                                   aria-current="@(child.IsCurrent ? "page" : null)">
                                                     @child.Title
                                                 </a>
                                             </li>

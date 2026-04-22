@@ -110,6 +110,16 @@ public sealed class DocMetadataFactoryTests
         Assert.True(metadata.BreadcrumbsMatchPathTargets);
     }
 
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldClassifyRootReadmeAsStartHere()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata("README.md", "Home", null, null);
+
+        Assert.Equal("Start Here", metadata.NavGroup);
+        Assert.Equal("guide", metadata.PageType);
+        Assert.Equal("implementer", metadata.Audience);
+    }
+
     [Theory]
     [InlineData(@"examples\mvc\guide.md", "example", "Examples", "implementer")]
     [InlineData(@"docs\ForgeTrust.Runnable.Web.Tests\README.md", "internals", "Internals", "contributor")]

@@ -58,9 +58,9 @@ These sections back the `/docs` home, the sidebar shell, and the dedicated secti
 ### Section routes and landing docs
 
 - `/docs/sections/{slug}` resolves one public section route such as `/docs/sections/start-here` or `/docs/sections/api-reference`.
-- If the section has an authored landing doc, RazorDocs redirects the section route to that page.
-- If the section has visible pages but no landing doc, RazorDocs renders a grouped fallback section page instead of a dead end.
-- If the slug is invalid or the section has no public pages, RazorDocs renders an unavailable section surface with recovery links back to `/docs` and `Start Here`.
+- When a section has an authored landing doc, RazorDocs redirects the section route to that page.
+- Sections with visible pages but no landing doc render a grouped fallback section page instead of a dead end.
+- Invalid slugs or sections with no public pages render an unavailable section surface with recovery links back to `/docs` and `Start Here`.
 
 ### `section_landing`
 

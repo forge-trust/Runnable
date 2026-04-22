@@ -233,6 +233,31 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Index_ShouldNotUseRootReadmeAsFallbackFeaturedPage()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Start here."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        Assert.False(model.HasFeaturedPages);
+        Assert.Empty(model.FeaturedPages);
+    }
+
+    [Fact]
     public async Task Section_ShouldNotExposeStartHereHref_WhenStartHereSectionIsUnavailable()
     {
         var docs = new List<DocNode>
@@ -1031,6 +1056,50 @@ public class DocsControllerTests : IDisposable
         Assert.Equal(
             ["Guides", "Getting Started"],
             document.GetProperty("breadcrumbs").EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldMarkOnlyResolvedSectionLandingDoc_AsSectionLanding()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Alpha",
+                "guides/alpha.md",
+                "<p>Alpha</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    SectionLanding = true,
+                    Order = 20
+                }),
+            new(
+                "Beta",
+                "guides/beta.md",
+                "<p>Beta</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    SectionLanding = true,
+                    Order = 10
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.SearchIndex();
+        var json = Assert.IsType<JsonResult>(result);
+
+        var payload = JsonSerializer.Serialize(json.Value);
+        using var doc = JsonDocument.Parse(payload);
+        var documents = doc.RootElement.GetProperty("documents")
+            .EnumerateArray()
+            .ToDictionary(
+                item => item.GetProperty("id").GetString() ?? string.Empty,
+                item => item.GetProperty("isSectionLanding").GetBoolean(),
+                StringComparer.OrdinalIgnoreCase);
+
+        Assert.False(documents["guides/alpha.md"]);
+        Assert.True(documents["guides/beta.md"]);
     }
 
     [Fact]

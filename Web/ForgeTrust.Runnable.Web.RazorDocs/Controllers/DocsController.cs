@@ -284,6 +284,7 @@ public class DocsController : Controller
         if (candidates.Count == 0 && startHereSection.VisiblePages.Count > 0)
         {
             candidates = startHereSection.VisiblePages
+                .Where(doc => !string.Equals(doc.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase))
                 .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
                 .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
                 .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)

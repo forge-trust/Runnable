@@ -51,7 +51,7 @@ internal static class DocSectionDisplayBuilder
 
         var groups = new List<DocSectionGroupViewModel>();
         var namespaceRoot = rootItems.FirstOrDefault(
-            doc => doc.Path.Trim().Trim('/').Equals("Namespaces", StringComparison.OrdinalIgnoreCase));
+            doc => doc.Path.Trim(' ', '/').Equals("Namespaces", StringComparison.OrdinalIgnoreCase));
         if (namespaceRoot is not null)
         {
             groups.Add(

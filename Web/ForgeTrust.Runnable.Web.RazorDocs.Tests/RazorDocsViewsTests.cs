@@ -329,6 +329,91 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SectionView_ShouldHideStartHereCta_WhenViewingStartHereSection()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Start here."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("start-here"));
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var actionLinks = document.QuerySelectorAll("div.mt-6.flex.flex-wrap.gap-3 > a")
+            .Select(link => link.GetAttribute("href"))
+            .Where(href => !string.IsNullOrWhiteSpace(href))
+            .ToArray();
+
+        Assert.DoesNotContain("/docs/sections/start-here", actionLinks);
+        Assert.Contains("href=\"/docs\"", html);
+    }
+
+    [Fact]
+    public async Task SidebarView_ShouldRenderAriaCurrentAttributes_UsingConditionalAttributeValues()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var model = new DocSidebarViewModel
+        {
+            Sections =
+            [
+                new DocSidebarSectionViewModel
+                {
+                    Section = DocPublicSection.HowToGuides,
+                    Label = "How-to Guides",
+                    Slug = "how-to-guides",
+                    Href = "/docs/sections/how-to-guides",
+                    IsActive = true,
+                    IsExpanded = true,
+                    Groups =
+                    [
+                        new DocSectionGroupViewModel
+                        {
+                            Links =
+                            [
+                                new DocSectionLinkViewModel
+                                {
+                                    Title = "Guide",
+                                    Href = "/docs/guides/guide.md.html",
+                                    IsCurrent = true,
+                                    Children =
+                                    [
+                                        new DocSectionLinkViewModel
+                                        {
+                                            Title = "Run",
+                                            Href = "/docs/guides/guide.md.html#run",
+                                            IsCurrent = true
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Shared/Components/Sidebar/Default.cshtml",
+            model);
+
+        Assert.Contains("href=\"/docs/sections/how-to-guides\"", html);
+        Assert.Contains("aria-current=\"location\"", html);
+        Assert.Contains("href=\"/docs/guides/guide.md.html\"", html);
+        Assert.Contains("aria-current=\"page\"", html);
+        Assert.DoesNotContain("aria-current=&quot;page&quot;", html);
+        Assert.DoesNotContain("aria-current=&quot;location&quot;", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderNamespaceBreadcrumbLinks()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -376,7 +461,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldFallbackToModelTitle_WhenMetadataTitleIsWhitespace()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Fallback Title",
             "guides/whitespace.md",
@@ -386,10 +470,7 @@ public class RazorDocsViewsTests
                 Title = "   "
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">Fallback Title</h1>", html);
     }
@@ -397,7 +478,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldFallbackToModelTitle_WhenMetadataTitleIsNull()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Fallback Title",
             "guides/null-title.md",
@@ -407,10 +487,7 @@ public class RazorDocsViewsTests
                 Title = null
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">Fallback Title</h1>", html);
     }
@@ -418,7 +495,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderTrimmedMetadataTitle_WhenMetadataTitleIsPresent()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Fallback Title",
             "guides/trimmed-title.md",
@@ -428,10 +504,7 @@ public class RazorDocsViewsTests
                 Title = "  Authored Title  "
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">Authored Title</h1>", html);
         Assert.DoesNotContain(">Fallback Title</h1>", html);
@@ -440,7 +513,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataTargetsCannotBeVerified()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -450,10 +522,7 @@ public class RazorDocsViewsTests
                 Breadcrumbs = ["Start Here", "Quickstart"]
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
         var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
             .Select(node => node.TextContent.Trim())
@@ -469,7 +538,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataBreadcrumbCountDoesNotMatchPath()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -480,10 +548,7 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
         var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
             .Select(node => node.TextContent.Trim())
@@ -498,7 +563,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataBreadcrumbsCollapseToEmpty()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -509,10 +573,7 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
         var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
             .Select(node => node.TextContent.Trim())
@@ -527,7 +588,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_WhenTargetsAreKnownToMatch()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Web",
             "Namespaces/ForgeTrust.Runnable.Web",
@@ -538,10 +598,7 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
         var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
             .Select(node => node.TextContent.Trim())
@@ -556,7 +613,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_ForEditorialDocs_WhenTargetsAreKnownToMatch()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -568,10 +624,7 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
         var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
             .Select(node => node.TextContent.Trim())
@@ -584,7 +637,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldNotRenderDerivedSummaryBlurb()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -595,10 +647,7 @@ public class RazorDocsViewsTests
                 SummaryIsDerived = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.DoesNotContain("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the first paragraph.</p>", html);
     }
@@ -606,7 +655,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderExplicitSummaryBlurb()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -617,10 +665,7 @@ public class RazorDocsViewsTests
                 SummaryIsDerived = false
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
     }
@@ -628,7 +673,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderSummaryBlurb_WhenDerivedFlagIsUnset()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -638,10 +682,7 @@ public class RazorDocsViewsTests
                 Summary = "This is the summary paragraph."
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
     }
@@ -649,7 +690,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderPageTypeBadge_AndMetadataContextChips()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -661,10 +701,7 @@ public class RazorDocsViewsTests
                 Audience = "Evaluators"
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Equal("API Reference", document.QuerySelector(".docs-page-meta .docs-page-badge")?.TextContent.Trim());
@@ -678,7 +715,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldSuppressDerivedAudienceAndComponentChips()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -692,10 +728,7 @@ public class RazorDocsViewsTests
                 AudienceIsDerived = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Equal("Guide", document.QuerySelector(".docs-page-meta .docs-page-badge")?.TextContent.Trim());
@@ -707,7 +740,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldNotRenderMetaContainer_WhenBadgeAndChipsAreUnavailable()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -721,10 +753,7 @@ public class RazorDocsViewsTests
                 AudienceIsDerived = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            doc);
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Null(document.QuerySelector(".docs-page-meta"));
@@ -1175,14 +1204,18 @@ public class RazorDocsViewsTests
         return await reader.ReadToEndAsync();
     }
 
+    private static async Task<string> RenderDetailsViewAsync(DocNode doc, params DocNode[] additionalDocs)
+    {
+        using var services = CreateServiceProvider(CreateDocsWithOverrides([doc, .. additionalDocs]));
+
+        return await RenderDocsViewAsync(
+            services,
+            "Details",
+            controller => controller.Details(doc.Path));
+    }
+
     private static object AdaptViewModel(string viewName, object model, ViewDataDictionary viewData)
     {
-        if (viewName.EndsWith("/Views/Docs/Details.cshtml", StringComparison.OrdinalIgnoreCase)
-            && model is DocNode doc)
-        {
-            return CreateDetailsViewModel(doc);
-        }
-
         if (viewName.EndsWith("/Views/Shared/Components/Sidebar/Default.cshtml", StringComparison.OrdinalIgnoreCase)
             && model is IEnumerable<IGrouping<string, DocNode>> groupedDocs)
         {
@@ -1190,129 +1223,6 @@ public class RazorDocsViewsTests
         }
 
         return model;
-    }
-
-    private static DocDetailsViewModel CreateDetailsViewModel(DocNode doc)
-    {
-        var resolvedTitle = string.IsNullOrWhiteSpace(doc.Metadata?.Title)
-            ? doc.Title
-            : doc.Metadata!.Title!.Trim();
-        var publicSection = DocPublicSectionCatalog.TryResolve(doc.Metadata?.NavGroup, out var section)
-            ? section
-            : (DocPublicSection?)null;
-        var summary = doc.Metadata?.Summary;
-
-        return new DocDetailsViewModel
-        {
-            Document = doc,
-            Title = resolvedTitle,
-            Summary = summary,
-            ShowSummary = !string.IsNullOrWhiteSpace(summary) && doc.Metadata?.SummaryIsDerived != true,
-            IsCSharpApiDoc = doc.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase),
-            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType),
-            Component = doc.Metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(doc.Metadata?.Component)
-                ? null
-                : doc.Metadata!.Component!.Trim(),
-            Audience = doc.Metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(doc.Metadata?.Audience)
-                ? null
-                : doc.Metadata!.Audience!.Trim(),
-            Breadcrumbs = CreateDetailsBreadcrumbs(doc, resolvedTitle, publicSection),
-            PublicSection = publicSection,
-            PublicSectionLabel = publicSection is null ? null : DocPublicSectionCatalog.GetLabel(publicSection.Value),
-            PublicSectionHref = publicSection is null ? null : DocPublicSectionCatalog.GetHref(publicSection.Value),
-            PublicSectionPurpose = publicSection is null ? null : DocPublicSectionCatalog.GetPurpose(publicSection.Value)
-        };
-    }
-
-    private static IReadOnlyList<DocBreadcrumbViewModel> CreateDetailsBreadcrumbs(
-        DocNode doc,
-        string resolvedTitle,
-        DocPublicSection? publicSection)
-    {
-        var normalizedPath = doc.Path.Trim().Trim('/');
-        var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
-                              || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
-        var metadataBreadcrumbs = doc.Metadata?.Breadcrumbs?
-            .Where(label => !string.IsNullOrWhiteSpace(label))
-            .Select(label => label.Trim())
-            .ToList();
-        var parsedBreadcrumbs = new List<DocBreadcrumbViewModel>();
-
-        if (isNamespacePath)
-        {
-            parsedBreadcrumbs.Add(new DocBreadcrumbViewModel { Label = "Namespaces", Href = "/docs/Namespaces.html" });
-
-            if (normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
-            {
-                var fullNamespace = normalizedPath["Namespaces/".Length..];
-                var parts = fullNamespace.Split('.', StringSplitOptions.RemoveEmptyEntries);
-                for (var i = 0; i < parts.Length; i++)
-                {
-                    var prefix = string.Join(".", parts.Take(i + 1));
-                    var isLast = i == parts.Length - 1;
-                    parsedBreadcrumbs.Add(
-                        new DocBreadcrumbViewModel
-                        {
-                            Label = parts[i],
-                            Href = isLast ? null : $"/docs/Namespaces/{prefix}.html"
-                        });
-                }
-            }
-        }
-        else
-        {
-            var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            var current = string.Empty;
-            for (var i = 0; i < segments.Length; i++)
-            {
-                var segment = segments[i];
-                current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
-                var isLast = i == segments.Length - 1;
-                parsedBreadcrumbs.Add(
-                    new DocBreadcrumbViewModel
-                    {
-                        Label = segment,
-                        Href = isLast ? null : $"/docs/{current}.html"
-                    });
-            }
-        }
-
-        var metadataBreadcrumbCount = metadataBreadcrumbs?.Count ?? 0;
-        var canUseMetadataBreadcrumbs = metadataBreadcrumbCount > 0
-                                        && doc.Metadata?.BreadcrumbsMatchPathTargets == true
-                                        && metadataBreadcrumbCount == parsedBreadcrumbs.Count;
-        if (!canUseMetadataBreadcrumbs)
-        {
-            if (publicSection is { } section && section != DocPublicSection.ApiReference)
-            {
-                var sectionLabel = DocPublicSectionCatalog.GetLabel(section);
-                return string.Equals(sectionLabel, resolvedTitle, StringComparison.OrdinalIgnoreCase)
-                    ? [new DocBreadcrumbViewModel { Label = sectionLabel }]
-                    :
-                    [
-                        new DocBreadcrumbViewModel
-                        {
-                            Label = sectionLabel,
-                            Href = DocPublicSectionCatalog.GetHref(section)
-                        },
-                        new DocBreadcrumbViewModel
-                        {
-                            Label = resolvedTitle
-                        }
-                    ];
-            }
-
-            return parsedBreadcrumbs;
-        }
-
-        return metadataBreadcrumbs!
-            .Select(
-                (label, index) => new DocBreadcrumbViewModel
-                {
-                    Label = label,
-                    Href = parsedBreadcrumbs[index].Href
-                })
-            .ToList();
     }
 
     private static DocSidebarViewModel CreateSidebarViewModel(
@@ -1392,6 +1302,18 @@ public class RazorDocsViewsTests
             new("Run", "src/Example.cs#Example.Run", string.Empty, "src/Example.cs", Metadata: new DocMetadata { NavGroup = "API Reference" }),
             new("Guide", "guides/intro.md", "<p>Guide body</p>", Metadata: new DocMetadata { NavGroup = "How-to Guides" })
         ];
+    }
+
+    private static List<DocNode> CreateDocsWithOverrides(IEnumerable<DocNode> overrides)
+    {
+        var docs = CreateDocs();
+        foreach (var doc in overrides)
+        {
+            docs.RemoveAll(existing => string.Equals(existing.Path, doc.Path, StringComparison.OrdinalIgnoreCase));
+            docs.Add(doc);
+        }
+
+        return docs;
     }
 
     private sealed class StaticDocHarvester : IDocHarvester

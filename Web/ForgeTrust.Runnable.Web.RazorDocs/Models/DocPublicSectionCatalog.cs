@@ -75,9 +75,11 @@ internal static class DocPublicSectionCatalog
 
     private static readonly IReadOnlyDictionary<string, DocPublicSection> ByNormalizedValue = BuildLookup();
 
-    internal static IReadOnlyList<DocPublicSection> OrderedSections => Definitions
+    private static readonly IReadOnlyList<DocPublicSection> OrderedSectionValues = Definitions
         .Select(definition => definition.Section)
         .ToArray();
+
+    internal static IReadOnlyList<DocPublicSection> OrderedSections => OrderedSectionValues;
 
     internal static string GetLabel(DocPublicSection section)
     {

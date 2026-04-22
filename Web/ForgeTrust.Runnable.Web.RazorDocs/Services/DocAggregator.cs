@@ -326,7 +326,7 @@ public class DocAggregator
                            .ToDictionary(n => n.Path, n => n);
 
                        var publicSections = BuildPublicSections(docsByPath.Values, logger);
-                       var (searchIndexPayload, searchRecordCount) = BuildSearchIndexPayload(docsByPath.Values);
+                       var (searchIndexPayload, searchRecordCount) = BuildSearchIndexPayload(docsByPath.Values, publicSections);
 
                        sw.Stop();
                        logger.LogInformation(
@@ -425,9 +425,17 @@ public class DocAggregator
     /// Builds the search-index payload from the harvested documentation nodes.
     /// </summary>
     /// <param name="docs">The documentation nodes to index.</param>
+    /// <param name="publicSections">The resolved public sections used to derive landing winners.</param>
     /// <returns>A tuple containing the serializable payload and the number of records indexed.</returns>
-    private static (object Payload, int RecordCount) BuildSearchIndexPayload(IEnumerable<DocNode> docs)
+    private static (object Payload, int RecordCount) BuildSearchIndexPayload(
+        IEnumerable<DocNode> docs,
+        IReadOnlyList<DocSectionSnapshot> publicSections)
     {
+        var resolvedLandingPaths = publicSections
+            .Where(section => section.LandingDoc is not null)
+            .Select(section => section.LandingDoc!.Path)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var records = docs
             .Where(d => d.Metadata?.HideFromSearch != true && d.Metadata?.HideFromPublicNav != true)
             .Select(
@@ -470,7 +478,7 @@ public class DocAggregator
                         navGroup = d.Metadata?.NavGroup,
                         publicSection = hasPublicSection ? DocPublicSectionCatalog.GetSlug(publicSection) : null,
                         publicSectionLabel = hasPublicSection ? DocPublicSectionCatalog.GetLabel(publicSection) : null,
-                        isSectionLanding = d.Metadata?.SectionLanding == true,
+                        isSectionLanding = resolvedLandingPaths.Contains(d.Path),
                         order = d.Metadata?.Order,
                         canonicalSlug = d.Metadata?.CanonicalSlug,
                         relatedPages = d.Metadata?.RelatedPages ?? [],

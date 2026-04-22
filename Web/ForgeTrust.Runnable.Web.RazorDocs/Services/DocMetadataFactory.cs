@@ -107,7 +107,7 @@ internal static class DocMetadataFactory
     private static DocPublicSection GetDefaultMarkdownSection(string path)
     {
         var normalizedPath = NormalizePath(path);
-        if (path.Equals("README.md", StringComparison.OrdinalIgnoreCase))
+        if (normalizedPath.Equals("README.md", StringComparison.OrdinalIgnoreCase))
         {
             return DocPublicSection.StartHere;
         }

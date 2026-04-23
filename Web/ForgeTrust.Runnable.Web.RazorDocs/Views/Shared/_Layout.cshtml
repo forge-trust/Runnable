@@ -55,7 +55,7 @@
                 RazorDocs
             </a>
         </div>
-        <div id="docs-search-shell" class="px-4 pb-2">
+        <div id="docs-search-shell" class="mb-3 px-4 pb-2">
             <label for="docs-search-input" class="sr-only">Search docs</label>
             <input id="docs-search-input"
                    type="search"
@@ -67,9 +67,10 @@
                    autocomplete="off" />
             <p id="docs-search-status" class="mt-1 text-xs text-slate-500" aria-live="polite"></p>
             <ul id="docs-search-results" class="hidden" role="listbox" aria-label="Search results"></ul>
-            <a href="/docs/search" class="docs-search-shell-cta">
+            <a href="/docs/search"
+               class="mt-[0.7rem] inline-flex w-full items-center justify-between gap-3 rounded-[0.8rem] border border-cyan-400/30 bg-gradient-to-b from-cyan-950/60 to-cyan-950/20 px-3.5 py-2.5 text-[0.82rem] font-semibold text-cyan-100 no-underline transition-colors hover:border-cyan-400/55 hover:from-cyan-950/70 hover:to-cyan-950/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400">
                 <span>Open Search Workspace</span>
-                <span class="docs-search-shell-cta-hint">Cmd/Ctrl+K</span>
+                <span class="text-[0.7rem] uppercase tracking-[0.08em] text-cyan-300">Cmd/Ctrl+K</span>
             </a>
         </div>
         <nav class="flex-grow overflow-y-auto px-4 pb-4 space-y-1 min-h-0" aria-label="Documentation navigation">

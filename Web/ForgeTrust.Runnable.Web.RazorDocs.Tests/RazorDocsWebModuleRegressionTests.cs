@@ -64,7 +64,8 @@ public class RazorDocsWebModuleRegressionTests
             Assert.Equal("/docs/search.css", response.RequestMessage?.RequestUri?.AbsolutePath);
             Assert.Equal("text/css", response.Content.Headers.ContentType?.MediaType);
             Assert.False(string.IsNullOrWhiteSpace(body));
-            Assert.Contains("#docs-search-shell", body);
+            Assert.Contains("#docs-search-input", body);
+            Assert.Contains(".docs-search-page-results", body);
         }
         finally
         {

@@ -783,7 +783,6 @@ public class RazorDocsViewsTests
         Assert.Contains("data-rw-search-suggestion=\"getting started\"", html);
         Assert.Contains("id=\"docs-search-page-failure\"", html);
         Assert.Contains("id=\"docs-search-page-retry\"", html);
-        Assert.Contains("docs-search-page-failure-link", html);
         Assert.Contains("href=\"/docs/search-index.json\"", html);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", html);
         Assert.Contains("data-turbo-frame=\"doc-content\"", html);
@@ -804,7 +803,7 @@ public class RazorDocsViewsTests
             c => c.Search());
 
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
-        var recoveryLink = document.QuerySelector("a.docs-search-page-failure-link[href='/docs']");
+        var recoveryLink = document.QuerySelector("a[href='/docs'][data-turbo-frame='_top']");
 
         Assert.NotNull(recoveryLink);
         Assert.Equal("_top", recoveryLink!.GetAttribute("data-turbo-frame"));

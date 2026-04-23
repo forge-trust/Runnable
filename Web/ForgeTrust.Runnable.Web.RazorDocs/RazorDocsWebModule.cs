@@ -130,6 +130,15 @@ public class RazorDocsWebModule : IRunnableWebModule
             });
 
         endpoints.MapControllerRoute(
+            name: "razordocs_section",
+            pattern: "docs/sections/{sectionSlug}",
+            defaults: new
+            {
+                controller = "Docs",
+                action = "Section"
+            });
+
+        endpoints.MapControllerRoute(
             name: "razordocs_doc",
             pattern: "docs/{*path}",
             defaults: new

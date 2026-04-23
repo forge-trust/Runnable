@@ -1,18 +1,57 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
+/// <summary>
+/// Builds normalized RazorDocs metadata defaults and fallbacks for harvested documentation nodes.
+/// </summary>
 internal static class DocMetadataFactory
 {
     private const string RunnableNamespacePrefix = "ForgeTrust.Runnable.";
 
+    /// <summary>
+    /// Creates normalized metadata for a Markdown documentation node without emitting normalization warnings.
+    /// </summary>
+    /// <param name="path">The source path used for default section, page-type, and audience inference.</param>
+    /// <param name="resolvedTitle">The resolved display title for the Markdown node.</param>
+    /// <param name="explicitMetadata">Optional authored metadata that should override inferred defaults.</param>
+    /// <param name="derivedSummary">Optional summary text derived from the document body.</param>
+    /// <returns>The merged metadata with inferred defaults, normalized nav-group handling, and fallback breadcrumbs.</returns>
     internal static DocMetadata CreateMarkdownMetadata(
         string path,
         string resolvedTitle,
         DocMetadata? explicitMetadata,
         string? derivedSummary)
     {
-        var defaultNavGroup = GetDefaultMarkdownNavGroup(path);
+        return CreateMarkdownMetadata(path, resolvedTitle, explicitMetadata, derivedSummary, logger: null);
+    }
+
+    /// <summary>
+    /// Creates normalized metadata for a Markdown documentation node and optionally logs authored nav-group fallback warnings.
+    /// </summary>
+    /// <param name="path">The source path used for default section, page-type, and audience inference.</param>
+    /// <param name="resolvedTitle">The resolved display title for the Markdown node.</param>
+    /// <param name="explicitMetadata">Optional authored metadata that should override inferred defaults.</param>
+    /// <param name="derivedSummary">Optional summary text derived from the document body.</param>
+    /// <param name="logger">
+    /// An optional logger that receives warnings when authored <c>nav_group</c> values do not resolve to a built-in public
+    /// section and RazorDocs falls back to the derived section assignment.
+    /// </param>
+    /// <returns>The merged metadata with normalized section labels, fallback breadcrumbs, and derived-field flags.</returns>
+    /// <remarks>
+    /// This shared internal entry point normalizes explicit public-section selection, preserves authored metadata where valid,
+    /// derives title/summary fallback semantics, and rebuilds default breadcrumbs when authors do not supply them explicitly.
+    /// </remarks>
+    internal static DocMetadata CreateMarkdownMetadata(
+        string path,
+        string resolvedTitle,
+        DocMetadata? explicitMetadata,
+        string? derivedSummary,
+        ILogger? logger)
+    {
+        var defaultSection = GetDefaultMarkdownSection(path);
+        var defaultNavGroup = DocPublicSectionCatalog.GetLabel(defaultSection);
         var isInternalPath = IsInternalPath(path);
         var defaults = new DocMetadata
         {
@@ -32,26 +71,28 @@ internal static class DocMetadataFactory
         };
 
         var merged = DocMetadata.Merge(explicitMetadata, defaults) ?? new DocMetadata();
-        var normalizedNavGroup = NormalizeMetadataValue(merged.NavGroup) ?? defaultNavGroup;
+        var normalizedExplicitNavGroup = NormalizeExplicitNavGroup(path, explicitMetadata?.NavGroup, defaultSection, logger);
+        var normalizedNavGroup = normalizedExplicitNavGroup ?? defaultNavGroup;
         bool? summaryIsDerived = string.IsNullOrWhiteSpace(merged.Summary)
             ? null
             : string.IsNullOrWhiteSpace(explicitMetadata?.Summary);
-        var authoredBreadcrumbCount = explicitMetadata?.Breadcrumbs?
-            .Count(label => !string.IsNullOrWhiteSpace(label))
-            ?? 0;
-        var breadcrumbs = merged.Breadcrumbs is { Count: > 0 }
-            ? merged.Breadcrumbs
+        var authoredBreadcrumbs = explicitMetadata?.Breadcrumbs?
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .Select(label => label.Trim())
+            .ToArray();
+        var authoredBreadcrumbCount = authoredBreadcrumbs?.Length ?? 0;
+        var breadcrumbs = authoredBreadcrumbs is { Length: > 0 }
+            ? authoredBreadcrumbs
             : BuildDefaultBreadcrumbs(normalizedNavGroup, resolvedTitle);
-        var firstAuthoredBreadcrumb = explicitMetadata?.Breadcrumbs?
-            .FirstOrDefault(label => !string.IsNullOrWhiteSpace(label))?
-            .Trim();
         var breadcrumbTargetCount = GetMarkdownBreadcrumbTargetCount(path);
+        var firstAuthoredBreadcrumb = authoredBreadcrumbs?.FirstOrDefault();
+        var authoredNavGroupParent = normalizedExplicitNavGroup ?? explicitMetadata?.NavGroup?.Trim();
         var authoredBreadcrumbsMatchPathTargets = authoredBreadcrumbCount == breadcrumbTargetCount;
-        var authoredBreadcrumbsIncludeNavGroupParent = !string.IsNullOrWhiteSpace(normalizedNavGroup)
+        var authoredBreadcrumbsIncludeNavGroupParent = !string.IsNullOrWhiteSpace(authoredNavGroupParent)
                                                        && authoredBreadcrumbCount == breadcrumbTargetCount + 1
                                                        && string.Equals(
                                                            firstAuthoredBreadcrumb,
-                                                           normalizedNavGroup,
+                                                           authoredNavGroupParent,
                                                            StringComparison.OrdinalIgnoreCase);
         bool? breadcrumbsMatchPathTargets = authoredBreadcrumbCount > 0
                                             && (authoredBreadcrumbsMatchPathTargets
@@ -62,12 +103,19 @@ internal static class DocMetadataFactory
         return merged with
         {
             NavGroup = normalizedNavGroup,
+            NavGroupIsDerived = normalizedExplicitNavGroup is not null ? false : true,
             SummaryIsDerived = summaryIsDerived,
             Breadcrumbs = breadcrumbs,
             BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets
         };
     }
 
+    /// <summary>
+    /// Creates canonical metadata for an API-reference documentation node.
+    /// </summary>
+    /// <param name="title">The display title for the API node.</param>
+    /// <param name="namespaceName">The owning namespace used for component inference and breadcrumb generation.</param>
+    /// <returns>Metadata configured for API-reference navigation, contributor visibility, and namespace breadcrumbs.</returns>
     internal static DocMetadata CreateApiReferenceMetadata(string title, string namespaceName)
     {
         var isInternalNamespace = IsInternalNamespace(namespaceName);
@@ -80,7 +128,7 @@ internal static class DocMetadataFactory
             AudienceIsDerived = false,
             Component = DeriveComponentFromNamespace(namespaceName),
             ComponentIsDerived = false,
-            NavGroup = "API Reference",
+            NavGroup = DocPublicSectionCatalog.GetLabel(DocPublicSection.ApiReference),
             NavGroupIsDerived = false,
             HideFromPublicNav = isInternalNamespace,
             HideFromSearch = isInternalNamespace,
@@ -110,27 +158,48 @@ internal static class DocMetadataFactory
         return IsInternalPath(NormalizePath(path)) ? "contributor" : "implementer";
     }
 
-    private static string? GetDefaultMarkdownNavGroup(string path)
+    private static DocPublicSection GetDefaultMarkdownSection(string path)
     {
         var normalizedPath = NormalizePath(path);
-        if (path.Equals("README.md", StringComparison.OrdinalIgnoreCase))
+        if (normalizedPath.Equals("README.md", StringComparison.OrdinalIgnoreCase))
         {
-            return "Start Here";
+            return DocPublicSection.StartHere;
         }
 
         if (normalizedPath.Contains("examples/", StringComparison.OrdinalIgnoreCase))
         {
-            return "Examples";
+            return DocPublicSection.Examples;
         }
 
         if (IsInternalPath(normalizedPath))
         {
-            return "Internals";
+            return DocPublicSection.Internals;
         }
 
-        return null;
+        var fileName = Path.GetFileNameWithoutExtension(normalizedPath);
+        if (IsStartHereLikeName(fileName))
+        {
+            return DocPublicSection.StartHere;
+        }
+
+        if (ContainsAny(normalizedPath, "concept", "architecture", "explanation", "glossary"))
+        {
+            return DocPublicSection.Concepts;
+        }
+
+        if (ContainsAny(normalizedPath, "troubleshoot", "faq", "debug", "failure", "error"))
+        {
+            return DocPublicSection.Troubleshooting;
+        }
+
+        return DocPublicSection.HowToGuides;
     }
 
+    /// <summary>
+    /// Derives the owning Runnable component name from a documentation path when possible.
+    /// </summary>
+    /// <param name="path">The documentation path whose segments should be inspected.</param>
+    /// <returns>The inferred component name, or <see langword="null"/> when no component hint can be derived.</returns>
     internal static string? DeriveComponentFromPath(string path)
     {
         foreach (var segment in path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries))
@@ -144,6 +213,11 @@ internal static class DocMetadataFactory
         return path.Contains("Runnable", StringComparison.OrdinalIgnoreCase) ? "Runnable" : null;
     }
 
+    /// <summary>
+    /// Derives the owning Runnable component name from a namespace.
+    /// </summary>
+    /// <param name="namespaceName">The namespace to inspect.</param>
+    /// <returns>The inferred component name, or <see langword="null"/> when the namespace is blank.</returns>
     internal static string? DeriveComponentFromNamespace(string namespaceName)
     {
         if (string.IsNullOrWhiteSpace(namespaceName))
@@ -229,9 +303,57 @@ internal static class DocMetadataFactory
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
+    private static string? NormalizeExplicitNavGroup(
+        string path,
+        string? explicitNavGroup,
+        DocPublicSection defaultSection,
+        ILogger? logger)
+    {
+        var normalized = NormalizeMetadataValue(explicitNavGroup);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (DocPublicSectionCatalog.TryResolve(normalized, out var section))
+        {
+            return DocPublicSectionCatalog.GetLabel(section);
+        }
+
+        logger?.LogWarning(
+            "Ignoring invalid nav_group value '{NavGroup}' on {DocPath}. Falling back to derived public section '{SectionLabel}'.",
+            explicitNavGroup,
+            path,
+            DocPublicSectionCatalog.GetLabel(defaultSection));
+
+        return null;
+    }
+
     private static string NormalizePath(string path)
     {
         return path.Replace('\\', '/');
+    }
+
+    private static bool ContainsAny(string value, params string[] needles)
+    {
+        return needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsStartHereLikeName(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        return fileName.Equals("quickstart", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("getting-started", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("getting_started", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("start-here", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("start_here", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("intro", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("introduction", StringComparison.OrdinalIgnoreCase)
+               || fileName.Equals("overview", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyList<string>? BuildDefaultBreadcrumbs(string? navGroup, string resolvedTitle)

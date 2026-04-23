@@ -44,6 +44,7 @@ public class DocAggregator
 
     private sealed record CachedDocsSnapshot(
         Dictionary<string, DocNode> DocsByPath,
+        IReadOnlyList<DocSectionSnapshot> PublicSections,
         object SearchIndexPayload);
 
     /// <summary>
@@ -186,6 +187,32 @@ public class DocAggregator
     }
 
     /// <summary>
+    /// Returns the normalized public-section snapshots derived from the harvested docs corpus.
+    /// </summary>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
+    /// <returns>The ordered public sections visible in the current docs snapshot.</returns>
+    public async Task<IReadOnlyList<DocSectionSnapshot>> GetPublicSectionsAsync(CancellationToken cancellationToken = default)
+    {
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
+        return ClonePublicSections(snapshot.PublicSections);
+    }
+
+    /// <summary>
+    /// Returns one normalized public-section snapshot when the section is present in the current docs snapshot.
+    /// </summary>
+    /// <param name="section">The public section to resolve.</param>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
+    /// <returns>The matching section snapshot, or <c>null</c> when the section has no visible public pages.</returns>
+    public async Task<DocSectionSnapshot?> GetPublicSectionAsync(
+        DocPublicSection section,
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
+        var sectionSnapshot = snapshot.PublicSections.FirstOrDefault(item => item.Section == section);
+        return sectionSnapshot is null ? null : CloneSectionSnapshot(sectionSnapshot);
+    }
+
+    /// <summary>
     /// Invalidates the cached docs snapshot so docs and search-index are rebuilt on next access.
     /// </summary>
     public void InvalidateCache()
@@ -306,7 +333,8 @@ public class DocAggregator
                            })
                            .ToDictionary(n => n.Path, n => n);
 
-                       var (searchIndexPayload, searchRecordCount) = BuildSearchIndexPayload(docsByPath.Values);
+                       var publicSections = BuildPublicSections(docsByPath.Values, logger);
+                       var (searchIndexPayload, searchRecordCount) = BuildSearchIndexPayload(docsByPath.Values, publicSections);
 
                        sw.Stop();
                        logger.LogInformation(
@@ -316,21 +344,121 @@ public class DocAggregator
                            searchRecordCount,
                            snapshotCacheDuration.TotalMinutes);
 
-                       return new CachedDocsSnapshot(docsByPath, searchIndexPayload);
+                       return new CachedDocsSnapshot(docsByPath, publicSections, searchIndexPayload);
                    },
                    DocsCachePolicy,
                    cancellationToken: CancellationToken.None);
     }
 
     /// <summary>
+    /// Builds the public-section snapshots from the harvested docs corpus.
+    /// </summary>
+    /// <param name="docs">The harvested docs to classify.</param>
+    /// <param name="logger">Logger used for section-landing conflict warnings.</param>
+    /// <returns>The ordered public sections that have at least one visible page.</returns>
+    private static IReadOnlyList<DocSectionSnapshot> BuildPublicSections(
+        IEnumerable<DocNode> docs,
+        ILogger logger)
+    {
+        var visibleDocs = docs
+            .Where(doc => doc.Metadata?.HideFromPublicNav != true)
+            .Where(doc => DocPublicSectionCatalog.TryResolve(doc.Metadata?.NavGroup, out _))
+            .GroupBy(
+                doc =>
+                {
+                    DocPublicSectionCatalog.TryResolve(doc.Metadata?.NavGroup, out var section);
+                    return section;
+                })
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
+                    .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
+
+        var sections = new List<DocSectionSnapshot>();
+        foreach (var section in DocPublicSectionCatalog.OrderedSections)
+        {
+            if (!visibleDocs.TryGetValue(section, out var sectionDocs) || sectionDocs.Count == 0)
+            {
+                continue;
+            }
+
+            var landingDoc = ResolveSectionLandingDoc(section, sectionDocs, logger);
+            sections.Add(
+                new DocSectionSnapshot
+                {
+                    Section = section,
+                    Label = DocPublicSectionCatalog.GetLabel(section),
+                    Slug = DocPublicSectionCatalog.GetSlug(section),
+                    LandingDoc = landingDoc,
+                    VisiblePages = sectionDocs.ToArray()
+                });
+        }
+
+        return sections.ToArray();
+    }
+
+    private static IReadOnlyList<DocSectionSnapshot> ClonePublicSections(IReadOnlyList<DocSectionSnapshot> sections)
+    {
+        return sections.Select(CloneSectionSnapshot).ToArray();
+    }
+
+    private static DocSectionSnapshot CloneSectionSnapshot(DocSectionSnapshot snapshot)
+    {
+        return snapshot with
+        {
+            VisiblePages = snapshot.VisiblePages.ToArray()
+        };
+    }
+
+    private static DocNode? ResolveSectionLandingDoc(
+        DocPublicSection section,
+        IReadOnlyList<DocNode> sectionDocs,
+        ILogger logger)
+    {
+        var landingCandidates = sectionDocs
+            .Where(doc => doc.Metadata?.SectionLanding == true)
+            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
+            .ThenBy(doc => GetSnapshotCanonicalPath(doc), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (landingCandidates.Count <= 1)
+        {
+            return landingCandidates.FirstOrDefault();
+        }
+
+        var winner = landingCandidates[0];
+        foreach (var losingDoc in landingCandidates.Skip(1))
+        {
+            logger.LogWarning(
+                "Multiple section landing docs were found for public section {SectionLabel}. Keeping {WinningPath} and treating {LosingPath} as a normal page.",
+                DocPublicSectionCatalog.GetLabel(section),
+                winner.Path,
+                losingDoc.Path);
+        }
+
+        return winner;
+    }
+
+    /// <summary>
     /// Builds the search-index payload from the harvested documentation nodes.
     /// </summary>
     /// <param name="docs">The documentation nodes to index.</param>
+    /// <param name="publicSections">The resolved public sections used to derive landing winners.</param>
     /// <returns>A tuple containing the serializable payload and the number of records indexed.</returns>
-    private static (object Payload, int RecordCount) BuildSearchIndexPayload(IEnumerable<DocNode> docs)
+    private static (object Payload, int RecordCount) BuildSearchIndexPayload(
+        IEnumerable<DocNode> docs,
+        IReadOnlyList<DocSectionSnapshot> publicSections)
     {
+        var resolvedLandingPaths = publicSections
+            .Where(section => section.LandingDoc is not null)
+            .Select(section => section.LandingDoc!.Path)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var records = docs
-            .Where(d => d.Metadata?.HideFromSearch != true)
+            .Where(d => d.Metadata?.HideFromSearch != true && d.Metadata?.HideFromPublicNav != true)
             .Select(
                 d =>
                 {
@@ -349,6 +477,7 @@ public class DocAggregator
                         .Take(MaxHeadingsPerDocument)
                         .ToList();
                     var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(d.Metadata?.PageType);
+                    var hasPublicSection = DocPublicSectionCatalog.TryResolve(d.Metadata?.NavGroup, out var publicSection);
 
                     return new
                     {
@@ -368,6 +497,9 @@ public class DocAggregator
                         keywords = d.Metadata?.Keywords ?? [],
                         status = d.Metadata?.Status,
                         navGroup = d.Metadata?.NavGroup,
+                        publicSection = hasPublicSection ? DocPublicSectionCatalog.GetSlug(publicSection) : null,
+                        publicSectionLabel = hasPublicSection ? DocPublicSectionCatalog.GetLabel(publicSection) : null,
+                        isSectionLanding = resolvedLandingPaths.Contains(d.Path),
                         order = d.Metadata?.Order,
                         canonicalSlug = d.Metadata?.CanonicalSlug,
                         relatedPages = d.Metadata?.RelatedPages ?? [],

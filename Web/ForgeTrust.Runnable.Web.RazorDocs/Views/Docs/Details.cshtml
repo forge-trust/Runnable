@@ -1,23 +1,7 @@
-@model ForgeTrust.Runnable.Web.RazorDocs.Models.DocNode
+@model ForgeTrust.Runnable.Web.RazorDocs.Models.DocDetailsViewModel
 @{
-    var metadata = Model.Metadata;
-    var resolvedTitle = string.IsNullOrWhiteSpace(metadata?.Title)
-        ? Model.Title
-        : metadata!.Title!.Trim();
-    var summary = metadata?.Summary;
-    var hasSummary = !string.IsNullOrWhiteSpace(summary);
-    var summaryIsDerived = metadata?.SummaryIsDerived == true;
-    var showSummary = hasSummary && !summaryIsDerived;
-    ViewData["Title"] = resolvedTitle;
-    var isCSharpApiDoc = Model.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
-    var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType);
-    var component = metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Component)
-        ? null
-        : metadata!.Component!.Trim();
-    var audience = metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Audience)
-        ? null
-        : metadata!.Audience!.Trim();
-    var trust = metadata?.Trust;
+    ViewData["Title"] = Model.Title;
+    var trust = Model.Document.Metadata?.Trust;
     var trustStatus = string.IsNullOrWhiteSpace(trust?.Status) ? null : trust!.Status!.Trim();
     var trustSummary = string.IsNullOrWhiteSpace(trust?.Summary) ? null : trust!.Summary!.Trim();
     var trustFreshness = string.IsNullOrWhiteSpace(trust?.Freshness) ? null : trust!.Freshness!.Trim();
@@ -41,135 +25,77 @@
                        || trustArchive is not null
                        || trustMigrationHref is not null
                        || trustSources.Count > 0;
-    var normalizedPath = Model.Path.Trim().Trim('/');
-    var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
-                          || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
-    var metadataBreadcrumbs = metadata?.Breadcrumbs?
-        .Where(label => !string.IsNullOrWhiteSpace(label))
-        .Select(label => label.Trim())
-        .ToList();
-    var parsedBreadcrumbs = new List<(string Label, string? Href)>();
-
-    if (isNamespacePath)
-    {
-        parsedBreadcrumbs.Add(("Namespaces", "/docs/Namespaces.html"));
-
-        if (normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
-        {
-            var fullNamespace = normalizedPath["Namespaces/".Length..];
-            var parts = fullNamespace.Split('.', StringSplitOptions.RemoveEmptyEntries);
-            for (var i = 0; i < parts.Length; i++)
-            {
-                var prefix = string.Join(".", parts.Take(i + 1));
-                var isLast = i == parts.Length - 1;
-                parsedBreadcrumbs.Add((parts[i], isLast ? null : $"/docs/Namespaces/{prefix}.html"));
-            }
-        }
-    }
-    else
-    {
-        var segments = normalizedPath
-            .Split('/', StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
-        if (segments.Count > 1
-            && string.Equals(segments[^1], "README.md", StringComparison.OrdinalIgnoreCase))
-        {
-            segments.RemoveAt(segments.Count - 1);
-        }
-
-        var current = string.Empty;
-        for (var i = 0; i < segments.Count; i++)
-        {
-            var segment = segments[i];
-            current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
-            var isLast = i == segments.Count - 1;
-            var href = isLast ? null : $"/docs/{current}.html";
-            parsedBreadcrumbs.Add((segment, href));
-        }
-    }
-
-    var breadcrumbs = new List<(string Label, string? Href)>();
-    var metadataBreadcrumbCount = metadataBreadcrumbs?.Count ?? 0;
-    var hasMetadataBreadcrumbs = metadataBreadcrumbCount > 0;
-    var metadataBreadcrumbsMatchPathTargets = metadata?.BreadcrumbsMatchPathTargets == true;
-    var metadataBreadcrumbCountMatchesPath = metadataBreadcrumbCount == parsedBreadcrumbs.Count;
-    var metadataBreadcrumbCountIncludesNavGroupParent = metadataBreadcrumbCount == parsedBreadcrumbs.Count + 1
-                                                       && !string.IsNullOrWhiteSpace(metadata?.NavGroup)
-                                                       && string.Equals(
-                                                           metadataBreadcrumbs?[0],
-                                                           metadata!.NavGroup!.Trim(),
-                                                           StringComparison.OrdinalIgnoreCase);
-    var canUseMetadataBreadcrumbs = hasMetadataBreadcrumbs
-                                    && metadataBreadcrumbsMatchPathTargets
-                                    && (metadataBreadcrumbCountMatchesPath
-                                        || metadataBreadcrumbCountIncludesNavGroupParent);
-
-    if (canUseMetadataBreadcrumbs)
-    {
-        var parsedBreadcrumbOffset = metadataBreadcrumbCount - parsedBreadcrumbs.Count;
-        for (var i = 0; i < metadataBreadcrumbs!.Count; i++)
-        {
-            var parsedBreadcrumbIndex = i - parsedBreadcrumbOffset;
-            var href = parsedBreadcrumbIndex >= 0 ? parsedBreadcrumbs[parsedBreadcrumbIndex].Href : null;
-            breadcrumbs.Add((metadataBreadcrumbs[i], href));
-        }
-    }
-    else
-    {
-        breadcrumbs.AddRange(parsedBreadcrumbs);
-    }
 }
 
-<header class="@(isCSharpApiDoc ? "mb-5" : "mb-8")">
-    <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1 text-xs font-mono text-slate-500 mb-3">
-        @for (var i = 0; i < breadcrumbs.Count; i++)
-        {
-            var crumb = breadcrumbs[i];
-            var isLast = i == breadcrumbs.Count - 1;
+<header class="@(Model.IsCSharpApiDoc ? "mb-5" : "mb-8")">
+    @if (!string.IsNullOrWhiteSpace(Model.PublicSectionLabel) && !string.IsNullOrWhiteSpace(Model.PublicSectionHref))
+    {
+        <div class="mb-4 md:hidden">
+            <a href="@Model.PublicSectionHref"
+               class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors hover:border-cyan-500/40 hover:text-cyan-200">
+                <span class="text-slate-500">Section</span>
+                <span>@Model.PublicSectionLabel</span>
+            </a>
+        </div>
+    }
 
-            if (isLast || string.IsNullOrWhiteSpace(crumb.Href))
+    @if (Model.Breadcrumbs.Count > 0)
+    {
+        <nav aria-label="Breadcrumb" class="mb-3 flex flex-wrap items-center gap-1 text-xs font-mono text-slate-500">
+            @for (var i = 0; i < Model.Breadcrumbs.Count; i++)
             {
-                <span class="inline-flex max-w-full overflow-x-auto px-2 py-0.5 rounded bg-slate-800 border border-slate-700 whitespace-nowrap">@crumb.Label</span>
-            }
-            else
-            {
-                <a href="@crumb.Href"
-                   data-turbo-frame="doc-content"
-                   data-turbo-action="advance"
-                   class="px-1 text-slate-400 hover:text-cyan-400 transition-colors">@crumb.Label</a>
-            }
+                var crumb = Model.Breadcrumbs[i];
+                var isLast = i == Model.Breadcrumbs.Count - 1;
 
-            if (!isLast)
-            {
-                <span class="text-slate-600">/</span>
+                if (isLast || string.IsNullOrWhiteSpace(crumb.Href))
+                {
+                    <span class="inline-flex max-w-full overflow-x-auto whitespace-nowrap rounded border border-slate-700 bg-slate-800 px-2 py-0.5">@crumb.Label</span>
+                }
+                else
+                {
+                    <a href="@crumb.Href"
+                       data-turbo-frame="doc-content"
+                       data-turbo-action="advance"
+                       class="px-1 text-slate-400 transition-colors hover:text-cyan-400">
+                        @crumb.Label
+                    </a>
+                }
+
+                if (!isLast)
+                {
+                    <span class="text-slate-600">/</span>
+                }
             }
-        }
-    </nav>
-    @if (pageTypeBadge is not null || component is not null || audience is not null)
+        </nav>
+    }
+
+    @if (Model.PageTypeBadge is not null || Model.Component is not null || Model.Audience is not null)
     {
         <div class="docs-page-meta">
-            @if (pageTypeBadge is not null)
+            @if (Model.PageTypeBadge is not null)
             {
-                <span class="docs-page-badge docs-page-badge--@pageTypeBadge.Variant">@pageTypeBadge.Label</span>
+                <span class="docs-page-badge docs-page-badge--@Model.PageTypeBadge.Variant">@Model.PageTypeBadge.Label</span>
             }
-            @if (component is not null)
+            @if (Model.Component is not null)
             {
-                <span class="docs-metadata-chip">Component: @component</span>
+                <span class="docs-metadata-chip">Component: @Model.Component</span>
             }
-            @if (audience is not null)
+            @if (Model.Audience is not null)
             {
-                <span class="docs-metadata-chip">Audience: @audience</span>
+                <span class="docs-metadata-chip">Audience: @Model.Audience</span>
             }
         </div>
     }
-    @if (!isCSharpApiDoc)
+
+    @if (!Model.IsCSharpApiDoc)
     {
-        <h1 class="text-3xl font-bold text-white tracking-tight">@resolvedTitle</h1>
-        @if (showSummary)
+        <h1 class="text-3xl font-bold tracking-tight text-white">@Model.Title</h1>
+        @if (Model.ShowSummary && !string.IsNullOrWhiteSpace(Model.Summary))
         {
-            <p class="mt-3 max-w-3xl text-base text-slate-400">@summary</p>
+            <p class="mt-3 max-w-3xl text-base text-slate-400">@Model.Summary</p>
         }
     }
+
     @if (showTrustBar)
     {
         <section class="docs-trust-bar" aria-label="Page trust and provenance">
@@ -238,7 +164,123 @@
     }
 </header>
 
+@if (Model.IsSectionLanding)
+{
+    <section class="mb-10 rounded-2xl border border-slate-800 bg-slate-950/35 p-5 sm:p-6">
+        <div class="flex flex-col gap-3 border-b border-slate-800 pb-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Section landing</p>
+                <h2 class="mt-2 text-xl font-semibold text-white">Use this section as the entry point.</h2>
+                @if (!string.IsNullOrWhiteSpace(Model.PublicSectionPurpose))
+                {
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">@Model.PublicSectionPurpose</p>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.PublicSectionHref))
+            {
+                <a href="@Model.PublicSectionHref"
+                   class="inline-flex items-center gap-2 self-start rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-cyan-500/40 hover:text-cyan-200">
+                    Section route
+                </a>
+            }
+        </div>
+
+        @if (Model.FeaturedPages.Count > 0)
+        {
+            <div class="mt-5">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Next steps</p>
+                <ul class="mt-3 space-y-3">
+                    @foreach (var featuredPage in Model.FeaturedPages)
+                    {
+                        <li>
+                            <a href="@featuredPage.Href"
+                               data-turbo-frame="doc-content"
+                               data-turbo-action="advance"
+                               class="group block rounded-xl border border-slate-900 bg-slate-950/60 px-4 py-3 transition-colors hover:border-cyan-500/30 hover:bg-slate-950">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    @if (!string.IsNullOrWhiteSpace(featuredPage.Question))
+                                    {
+                                        <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">@featuredPage.Question</span>
+                                    }
+                                    @if (featuredPage.PageTypeBadge is not null)
+                                    {
+                                        <span class="docs-page-badge docs-page-badge--@featuredPage.PageTypeBadge.Variant">@featuredPage.PageTypeBadge.Label</span>
+                                    }
+                                </div>
+                                <h3 class="mt-2 text-base font-semibold text-white transition-colors group-hover:text-cyan-100">@featuredPage.Title</h3>
+                                @if (!string.IsNullOrWhiteSpace(featuredPage.SupportingText))
+                                {
+                                    <p class="mt-2 text-sm leading-6 text-slate-400">@featuredPage.SupportingText</p>
+                                }
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (Model.SectionGroups.Count > 0)
+        {
+            <div class="mt-6">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">In this section</p>
+                <div class="mt-3 space-y-5">
+                    @foreach (var sectionGroup in Model.SectionGroups)
+                    {
+                        <section>
+                            @if (!string.IsNullOrWhiteSpace(sectionGroup.Title))
+                            {
+                                <h3 class="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">@sectionGroup.Title</h3>
+                            }
+                            <ul class="space-y-3">
+                                @foreach (var link in sectionGroup.Links)
+                                {
+                                    <li>
+                                        <a href="@link.Href"
+                                           data-turbo-frame="doc-content"
+                                           data-turbo-action="advance"
+                                           class="group block rounded-xl border border-slate-900 bg-slate-950/50 px-4 py-3 transition-colors hover:border-cyan-500/30 hover:bg-slate-950">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="text-sm font-semibold text-white transition-colors group-hover:text-cyan-100">@link.Title</span>
+                                                @if (link.PageTypeBadge is not null)
+                                                {
+                                                    <span class="docs-page-badge docs-page-badge--@link.PageTypeBadge.Variant">@link.PageTypeBadge.Label</span>
+                                                }
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(link.Summary))
+                                            {
+                                                <p class="mt-2 text-sm leading-6 text-slate-400">@link.Summary</p>
+                                            }
+                                        </a>
+
+                                        @if (link.Children.Count > 0)
+                                        {
+                                            <ul class="ml-4 mt-2 space-y-1 border-l border-slate-800">
+                                                @foreach (var child in link.Children)
+                                                {
+                                                    <li>
+                                                        <a href="@child.Href"
+                                                           data-doc-anchor-link="true"
+                                                           data-turbo-frame="doc-content"
+                                                           data-turbo-action="advance"
+                                                           class="block px-4 py-1 text-xs text-slate-500 transition-colors hover:text-cyan-300">
+                                                            @child.Title
+                                                        </a>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                </div>
+            </div>
+        }
+    </section>
+}
+
 <div class="docs-content">
     @* Safe: Content is sanitized by DocAggregator before caching. *@
-    @Html.Raw(Model.Content)
+    @Html.Raw(Model.Document.Content)
 </div>

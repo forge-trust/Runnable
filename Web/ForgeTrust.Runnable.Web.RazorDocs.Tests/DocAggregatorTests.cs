@@ -341,6 +341,77 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetPublicSectionsAsync_ShouldReturnDefensiveCopiesOfCachedSectionSnapshots()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    SectionLanding = true
+                }),
+            new(
+                "Install",
+                "guides/install.md",
+                "<p>Install</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var firstSections = await _aggregator.GetPublicSectionsAsync();
+        var secondSections = await _aggregator.GetPublicSectionsAsync();
+
+        var first = Assert.Single(firstSections);
+        var second = Assert.Single(secondSections);
+        Assert.NotSame(firstSections, secondSections);
+        Assert.NotSame(first, second);
+        Assert.NotSame(first.VisiblePages, second.VisiblePages);
+        Assert.Equal(first.VisiblePages.Select(doc => doc.Path), second.VisiblePages.Select(doc => doc.Path));
+    }
+
+    [Fact]
+    public async Task GetPublicSectionAsync_ShouldReturnDefensiveCopyOfCachedSectionSnapshot()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    SectionLanding = true
+                }),
+            new(
+                "Install",
+                "guides/install.md",
+                "<p>Install</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var first = await _aggregator.GetPublicSectionAsync(DocPublicSection.StartHere);
+        var second = await _aggregator.GetPublicSectionAsync(DocPublicSection.StartHere);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.NotSame(first, second);
+        Assert.NotSame(first!.VisiblePages, second!.VisiblePages);
+        Assert.Equal(first.VisiblePages.Select(doc => doc.Path), second.VisiblePages.Select(doc => doc.Path));
+    }
+
+    [Fact]
     public async Task GetDocByPathAsync_ShouldMatchCanonicalPath_WithFragmentInLookup()
     {
         // Arrange

@@ -18,11 +18,16 @@ internal static class DocContentLinkRewriter
     /// </summary>
     /// <param name="sourcePath">The harvested source path whose content is being rewritten.</param>
     /// <param name="html">The rendered and sanitized HTML fragment to rewrite.</param>
+    /// <param name="targetManifest">Manifest of harvested documentation targets that may be rewritten to docs routes.</param>
     /// <returns>The rewritten HTML fragment.</returns>
-    internal static string RewriteInternalDocLinks(string sourcePath, string html)
+    internal static string RewriteInternalDocLinks(
+        string sourcePath,
+        string html,
+        DocLinkTargetManifest targetManifest)
     {
         ArgumentNullException.ThrowIfNull(sourcePath);
         ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(targetManifest);
 
         if (html.IndexOf("<a", StringComparison.OrdinalIgnoreCase) < 0)
         {
@@ -33,13 +38,13 @@ internal static class DocContentLinkRewriter
         var document = parser.ParseDocument(html);
         foreach (var anchor in document.QuerySelectorAll("a[href]"))
         {
-            RewriteAnchorElement(sourcePath, anchor);
+            RewriteAnchorElement(sourcePath, anchor, targetManifest);
         }
 
         return document.Body?.InnerHtml ?? html;
     }
 
-    private static void RewriteAnchorElement(string sourcePath, IElement anchor)
+    private static void RewriteAnchorElement(string sourcePath, IElement anchor, DocLinkTargetManifest targetManifest)
     {
         if (HasNonSelfTarget(anchor))
         {
@@ -47,7 +52,7 @@ internal static class DocContentLinkRewriter
         }
 
         var href = anchor.GetAttribute("href");
-        if (!TryBuildDocsHref(sourcePath, href, out var docsHref))
+        if (!TryBuildDocsHref(sourcePath, href, targetManifest, out var docsHref))
         {
             return;
         }
@@ -69,7 +74,11 @@ internal static class DocContentLinkRewriter
                && !string.Equals(target, "_self", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool TryBuildDocsHref(string sourcePath, string? href, out string docsHref)
+    private static bool TryBuildDocsHref(
+        string sourcePath,
+        string? href,
+        DocLinkTargetManifest targetManifest,
+        out string docsHref)
     {
         docsHref = string.Empty;
         if (string.IsNullOrWhiteSpace(href))
@@ -89,7 +98,7 @@ internal static class DocContentLinkRewriter
         if (path.StartsWith(DocsRootPath + "/", StringComparison.OrdinalIgnoreCase))
         {
             var docsRelativePath = path[(DocsRootPath.Length + 1)..];
-            if (!LooksLikeDocTarget(docsRelativePath))
+            if (!targetManifest.Contains(docsRelativePath))
             {
                 return false;
             }
@@ -100,6 +109,11 @@ internal static class DocContentLinkRewriter
 
         if (trimmedHref.StartsWith('#'))
         {
+            if (!targetManifest.Contains(sourcePath))
+            {
+                return false;
+            }
+
             docsHref = $"{DocsRootPath}/{DocRoutePath.BuildCanonicalPath(GetSourceDocumentPath(sourcePath))}{fragment}";
             return true;
         }
@@ -117,7 +131,7 @@ internal static class DocContentLinkRewriter
         if (path.StartsWith("/", StringComparison.Ordinal))
         {
             var rootedTarget = path.TrimStart('/');
-            if (!LooksLikeRootedDocTarget(rootedTarget))
+            if (!targetManifest.Contains(rootedTarget))
             {
                 return false;
             }
@@ -132,7 +146,7 @@ internal static class DocContentLinkRewriter
         }
 
         var resolvedTarget = ResolveRelativePath(sourcePath, path);
-        if (!LooksLikeDocTarget(resolvedTarget))
+        if (!targetManifest.Contains(resolvedTarget))
         {
             return false;
         }
@@ -144,44 +158,6 @@ internal static class DocContentLinkRewriter
     private static string BuildDocsHref(string docPath, string query, string fragment)
     {
         return $"{DocsRootPath}/{DocRoutePath.BuildCanonicalPath(docPath)}{query}{fragment}";
-    }
-
-    private static bool LooksLikeDocTarget(string path)
-    {
-        return LooksLikeSourceDocTarget(path)
-               || LooksLikeCanonicalDocTarget(path);
-    }
-
-    private static bool LooksLikeRootedDocTarget(string path)
-    {
-        return LooksLikeDocTarget(path);
-    }
-
-    private static bool LooksLikeSourceDocTarget(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        return path.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-               || path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
-               || path.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
-               || path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool LooksLikeCanonicalDocTarget(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        return path.EndsWith(".md.html", StringComparison.OrdinalIgnoreCase)
-               || path.EndsWith(".cs.html", StringComparison.OrdinalIgnoreCase)
-               || path.Equals("Namespaces.html", StringComparison.OrdinalIgnoreCase)
-               || (path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase)
-                   && path.EndsWith(".html", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string ResolveRelativePath(string sourcePath, string relativePath)

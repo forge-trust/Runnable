@@ -80,6 +80,29 @@ Reference the package and add the module to your Runnable web application:
 await WebApp<RazorDocsWebModule>.RunAsync(args);
 ```
 
+## Docs Link Authoring
+
+RazorDocs rewrites links inside harvested Markdown so authors can use source-friendly paths while readers stay on canonical `/docs/...html` routes with Turbo history support.
+
+### Authoring contract
+
+- Link to another harvested doc with its source path, such as `./guide.md`, `../CHANGELOG.md`, or `/releases/unreleased.md`.
+- Link to an already canonical docs route only when the target is a harvested doc, such as `/docs/releases/unreleased.md.html`.
+- Use ordinary site URLs, such as `/privacy.html` or `../status.html`, for non-doc pages. RazorDocs leaves those links untouched.
+- Use browser-facing URLs for metadata fields that render plain anchors without content rewriting, such as `trust.migration.href`.
+
+### Manifest-backed rewriting
+
+During aggregation, RazorDocs builds a manifest from the harvested documentation nodes. Link rewriting consults that manifest before converting any source or canonical-looking link into `/docs/...`.
+
+This means a link is rewritten only when the target exists in the harvested docs set. A missing `./guide.md`, an ambiguous `/docs/missing.md.html`, or a normal site page like `../privacy.html` remains authored as-is instead of being guessed into a broken docs route.
+
+### Pitfalls
+
+- Do not rely on file extensions alone. A `.md`, `.cs`, or `.html` suffix does not make a link a RazorDocs target unless the target was harvested.
+- If a doc link is not rewritten, first confirm the target file is included by the active harvester and not excluded by directory policy.
+- Canonical `/docs/...html` links are safe for exported docs, but source-relative Markdown links are usually easier to keep portable in GitHub and editor previews.
+
 ## Landing Curation
 
 RazorDocs can turn the root docs landing into a curated proof-path surface by reading `featured_pages` from the repository-root `README.md` metadata.

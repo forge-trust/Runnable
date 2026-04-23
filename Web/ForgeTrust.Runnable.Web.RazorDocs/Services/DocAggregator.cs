@@ -269,6 +269,7 @@ public class DocAggregator
                            allNodes.AddRange(result);
                        }
 
+                       var linkTargetManifest = DocLinkTargetManifest.FromNodes(allNodes);
                        var sanitizedNodes = allNodes
                            .Select(
                                n =>
@@ -280,7 +281,10 @@ public class DocAggregator
                                    return new DocNode(
                                        n.Title,
                                        n.Path,
-                                       DocContentLinkRewriter.RewriteInternalDocLinks(n.Path, sanitizedContent),
+                                       DocContentLinkRewriter.RewriteInternalDocLinks(
+                                           n.Path,
+                                           sanitizedContent,
+                                           linkTargetManifest),
                                        n.ParentPath,
                                        n.IsDirectory,
                                        DocRoutePath.BuildCanonicalPath(n.Path),

@@ -164,6 +164,23 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
     }
 
     [Fact]
+    public void Resolve_UsesRepositoryRootSeed_WhenGitMarkerIsDirectory()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitDirectoryRepo("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            appBaseDirectory,
+            ReadDevelopmentEnvironment);
+
+        Assert.Equal(environment.WorkspaceRoot, resolution.SeedPath);
+        Assert.NotNull(resolution.AppliedPort);
+    }
+
+    [Fact]
     public void Resolve_DoesNotOverrideExplicitPortArgument()
     {
         using var environment = new TemporaryEnvironment();
@@ -431,6 +448,38 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
     }
 
     [Fact]
+    public void Resolve_AppendsDeterministicPort_WhenAppSettingsEndpointConfigurationIsWhitespace()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
+        environment.WriteAppSettings(
+            """
+            {
+              "urls": " ",
+              "http_ports": " ",
+              "https_ports": " ",
+              "Kestrel": {
+                "Endpoints": {
+                  "Http": {
+                    "Url": " "
+                  }
+                }
+              }
+            }
+            """);
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            appBaseDirectory,
+            ReadDevelopmentEnvironment);
+
+        Assert.NotNull(resolution.AppliedPort);
+        Assert.Equal(["--urls", $"http://localhost:{resolution.AppliedPort.Value}"], resolution.Args);
+    }
+
+    [Fact]
     public void Resolve_FallsBackToProjectRoot_WhenNoRepositoryRootExists()
     {
         using var environment = new TemporaryEnvironment();
@@ -508,6 +557,12 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             WorkspaceRoot = NormalizePathForAssertion(Path.Combine(RootDirectory, workspaceName));
             Directory.CreateDirectory(WorkspaceRoot);
             File.WriteAllText(Path.Combine(WorkspaceRoot, ".git"), "gitdir: test");
+        }
+
+        public void CreateGitDirectoryRepo(string workspaceName)
+        {
+            WorkspaceRoot = NormalizePathForAssertion(Path.Combine(RootDirectory, workspaceName));
+            Directory.CreateDirectory(Path.Combine(WorkspaceRoot, ".git"));
         }
 
         public string CreateApplicationBaseDirectory(string projectName)

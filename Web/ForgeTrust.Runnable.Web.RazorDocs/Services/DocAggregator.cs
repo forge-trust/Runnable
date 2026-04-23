@@ -269,7 +269,6 @@ public class DocAggregator
                            allNodes.AddRange(result);
                        }
 
-                       var linkTargetManifest = DocLinkTargetManifest.FromNodes(allNodes);
                        var sanitizedNodes = allNodes
                            .Select(
                                n =>
@@ -281,20 +280,37 @@ public class DocAggregator
                                    return new DocNode(
                                        n.Title,
                                        n.Path,
-                                       DocContentLinkRewriter.RewriteInternalDocLinks(
-                                           n.Path,
-                                           sanitizedContent,
-                                           linkTargetManifest),
-                                       n.ParentPath,
-                                       n.IsDirectory,
-                                       DocRoutePath.BuildCanonicalPath(n.Path),
-                                       n.Metadata);
+                                      sanitizedContent,
+                                      n.ParentPath,
+                                      n.IsDirectory,
+                                      DocRoutePath.BuildCanonicalPath(n.Path),
+                                      n.Metadata);
                                })
                            .ToList();
 
-                       MergeNamespaceReadmes(sanitizedNodes);
+                       var targetNodes = sanitizedNodes.ToList();
+                       MergeNamespaceReadmes(targetNodes);
+                       var linkTargetManifest = DocLinkTargetManifest.FromNodes(targetNodes);
+                       // Rewrite before the real namespace merge so README-relative links keep their source path
+                       // context, while the manifest still reflects only final published docs targets.
+                       var rewrittenNodes = sanitizedNodes
+                           .Select(
+                               n => new DocNode(
+                                   n.Title,
+                                   n.Path,
+                                   DocContentLinkRewriter.RewriteInternalDocLinks(
+                                       n.Path,
+                                       n.Content,
+                                       linkTargetManifest),
+                                   n.ParentPath,
+                                   n.IsDirectory,
+                                   n.CanonicalPath,
+                                   n.Metadata))
+                           .ToList();
 
-                       var docsByPath = sanitizedNodes
+                       MergeNamespaceReadmes(rewrittenNodes);
+
+                       var docsByPath = rewrittenNodes
                            .GroupBy(n => n.Path)
                            .Select(g =>
                            {

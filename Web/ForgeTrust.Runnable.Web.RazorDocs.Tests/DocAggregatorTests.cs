@@ -691,7 +691,11 @@ public class DocAggregatorTests : IDisposable
         var harvestedDocs = new List<DocNode>
         {
             new("Web", "Namespaces/ForgeTrust.Web", namespaceContent),
-            new("README", "docs/ForgeTrust.Web/README.md", "<p>Namespace intro</p>")
+            new(
+                "README",
+                "docs/ForgeTrust.Web/README.md",
+                "<p>Namespace intro <a href=\"./README.md\">self</a> <a href=\"./guide.md\">guide</a></p>"),
+            new("Guide", "docs/ForgeTrust.Web/guide.md", "<p>Guide</p>")
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
@@ -702,7 +706,10 @@ public class DocAggregatorTests : IDisposable
         var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
         Assert.DoesNotContain(docs, d => d.Path == "docs/ForgeTrust.Web/README.md");
         Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
-        Assert.Contains("<p>Namespace intro</p>", namespaceDoc.Content);
+        Assert.Contains("Namespace intro", namespaceDoc.Content);
+        Assert.Contains("href=\"./README.md\"", namespaceDoc.Content);
+        Assert.Contains("href=\"/docs/docs/ForgeTrust.Web/guide.md.html\"", namespaceDoc.Content);
+        Assert.DoesNotContain("href=\"/docs/docs/ForgeTrust.Web/README.md.html\"", namespaceDoc.Content);
         Assert.Contains("</section><section class=\"doc-namespace-intro\">", namespaceDoc.Content);
     }
 

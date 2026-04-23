@@ -77,7 +77,7 @@ public sealed class RazorDocsLandingPlaywrightTests
         var page = await context.NewPageAsync();
 
         await page.GotoAsync(_fixture.DocsUrl);
-        await page.Locator("main a[href='/docs/releases/README.md.html']").ClickAsync();
+        await page.Locator("main a[href='/docs/releases/README.md.html']").First.ClickAsync();
         await WaitForPathAsync(page, "/docs/releases/README.md.html");
         await page.WaitForSelectorAsync(".docs-trust-bar", new PageWaitForSelectorOptions
         {

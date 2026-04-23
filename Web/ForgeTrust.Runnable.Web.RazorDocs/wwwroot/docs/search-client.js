@@ -1073,16 +1073,69 @@
     }
 
     if (!searchData.runtimePromise) {
-      const poisonedScripts = Array.from(
+      const runtimeScripts = Array.from(
         document.querySelectorAll('script[data-rw-search-runtime="minisearch"]:not([data-rw-search-failed="true"])')
       );
 
-      if (poisonedScripts.length > 0) {
-        poisonedScripts.forEach((script) => {
-          script.dataset.rwSearchFailed = 'true';
-        });
+      if (runtimeScripts.length > 0) {
+        const existingScript = runtimeScripts[0];
 
-        searchData.runtimePromise = Promise.reject(new Error('MiniSearch runtime is not available.')).catch((error) => {
+        searchData.runtimePromise = new Promise((resolve, reject) => {
+          let settled = false;
+          let timeoutId = 0;
+
+          const cleanup = () => {
+            existingScript.removeEventListener('load', onLoad);
+            existingScript.removeEventListener('error', onError);
+            if (timeoutId) {
+              window.clearTimeout(timeoutId);
+            }
+          };
+
+          const resolveIfAvailable = () => {
+            if (settled) {
+              return;
+            }
+
+            cleanup();
+            if (window.MiniSearch) {
+              settled = true;
+              existingScript.dataset.rwSearchLoaded = 'true';
+              resolve(window.MiniSearch);
+              return;
+            }
+
+            settled = true;
+            existingScript.dataset.rwSearchFailed = 'true';
+            reject(new Error('MiniSearch runtime is not available.'));
+          };
+
+          const onLoad = () => {
+            resolveIfAvailable();
+          };
+
+          const onError = () => {
+            if (settled) {
+              return;
+            }
+
+            settled = true;
+            cleanup();
+            existingScript.dataset.rwSearchFailed = 'true';
+            reject(new Error('MiniSearch runtime is not available.'));
+          };
+
+          existingScript.addEventListener('load', onLoad, { once: true });
+          existingScript.addEventListener('error', onError, { once: true });
+          timeoutId = window.setTimeout(resolveIfAvailable, fetchTimeoutMs);
+
+          if (window.MiniSearch
+            || existingScript.dataset.rwSearchLoaded === 'true'
+            || existingScript.readyState === 'complete'
+            || existingScript.readyState === 'loaded') {
+            resolveIfAvailable();
+          }
+        }).catch((error) => {
           searchData.runtimePromise = null;
           throw error;
         });
@@ -1102,6 +1155,7 @@
           const onLoad = () => {
             cleanup();
             if (window.MiniSearch) {
+              script.dataset.rwSearchLoaded = 'true';
               resolve(window.MiniSearch);
             } else {
               script.dataset.rwSearchFailed = 'true';

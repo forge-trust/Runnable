@@ -56,7 +56,7 @@
 
   <Target Name="RunTailwindBuild" AfterTargets="ResolveProjectReferences" BeforeTargets="PrepareResources;Compile"
           Condition="'$(TailwindEnabled)' == 'true' AND Exists('$(TailwindInputPath)')"
-          Inputs="$(TailwindInputPath);@(_TailwindTemplates);@(_TailwindConfigs)" 
+          Inputs="$(TailwindInputPath);@(_TailwindTemplates);@(_TailwindConfigs)"
           Outputs="$(TailwindOutputPath)">
     <PropertyGroup>
       <!-- Source-tree consumers import only this targets file, so resolve TailwindVersion here as well. -->
@@ -84,7 +84,7 @@
       <!-- 2. Check in the NuGet package runtimes folder -->
       <_TailwindToolPathRuntime>$(MSBuildThisFileDirectory)../runtimes/$(_TailwindTargetRid)/native/$(_TailwindRuntimeBinaryName)</_TailwindToolPathRuntime>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindToolPathRuntime)')">$(_TailwindToolPathRuntime)</_TailwindToolPath>
-      
+
       <!-- 3. Check in the project-local runtimes folder (deployed native assets) -->
       <_TailwindLocalRuntimePath>$(ProjectDir)runtimes/$(_TailwindTargetRid)/native/$(_TailwindRuntimeBinaryName)</_TailwindLocalRuntimePath>
       <_TailwindToolPath Condition="'$(_TailwindToolPath)' == '' and Exists('$(_TailwindLocalRuntimePath)')">$(_TailwindLocalRuntimePath)</_TailwindToolPath>

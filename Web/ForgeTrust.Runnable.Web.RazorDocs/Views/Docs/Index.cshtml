@@ -1,69 +1,132 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocLandingViewModel
-@using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents
 @{
     ViewData["Title"] = "Documentation Index";
-    var visibleDocs = Model.VisibleDocs.ToList();
 }
 
-<div class="flex flex-col items-center justify-center h-full p-6 sm:p-8 lg:p-12 text-center text-slate-500">
-    <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700/50 mb-6">
-        <svg class="w-16 h-16 text-cyan-500/50 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-        </svg>
+<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <div class="mb-10 max-w-3xl">
+        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Documentation</p>
+        <h1 class="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">@Model.Heading</h1>
+        <p class="mt-4 max-w-2xl text-base leading-7 text-slate-300">@Model.Description</p>
     </div>
-    <h1 class="text-3xl font-bold text-white tracking-tight mb-3">@Model.Heading</h1>
-    <p class="text-slate-400 max-w-md mx-auto mb-8">
-        @Model.Description
-    </p>
 
-    @if (Model.HasFeaturedPages)
-    {
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full max-w-6xl text-left">
-            @foreach (var featuredPage in Model.FeaturedPages)
+    <section class="rounded-3xl border border-cyan-500/30 bg-slate-900/80 p-6 shadow-[0_0_0_1px_rgba(34,211,238,0.06)] sm:p-8">
+        <div class="flex flex-col gap-4 border-b border-slate-800 pb-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Start Here</p>
+                <h2 class="mt-2 text-2xl font-semibold tracking-tight text-white">Follow the proof path first.</h2>
+                <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                    Understand what the system is for, see it working, then choose the next implementation route with context.
+                </p>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.StartHereHref))
             {
-                var pageTypeBadge = featuredPage.PageTypeBadge ?? DocMetadataPresentation.ResolvePageTypeBadge(featuredPage.PageType);
-                <a href="@featuredPage.Href"
-                   data-turbo-frame="doc-content"
-                   data-turbo-action="advance"
-                   class="group h-full rounded-2xl border border-slate-800 bg-slate-900/60 p-6 transition-colors hover:border-cyan-500/50 hover:bg-slate-900">
-                    <div class="mb-4 flex items-start justify-between gap-4">
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">@featuredPage.Question</p>
-                        @if (pageTypeBadge is not null)
-                        {
-                            <span class="docs-page-badge docs-page-badge--@pageTypeBadge.Variant">
-                                @pageTypeBadge.Label
-                            </span>
-                        }
-                    </div>
-
-                    <h2 class="text-xl font-semibold text-white transition-colors group-hover:text-cyan-100">@featuredPage.Title</h2>
-
-                    @if (!string.IsNullOrWhiteSpace(featuredPage.SupportingText))
-                    {
-                        <p class="mt-3 text-sm leading-6 text-slate-300">@featuredPage.SupportingText</p>
-                    }
-
-                    <span class="mt-6 inline-flex items-center text-sm font-semibold text-cyan-300 group-hover:text-cyan-200">
-                        Open page
-                        <span class="ml-2 transition-transform group-hover:translate-x-1" aria-hidden="true">-&gt;</span>
-                    </span>
+                <a href="@Model.StartHereHref"
+                   class="inline-flex items-center gap-2 self-start rounded-full border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition-colors hover:border-cyan-400 hover:bg-cyan-500/15">
+                    Open Start Here
+                    <span aria-hidden="true">-&gt;</span>
                 </a>
             }
         </div>
-    }
-    else
+
+        @if (Model.FeaturedPages.Count > 0)
+        {
+            <ol class="mt-6 space-y-3">
+                @for (var i = 0; i < Model.FeaturedPages.Count; i++)
+                {
+                    var featuredPage = Model.FeaturedPages[i];
+                    <li>
+                        <a href="@featuredPage.Href"
+                           data-turbo-frame="doc-content"
+                           data-turbo-action="advance"
+                           class="group block rounded-2xl border border-slate-800 bg-slate-950/50 px-5 py-4 transition-colors hover:border-cyan-500/40 hover:bg-slate-950">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        <span class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 text-xs font-semibold text-cyan-200">@(i + 1)</span>
+                                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
+                                            @(!string.IsNullOrWhiteSpace(featuredPage.Question) ? featuredPage.Question : $"Step {i + 1}")
+                                        </p>
+                                        @if (featuredPage.PageTypeBadge is not null)
+                                        {
+                                            <span class="docs-page-badge docs-page-badge--@featuredPage.PageTypeBadge.Variant">
+                                                @featuredPage.PageTypeBadge.Label
+                                            </span>
+                                        }
+                                    </div>
+                                    <h3 class="mt-3 text-lg font-semibold text-white transition-colors group-hover:text-cyan-100">@featuredPage.Title</h3>
+                                    @if (!string.IsNullOrWhiteSpace(featuredPage.SupportingText))
+                                    {
+                                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">@featuredPage.SupportingText</p>
+                                    }
+                                </div>
+                                <span class="inline-flex items-center gap-2 text-sm font-semibold text-cyan-200 transition-colors group-hover:text-cyan-100">
+                                    Open page
+                                    <span class="transition-transform group-hover:translate-x-1" aria-hidden="true">-&gt;</span>
+                                </span>
+                            </div>
+                        </a>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+
+    @if (Model.SecondarySections.Count > 0)
     {
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg text-left">
-            @foreach (var group in visibleDocs
-                .GroupBy(SidebarDisplayHelper.GetGroupName)
-                .OrderBy(g => g.Key, System.StringComparer.OrdinalIgnoreCase)
-                .Take(4))
+        <div class="mt-10 space-y-6">
+            @foreach (var secondarySection in Model.SecondarySections)
             {
-                <div class="p-4 bg-slate-800/30 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors">
-                    <h3 class="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2">@group.Key</h3>
-                    <span class="text-2xl font-mono text-white">@group.Count()</span>
-                    <span class="text-xs text-slate-500 ml-1">articles</span>
-                </div>
+                <section class="border-b border-slate-900/80 pb-6 last:border-b-0 last:pb-0">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="min-w-0 flex-1">
+                            <a href="@secondarySection.Href"
+                               class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 transition-colors hover:text-cyan-300">
+                                @secondarySection.Label
+                            </a>
+                            <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-300">@secondarySection.Purpose</p>
+                        </div>
+                    </div>
+
+                    @if (secondarySection.KeyRoutes.Count > 0)
+                    {
+                        <ul class="mt-4 space-y-3">
+                            @foreach (var route in secondarySection.KeyRoutes)
+                            {
+                                <li>
+                                    <a href="@route.Href"
+                                       data-turbo-frame="doc-content"
+                                       data-turbo-action="advance"
+                                       class="group flex flex-col gap-2 rounded-2xl border border-slate-900 bg-slate-950/30 px-4 py-3 transition-colors hover:border-cyan-500/30 hover:bg-slate-950/60 sm:flex-row sm:items-start sm:justify-between">
+                                        <div class="min-w-0 flex-1">
+                                            @if (!string.IsNullOrWhiteSpace(route.Eyebrow))
+                                            {
+                                                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">@route.Eyebrow</p>
+                                            }
+                                            <div class="mt-1 flex flex-wrap items-center gap-2">
+                                                <span class="text-base font-semibold text-white transition-colors group-hover:text-cyan-100">@route.Title</span>
+                                                @if (route.PageTypeBadge is not null)
+                                                {
+                                                    <span class="docs-page-badge docs-page-badge--@route.PageTypeBadge.Variant">
+                                                        @route.PageTypeBadge.Label
+                                                    </span>
+                                                }
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(route.Summary))
+                                            {
+                                                <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-400">@route.Summary</p>
+                                            }
+                                        </div>
+                                        <span class="inline-flex items-center gap-2 text-sm font-semibold text-cyan-200 transition-colors group-hover:text-cyan-100">
+                                            Open
+                                            <span class="transition-transform group-hover:translate-x-1" aria-hidden="true">-&gt;</span>
+                                        </span>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
             }
         </div>
     }

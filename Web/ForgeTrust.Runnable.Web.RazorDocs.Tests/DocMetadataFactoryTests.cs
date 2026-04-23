@@ -1,5 +1,7 @@
+using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
@@ -23,6 +25,22 @@ public sealed class DocMetadataFactoryTests
     }
 
     [Fact]
+    public void CreateMarkdownMetadata_ShouldMarkAuthoredBreadcrumbsAsMatchingPathTargets_WhenMarkdownPathSegmentsAlign()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "guides/quickstart.md",
+            "Quickstart",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Get Started", "Quickstart"]
+            },
+            null);
+
+        Assert.Equal(["Get Started", "Quickstart"], metadata.Breadcrumbs);
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
     public void CreateMarkdownMetadata_ShouldMarkExplicitBreadcrumbs_WhenTheyAlignWithPathTargets()
     {
         var metadata = DocMetadataFactory.CreateMarkdownMetadata(
@@ -35,6 +53,22 @@ public sealed class DocMetadataFactoryTests
             null);
 
         Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldNotMarkAuthoredBreadcrumbsAsMatchingPathTargets_WhenMarkdownPathSegmentCountDiffers()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "guides/quickstart.md",
+            "Quickstart",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Other", "Quickstart", "Extra"]
+            },
+            null);
+
+        Assert.Equal(["Other", "Quickstart", "Extra"], metadata.Breadcrumbs);
+        Assert.Null(metadata.BreadcrumbsMatchPathTargets);
     }
 
     [Fact]
@@ -194,6 +228,75 @@ public sealed class DocMetadataFactoryTests
 
         Assert.Equal(["Namespaces", "Web"], metadata.Breadcrumbs);
         Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldClassifyRootReadmeAsStartHere()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata("README.md", "Home", null, null);
+
+        Assert.Equal("Start Here", metadata.NavGroup);
+        Assert.Equal("guide", metadata.PageType);
+        Assert.Equal("implementer", metadata.Audience);
+    }
+
+    [Theory]
+    [InlineData("concepts/architecture.md", "Concepts")]
+    [InlineData("docs/troubleshoot-error.md", "Troubleshooting")]
+    public void CreateMarkdownMetadata_ShouldClassifyConceptAndTroubleshootingPaths(
+        string path,
+        string expectedNavGroup)
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(path, "Doc", null, null);
+
+        Assert.Equal(expectedNavGroup, metadata.NavGroup);
+    }
+
+    [Theory]
+    [InlineData("start_here")]
+    [InlineData("Start-Here")]
+    public void CreateMarkdownMetadata_ShouldNormalizeExplicitNavGroupAliases(string explicitNavGroup)
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "README.md",
+            "Home",
+            new DocMetadata
+            {
+                NavGroup = explicitNavGroup
+            },
+            null);
+
+        Assert.Equal("Start Here", metadata.NavGroup);
+        Assert.False(metadata.NavGroupIsDerived);
+        Assert.Equal(["Start Here", "Home"], metadata.Breadcrumbs);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldFallbackToDerivedSection_WhenExplicitNavGroupIsInvalid()
+    {
+        var logger = A.Fake<ILogger>();
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "README.md",
+            "Home",
+            new DocMetadata
+            {
+                NavGroup = "bogus-group"
+            },
+            null,
+            logger);
+
+        Assert.Equal("Start Here", metadata.NavGroup);
+        Assert.True(metadata.NavGroupIsDerived);
+        Assert.Equal(["Start Here", "Home"], metadata.Breadcrumbs);
+        A.CallTo(logger)
+            .Where(
+                call => call.Method.Name == "Log"
+                        && call.GetArgument<LogLevel>(0) == LogLevel.Warning
+                        && call.GetArgument<object>(2) != null
+                        && call.GetArgument<object>(2)!.ToString()!.Contains(
+                            "Ignoring invalid nav_group value",
+                            StringComparison.Ordinal))
+            .MustHaveHappenedOnceExactly();
     }
 
     [Fact]

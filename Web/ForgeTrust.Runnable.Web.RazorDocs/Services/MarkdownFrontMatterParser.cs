@@ -43,7 +43,8 @@ internal static class MarkdownFrontMatterParser
     /// <returns>The normalized metadata model, or <c>null</c> when the YAML document is explicitly empty or null.</returns>
     /// <remarks>
     /// This entry point is shared by inline Markdown front matter and paired sidecar metadata files so both authoring styles
-    /// normalize through the same schema, defaults, and empty-list handling.
+    /// normalize through the same schema, defaults, and empty-list handling. Nested metadata such as <c>featured_pages</c>
+    /// and <c>trust</c> is normalized here as well.
     /// </remarks>
     /// <exception cref="YamlException">Thrown when <paramref name="yaml"/> cannot be parsed as YAML.</exception>
     internal static DocMetadata? ParseMetadataYaml(string yaml)
@@ -76,6 +77,7 @@ internal static class MarkdownFrontMatterParser
             CanonicalSlug = Normalize(document.CanonicalSlug) ?? Normalize(document.Slug),
             Breadcrumbs = NormalizeList(document.Breadcrumbs),
             FeaturedPages = NormalizeFeaturedPages(document.FeaturedPages),
+            Trust = NormalizeTrust(document.Trust),
             PageTypeIsDerived = document.PageType is not null ? false : null,
             AudienceIsDerived = document.Audience is not null ? false : null,
             ComponentIsDerived = document.Component is not null ? false : null,
@@ -157,6 +159,53 @@ internal static class MarkdownFrontMatterParser
             .ToArray();
     }
 
+    private static DocTrustMetadata? NormalizeTrust(FrontMatterTrustDocument? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var trust = new DocTrustMetadata
+        {
+            Status = Normalize(value.Status),
+            Summary = Normalize(value.Summary),
+            Freshness = Normalize(value.Freshness),
+            ChangeScope = Normalize(value.ChangeScope),
+            Migration = NormalizeTrustLink(value.Migration),
+            Archive = Normalize(value.Archive),
+            Sources = NormalizeList(value.Sources)
+        };
+
+        return trust.Status is null
+               && trust.Summary is null
+               && trust.Freshness is null
+               && trust.ChangeScope is null
+               && trust.Migration is null
+               && trust.Archive is null
+               && trust.Sources is null
+            ? null
+            : trust;
+    }
+
+    private static DocTrustLink? NormalizeTrustLink(FrontMatterTrustLinkDocument? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var link = new DocTrustLink
+        {
+            Label = Normalize(value.Label),
+            Href = Normalize(value.Href)
+        };
+
+        return link.Label is null && link.Href is null
+            ? null
+            : link;
+    }
+
     private sealed class FrontMatterDocument
     {
         public string? Title { get; init; }
@@ -196,6 +245,8 @@ internal static class MarkdownFrontMatterParser
         public List<string>? Breadcrumbs { get; init; }
 
         public List<FrontMatterFeaturedPageDefinition?>? FeaturedPages { get; init; }
+
+        public FrontMatterTrustDocument? Trust { get; init; }
     }
 
     private sealed class FrontMatterFeaturedPageDefinition
@@ -207,5 +258,29 @@ internal static class MarkdownFrontMatterParser
         public string? SupportingCopy { get; init; }
 
         public int? Order { get; init; }
+    }
+
+    private sealed class FrontMatterTrustDocument
+    {
+        public string? Status { get; init; }
+
+        public string? Summary { get; init; }
+
+        public string? Freshness { get; init; }
+
+        public string? ChangeScope { get; init; }
+
+        public FrontMatterTrustLinkDocument? Migration { get; init; }
+
+        public string? Archive { get; init; }
+
+        public List<string>? Sources { get; init; }
+    }
+
+    private sealed class FrontMatterTrustLinkDocument
+    {
+        public string? Label { get; init; }
+
+        public string? Href { get; init; }
     }
 }

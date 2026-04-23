@@ -41,6 +41,21 @@ public sealed class DocMetadataFactoryTests
     }
 
     [Fact]
+    public void CreateMarkdownMetadata_ShouldMarkExplicitBreadcrumbs_WhenTheyAlignWithPathTargets()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "releases/unreleased.md",
+            "Unreleased",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Releases", "Unreleased"]
+            },
+            null);
+
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
     public void CreateMarkdownMetadata_ShouldNotMarkAuthoredBreadcrumbsAsMatchingPathTargets_WhenMarkdownPathSegmentCountDiffers()
     {
         var metadata = DocMetadataFactory.CreateMarkdownMetadata(
@@ -48,12 +63,73 @@ public sealed class DocMetadataFactoryTests
             "Quickstart",
             new DocMetadata
             {
-                Breadcrumbs = ["Start Here", "Quickstart", "Extra"]
+                Breadcrumbs = ["Other", "Quickstart", "Extra"]
             },
             null);
 
-        Assert.Equal(["Start Here", "Quickstart", "Extra"], metadata.Breadcrumbs);
-        Assert.False(metadata.BreadcrumbsMatchPathTargets);
+        Assert.Equal(["Other", "Quickstart", "Extra"], metadata.Breadcrumbs);
+        Assert.Null(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldTreatNestedReadmeAsDirectoryLanding_ForBreadcrumbAlignment()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "releases/README.md",
+            "Releases",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Releases"]
+            },
+            null);
+
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldMarkExplicitBreadcrumbs_WhenTheyIncludeAuthoredNavGroupParent()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "CHANGELOG.md",
+            "Changelog",
+            new DocMetadata
+            {
+                NavGroup = "Releases",
+                Breadcrumbs = ["Releases", "Changelog"]
+            },
+            null);
+
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldNotMarkExplicitBreadcrumbs_WhenTargetCountDoesNotMatch()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "CHANGELOG.md",
+            "Changelog",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Releases", "Changelog"]
+            },
+            null);
+
+        Assert.Null(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldTreatExtensionlessInternalPathsAsInternal()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "docs/benchmarks",
+            "Benchmarks",
+            null,
+            null);
+
+        Assert.Equal("internals", metadata.PageType);
+        Assert.Equal("contributor", metadata.Audience);
+        Assert.True(metadata.HideFromPublicNav);
+        Assert.True(metadata.HideFromSearch);
     }
 
     [Theory]
@@ -120,6 +196,16 @@ public sealed class DocMetadataFactoryTests
         var component = DocMetadataFactory.DeriveComponentFromNamespace("ForgeTrust.Runnable.");
 
         Assert.Equal("Runnable", component);
+    }
+
+    [Theory]
+    [InlineData("guides/quickstart.md", null)]
+    [InlineData("docs/Runnable/overview.md", "Runnable")]
+    public void DeriveComponentFromPath_ShouldReturnExpectedComponent(string path, string? expectedComponent)
+    {
+        var component = DocMetadataFactory.DeriveComponentFromPath(path);
+
+        Assert.Equal(expectedComponent, component);
     }
 
     [Theory]
@@ -211,6 +297,14 @@ public sealed class DocMetadataFactoryTests
                             "Ignoring invalid nav_group value",
                             StringComparison.Ordinal))
             .MustHaveHappenedOnceExactly();
+    }
+
+    [Fact]
+    public void DeriveComponentFromNamespace_ShouldReturnOriginalValue_WhenFallbackNamespaceHasNoSegments()
+    {
+        var component = DocMetadataFactory.DeriveComponentFromNamespace(".");
+
+        Assert.Equal(".", component);
     }
 
     [Theory]

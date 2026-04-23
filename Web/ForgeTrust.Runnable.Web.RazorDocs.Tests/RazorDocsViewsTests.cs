@@ -1067,6 +1067,75 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldCollapseNestedReadmePathBreadcrumbs()
+    {
+        var doc = new DocNode(
+            "Releases",
+            "releases/README.md",
+            "<p>Guide body</p>");
+
+        var html = await RenderDetailsViewAsync(doc);
+
+        Assert.Contains("aria-label=\"Breadcrumb\"", html);
+        Assert.DoesNotContain(">README.md</span>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_ForNestedReadmeLandings()
+    {
+        var doc = new DocNode(
+            "Releases",
+            "releases/README.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Breadcrumbs = ["Releases"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderDetailsViewAsync(doc);
+
+        Assert.Contains(">Releases</span>", html);
+        Assert.DoesNotContain(">releases</span>", html);
+        Assert.DoesNotContain(">README.md</span>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_WhenRootDocHasNavGroupParent()
+    {
+        var doc = new DocNode(
+            "Changelog",
+            "CHANGELOG.md",
+            "<p>Release ledger</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Releases",
+                Breadcrumbs = ["Releases", "Changelog"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderDetailsViewAsync(doc);
+
+        Assert.Contains(">Releases</span>", html);
+        Assert.Contains(">Changelog</span>", html);
+        Assert.DoesNotContain(">CHANGELOG.md</span>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderSingleSegmentBreadcrumbWithoutParentLinks()
+    {
+        var doc = new DocNode(
+            "Quickstart",
+            "quickstart.md",
+            "<p>Guide body</p>");
+
+        var html = await RenderDetailsViewAsync(doc);
+
+        Assert.Contains(">quickstart.md</span>", html);
+        Assert.DoesNotContain("href=\"/docs/quickstart.md.html\"", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldNotRenderDerivedSummaryBlurb()
     {
         var doc = new DocNode(
@@ -1189,6 +1258,132 @@ public class RazorDocsViewsTests
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Null(document.QuerySelector(".docs-page-meta"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderTrustBar_WhenTrustMetadataIsPresent()
+    {
+        var doc = new DocNode(
+            "Unreleased",
+            "releases/unreleased.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Status = "Unreleased",
+                    Summary = "This page is provisional until the tag is cut.",
+                    Freshness = "Updated on main.",
+                    ChangeScope = "Repository-wide.",
+                    Archive = "Tagged release notes keep the durable record.",
+                    Sources = ["CHANGELOG.md", "releases/unreleased.md"],
+                    Migration = new DocTrustLink
+                    {
+                        Label = "Read the upgrade policy",
+                        Href = "/docs/releases/upgrade-policy.md.html"
+                    }
+                }
+            });
+
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var trustBar = document.QuerySelector(".docs-trust-bar");
+        Assert.NotNull(trustBar);
+        Assert.Equal("Unreleased", trustBar!.QuerySelector(".docs-trust-bar-status-badge")?.TextContent.Trim());
+        Assert.Contains("Repository-wide.", trustBar.TextContent);
+        Assert.Contains("CHANGELOG.md", trustBar.TextContent);
+
+        var migrationLink = trustBar.QuerySelector("a.docs-trust-bar-link[href='/docs/releases/upgrade-policy.md.html']");
+        Assert.NotNull(migrationLink);
+        Assert.Equal("doc-content", migrationLink!.GetAttribute("data-turbo-frame"));
+        Assert.Equal("advance", migrationLink.GetAttribute("data-turbo-action"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderExternalMigrationAndFilteredSources()
+    {
+        var doc = new DocNode(
+            "Unreleased",
+            "releases/unreleased.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Summary = "This page is still settling.",
+                    Sources = ["  ", "CHANGELOG.md", "\t"],
+                    Migration = new DocTrustLink
+                    {
+                        Label = "   ",
+                        Href = "https://example.com/upgrade"
+                    }
+                }
+            });
+
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var trustBar = document.QuerySelector(".docs-trust-bar");
+        Assert.NotNull(trustBar);
+        Assert.Contains("This page is still settling.", trustBar!.TextContent);
+        Assert.Null(trustBar.QuerySelector(".docs-trust-bar-status-badge"));
+
+        var migrationLink = trustBar.QuerySelector("a.docs-trust-bar-link[href='https://example.com/upgrade']");
+        Assert.NotNull(migrationLink);
+        Assert.Equal("Migration guidance", migrationLink!.TextContent.Trim());
+        Assert.Null(migrationLink.GetAttribute("data-turbo-frame"));
+        Assert.Null(migrationLink.GetAttribute("data-turbo-action"));
+
+        var trustSources = trustBar.QuerySelectorAll(".docs-trust-bar-list li")
+            .Select(item => item.TextContent.Trim())
+            .ToArray();
+        Assert.Equal(["CHANGELOG.md"], trustSources);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderArchiveWithoutSourcesList_WhenSourcesAreMissing()
+    {
+        var doc = new DocNode(
+            "Unreleased",
+            "releases/unreleased.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Archive = "Tagged release notes keep the durable record."
+                }
+            });
+
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var trustBar = document.QuerySelector(".docs-trust-bar");
+        Assert.NotNull(trustBar);
+        Assert.Contains("Tagged release notes keep the durable record.", trustBar!.TextContent);
+        Assert.Null(trustBar.QuerySelector(".docs-trust-bar-list"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderTrustBar_WhenTrustMetadataHasNoDisplayableValues()
+    {
+        var doc = new DocNode(
+            "Unreleased",
+            "releases/unreleased.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Sources = Array.Empty<string>()
+                }
+            });
+
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.Null(document.QuerySelector(".docs-trust-bar"));
     }
 
     [Fact]

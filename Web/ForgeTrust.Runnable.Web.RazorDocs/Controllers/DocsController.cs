@@ -600,13 +600,19 @@ public class DocsController : Controller
         }
         else
         {
-            var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+            if (segments.Count > 1
+                && string.Equals(segments[^1], "README.md", StringComparison.OrdinalIgnoreCase))
+            {
+                segments.RemoveAt(segments.Count - 1);
+            }
+
             var current = string.Empty;
-            for (var i = 0; i < segments.Length; i++)
+            for (var i = 0; i < segments.Count; i++)
             {
                 var segment = segments[i];
                 current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
-                var isLast = i == segments.Length - 1;
+                var isLast = i == segments.Count - 1;
                 parsedBreadcrumbs.Add(
                     new DocBreadcrumbViewModel
                     {
@@ -617,9 +623,17 @@ public class DocsController : Controller
         }
 
         var metadataBreadcrumbCount = metadataBreadcrumbs?.Count ?? 0;
+        var metadataBreadcrumbCountMatchesPath = metadataBreadcrumbCount == parsedBreadcrumbs.Count;
+        var metadataBreadcrumbCountIncludesNavGroupParent = metadataBreadcrumbCount == parsedBreadcrumbs.Count + 1
+                                                           && !string.IsNullOrWhiteSpace(doc.Metadata?.NavGroup)
+                                                           && string.Equals(
+                                                               metadataBreadcrumbs?[0],
+                                                               doc.Metadata!.NavGroup!.Trim(),
+                                                               StringComparison.OrdinalIgnoreCase);
         var canUseMetadataBreadcrumbs = metadataBreadcrumbCount > 0
                                         && doc.Metadata?.BreadcrumbsMatchPathTargets == true
-                                        && metadataBreadcrumbCount == parsedBreadcrumbs.Count;
+                                        && (metadataBreadcrumbCountMatchesPath
+                                            || metadataBreadcrumbCountIncludesNavGroupParent);
         if (!canUseMetadataBreadcrumbs)
         {
             if (currentSectionSnapshot is not null && currentSectionSnapshot.Section != DocPublicSection.ApiReference)
@@ -649,7 +663,9 @@ public class DocsController : Controller
                 (label, index) => new DocBreadcrumbViewModel
                 {
                     Label = label,
-                    Href = parsedBreadcrumbs[index].Href
+                    Href = index - (metadataBreadcrumbCount - parsedBreadcrumbs.Count) >= 0
+                        ? parsedBreadcrumbs[index - (metadataBreadcrumbCount - parsedBreadcrumbs.Count)].Href
+                        : null
                 })
             .ToList();
     }

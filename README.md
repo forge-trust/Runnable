@@ -91,6 +91,16 @@ dotnet run --project examples/console-app
 dotnet run --project examples/web-app
 ```
 
+## Release notes and upgrade policy
+
+Runnable is preparing to release the entire monorepo in unison. The public release contract now lives in the repository so teams can see what is queued for the next version, how pre-1.0 changes are handled, and where future migration notes will live.
+
+- [Release hub](./releases/README.md) - start here for the narrative release surface.
+- [Unreleased proof artifact](./releases/unreleased.md) - the living notes for the next coordinated version.
+- [Changelog](./CHANGELOG.md) - the compact ledger for tagged and in-flight changes.
+- [Pre-1.0 upgrade policy](./releases/upgrade-policy.md) - the stability and migration contract before `v1.0.0`.
+- [Contribution and release entry rules](./CONTRIBUTING.md) - how PR titles and unreleased entries feed the release surface.
+
 ## Examples
 
 The [examples](examples) directory contains sample applications that demonstrate

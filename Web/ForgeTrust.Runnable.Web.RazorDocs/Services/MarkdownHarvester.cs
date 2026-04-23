@@ -281,7 +281,12 @@ public class MarkdownHarvester : IDocHarvester
             .ToArray();
     }
 
-    private static string ExtractInlineText(ContainerInline? inline)
+    /// <summary>
+    /// Extracts plain reader-facing text from a Markdig inline container for outline display.
+    /// </summary>
+    /// <param name="inline">The inline container to flatten.</param>
+    /// <returns>The extracted text, or an empty string when no inline content exists.</returns>
+    internal static string ExtractInlineText(ContainerInline? inline)
     {
         if (inline is null)
         {
@@ -317,7 +322,12 @@ public class MarkdownHarvester : IDocHarvester
         }
     }
 
-    private static string NormalizeHeadingText(string value)
+    /// <summary>
+    /// Normalizes heading text by collapsing whitespace without introducing leading spaces.
+    /// </summary>
+    /// <param name="value">The raw heading text.</param>
+    /// <returns>The normalized heading text.</returns>
+    internal static string NormalizeHeadingText(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {

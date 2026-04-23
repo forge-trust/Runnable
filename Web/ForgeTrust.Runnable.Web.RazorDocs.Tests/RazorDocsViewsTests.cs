@@ -755,6 +755,76 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderOptionalWayfindingBadgesAndSummaries()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            previousPage: new DocPageLinkViewModel
+            {
+                Title = "Intro",
+                Href = "/docs/guides/intro.md.html",
+                PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge("guide")
+            },
+            nextPage: new DocPageLinkViewModel
+            {
+                Title = "Troubleshooting",
+                Href = "/docs/guides/troubleshooting.md.html",
+                PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge("troubleshooting")
+            },
+            relatedPages:
+            [
+                new DocPageLinkViewModel
+                {
+                    Title = "Reference",
+                    Href = "/docs/guides/reference.md.html",
+                    Summary = "Read the reference.",
+                    PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge("api-reference")
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.Contains("docs-page-badge--guide", html);
+        Assert.Contains("docs-page-badge--troubleshooting", html);
+        Assert.Contains("docs-page-badge--api-reference", html);
+        Assert.Contains("Read the reference.", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderRelatedOnlyWayfinding_WithoutSequenceCards()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            relatedPages:
+            [
+                new DocPageLinkViewModel
+                {
+                    Title = "Reference",
+                    Href = "/docs/guides/reference.md.html",
+                    Summary = "Read the reference.",
+                    PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge("api-reference")
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.Contains("id=\"docs-page-wayfinding\"", html);
+        Assert.Contains("data-doc-related-link=\"true\"", html);
+        Assert.DoesNotContain("data-doc-wayfinding=\"previous\"", html);
+        Assert.DoesNotContain("data-doc-wayfinding=\"next\"", html);
+    }
+
+    [Fact]
     public async Task SearchView_ShouldRenderSearchPageShell()
     {
         var docs = CreateDocs();

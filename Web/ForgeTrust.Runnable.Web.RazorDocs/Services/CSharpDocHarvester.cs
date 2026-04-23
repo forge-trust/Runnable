@@ -755,7 +755,14 @@ public class CSharpDocHarvester : IDocHarvester
         return WhitespaceRegex.Replace(value, " ");
     }
 
-    private static void AddOutlineItem(
+    /// <summary>
+    /// Adds an outline item to a namespace page when the entry is complete and its target ID has not already been recorded.
+    /// </summary>
+    /// <param name="namespacePage">The namespace page receiving the outline item.</param>
+    /// <param name="title">The reader-facing outline title.</param>
+    /// <param name="id">The fragment identifier for the rendered documentation section.</param>
+    /// <param name="level">The normalized outline level.</param>
+    internal static void AddOutlineItem(
         NamespaceDocPage namespacePage,
         string title,
         string id,

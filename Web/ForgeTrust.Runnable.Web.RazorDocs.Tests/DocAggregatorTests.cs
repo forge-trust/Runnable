@@ -391,6 +391,252 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldSuppressSequence_WhenCurrentPageCannotParticipate()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "No Key",
+                "guides/no-key.md",
+                "<p>No key</p>",
+                Metadata: new DocMetadata
+                {
+                    Order = 20
+                }),
+            new(
+                "No Metadata",
+                "guides/no-metadata.md",
+                "<p>No metadata</p>"),
+            new(
+                "No Order",
+                "guides/no-order.md",
+                "<p>No order</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof"
+                }),
+            new(
+                "Empty",
+                "guides/empty.md",
+                string.Empty,
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 20
+                }),
+            new(
+                "Anchor",
+                "guides/anchor.md#section",
+                string.Empty,
+                "guides/anchor.md",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 20
+                }),
+            new(
+                "Neighbor",
+                "guides/neighbor.md",
+                "<p>Neighbor</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 10
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var noKey = await _aggregator.GetDocDetailsAsync("guides/no-key.md");
+        var noMetadata = await _aggregator.GetDocDetailsAsync("guides/no-metadata.md");
+        var noOrder = await _aggregator.GetDocDetailsAsync("guides/no-order.md");
+        var empty = await _aggregator.GetDocDetailsAsync("guides/empty.md");
+        var anchor = await _aggregator.GetDocDetailsAsync("guides/anchor.md.html#section");
+
+        Assert.Null(noKey?.PreviousPage);
+        Assert.Null(noKey?.NextPage);
+        Assert.Null(noMetadata?.PreviousPage);
+        Assert.Null(noMetadata?.NextPage);
+        Assert.Null(noOrder?.PreviousPage);
+        Assert.Null(noOrder?.NextPage);
+        Assert.Null(empty?.PreviousPage);
+        Assert.Null(empty?.NextPage);
+        Assert.Null(anchor?.PreviousPage);
+        Assert.Null(anchor?.NextPage);
+    }
+
+    [Fact]
+    public async Task GetDocDetailsAsync_ShouldIgnoreIneligibleSequenceCandidates_AndHandleSequenceBounds()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Hidden",
+                "guides/hidden.md",
+                "<p>Hidden</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 1,
+                    HideFromPublicNav = true
+                }),
+            new(
+                "Anchor",
+                "guides/anchor.md#section",
+                string.Empty,
+                "guides/anchor.md",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 2
+                }),
+            new(
+                "Empty",
+                "guides/empty.md",
+                string.Empty,
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 3
+                }),
+            new(
+                "Different Sequence",
+                "guides/different.md",
+                "<p>Different</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "other",
+                    Order = 4
+                }),
+            new(
+                "No Order",
+                "guides/no-order.md",
+                "<p>No order</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof"
+                }),
+            new(
+                "No Metadata",
+                "guides/no-metadata.md",
+                "<p>No metadata</p>"),
+            new(
+                "First",
+                "guides/first.md",
+                "<p>First</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 10
+                }),
+            new(
+                "Last",
+                "guides/last.md",
+                "<p>Last</p>",
+                Metadata: new DocMetadata
+                {
+                    SequenceKey = "proof",
+                    Order = 20
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var first = await _aggregator.GetDocDetailsAsync("guides/first.md");
+        var last = await _aggregator.GetDocDetailsAsync("guides/last.md");
+
+        Assert.Null(first?.PreviousPage);
+        Assert.Equal("/docs/guides/last.md.html", first?.NextPage?.Href);
+        Assert.Equal("/docs/guides/first.md.html", last?.PreviousPage?.Href);
+        Assert.Null(last?.NextPage);
+    }
+
+    [Fact]
+    public async Task GetDocDetailsAsync_ShouldResolveRelatedPagesByTitle_AndSkipInvalidHiddenDuplicateEntries()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Current",
+                "guides/current.md",
+                "<p>Current</p>",
+                Metadata: new DocMetadata
+                {
+                    RelatedPages =
+                    [
+                        "   ",
+                        "Missing Destination",
+                        "Hidden Destination",
+                        "Visible Destination",
+                        "Visible Destination",
+                        "guides/current.md"
+                    ]
+                }),
+            new(
+                "Hidden",
+                "guides/hidden.md",
+                "<p>Hidden</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = "Hidden Destination",
+                    HideFromPublicNav = true,
+                    Order = 1
+                }),
+            new(
+                "Other",
+                "guides/other.md",
+                "<p>Other</p>",
+                Metadata: new DocMetadata
+                {
+                    Order = 2
+                }),
+            new(
+                "Visible",
+                "guides/visible.md",
+                "<p>Visible</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = "Visible Destination"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var details = await _aggregator.GetDocDetailsAsync("guides/current.md");
+
+        var relatedPage = Assert.Single(details!.RelatedPages);
+        Assert.Equal("Visible Destination", relatedPage.Title);
+        Assert.Equal("/docs/guides/visible.md.html", relatedPage.Href);
+        Assert.Null(relatedPage.Summary);
+    }
+
+    [Fact]
+    public async Task GetDocDetailsAsync_ShouldResolveRelatedPagesWithMissingMetadata()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Current",
+                "guides/current.md",
+                "<p>Current</p>",
+                Metadata: new DocMetadata
+                {
+                    RelatedPages = ["No Metadata"]
+                }),
+            new(
+                "No Metadata",
+                "guides/no-metadata.md",
+                "<p>No metadata</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var details = await _aggregator.GetDocDetailsAsync("guides/current.md");
+
+        var relatedPage = Assert.Single(details!.RelatedPages);
+        Assert.Equal("No Metadata", relatedPage.Title);
+        Assert.Equal("/docs/guides/no-metadata.md.html", relatedPage.Href);
+        Assert.Null(relatedPage.Summary);
+        Assert.Null(relatedPage.PageTypeBadge);
+    }
+
+    [Fact]
     public async Task GetSearchIndexPayloadAsync_ShouldUseTypedOutlineHeadings()
     {
         var harvestedDocs = new List<DocNode>
@@ -726,6 +972,37 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldKeepReadmeOutline_WhenNamespaceOutlineIsEmpty()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Web", "Namespaces/ForgeTrust.Web", namespaceContent),
+            new(
+                "README",
+                "docs/ForgeTrust.Web/README.md",
+                "<h2 id='overview'>Overview</h2>",
+                Outline:
+                [
+                    new DocOutlineItem
+                    {
+                        Title = "Overview",
+                        Id = "overview",
+                        Level = 2
+                    }
+                ])
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = await _aggregator.GetDocsAsync();
+
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
+        var outlineItem = Assert.Single(namespaceDoc.Outline!);
+        Assert.Equal("Overview", outlineItem.Title);
+        Assert.Equal("overview", outlineItem.Id);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldMergeNamespaceReadmeMetadataIntoNamespaceNode()
     {
         var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
@@ -764,6 +1041,32 @@ public class DocAggregatorTests : IDisposable
         Assert.Equal(["web docs"], namespaceDoc.Metadata?.Aliases);
         Assert.True(namespaceDoc.Metadata?.HideFromSearch);
         Assert.Equal("api-reference", namespaceDoc.Metadata?.PageType);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldMergeNamespaceReadmeMetadata_WhenReadmeContentIsBlank()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Web", "Namespaces/ForgeTrust.Web", namespaceContent),
+            new(
+                "README",
+                "docs/ForgeTrust.Web/README.md",
+                "   ",
+                Metadata: new DocMetadata
+                {
+                    Summary = "Metadata-only namespace summary"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
+
+        Assert.DoesNotContain(docs, d => d.Path == "docs/ForgeTrust.Web/README.md");
+        Assert.Equal(namespaceContent, namespaceDoc.Content);
+        Assert.Equal("Metadata-only namespace summary", namespaceDoc.Metadata?.Summary);
     }
 
     [Fact]

@@ -321,6 +321,26 @@ public class Calculator
     }
 
     [Fact]
+    public void AddOutlineItem_ShouldSkipIncompleteAndDuplicateEntries()
+    {
+        var namespacePage = new CSharpDocHarvester.NamespaceDocPage(
+            "TestNamespace",
+            "Namespaces/TestNamespace",
+            "TestNamespace",
+            DocMetadataFactory.CreateApiReferenceMetadata("TestNamespace", "TestNamespace"));
+
+        CSharpDocHarvester.AddOutlineItem(namespacePage, "   ", "valid-id", level: 2);
+        CSharpDocHarvester.AddOutlineItem(namespacePage, "Valid", "   ", level: 2);
+        CSharpDocHarvester.AddOutlineItem(namespacePage, "Valid", "valid-id", level: 2);
+        CSharpDocHarvester.AddOutlineItem(namespacePage, "Duplicate", "valid-id", level: 3);
+
+        var item = Assert.Single(namespacePage.Outline);
+        Assert.Equal("Valid", item.Title);
+        Assert.Equal("valid-id", item.Id);
+        Assert.Equal(2, item.Level);
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldGenerateDistinctQualifiedAnchors_ForTypesWithSameName()
     {
         // Arrange

@@ -535,22 +535,30 @@ public class DocAggregator
         IReadOnlyList<DocNode> docs,
         int direction)
     {
-        var sequenceKey = NormalizeMetadataText(currentDoc.Metadata?.SequenceKey);
-        if (string.IsNullOrWhiteSpace(sequenceKey) || currentDoc.Metadata?.Order is null || HasFragment(currentDoc))
+        var currentMetadata = currentDoc.Metadata;
+        if (currentMetadata is null)
+        {
+            return null;
+        }
+
+        var sequenceKey = NormalizeMetadataText(currentMetadata.SequenceKey);
+        if (sequenceKey is null)
+        {
+            return null;
+        }
+
+        if (currentMetadata.Order is null)
+        {
+            return null;
+        }
+
+        if (HasFragment(currentDoc))
         {
             return null;
         }
 
         var sequenceDocs = docs
-            .Where(
-                doc => doc.Metadata?.HideFromPublicNav != true
-                       && !HasFragment(doc)
-                       && !string.IsNullOrWhiteSpace(doc.Content)
-                       && string.Equals(
-                           NormalizeMetadataText(doc.Metadata?.SequenceKey),
-                           sequenceKey,
-                           StringComparison.OrdinalIgnoreCase)
-                       && doc.Metadata?.Order is not null)
+            .Where(doc => CanJoinSequence(doc, sequenceKey))
             .OrderBy(doc => doc.Metadata!.Order)
             .ThenBy(doc => GetDisplayTitle(doc), StringComparer.OrdinalIgnoreCase)
             .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
@@ -569,6 +577,40 @@ public class DocAggregator
         }
 
         return CreatePageLink(sequenceDocs[neighborIndex]);
+    }
+
+    private static bool CanJoinSequence(DocNode doc, string sequenceKey)
+    {
+        var metadata = doc.Metadata;
+        if (metadata is null)
+        {
+            return false;
+        }
+
+        if (metadata.HideFromPublicNav == true)
+        {
+            return false;
+        }
+
+        if (HasFragment(doc))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(doc.Content))
+        {
+            return false;
+        }
+
+        if (!string.Equals(
+                NormalizeMetadataText(metadata.SequenceKey),
+                sequenceKey,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return metadata.Order is not null;
     }
 
     private static IReadOnlyList<DocPageLinkViewModel> ResolveRelatedPages(

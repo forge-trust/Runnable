@@ -35,6 +35,23 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void RewriteInternalDocLinks_ShouldLeaveFragmentOnlyLinksUnchanged_WhenSourceIsNotPublished()
+    {
+        var html = "<p><a href=\"#migration\">Migration</a></p>";
+        var manifest = DocLinkTargetManifest.FromPaths(["releases/unreleased.md"]);
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks(
+            "releases/draft.md",
+            html,
+            manifest);
+
+        Assert.Contains("href=\"#migration\"", rewritten);
+        Assert.DoesNotContain("data-doc-anchor-link=\"true\"", rewritten);
+        Assert.DoesNotContain("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.DoesNotContain("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldDecorateCanonicalDocsLinks_WithoutChangingTheirRoutes()
     {
         var html = "<p><a href=\"/docs/releases/upgrade-policy.md.html\">Policy</a></p>";
@@ -242,6 +259,22 @@ public sealed class DocContentLinkRewriterTests
 
         Assert.Contains("href=\"./guide.md\"", rewritten);
         Assert.Contains("href=\"/docs/docs/guide.md.html\"", rewritten);
+    }
+
+    [Fact]
+    public void DocLinkTargetManifest_ShouldMatchRootedDocsRoutesWithQueryAndFragment()
+    {
+        var manifest = DocLinkTargetManifest.FromPaths(["releases/unreleased.md"]);
+
+        Assert.True(manifest.Contains("/docs/releases/unreleased.md.html?view=compact#summary"));
+    }
+
+    [Fact]
+    public void DocLinkTargetManifest_ShouldNotTreatDocsRootWithQueryAsDocumentTarget()
+    {
+        var manifest = DocLinkTargetManifest.FromPaths(["releases/unreleased.md"]);
+
+        Assert.False(manifest.Contains("/docs/?view=compact"));
     }
 
     private static string Rewrite(string sourcePath, string html, params string[] knownPaths)

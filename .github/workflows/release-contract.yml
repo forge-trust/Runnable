@@ -1,0 +1,76 @@
+name: Release Contract
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - labeled
+      - unlabeled
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR title and unreleased entry
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            if (!pr) {
+              core.setFailed("This workflow only supports pull_request events.");
+              return;
+            }
+
+            const title = (pr.title || "").trim();
+            const conventionalCommitTitle = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+/;
+            const labels = (pr.labels || [])
+              .map(label => label && typeof label.name === "string" ? label.name : "")
+              .filter(Boolean);
+            const skipUnreleasedEntry = labels.includes("no-unreleased-entry");
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                per_page: 100
+              });
+            const changedFiles = files.map(file => file.filename);
+            const touchesUnreleased = changedFiles.includes("releases/unreleased.md");
+
+            const failures = [];
+
+            if (!conventionalCommitTitle.test(title)) {
+              failures.push(
+                "PR titles must follow Conventional Commits, for example `feat(web): add streamed sidebar`.");
+            }
+
+            if (!skipUnreleasedEntry && !touchesUnreleased) {
+              failures.push(
+                "PRs must update `releases/unreleased.md` unless a maintainer applies the `no-unreleased-entry` label.");
+            }
+
+            await core.summary
+              .addHeading("Release contract check")
+              .addTable([
+                [{data: "PR title", header: true}, title || "(empty)"],
+                [{data: "Conventional title", header: true}, conventionalCommitTitle.test(title) ? "yes" : "no"],
+                [{data: "Touched unreleased note", header: true}, touchesUnreleased ? "yes" : "no"],
+                [{data: "Skip label present", header: true}, skipUnreleasedEntry ? "yes" : "no"]
+              ])
+              .write();
+
+            if (failures.length > 0) {
+              core.setFailed(failures.join("\n"));
+            }

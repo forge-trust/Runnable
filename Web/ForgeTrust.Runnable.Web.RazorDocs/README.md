@@ -12,6 +12,7 @@ Documentation site generation and hosting for Runnable web applications.
 - `AddRazorDocs()` for typed options binding and core service registration
 - `DocAggregator` plus the built-in Markdown and C# harvesters
 - Search UI assets and the `/docs` MVC surface used by RazorDocs consumers
+- Structured trust metadata plus a built-in trust bar for release notes, upgrade guides, and other pages that need status and provenance near the top
 - Precompiled Tailwind-powered styling with layout-time path resolution for root-module and embedded hosts
 
 ## Styling Boundary
@@ -37,6 +38,7 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 
 - New one-off page header spacing or typography in owned Razor markup: use Tailwind utilities in the view.
 - New reusable badge, metadata chip, or shared search workspace shell element: add or extend a semantic component class, then use utilities around it only when they are purely local.
+- For `Views/Docs/Search.cshtml`, keep the stateful search container or interactive hook semantic, but use local utilities for one-off header copy, helper layout, and fallback-link chrome inside that view.
 - Restyling paragraphs, headings, or code blocks inside `.docs-content`: update wrapper-scoped CSS instead of pushing utility classes into harvested HTML.
 - New search filter pill, active-filter surface, or other stateful search UI: use a semantic hook class because CSS and JavaScript both need to recognize it.
 
@@ -50,6 +52,7 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 
 - Do not refactor between utilities and semantic CSS for purity alone. Follow the surface contract unless a real usability or maintainability problem exists.
 - Do not treat required `id` values, such as `docs-search-page-input` or `docs-search-page-filters-panel`, as the reusable styling contract. They exist for uniqueness, targeting, and ARIA relationships.
+- Do not assume every child inside a semantic search container needs its own semantic class; local typography and spacing inside one view can still stay inline.
 - Do not add semantic classes to static package chrome when plain utilities are clearer and the styling is truly local.
 
 ## Configuration
@@ -145,6 +148,47 @@ The `/docs/search-index.json` payload continues to emit the raw `pageType` metad
 - `pageTypeVariant` for the built-in badge variant suffix used by CSS classes such as `docs-page-badge--guide`
 
 These fields let custom search clients stay visually aligned with the landing and detail experiences without re-implementing the mapping table.
+
+## Trust Metadata For Release Notes And Policy Pages
+
+RazorDocs can also render a top-of-page trust bar from nested `trust` metadata. Runnable uses this for its own release notes, upgrade policy, and changelog pages so the product doubles as a working example for consumers.
+
+```yaml
+trust:
+  status: Unreleased
+  summary: This page is provisional until the next tag is cut.
+  freshness: Updated as changes land on main.
+  change_scope: Repository-wide.
+  migration:
+    label: Read the upgrade policy
+    href: /docs/releases/upgrade-policy.md.html
+  archive: Tagged release notes will keep the final narrative once the version ships.
+  sources:
+    - CHANGELOG.md
+    - releases/unreleased.md
+```
+
+### Field behavior
+
+- `status` is the compact top-level state, such as `Unreleased` or `Pre-1.0 policy`.
+- `summary` is the short trust statement shown beside the status.
+- `freshness` explains how current the page is and how stable readers should assume it is.
+- `change_scope` calls out which surfaces the note covers.
+- `migration` is an optional label plus browser-facing `href` to the adoption guidance.
+- `archive` explains where the durable tagged record or long-term home lives.
+- `sources` is an optional list of provenance notes or upstream artifacts.
+
+### Merge behavior
+
+- Inline front matter and sidecar YAML both use the same nested `trust` schema.
+- Inline metadata wins over sidecar metadata field by field.
+- Explicit empty lists such as `sources: []` are authoritative and suppress fallback lists.
+
+### Pitfalls
+
+- Use a browser-facing `href` for `migration`, not a source path, because the trust bar renders a plain link without path rewriting.
+- Keep private maintainer-only runbooks outside harvested docs. Hidden pages are removed from nav and search, but they are still public if linked directly.
+- Do not turn the trust bar into marketing chrome. It should answer status, safety, and provenance questions quickly.
 
 ## Related Projects
 

@@ -1,14 +1,17 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.SearchPageViewModel
+@{
+    const string FailureLinkClass = "grid gap-1 rounded-[0.85rem] border border-slate-800 bg-slate-900/55 px-[0.95rem] py-[0.85rem] no-underline transition-colors hover:border-cyan-400/35 hover:bg-cyan-950/20";
+}
 
 <div id="docs-search-page" class="docs-search-page">
-    <header class="docs-search-page-header">
-        <p class="docs-search-page-eyebrow">Docs Search</p>
-        <h1 class="docs-search-page-title">@Model.Title</h1>
-        <p class="docs-search-page-intro">@Model.Orientation</p>
+    <header class="grid gap-[0.55rem]">
+        <p class="m-0 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-cyan-300">Docs Search</p>
+        <h1 class="m-0 text-[clamp(2rem,4vw,3rem)] font-bold leading-[1.02] text-slate-50">@Model.Title</h1>
+        <p class="m-0 max-w-[52rem] text-base leading-[1.6] text-slate-400">@Model.Orientation</p>
     </header>
 
-    <div class="docs-search-page-query-row">
-        <div class="docs-search-page-input-wrap">
+    <div class="grid items-start gap-[0.85rem] md:grid-cols-[minmax(0,1fr)_auto]">
+        <div class="min-w-0">
             <label for="docs-search-page-input" class="sr-only">Search query</label>
             <input id="docs-search-page-input"
                    type="search"
@@ -45,7 +48,7 @@
              hidden
              aria-label="Search suggestions">
         <p class="docs-search-page-starter-copy">@Model.StarterHint</p>
-        <div class="docs-search-page-starter-chips">
+        <div class="flex flex-wrap gap-[0.6rem]">
             @foreach (var query in Model.SuggestedQueries)
             {
                 <button type="button"
@@ -62,37 +65,37 @@
              hidden
              aria-live="polite">
         <h2 class="docs-search-page-section-title">Search is temporarily unavailable</h2>
-        <p class="docs-search-page-failure-copy">
+        <p class="m-0 text-slate-300 leading-[1.55]">
             The search workspace loaded, but the index could not be fetched yet. You can retry or keep moving with one of these fallback paths.
         </p>
-        <div class="docs-search-page-failure-actions">
+        <div class="flex flex-wrap gap-3">
             <button id="docs-search-page-retry"
                     class="docs-search-page-retry"
                     type="button">
                 Retry
             </button>
         </div>
-        <div class="docs-search-page-failure-links">
+        <div class="grid gap-3 md:grid-cols-3">
             @foreach (var link in Model.FailureFallbackLinks)
             {
                 var usesDocsFrame = link.Href.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase);
                 if (usesDocsFrame)
                 {
-                    <a class="docs-search-page-failure-link"
+                    <a class="@FailureLinkClass"
                        href="@link.Href"
                        data-turbo-frame="doc-content"
                        data-turbo-action="advance">
-                        <span class="docs-search-page-failure-link-title">@link.Title</span>
-                        <span class="docs-search-page-failure-link-description">@link.Description</span>
+                        <span class="text-[0.95rem] font-semibold text-cyan-300">@link.Title</span>
+                        <span class="text-[0.82rem] leading-[1.45] text-slate-400">@link.Description</span>
                     </a>
                 }
                 else
                 {
-                    <a class="docs-search-page-failure-link"
+                    <a class="@FailureLinkClass"
                        href="@link.Href"
                        data-turbo-frame="_top">
-                        <span class="docs-search-page-failure-link-title">@link.Title</span>
-                        <span class="docs-search-page-failure-link-description">@link.Description</span>
+                        <span class="text-[0.95rem] font-semibold text-cyan-300">@link.Title</span>
+                        <span class="text-[0.82rem] leading-[1.45] text-slate-400">@link.Description</span>
                     </a>
                 }
             }

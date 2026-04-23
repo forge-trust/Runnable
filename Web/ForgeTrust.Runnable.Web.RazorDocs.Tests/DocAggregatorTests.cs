@@ -1,4 +1,5 @@
 using AngleSharp;
+using AngleSharp.Html.Parser;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
@@ -130,6 +131,66 @@ public class DocAggregatorTests : IDisposable
         Assert.Equal("Summary", result.Metadata?.Summary);
         Assert.Equal("guide", result.Metadata?.PageType);
         Assert.True(result.Metadata?.HideFromSearch);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldRewriteInternalDocLinks_AfterSanitizing()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Releases",
+                "releases/README.md",
+                "<p><a href=\"./unreleased.md\">Unreleased</a> <a href=\"https://example.com/releases\">External</a></p>")
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+
+        Assert.Contains("href=\"/docs/releases/unreleased.md.html\"", result.Content);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", result.Content);
+        Assert.Contains("data-turbo-action=\"advance\"", result.Content);
+        Assert.Contains("href=\"https://example.com/releases\"", result.Content);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldRewriteTitledMarkdownLinks_WithQuotedGreaterThanInTitle()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Guide",
+                "README.md",
+                "<p><a href=\"guide.md\" title=\"1 > 0\">guide</a></p>")
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+        var document = new HtmlParser().ParseDocument(result.Content);
+        var anchor = Assert.Single(document.QuerySelectorAll("a"));
+
+        Assert.Equal("/docs/guide.md.html", anchor.GetAttribute("href"));
+        Assert.Equal("1 > 0", anchor.GetAttribute("title"));
+        Assert.Equal("guide", anchor.TextContent);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldFallbackToEmptyContent_WhenSanitizerReturnsNull()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Title", "path", "<p>content</p>")
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+        A.CallTo(() => _sanitizerFake.Sanitize("<p>content</p>"))
+            .ReturnsLazily(static (string _) => (string)null!);
+
+        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+
+        Assert.Equal(string.Empty, result.Content);
     }
 
     [Fact]

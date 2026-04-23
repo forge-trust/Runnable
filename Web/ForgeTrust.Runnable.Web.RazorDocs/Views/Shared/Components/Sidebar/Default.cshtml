@@ -7,6 +7,8 @@
         .Select(prefix => prefix.Trim())
         .OrderByDescending(prefix => prefix.Length)
         .ToArray();
+    const string PrimaryNavLinkClass = "block rounded-md px-2 py-1.5 text-sm font-medium text-slate-400 transition-all hover:bg-slate-900 hover:text-cyan-400";
+    const string SecondaryNavLinkClass = "block px-4 py-1 text-xs text-slate-500 transition-colors hover:text-cyan-400";
 }
 
 @foreach (var group in Model)
@@ -34,7 +36,7 @@
                 <a href="/docs/@(namespaceRoot.CanonicalPath ?? namespaceRoot.Path)"
                    data-turbo-frame="doc-content"
                    data-turbo-action="advance"
-                   class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
+                   class="@PrimaryNavLinkClass">
                     @namespaceRoot.Title
                 </a>
             }
@@ -57,7 +59,7 @@
                                     <a href="/docs/@(namespaceNode.CanonicalPath ?? namespaceNode.Path)"
                                        data-turbo-frame="doc-content"
                                        data-turbo-action="advance"
-                                       class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
+                                       class="@PrimaryNavLinkClass">
                                         @SidebarDisplayHelper.GetNamespaceDisplayName(SidebarDisplayHelper.GetFullNamespaceName(namespaceNode), namespacePrefixes)
                                     </a>
 
@@ -79,7 +81,7 @@
                                                            data-doc-anchor-link="true"
                                                            data-turbo-frame="doc-content"
                                                            data-turbo-action="advance"
-                                                           class="block px-4 py-1 text-xs text-slate-500 hover:text-cyan-400 transition-colors">
+                                                           class="@SecondaryNavLinkClass">
                                                             @typeItem.Title
                                                         </a>
                                                     </li>
@@ -103,7 +105,7 @@
                         <a href="/docs/@(docNode.CanonicalPath ?? docNode.Path)"
                            data-turbo-frame="doc-content"
                            data-turbo-action="advance"
-                           class="block px-2 py-1.5 text-sm font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-md transition-all">
+                           class="@PrimaryNavLinkClass">
                             @docNode.Title
                         </a>
 
@@ -125,7 +127,7 @@
                                                data-doc-anchor-link="true"
                                                data-turbo-frame="doc-content"
                                                data-turbo-action="advance"
-                                               class="block px-4 py-1 text-xs text-slate-500 hover:text-cyan-400 transition-colors">
+                                               class="@SecondaryNavLinkClass">
                                                 @sub.Title
                                             </a>
                                         </li>

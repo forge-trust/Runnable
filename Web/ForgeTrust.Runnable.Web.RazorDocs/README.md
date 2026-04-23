@@ -12,6 +12,7 @@ Documentation site generation and hosting for Runnable web applications.
 - `AddRazorDocs()` for typed options binding and core service registration
 - `DocAggregator` plus the built-in Markdown and C# harvesters
 - Search UI assets and the `/docs` MVC surface used by RazorDocs consumers
+- Structured trust metadata plus a built-in trust bar for release notes, upgrade guides, and other pages that need status and provenance near the top
 - Precompiled Tailwind-powered styling with layout-time path resolution for root-module and embedded hosts
 
 ## Styling Boundary
@@ -191,6 +192,47 @@ The built-in Markdown and C# harvesters now populate `DocNode.Outline` directly 
 - stable behavior without re-parsing rendered HTML later
 
 Each outline entry should provide the rendered fragment `Id`, the reader-facing `Title`, and the normalized heading `Level`.
+
+## Trust Metadata For Release Notes And Policy Pages
+
+RazorDocs can also render a top-of-page trust bar from nested `trust` metadata. Runnable uses this for its own release notes, upgrade policy, and changelog pages so the product doubles as a working example for consumers.
+
+```yaml
+trust:
+  status: Unreleased
+  summary: This page is provisional until the next tag is cut.
+  freshness: Updated as changes land on main.
+  change_scope: Repository-wide.
+  migration:
+    label: Read the upgrade policy
+    href: /docs/releases/upgrade-policy.md.html
+  archive: Tagged release notes will keep the final narrative once the version ships.
+  sources:
+    - CHANGELOG.md
+    - releases/unreleased.md
+```
+
+### Field behavior
+
+- `status` is the compact top-level state, such as `Unreleased` or `Pre-1.0 policy`.
+- `summary` is the short trust statement shown beside the status.
+- `freshness` explains how current the page is and how stable readers should assume it is.
+- `change_scope` calls out which surfaces the note covers.
+- `migration` is an optional label plus browser-facing `href` to the adoption guidance.
+- `archive` explains where the durable tagged record or long-term home lives.
+- `sources` is an optional list of provenance notes or upstream artifacts.
+
+### Merge behavior
+
+- Inline front matter and sidecar YAML both use the same nested `trust` schema.
+- Inline metadata wins over sidecar metadata field by field.
+- Explicit empty lists such as `sources: []` are authoritative and suppress fallback lists.
+
+### Pitfalls
+
+- Use a browser-facing `href` for `migration`, not a source path, because the trust bar renders a plain link without path rewriting.
+- Keep private maintainer-only runbooks outside harvested docs. Hidden pages are removed from nav and search, but they are still public if linked directly.
+- Do not turn the trust bar into marketing chrome. It should answer status, safety, and provenance questions quickly.
 
 ## Related Projects
 

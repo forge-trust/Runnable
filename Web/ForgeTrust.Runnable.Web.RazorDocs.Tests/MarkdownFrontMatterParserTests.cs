@@ -103,6 +103,63 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void Extract_ShouldParseTrustMetadata_AndPreserveExplicitEmptySourceLists()
+    {
+        var markdown = """
+            ---
+            trust:
+              status: Unreleased
+              summary: >
+                This page is provisional until the tag is cut.
+              freshness: Updated on main.
+              change_scope: Repository-wide.
+              migration:
+                label: Read the upgrade policy
+                href: /docs/releases/upgrade-policy.md.html
+              archive: Tagged release notes keep the durable record.
+              sources: []
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        Assert.NotNull(metadata);
+        Assert.NotNull(metadata!.Trust);
+        Assert.Equal("Unreleased", metadata.Trust!.Status);
+        Assert.Equal("This page is provisional until the tag is cut.", metadata.Trust.Summary);
+        Assert.Equal("Updated on main.", metadata.Trust.Freshness);
+        Assert.Equal("Repository-wide.", metadata.Trust.ChangeScope);
+        Assert.Equal("Read the upgrade policy", metadata.Trust.Migration?.Label);
+        Assert.Equal("/docs/releases/upgrade-policy.md.html", metadata.Trust.Migration?.Href);
+        Assert.Equal("Tagged release notes keep the durable record.", metadata.Trust.Archive);
+        Assert.Empty(metadata.Trust.Sources!);
+    }
+
+    [Fact]
+    public void Extract_ShouldTreatBlankMigrationLinkFieldsAsMissing()
+    {
+        var markdown = """
+            ---
+            trust:
+              status: Unreleased
+              migration:
+                label: "   "
+                href: "   "
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        Assert.NotNull(metadata?.Trust);
+        Assert.Equal("Unreleased", metadata!.Trust!.Status);
+        Assert.Null(metadata.Trust.Migration);
+    }
+
+    [Fact]
     public void Extract_ShouldReturnOriginalMarkdown_WhenFrontMatterIsInvalid()
     {
         var markdown = """
@@ -231,6 +288,18 @@ public sealed class MarkdownFrontMatterParserTests
         Assert.Equal("guides/intro.md", featuredPage.Path);
         Assert.Equal("Start with the intro guide.", featuredPage.SupportingCopy);
         Assert.Equal(10, featuredPage.Order);
+    }
+
+    [Fact]
+    public void ParseMetadataYaml_ShouldIgnoreEmptyTrustBlocks()
+    {
+        var metadata = MarkdownFrontMatterParser.ParseMetadataYaml(
+            """
+            trust: {}
+            """);
+
+        Assert.NotNull(metadata);
+        Assert.Null(metadata!.Trust);
     }
 
     [Fact]

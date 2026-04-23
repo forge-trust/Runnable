@@ -110,6 +110,15 @@ public sealed record DocMetadata
     /// </remarks>
     public IReadOnlyList<DocFeaturedPageDefinition>? FeaturedPages { get; init; }
 
+    /// <summary>
+    /// Gets optional trust and provenance metadata rendered near the top of the page.
+    /// </summary>
+    /// <remarks>
+    /// This nested object is designed for release notes, upgrade policies, changelogs, and similar pages that need to
+    /// communicate current status, adoption safety, and archival provenance without custom view logic.
+    /// </remarks>
+    public DocTrustMetadata? Trust { get; init; }
+
     internal bool? PageTypeIsDerived { get; init; }
 
     internal bool? AudienceIsDerived { get; init; }
@@ -118,6 +127,10 @@ public sealed record DocMetadata
 
     internal bool? NavGroupIsDerived { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether authored breadcrumb labels align with the path-derived breadcrumb targets that
+    /// RazorDocs can safely reuse for rendering.
+    /// </summary>
     internal bool? BreadcrumbsMatchPathTargets { get; init; }
 
     internal static DocMetadata? Merge(DocMetadata? primary, DocMetadata? fallback)
@@ -163,19 +176,9 @@ public sealed record DocMetadata
             fallback.Breadcrumbs,
             fallback.BreadcrumbsMatchPathTargets);
 
-        static string? PreferNonBlank(string? preferred, string? fallbackValue)
-        {
-            if (!string.IsNullOrWhiteSpace(preferred))
-            {
-                return preferred.Trim();
-            }
-
-            return string.IsNullOrWhiteSpace(fallbackValue) ? null : fallbackValue.Trim();
-        }
-
         return new DocMetadata
         {
-            Title = PreferNonBlank(primary.Title, fallback.Title),
+            Title = DocTrustMergeHelpers.PreferNonBlank(primary.Title, fallback.Title),
             Summary = summary,
             SummaryIsDerived = summaryIsDerived,
             PageType = pageType,
@@ -187,18 +190,19 @@ public sealed record DocMetadata
             Aliases = MergeLists(primary.Aliases, fallback.Aliases),
             RedirectAliases = MergeLists(primary.RedirectAliases, fallback.RedirectAliases),
             Keywords = MergeLists(primary.Keywords, fallback.Keywords),
-            Status = PreferNonBlank(primary.Status, fallback.Status),
+            Status = DocTrustMergeHelpers.PreferNonBlank(primary.Status, fallback.Status),
             NavGroup = navGroup,
             NavGroupIsDerived = navGroupIsDerived,
             Order = primary.Order ?? fallback.Order,
-            SequenceKey = PreferNonBlank(primary.SequenceKey, fallback.SequenceKey),
+            SequenceKey = DocTrustMergeHelpers.PreferNonBlank(primary.SequenceKey, fallback.SequenceKey),
             HideFromPublicNav = primary.HideFromPublicNav ?? fallback.HideFromPublicNav,
             HideFromSearch = primary.HideFromSearch ?? fallback.HideFromSearch,
             RelatedPages = MergeLists(primary.RelatedPages, fallback.RelatedPages),
-            CanonicalSlug = PreferNonBlank(primary.CanonicalSlug, fallback.CanonicalSlug),
+            CanonicalSlug = DocTrustMergeHelpers.PreferNonBlank(primary.CanonicalSlug, fallback.CanonicalSlug),
             Breadcrumbs = breadcrumbs,
             BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets,
-            FeaturedPages = MergeLists(primary.FeaturedPages, fallback.FeaturedPages)
+            FeaturedPages = MergeLists(primary.FeaturedPages, fallback.FeaturedPages),
+            Trust = DocTrustMetadata.Merge(primary.Trust, fallback.Trust)
         };
     }
 
@@ -266,6 +270,119 @@ public sealed record DocOutlineItem
     /// Gets the normalized heading level for this entry.
     /// </summary>
     public int Level { get; init; }
+}
+
+/// <summary>
+/// Structured trust and provenance metadata for a documentation page.
+/// </summary>
+public sealed record DocTrustMetadata
+{
+    /// <summary>
+    /// Gets the compact top-level state shown in the trust bar, such as <c>Unreleased</c> or <c>Pre-1.0 policy</c>.
+    /// </summary>
+    public string? Status { get; init; }
+
+    /// <summary>
+    /// Gets the short trust statement that explains what the current status means for readers.
+    /// </summary>
+    public string? Summary { get; init; }
+
+    /// <summary>
+    /// Gets the freshness statement that explains how current or provisional the page is.
+    /// </summary>
+    public string? Freshness { get; init; }
+
+    /// <summary>
+    /// Gets the statement describing which product surfaces or artifacts this page covers.
+    /// </summary>
+    public string? ChangeScope { get; init; }
+
+    /// <summary>
+    /// Gets an optional link to migration or upgrade guidance.
+    /// </summary>
+    public DocTrustLink? Migration { get; init; }
+
+    /// <summary>
+    /// Gets the archival or long-term home statement for the page contents.
+    /// </summary>
+    public string? Archive { get; init; }
+
+    /// <summary>
+    /// Gets optional provenance notes or upstream sources that support the page.
+    /// </summary>
+    public IReadOnlyList<string>? Sources { get; init; }
+
+    internal static DocTrustMetadata? Merge(DocTrustMetadata? primary, DocTrustMetadata? fallback)
+    {
+        if (primary is null)
+        {
+            return fallback;
+        }
+
+        if (fallback is null)
+        {
+            return primary;
+        }
+
+        return new DocTrustMetadata
+        {
+            Status = DocTrustMergeHelpers.PreferNonBlank(primary.Status, fallback.Status),
+            Summary = DocTrustMergeHelpers.PreferNonBlank(primary.Summary, fallback.Summary),
+            Freshness = DocTrustMergeHelpers.PreferNonBlank(primary.Freshness, fallback.Freshness),
+            ChangeScope = DocTrustMergeHelpers.PreferNonBlank(primary.ChangeScope, fallback.ChangeScope),
+            Migration = DocTrustLink.Merge(primary.Migration, fallback.Migration),
+            Archive = DocTrustMergeHelpers.PreferNonBlank(primary.Archive, fallback.Archive),
+            Sources = DocMetadata.MergeLists(primary.Sources, fallback.Sources)
+        };
+    }
+}
+
+/// <summary>
+/// Link metadata used by trust-bar actions such as migration guidance.
+/// </summary>
+public sealed record DocTrustLink
+{
+    /// <summary>
+    /// Gets the reader-facing link label.
+    /// </summary>
+    public string? Label { get; init; }
+
+    /// <summary>
+    /// Gets the browser-facing destination URL.
+    /// </summary>
+    public string? Href { get; init; }
+
+    internal static DocTrustLink? Merge(DocTrustLink? primary, DocTrustLink? fallback)
+    {
+        if (primary is null)
+        {
+            return fallback;
+        }
+
+        if (fallback is null)
+        {
+            return primary;
+        }
+
+        return new DocTrustLink
+        {
+            Label = DocTrustMergeHelpers.PreferNonBlank(primary.Label, fallback.Label),
+            Href = DocTrustMergeHelpers.PreferNonBlank(primary.Href, fallback.Href)
+        };
+    }
+}
+
+file static class DocTrustMergeHelpers
+{
+    internal static string? PreferNonBlank(string? preferred, string? fallbackValue)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return preferred.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(fallbackValue) ? null : fallbackValue.Trim();
+    }
 }
 
 /// <summary>

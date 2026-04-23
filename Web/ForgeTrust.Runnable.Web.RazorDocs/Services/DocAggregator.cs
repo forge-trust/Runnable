@@ -269,15 +269,22 @@ public class DocAggregator
 
                        var sanitizedNodes = allNodes
                            .Select(
-                               n => new DocNode(
-                                   n.Title,
-                                   n.Path,
-                                   sanitizer.Sanitize(n.Content),
-                                   n.ParentPath,
-                                   n.IsDirectory,
-                                   BuildCanonicalPath(n.Path),
-                                   n.Metadata,
-                                   n.Outline))
+                               n =>
+                               {
+                                   var sanitizedContent = string.IsNullOrEmpty(n.Content)
+                                       ? string.Empty
+                                       : sanitizer.Sanitize(n.Content) ?? string.Empty;
+
+                                   return new DocNode(
+                                       n.Title,
+                                       n.Path,
+                                       DocContentLinkRewriter.RewriteInternalDocLinks(n.Path, sanitizedContent),
+                                       n.ParentPath,
+                                       n.IsDirectory,
+                                       DocRoutePath.BuildCanonicalPath(n.Path),
+                                       n.Metadata,
+                                       n.Outline);
+                               })
                            .ToList();
 
                        MergeNamespaceReadmes(sanitizedNodes);
@@ -1020,31 +1027,4 @@ public class DocAggregator
         return canonical[(hashIndex + 1)..];
     }
 
-    /// <summary>
-    /// Constructs a canonical browser-facing path (e.g., with .html extension) for a given documentation source path.
-    /// </summary>
-    /// <param name="sourcePath">The relative path to the documentation source.</param>
-    /// <returns>The canonical browser-facing path.</returns>
-    private static string BuildCanonicalPath(string sourcePath)
-    {
-        var hashIndex = sourcePath.IndexOf('#');
-        var fragment = hashIndex >= 0 ? sourcePath[hashIndex..] : string.Empty;
-        var trimmed = NormalizeLookupPath(sourcePath);
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return "index.html" + fragment;
-        }
-
-        var directory = Path.GetDirectoryName(trimmed);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            directory = directory.Replace('\\', '/');
-        }
-
-        var fileName = Path.GetFileName(trimmed);
-        var safeFileName = fileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
-            ? fileName
-            : fileName + ".html";
-        return (string.IsNullOrEmpty(directory) ? safeFileName : $"{directory}/{safeFileName}") + fragment;
-    }
 }

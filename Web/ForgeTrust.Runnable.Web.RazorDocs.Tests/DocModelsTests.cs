@@ -13,8 +13,16 @@ public class DocModelsTests
             Title = "Metadata Title",
             Summary = "Summary",
             SummaryIsDerived = true,
-            PageType = "guide",
             SequenceKey = "getting-started",
+            Trust = new DocTrustMetadata
+            {
+                Status = "Unreleased",
+                Migration = new DocTrustLink
+                {
+                    Label = "Read the upgrade policy",
+                    Href = "/docs/releases/upgrade-policy.md.html"
+                }
+            },
             FeaturedPages =
             [
                 new DocFeaturedPageDefinition
@@ -53,8 +61,9 @@ public class DocModelsTests
         Assert.Equal("Metadata Title", node.Metadata?.Title);
         Assert.Equal("Summary", node.Metadata?.Summary);
         Assert.True(node.Metadata?.SummaryIsDerived);
-        Assert.Equal("guide", node.Metadata?.PageType);
         Assert.Equal("getting-started", node.Metadata?.SequenceKey);
+        Assert.Equal("Unreleased", node.Metadata?.Trust?.Status);
+        Assert.Equal("/docs/releases/upgrade-policy.md.html", node.Metadata?.Trust?.Migration?.Href);
         Assert.Single(node.Metadata?.FeaturedPages!);
         Assert.Equal(["alias-one"], node.Metadata?.Aliases);
         Assert.Equal(["legacy/alias"], node.Metadata?.RedirectAliases);
@@ -126,6 +135,51 @@ public class DocModelsTests
     }
 
     [Fact]
+    public void Merge_ShouldMergeTrustMetadata_FieldByField_AndPreserveExplicitEmptySources()
+    {
+        var merged = DocMetadata.Merge(
+            new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Status = "Unreleased",
+                    Sources = Array.Empty<string>(),
+                    Migration = new DocTrustLink
+                    {
+                        Label = "Upgrade guide"
+                    }
+                }
+            },
+            new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Summary = "This page is provisional until the tag is cut.",
+                    Freshness = "Updated on main.",
+                    ChangeScope = "Repository-wide.",
+                    Archive = "Tagged release notes keep the durable record.",
+                    Sources = ["CHANGELOG.md"],
+                    Migration = new DocTrustLink
+                    {
+                        Label = "Read the upgrade policy",
+                        Href = "/docs/releases/upgrade-policy.md.html"
+                    }
+                }
+            });
+
+        Assert.NotNull(merged);
+        Assert.NotNull(merged!.Trust);
+        Assert.Equal("Unreleased", merged.Trust!.Status);
+        Assert.Equal("This page is provisional until the tag is cut.", merged.Trust.Summary);
+        Assert.Equal("Updated on main.", merged.Trust.Freshness);
+        Assert.Equal("Repository-wide.", merged.Trust.ChangeScope);
+        Assert.Equal("Upgrade guide", merged.Trust.Migration?.Label);
+        Assert.Equal("/docs/releases/upgrade-policy.md.html", merged.Trust.Migration?.Href);
+        Assert.Equal("Tagged release notes keep the durable record.", merged.Trust.Archive);
+        Assert.Empty(merged.Trust.Sources!);
+    }
+
+    [Fact]
     public void Merge_ShouldKeepFlagStateAlignedWithTheSelectedValueSource()
     {
         var merged = DocMetadata.Merge(
@@ -192,5 +246,94 @@ public class DocModelsTests
         var merged = DocMetadata.Merge(primary, null);
 
         Assert.Same(primary, merged);
+    }
+
+    [Fact]
+    public void DocTrustMetadataMerge_ShouldReturnFallback_WhenPrimaryIsNull()
+    {
+        var fallback = new DocTrustMetadata
+        {
+            Status = "Published"
+        };
+
+        var merged = DocTrustMetadata.Merge(null, fallback);
+
+        Assert.Same(fallback, merged);
+    }
+
+    [Fact]
+    public void DocTrustMetadataMerge_ShouldReturnPrimary_WhenFallbackIsNull()
+    {
+        var primary = new DocTrustMetadata
+        {
+            Status = "Published"
+        };
+
+        var merged = DocTrustMetadata.Merge(primary, null);
+
+        Assert.Same(primary, merged);
+    }
+
+    [Fact]
+    public void DocTrustMetadataMerge_ShouldTreatBlankFallbackValuesAsMissing()
+    {
+        var merged = DocTrustMetadata.Merge(
+            new DocTrustMetadata
+            {
+                Summary = "   "
+            },
+            new DocTrustMetadata
+            {
+                Summary = "\t"
+            });
+
+        Assert.NotNull(merged);
+        Assert.Null(merged!.Summary);
+    }
+
+    [Fact]
+    public void DocTrustLinkMerge_ShouldReturnFallback_WhenPrimaryIsNull()
+    {
+        var fallback = new DocTrustLink
+        {
+            Label = "Upgrade guide"
+        };
+
+        var merged = DocTrustLink.Merge(null, fallback);
+
+        Assert.Same(fallback, merged);
+    }
+
+    [Fact]
+    public void DocTrustLinkMerge_ShouldReturnPrimary_WhenFallbackIsNull()
+    {
+        var primary = new DocTrustLink
+        {
+            Label = "Upgrade guide"
+        };
+
+        var merged = DocTrustLink.Merge(primary, null);
+
+        Assert.Same(primary, merged);
+    }
+
+    [Fact]
+    public void DocTrustLinkMerge_ShouldTreatBlankFallbackValuesAsMissing()
+    {
+        var merged = DocTrustLink.Merge(
+            new DocTrustLink
+            {
+                Label = "   ",
+                Href = " "
+            },
+            new DocTrustLink
+            {
+                Label = "\t",
+                Href = "\n"
+            });
+
+        Assert.NotNull(merged);
+        Assert.Null(merged!.Label);
+        Assert.Null(merged.Href);
     }
 }

@@ -18,6 +18,30 @@
     var audience = metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Audience)
         ? null
         : metadata!.Audience!.Trim();
+    var trust = metadata?.Trust;
+    var trustStatus = string.IsNullOrWhiteSpace(trust?.Status) ? null : trust!.Status!.Trim();
+    var trustSummary = string.IsNullOrWhiteSpace(trust?.Summary) ? null : trust!.Summary!.Trim();
+    var trustFreshness = string.IsNullOrWhiteSpace(trust?.Freshness) ? null : trust!.Freshness!.Trim();
+    var trustChangeScope = string.IsNullOrWhiteSpace(trust?.ChangeScope) ? null : trust!.ChangeScope!.Trim();
+    var trustArchive = string.IsNullOrWhiteSpace(trust?.Archive) ? null : trust!.Archive!.Trim();
+    var trustSources = trust?.Sources?
+        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .Select(value => value.Trim())
+        .ToList()
+        ?? [];
+    var trustMigration = trust?.Migration;
+    var trustMigrationHref = string.IsNullOrWhiteSpace(trustMigration?.Href) ? null : trustMigration!.Href!.Trim();
+    var trustMigrationLabel = string.IsNullOrWhiteSpace(trustMigration?.Label)
+        ? "Migration guidance"
+        : trustMigration!.Label!.Trim();
+    var trustMigrationUsesTurbo = trustMigrationHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
+    var showTrustBar = trustStatus is not null
+                       || trustSummary is not null
+                       || trustFreshness is not null
+                       || trustChangeScope is not null
+                       || trustArchive is not null
+                       || trustMigrationHref is not null
+                       || trustSources.Count > 0;
     var normalizedPath = document.Path.Trim().Trim('/');
     var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                           || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
@@ -45,13 +69,21 @@
     }
     else
     {
-        var segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var segments = normalizedPath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+        if (segments.Count > 1
+            && string.Equals(segments[^1], "README.md", StringComparison.OrdinalIgnoreCase))
+        {
+            segments.RemoveAt(segments.Count - 1);
+        }
+
         var current = string.Empty;
-        for (var i = 0; i < segments.Length; i++)
+        for (var i = 0; i < segments.Count; i++)
         {
             var segment = segments[i];
             current = string.IsNullOrEmpty(current) ? segment : $"{current}/{segment}";
-            var isLast = i == segments.Length - 1;
+            var isLast = i == segments.Count - 1;
             var href = isLast ? null : $"/docs/{current}.html";
             parsedBreadcrumbs.Add((segment, href));
         }
@@ -62,15 +94,25 @@
     var hasMetadataBreadcrumbs = metadataBreadcrumbCount > 0;
     var metadataBreadcrumbsMatchPathTargets = metadata?.BreadcrumbsMatchPathTargets == true;
     var metadataBreadcrumbCountMatchesPath = metadataBreadcrumbCount == parsedBreadcrumbs.Count;
+    var metadataBreadcrumbCountIncludesNavGroupParent = metadataBreadcrumbCount == parsedBreadcrumbs.Count + 1
+                                                       && !string.IsNullOrWhiteSpace(metadata?.NavGroup)
+                                                       && string.Equals(
+                                                           metadataBreadcrumbs?[0],
+                                                           metadata!.NavGroup!.Trim(),
+                                                           StringComparison.OrdinalIgnoreCase);
     var canUseMetadataBreadcrumbs = hasMetadataBreadcrumbs
                                     && metadataBreadcrumbsMatchPathTargets
-                                    && metadataBreadcrumbCountMatchesPath;
+                                    && (metadataBreadcrumbCountMatchesPath
+                                        || metadataBreadcrumbCountIncludesNavGroupParent);
 
     if (canUseMetadataBreadcrumbs)
     {
+        var parsedBreadcrumbOffset = metadataBreadcrumbCount - parsedBreadcrumbs.Count;
         for (var i = 0; i < metadataBreadcrumbs!.Count; i++)
         {
-            breadcrumbs.Add((metadataBreadcrumbs[i], parsedBreadcrumbs[i].Href));
+            var parsedBreadcrumbIndex = i - parsedBreadcrumbOffset;
+            var href = parsedBreadcrumbIndex >= 0 ? parsedBreadcrumbs[parsedBreadcrumbIndex].Href : null;
+            breadcrumbs.Add((metadataBreadcrumbs[i], href));
         }
     }
     else
@@ -128,6 +170,72 @@
         {
             <p class="mt-3 max-w-3xl text-base text-slate-400">@summary</p>
         }
+    }
+    @if (showTrustBar)
+    {
+        <section class="docs-trust-bar" aria-label="Page trust and provenance">
+            @if (trustStatus is not null || trustSummary is not null)
+            {
+                <article class="docs-trust-bar-section">
+                    <p class="docs-trust-bar-label">Status</p>
+                    @if (trustStatus is not null)
+                    {
+                        <p class="docs-trust-bar-status-row">
+                            <span class="docs-trust-bar-status-badge">@trustStatus</span>
+                        </p>
+                    }
+                    @if (trustSummary is not null)
+                    {
+                        <p class="docs-trust-bar-value">@trustSummary</p>
+                    }
+                </article>
+            }
+            @if (trustChangeScope is not null || trustFreshness is not null || trustMigrationHref is not null)
+            {
+                <article class="docs-trust-bar-section">
+                    <p class="docs-trust-bar-label">Safe To Consume</p>
+                    @if (trustChangeScope is not null)
+                    {
+                        <p class="docs-trust-bar-value"><span class="docs-trust-bar-key">Scope:</span> @trustChangeScope</p>
+                    }
+                    @if (trustFreshness is not null)
+                    {
+                        <p class="docs-trust-bar-value"><span class="docs-trust-bar-key">Freshness:</span> @trustFreshness</p>
+                    }
+                    @if (trustMigrationHref is not null)
+                    {
+                        <p class="docs-trust-bar-value">
+                            <span class="docs-trust-bar-key">Migration:</span>
+                            <a href="@trustMigrationHref"
+                               class="docs-trust-bar-link"
+                               @if (trustMigrationUsesTurbo)
+                               {
+                                   <text>data-turbo-frame="doc-content" data-turbo-action="advance"</text>
+                               }>@trustMigrationLabel</a>
+                        </p>
+                    }
+                </article>
+            }
+            @if (trustArchive is not null || trustSources.Count > 0)
+            {
+                <article class="docs-trust-bar-section">
+                    <p class="docs-trust-bar-label">Record</p>
+                    @if (trustArchive is not null)
+                    {
+                        <p class="docs-trust-bar-value">@trustArchive</p>
+                    }
+                    @if (trustSources.Count > 0)
+                    {
+                        <ul class="docs-trust-bar-list">
+                            @foreach (var source in trustSources)
+                            {
+                                <li>@source</li>
+                            }
+                        </ul>
+                    }
+                </article>
+            }
+        </section>
     }
 </header>
 

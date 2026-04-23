@@ -14,7 +14,7 @@ Runnable is putting its release contract in place before the first tagged versio
 - Start from the public [release hub](./releases/README.md).
 - Keep [`CHANGELOG.md`](./CHANGELOG.md) compact. It is the ledger, not the full story.
 - Put detailed adoption notes in the current unreleased page or a tagged release page under [`releases/`](./releases/README.md).
-- Breaking or behavior-changing updates in the unreleased page even before `v0.1.0`. Finalized migration guidance moves into the tagged release page when the version ships.
+- Capture breaking changes or other behavior-changing updates in the unreleased page even before `v0.1.0`. Finalized migration guidance moves into the tagged release page when the version ships.
 
 ## Maintainer workflow
 

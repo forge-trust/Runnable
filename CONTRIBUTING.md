@@ -5,7 +5,7 @@ Runnable is putting its release contract in place before the first tagged versio
 ## Release contract
 
 - Runnable releases the monorepo in unison. Packages, CLI tooling, examples, and docs-facing behavior all roll into the same next version.
-- Pull request titles that land on `main` must follow Conventional Commits. The squash-merge title is the durable signal for future automation and changelog grouping.
+- Pull request titles that land on `main` must follow [Conventional Commits](https://www.conventionalcommits.org/) using release-note-friendly types such as `feat`, `fix`, `docs`, `perf`, `refactor`, `test`, `build`, `ci`, `chore`, or `revert`. The squash-merge title is the durable signal for future automation and changelog grouping.
 - Update [`releases/unreleased.md`](./releases/unreleased.md) whenever a pull request changes behavior, usage guidance, release policy, examples, or docs consumers would care about in release notes.
 - Maintainers may apply the `no-unreleased-entry` label only for changes that do not belong in the public release story, such as repo administration or workflow-only cleanup.
 
@@ -14,7 +14,7 @@ Runnable is putting its release contract in place before the first tagged versio
 - Start from the public [release hub](./releases/README.md).
 - Keep [`CHANGELOG.md`](./CHANGELOG.md) compact. It is the ledger, not the full story.
 - Put detailed adoption notes in the current unreleased page or a tagged release page under [`releases/`](./releases/README.md).
-- Capture breaking changes or other behavior-changing updates in the unreleased page even before `v0.1.0`. Finalized migration guidance moves into the tagged release page when the version ships.
+- Capture breaking or behavior-changing updates in the unreleased page even before `v0.1.0`. Finalized migration guidance moves into the tagged release page when the version ships.
 
 ## Maintainer workflow
 

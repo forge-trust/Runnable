@@ -447,6 +447,26 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocByPathAsync_ShouldPreferSourceFragment_WhenBasePageAlsoExists()
+    {
+        // Arrange
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Foo", "Namespaces/Foo", "<p>Namespace page</p>"),
+            new("FooType", "Namespaces/Foo#Foo-Type", string.Empty)
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        // Act
+        var result = await _aggregator.GetDocByPathAsync("Namespaces/Foo#Foo-Type");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Namespaces/Foo#Foo-Type", result!.Path);
+        Assert.Equal("FooType", result.Title);
+    }
+
+    [Fact]
     public async Task GetDocByPathAsync_ShouldFallbackWhenLookupFragmentMissing_AndDocHasNoFragment()
     {
         // Arrange
@@ -737,6 +757,46 @@ public class DocAggregatorTests : IDisposable
         Assert.Equal("Visible Destination", relatedPage.Title);
         Assert.Equal("/docs/guides/visible.md.html", relatedPage.Href);
         Assert.Null(relatedPage.Summary);
+    }
+
+    [Fact]
+    public async Task GetDocDetailsAsync_ShouldResolveRelatedPagesBySourceFragmentBeforeBasePage()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Current",
+                "guides/current.md",
+                "<p>Current</p>",
+                Metadata: new DocMetadata
+                {
+                    RelatedPages = ["Namespaces/Foo#Foo-Type"]
+                }),
+            new(
+                "Foo Namespace",
+                "Namespaces/Foo",
+                "<p>Namespace page</p>",
+                Metadata: new DocMetadata
+                {
+                    Title = "Foo Namespace"
+                }),
+            new(
+                "Foo Type",
+                "Namespaces/Foo#Foo-Type",
+                string.Empty,
+                "Namespaces/Foo",
+                Metadata: new DocMetadata
+                {
+                    Title = "Foo Type"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var details = await _aggregator.GetDocDetailsAsync("guides/current.md");
+
+        var relatedPage = Assert.Single(details!.RelatedPages);
+        Assert.Equal("Foo Type", relatedPage.Title);
+        Assert.Equal("/docs/Namespaces/Foo.html#Foo-Type", relatedPage.Href);
     }
 
     [Fact]

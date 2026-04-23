@@ -212,6 +212,7 @@ related_pages:
 - `sequence_key` opts a page into a specific sequence. Pages do not join a sequence just because they share a folder.
 - `order` determines the relative previous/next position inside that sequence.
 - `related_pages` stays independent from sequencing and can point to source paths, canonical docs paths, or exact page titles.
+- RazorDocs publishes authored sequence metadata to the generated `/docs/search-index.json` file for custom clients and integrations. The `sequence_key` front-matter value becomes `sequenceKey`, `order` stays `order`, and `related_pages` stays separate as `relatedPages`; for example: `{ "sequenceKey": "razorwire-proof", "order": 20, "relatedPages": ["Web/ForgeTrust.Runnable.Web.RazorWire/README.md"] }`.
 
 ### Resolution rules
 

@@ -637,11 +637,6 @@ public class DocAggregator
         var lookupPath = NormalizeLookupPath(path);
         var lookupCanonicalPath = NormalizeCanonicalPath(path);
 
-        if (docsByPath.TryGetValue(lookupPath, out var directMatch))
-        {
-            return directMatch;
-        }
-
         if (!lookup.TryGetValue(lookupPath, out var bucket) || bucket.OrderedDocs.Count == 0)
         {
             return null;
@@ -660,6 +655,11 @@ public class DocAggregator
         if (exactCanonicalMatch is not null)
         {
             return exactCanonicalMatch;
+        }
+
+        if (docsByPath.TryGetValue(lookupPath, out var directMatch))
+        {
+            return directMatch;
         }
 
         return candidates

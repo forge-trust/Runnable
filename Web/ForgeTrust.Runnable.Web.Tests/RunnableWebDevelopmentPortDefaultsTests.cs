@@ -77,6 +77,42 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         Assert.Equal(["--urls", $"http://localhost:{resolution.AppliedPort.Value}"], resolution.Args);
     }
 
+    [Theory]
+    [InlineData("Production", "Development", false)]
+    [InlineData("Development", "Production", true)]
+    public void Resolve_UsesAspNetCoreEnvironment_WhenEnvironmentVariablesConflict(
+        string aspNetCoreEnvironment,
+        string dotnetEnvironment,
+        bool shouldApplyPort)
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            appBaseDirectory,
+            key => key switch
+            {
+                "ASPNETCORE_ENVIRONMENT" => aspNetCoreEnvironment,
+                "DOTNET_ENVIRONMENT" => dotnetEnvironment,
+                _ => null
+            });
+
+        if (shouldApplyPort)
+        {
+            Assert.NotNull(resolution.AppliedPort);
+            Assert.Equal(["--urls", $"http://localhost:{resolution.AppliedPort.Value}"], resolution.Args);
+        }
+        else
+        {
+            Assert.Null(resolution.AppliedPort);
+            Assert.Empty(resolution.Args);
+            Assert.Null(resolution.SeedPath);
+        }
+    }
+
     [Fact]
     public void Resolve_UsesSamePort_ForDifferentDirectoriesInsideTheSameRepository()
     {

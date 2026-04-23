@@ -111,10 +111,11 @@ internal static class DocSectionDisplayBuilder
         string? currentHref,
         IReadOnlyList<string>? namespacePrefixes = null)
     {
+        var normalizedDocPath = NormalizePath(doc.Path);
         var href = $"/docs/{GetCanonicalPath(doc)}";
         var badge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType);
         var children = sectionDocs
-            .Where(item => string.Equals(item.ParentPath, doc.Path, StringComparison.OrdinalIgnoreCase)
+            .Where(item => string.Equals(NormalizePath(item.ParentPath), normalizedDocPath, StringComparison.OrdinalIgnoreCase)
                 && SidebarDisplayHelper.IsTypeAnchorNode(item))
             .OrderBy(item => item.Metadata?.Order ?? int.MaxValue)
             .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
@@ -158,6 +159,13 @@ internal static class DocSectionDisplayBuilder
 
     private static string GetCanonicalPath(DocNode doc)
     {
-        return doc.CanonicalPath ?? doc.Path;
+        return NormalizePath(doc.CanonicalPath ?? doc.Path) ?? string.Empty;
+    }
+
+    private static string? NormalizePath(string? path)
+    {
+        return string.IsNullOrWhiteSpace(path)
+            ? null
+            : path.Trim().Trim('/', '\\');
     }
 }

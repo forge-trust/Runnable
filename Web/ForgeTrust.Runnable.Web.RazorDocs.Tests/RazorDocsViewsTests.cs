@@ -723,6 +723,34 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public void BuildGroups_ShouldNormalizeSourcePaths_ForHrefFallbackAndChildren()
+    {
+        var snapshot = new DocSectionSnapshot
+        {
+            Section = DocPublicSection.ApiReference,
+            Label = "API Reference",
+            Slug = "api-reference",
+            VisiblePages =
+            [
+                new("Foo", "/Namespaces/Foo", "<p>Foo namespace</p>"),
+                new(
+                    "Widget",
+                    "Namespaces/Foo#Widget",
+                    string.Empty,
+                    ParentPath: "Namespaces/Foo")
+            ]
+        };
+
+        var groups = DocSectionDisplayBuilder.BuildGroups(snapshot);
+        var link = Assert.Single(groups.SelectMany(group => group.Links));
+        var child = Assert.Single(link.Children);
+
+        Assert.Equal("/docs/Namespaces/Foo", link.Href);
+        Assert.DoesNotContain("//Namespaces", link.Href, StringComparison.Ordinal);
+        Assert.Equal("Widget", child.Title);
+    }
+
+    [Fact]
     public void BuildGroups_ShouldMatchTypeAnchorChildren_CaseInsensitively()
     {
         var snapshot = new DocSectionSnapshot
@@ -1924,9 +1952,16 @@ public class RazorDocsViewsTests
         }
 
         return groupKey.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
-               || docs.Any(doc => doc.Path.StartsWith("Namespaces", StringComparison.OrdinalIgnoreCase))
+               || docs.Any(doc => NormalizeSidebarPath(doc.Path).StartsWith("Namespaces", StringComparison.OrdinalIgnoreCase))
             ? DocPublicSection.ApiReference
             : DocPublicSection.HowToGuides;
+    }
+
+    private static string NormalizeSidebarPath(string? path)
+    {
+        return string.IsNullOrWhiteSpace(path)
+            ? string.Empty
+            : path.Trim().Trim('/', '\\');
     }
 
     [Fact]
@@ -1947,7 +1982,7 @@ public class RazorDocsViewsTests
     {
         var docs = new[]
         {
-            new DocNode("Foo", "Namespaces/Foo", "<p>Namespace</p>")
+            new DocNode("Foo", "/Namespaces/Foo", "<p>Namespace</p>")
         };
 
         var section = ResolveSidebarSection("Custom Group", docs);

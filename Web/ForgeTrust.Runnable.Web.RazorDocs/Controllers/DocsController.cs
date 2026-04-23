@@ -623,17 +623,10 @@ public class DocsController : Controller
         }
 
         var metadataBreadcrumbCount = metadataBreadcrumbs?.Count ?? 0;
-        var metadataBreadcrumbCountMatchesPath = metadataBreadcrumbCount == parsedBreadcrumbs.Count;
-        var metadataBreadcrumbCountIncludesNavGroupParent = metadataBreadcrumbCount == parsedBreadcrumbs.Count + 1
-                                                           && !string.IsNullOrWhiteSpace(doc.Metadata?.NavGroup)
-                                                           && string.Equals(
-                                                               metadataBreadcrumbs?[0],
-                                                               doc.Metadata!.NavGroup!.Trim(),
-                                                               StringComparison.OrdinalIgnoreCase);
-        var canUseMetadataBreadcrumbs = metadataBreadcrumbCount > 0
-                                        && doc.Metadata?.BreadcrumbsMatchPathTargets == true
-                                        && (metadataBreadcrumbCountMatchesPath
-                                            || metadataBreadcrumbCountIncludesNavGroupParent);
+        var canUseMetadataBreadcrumbs = MetadataBreadcrumbsMatchPathTargets(
+            doc.Metadata,
+            metadataBreadcrumbs,
+            parsedBreadcrumbs.Count);
         if (!canUseMetadataBreadcrumbs)
         {
             if (currentSectionSnapshot is not null && currentSectionSnapshot.Section != DocPublicSection.ApiReference)
@@ -668,6 +661,28 @@ public class DocsController : Controller
                         : null
                 })
             .ToList();
+    }
+
+    private static bool MetadataBreadcrumbsMatchPathTargets(
+        DocMetadata? metadata,
+        IReadOnlyList<string>? metadataBreadcrumbs,
+        int parsedBreadcrumbCount)
+    {
+        var metadataBreadcrumbCount = metadataBreadcrumbs?.Count ?? 0;
+        if (metadataBreadcrumbCount == 0 || metadata?.BreadcrumbsMatchPathTargets != true)
+        {
+            return false;
+        }
+
+        if (metadataBreadcrumbCount == parsedBreadcrumbCount)
+        {
+            return true;
+        }
+
+        var navGroupParent = metadata.NavGroup?.Trim();
+        return metadataBreadcrumbCount == parsedBreadcrumbCount + 1
+               && !string.IsNullOrWhiteSpace(navGroupParent)
+               && string.Equals(metadataBreadcrumbs![0], navGroupParent, StringComparison.OrdinalIgnoreCase);
     }
 
     private static DocSectionLinkViewModel CreateSectionLink(DocNode doc)

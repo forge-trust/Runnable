@@ -34,18 +34,22 @@ public class DocAggregator
         "<[^>]+>",
         RegexOptions.NonBacktracking);
 
-    private static readonly Regex H2H3Regex = new(
-        "<h[23][^>]*>(.*?)</h[23]>",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.NonBacktracking);
-
     private static readonly Regex MultiSpaceRegex = new(
         "\\s+",
         RegexOptions.NonBacktracking);
 
     private sealed record CachedDocsSnapshot(
         Dictionary<string, DocNode> DocsByPath,
+        Dictionary<string, DocLookupBucket> Lookup,
         IReadOnlyList<DocSectionSnapshot> PublicSections,
         object SearchIndexPayload);
+
+    private sealed class DocLookupBucket
+    {
+        public List<DocNode> OrderedDocs { get; } = [];
+
+        public HashSet<DocNode> SeenDocs { get; } = [];
+    }
 
     /// <summary>
     /// Initializes a new instance of <see cref="DocAggregator"/> with the provided dependencies and determines the repository root.
@@ -115,9 +119,7 @@ public class DocAggregator
     public async Task<IReadOnlyList<DocNode>> GetDocsAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
-        var cachedDict = snapshot.DocsByPath;
-
-        return cachedDict.Values.OrderBy(n => n.Path).ToList();
+        return snapshot.DocsByPath.Values.OrderBy(n => n.Path).ToList();
     }
 
     /// <summary>
@@ -131,48 +133,44 @@ public class DocAggregator
         ArgumentNullException.ThrowIfNull(path);
 
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
-        var cachedDict = snapshot.DocsByPath;
+        return ResolveDocByPath(path, snapshot.Lookup, snapshot.DocsByPath);
+    }
 
-        var lookupPath = NormalizeLookupPath(path);
-        var lookupCanonicalPath = NormalizeCanonicalPath(path);
+    /// <summary>
+    /// Builds the typed details view model for the specified documentation page.
+    /// </summary>
+    /// <param name="path">The documentation path to resolve.</param>
+    /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
+    /// <returns>
+    /// A <see cref="DocDetailsViewModel"/> containing the resolved page, its in-page outline, and wayfinding links, or
+    /// <c>null</c> when the page cannot be resolved.
+    /// </returns>
+    public async Task<DocDetailsViewModel?> GetDocDetailsAsync(string path, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
 
-        if (cachedDict.TryGetValue(lookupPath, out var directMatch))
-        {
-            return directMatch;
-        }
-
-        var canonicalCandidates = cachedDict.Values
-            .Where(
-                doc => string.Equals(
-                    NormalizeLookupPath(GetSnapshotCanonicalPath(doc)),
-                    lookupPath,
-                    StringComparison.OrdinalIgnoreCase)
-                       || string.Equals(
-                           NormalizeLookupPath(doc.Path),
-                           lookupPath,
-                           StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (canonicalCandidates.Count == 0)
+        var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
+        var doc = ResolveDocByPath(path, snapshot.Lookup, snapshot.DocsByPath);
+        if (doc is null)
         {
             return null;
         }
 
-        var exactCanonicalMatch = canonicalCandidates.FirstOrDefault(
-            doc => string.Equals(
-                NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
-                lookupCanonicalPath,
-                StringComparison.OrdinalIgnoreCase));
-        if (exactCanonicalMatch != null)
-        {
-            return exactCanonicalMatch;
-        }
+        var orderedDocs = snapshot.DocsByPath.Values
+            .OrderBy(node => node.Path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var previousPage = ResolveSequenceNeighbor(doc, orderedDocs, direction: -1);
+        var nextPage = ResolveSequenceNeighbor(doc, orderedDocs, direction: 1);
+        var relatedPages = ResolveRelatedPages(doc, orderedDocs, snapshot.Lookup, snapshot.DocsByPath, previousPage, nextPage);
 
-        return canonicalCandidates
-            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
-            .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
-            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        return new DocDetailsViewModel
+        {
+            Document = doc,
+            Outline = doc.Outline ?? [],
+            PreviousPage = previousPage,
+            NextPage = nextPage,
+            RelatedPages = relatedPages
+        };
     }
 
     /// <summary>
@@ -307,11 +305,12 @@ public class DocAggregator
                                    return new DocNode(
                                        n.Title,
                                        n.Path,
-                                      sanitizedContent,
-                                      n.ParentPath,
-                                      n.IsDirectory,
-                                      DocRoutePath.BuildCanonicalPath(n.Path),
-                                      n.Metadata);
+                                       sanitizedContent,
+                                       n.ParentPath,
+                                       n.IsDirectory,
+                                       DocRoutePath.BuildCanonicalPath(n.Path),
+                                       n.Metadata,
+                                       n.Outline);
                                })
                            .ToList();
 
@@ -332,7 +331,8 @@ public class DocAggregator
                                    n.ParentPath,
                                    n.IsDirectory,
                                    n.CanonicalPath,
-                                   n.Metadata))
+                                   n.Metadata,
+                                   n.Outline))
                            .ToList();
 
                        MergeNamespaceReadmes(rewrittenNodes);
@@ -352,6 +352,7 @@ public class DocAggregator
                                return first;
                            })
                            .ToDictionary(n => n.Path, n => n);
+                       var lookup = BuildDocLookup(docsByPath.Values);
 
                        var publicSections = BuildPublicSections(docsByPath.Values, logger);
                        var (searchIndexPayload, searchRecordCount) = BuildSearchIndexPayload(docsByPath.Values, publicSections);
@@ -364,7 +365,7 @@ public class DocAggregator
                            searchRecordCount,
                            snapshotCacheDuration.TotalMinutes);
 
-                       return new CachedDocsSnapshot(docsByPath, publicSections, searchIndexPayload);
+                       return new CachedDocsSnapshot(docsByPath, lookup, publicSections, searchIndexPayload);
                    },
                    DocsCachePolicy,
                    cancellationToken: CancellationToken.None);
@@ -490,8 +491,8 @@ public class DocAggregator
                         : d.Metadata!.Title!.Trim();
                     var summary = d.Metadata?.Summary ?? snippet;
 
-                    var headings = H2H3Regex.Matches(content ?? string.Empty)
-                        .Select(m => NormalizeSearchText(TagRegex.Replace(m.Groups[1].Value, " ")))
+                    var headings = (d.Outline ?? [])
+                        .Select(item => NormalizeSearchText(item.Title))
                         .Where(h => !string.IsNullOrWhiteSpace(h))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .Take(MaxHeadingsPerDocument)
@@ -521,6 +522,7 @@ public class DocAggregator
                         publicSectionLabel = hasPublicSection ? DocPublicSectionCatalog.GetLabel(publicSection) : null,
                         isSectionLanding = resolvedLandingPaths.Contains(d.Path),
                         order = d.Metadata?.Order,
+                        sequenceKey = d.Metadata?.SequenceKey,
                         canonicalSlug = d.Metadata?.CanonicalSlug,
                         relatedPages = d.Metadata?.RelatedPages ?? [],
                         breadcrumbs = d.Metadata?.Breadcrumbs ?? []
@@ -621,6 +623,251 @@ public class DocAggregator
         return text[..boundary].TrimEnd() + "...";
     }
 
+    private static Dictionary<string, DocLookupBucket> BuildDocLookup(IEnumerable<DocNode> docs)
+    {
+        var lookup = new Dictionary<string, DocLookupBucket>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var doc in docs)
+        {
+            AddLookupEntry(lookup, NormalizeLookupPath(doc.Path), doc);
+            AddLookupEntry(lookup, NormalizeLookupPath(GetSnapshotCanonicalPath(doc)), doc);
+        }
+
+        return lookup;
+    }
+
+    private static void AddLookupEntry(Dictionary<string, DocLookupBucket> lookup, string key, DocNode doc)
+    {
+        if (!lookup.TryGetValue(key, out var bucket))
+        {
+            bucket = new DocLookupBucket();
+            lookup[key] = bucket;
+        }
+
+        if (bucket.SeenDocs.Add(doc))
+        {
+            bucket.OrderedDocs.Add(doc);
+        }
+    }
+
+    private static DocNode? ResolveDocByPath(
+        string path,
+        IReadOnlyDictionary<string, DocLookupBucket> lookup,
+        IReadOnlyDictionary<string, DocNode> docsByPath)
+    {
+        var lookupPath = NormalizeLookupPath(path);
+        var lookupCanonicalPath = NormalizeCanonicalPath(path);
+
+        if (!lookup.TryGetValue(lookupPath, out var bucket) || bucket.OrderedDocs.Count == 0)
+        {
+            return null;
+        }
+
+        var candidates = bucket.OrderedDocs;
+        var exactCanonicalMatch = candidates.FirstOrDefault(
+            doc => string.Equals(
+                       NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
+                       lookupCanonicalPath,
+                       StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(
+                       NormalizeCanonicalPath(doc.Path),
+                       lookupCanonicalPath,
+                       StringComparison.OrdinalIgnoreCase));
+        if (exactCanonicalMatch is not null)
+        {
+            return exactCanonicalMatch;
+        }
+
+        if (docsByPath.TryGetValue(lookupPath, out var directMatch))
+        {
+            return directMatch;
+        }
+
+        return candidates
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
+            .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
+            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+    }
+
+    private static DocPageLinkViewModel? ResolveSequenceNeighbor(
+        DocNode currentDoc,
+        IReadOnlyList<DocNode> docs,
+        int direction)
+    {
+        var currentMetadata = currentDoc.Metadata;
+        if (currentMetadata is null)
+        {
+            return null;
+        }
+
+        var sequenceKey = NormalizeMetadataText(currentMetadata.SequenceKey);
+        if (sequenceKey is null)
+        {
+            return null;
+        }
+
+        if (currentMetadata.Order is null)
+        {
+            return null;
+        }
+
+        if (HasFragment(currentDoc))
+        {
+            return null;
+        }
+
+        var sequenceDocs = docs
+            .Where(doc => CanJoinSequence(doc, sequenceKey))
+            .OrderBy(doc => doc.Metadata!.Order)
+            .ThenBy(doc => GetDisplayTitle(doc), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var currentIndex = sequenceDocs.FindIndex(doc => string.Equals(doc.Path, currentDoc.Path, StringComparison.OrdinalIgnoreCase));
+        if (currentIndex < 0)
+        {
+            return null;
+        }
+
+        var neighborIndex = currentIndex + direction;
+        if (neighborIndex < 0 || neighborIndex >= sequenceDocs.Count)
+        {
+            return null;
+        }
+
+        return CreatePageLink(sequenceDocs[neighborIndex]);
+    }
+
+    private static bool CanJoinSequence(DocNode doc, string sequenceKey)
+    {
+        var metadata = doc.Metadata;
+        if (metadata is null)
+        {
+            return false;
+        }
+
+        if (metadata.HideFromPublicNav == true)
+        {
+            return false;
+        }
+
+        if (HasFragment(doc))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(doc.Content))
+        {
+            return false;
+        }
+
+        if (!string.Equals(
+                NormalizeMetadataText(metadata.SequenceKey),
+                sequenceKey,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return metadata.Order is not null;
+    }
+
+    private static IReadOnlyList<DocPageLinkViewModel> ResolveRelatedPages(
+        DocNode currentDoc,
+        IReadOnlyList<DocNode> docs,
+        IReadOnlyDictionary<string, DocLookupBucket> lookup,
+        IReadOnlyDictionary<string, DocNode> docsByPath,
+        DocPageLinkViewModel? previousPage,
+        DocPageLinkViewModel? nextPage)
+    {
+        if (currentDoc.Metadata?.RelatedPages is not { Count: > 0 } relatedEntries)
+        {
+            return [];
+        }
+
+        var excludedHrefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            BuildSearchDocUrl(GetSnapshotCanonicalPath(currentDoc))
+        };
+        if (!string.IsNullOrWhiteSpace(previousPage?.Href))
+        {
+            excludedHrefs.Add(previousPage.Href);
+        }
+
+        if (!string.IsNullOrWhiteSpace(nextPage?.Href))
+        {
+            excludedHrefs.Add(nextPage.Href);
+        }
+
+        var relatedPages = new List<DocPageLinkViewModel>();
+
+        foreach (var relatedEntry in relatedEntries)
+        {
+            var normalizedEntry = NormalizeMetadataText(relatedEntry);
+            if (normalizedEntry is null)
+            {
+                continue;
+            }
+
+            var relatedDoc = ResolveDocByPath(normalizedEntry, lookup, docsByPath)
+                             ?? ResolveDocByTitle(normalizedEntry, docs);
+            if (relatedDoc is null || relatedDoc.Metadata?.HideFromPublicNav == true)
+            {
+                continue;
+            }
+
+            var relatedHref = BuildSearchDocUrl(GetSnapshotCanonicalPath(relatedDoc));
+            if (!excludedHrefs.Add(relatedHref))
+            {
+                continue;
+            }
+
+            relatedPages.Add(CreatePageLink(relatedDoc));
+        }
+
+        return relatedPages;
+    }
+
+    private static DocNode? ResolveDocByTitle(string title, IReadOnlyList<DocNode> docs)
+    {
+        return docs
+            .Where(doc => doc.Metadata?.HideFromPublicNav != true)
+            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
+            .ThenBy(doc => GetDisplayTitle(doc), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(
+                doc => string.Equals(GetDisplayTitle(doc), title, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static DocPageLinkViewModel CreatePageLink(DocNode doc)
+    {
+        var summary = NormalizeMetadataText(doc.Metadata?.Summary);
+
+        return new DocPageLinkViewModel
+        {
+            Title = GetDisplayTitle(doc),
+            Href = BuildSearchDocUrl(GetSnapshotCanonicalPath(doc)),
+            Summary = summary,
+            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType)
+        };
+    }
+
+    private static string GetDisplayTitle(DocNode doc)
+    {
+        return NormalizeMetadataText(doc.Metadata?.Title) ?? doc.Title;
+    }
+
+    private static string? NormalizeMetadataText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static bool HasFragment(DocNode doc)
+    {
+        return !string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc)));
+    }
+
     /// <summary>
     /// Merges README content into the corresponding namespace overview pages.
     /// </summary>
@@ -672,7 +919,8 @@ public class DocAggregator
                     namespaceNode.ParentPath,
                     namespaceNode.IsDirectory,
                     namespaceNode.CanonicalPath,
-                    mergedMetadata);
+                    mergedMetadata,
+                    CombineOutlines(readmeNode.Outline, namespaceNode.Outline));
 
                 var namespaceIndex = nodes.FindIndex(n => string.Equals(n.Path, namespaceNode.Path, StringComparison.OrdinalIgnoreCase));
                 if (namespaceIndex >= 0)
@@ -685,6 +933,27 @@ public class DocAggregator
 
             nodes.RemoveAll(n => string.Equals(n.Path, readmeNode.Path, StringComparison.OrdinalIgnoreCase));
         }
+    }
+
+    private static IReadOnlyList<DocOutlineItem>? CombineOutlines(
+        IReadOnlyList<DocOutlineItem>? first,
+        IReadOnlyList<DocOutlineItem>? second)
+    {
+        if ((first?.Count ?? 0) == 0)
+        {
+            return second;
+        }
+
+        if ((second?.Count ?? 0) == 0)
+        {
+            return first;
+        }
+
+        return first!
+            .Concat(second!)
+            .GroupBy(item => item.Id, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
     }
 
     private static DocMetadata? RemoveDerivedNamespaceReadmeOverrides(DocMetadata? metadata)

@@ -70,6 +70,7 @@ internal static class MarkdownFrontMatterParser
             Status = Normalize(document.Status),
             NavGroup = Normalize(document.NavGroup),
             Order = document.Order,
+            SequenceKey = Normalize(document.SequenceKey),
             SectionLanding = document.SectionLanding,
             HideFromPublicNav = document.HideFromPublicNav,
             HideFromSearch = document.HideFromSearch,
@@ -229,6 +230,8 @@ internal static class MarkdownFrontMatterParser
         public string? NavGroup { get; init; }
 
         public int? Order { get; init; }
+
+        public string? SequenceKey { get; init; }
 
         public bool? SectionLanding { get; init; }
 

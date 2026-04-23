@@ -1289,6 +1289,149 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderOutlineSection_WhenOutlineEntriesExist()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<h2 id='install'>Install</h2><h3 id='verify'>Verify</h3>");
+        var model = CreateDetailsViewModel(
+            doc,
+            outline:
+            [
+                new DocOutlineItem
+                {
+                    Title = "Install",
+                    Id = "install",
+                    Level = 2
+                },
+                new DocOutlineItem
+                {
+                    Title = "Verify",
+                    Id = "verify",
+                    Level = 3
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.Contains("id=\"docs-page-outline\"", html);
+        Assert.Contains("href=\"#install\"", html);
+        Assert.Contains("data-doc-outline-link=\"true\"", html);
+        Assert.Contains("href=\"#verify\"", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderWayfindingSections_WhenLinksExist()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            previousPage: new DocPageLinkViewModel
+            {
+                Title = "Intro",
+                Href = "/docs/guides/intro.md.html",
+                Summary = "Start here."
+            },
+            nextPage: new DocPageLinkViewModel
+            {
+                Title = "Troubleshooting",
+                Href = "/docs/guides/troubleshooting.md.html",
+                Summary = "Recover quickly."
+            },
+            relatedPages:
+            [
+                new DocPageLinkViewModel
+                {
+                    Title = "Reference",
+                    Href = "/docs/guides/reference.md.html"
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.Contains("id=\"docs-page-wayfinding\"", html);
+        Assert.Contains("data-doc-wayfinding=\"previous\"", html);
+        Assert.Contains("data-doc-wayfinding=\"next\"", html);
+        Assert.Contains("data-doc-related-link=\"true\"", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderOptionalWayfindingBadgesAndSummaries()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            previousPage: new DocPageLinkViewModel
+            {
+                Title = "Intro",
+                Href = "/docs/guides/intro.md.html",
+                PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge("guide")
+            },
+            nextPage: new DocPageLinkViewModel
+            {
+                Title = "Troubleshooting",
+                Href = "/docs/guides/troubleshooting.md.html",
+                PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge("troubleshooting")
+            },
+            relatedPages:
+            [
+                new DocPageLinkViewModel
+                {
+                    Title = "Reference",
+                    Href = "/docs/guides/reference.md.html",
+                    Summary = "Read the reference.",
+                    PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge("api-reference")
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.Contains("docs-page-badge--guide", html);
+        Assert.Contains("docs-page-badge--troubleshooting", html);
+        Assert.Contains("docs-page-badge--api-reference", html);
+        Assert.Contains("Read the reference.", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderRelatedOnlyWayfinding_WithoutSequenceCards()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            relatedPages:
+            [
+                new DocPageLinkViewModel
+                {
+                    Title = "Reference",
+                    Href = "/docs/guides/reference.md.html",
+                    Summary = "Read the reference.",
+                    PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge("api-reference")
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.Contains("id=\"docs-page-wayfinding\"", html);
+        Assert.Contains("data-doc-related-link=\"true\"", html);
+        Assert.DoesNotContain("data-doc-wayfinding=\"previous\"", html);
+        Assert.DoesNotContain("data-doc-wayfinding=\"next\"", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderTrustBar_WhenTrustMetadataIsPresent()
     {
         var doc = new DocNode(
@@ -1523,7 +1666,8 @@ public class RazorDocsViewsTests
         };
         using var services = CreateServiceProvider(docs);
 
-        var grouped = CreateGroupedSidebarModel(
+        var model = CreateSidebarViewModel(
+            ["Contoso.Product."],
             ("Namespaces", docs[0]),
             ("Namespaces", docs[1]),
             ("Namespaces", docs[2]));
@@ -1531,11 +1675,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Shared/Components/Sidebar/Default.cshtml",
-            grouped,
-            viewData =>
-            {
-                viewData["NamespacePrefixes"] = new[] { "Contoso.Product." };
-            });
+            model);
 
         var twoIndex = html.IndexOf("href=\"/docs/Namespaces/Contoso.Product.Feature.Two\"", StringComparison.Ordinal);
         var oneIndex = html.IndexOf("href=\"/docs/Namespaces/Contoso.Product.Feature.One\"", StringComparison.Ordinal);
@@ -1559,7 +1699,8 @@ public class RazorDocsViewsTests
         };
         using var services = CreateServiceProvider(docs);
 
-        var grouped = CreateGroupedSidebarModel(
+        var model = CreateSidebarViewModel(
+            ["ForgeTrust.Runnable."],
             ("Namespaces", docs[0]),
             ("Namespaces", docs[1]),
             ("Namespaces", docs[2]),
@@ -1570,11 +1711,7 @@ public class RazorDocsViewsTests
         var canonicalHtml = await RenderViewAsync(
             services,
             "/Views/Shared/Components/Sidebar/Default.cshtml",
-            grouped,
-            viewData =>
-            {
-                viewData["NamespacePrefixes"] = new[] { "ForgeTrust.Runnable." };
-            });
+            model);
 
         Assert.Contains("href=\"/docs/Namespaces.html\"", canonicalHtml);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.Runnable.Web.html\"", canonicalHtml);
@@ -1586,7 +1723,7 @@ public class RazorDocsViewsTests
         var nullPrefixHtml = await RenderViewAsync(
             services,
             "/Views/Shared/Components/Sidebar/Default.cshtml",
-            grouped);
+            CreateSidebarViewModel([], ("Namespaces", docs[0]), ("Namespaces", docs[1]), ("Namespaces", docs[2]), ("docs", docs[3]), ("docs", docs[4]), ("docs", docs[5])));
         Assert.Contains("href=\"/docs/Namespaces.html\"", nullPrefixHtml);
     }
 
@@ -1605,7 +1742,8 @@ public class RazorDocsViewsTests
         // This test renders the sidebar with a direct model, so CreateServiceProvider docs are intentionally irrelevant.
         using var services = CreateServiceProvider(CreateDocs());
 
-        var grouped = CreateGroupedSidebarModel(
+        var model = CreateSidebarViewModel(
+            ["ForgeTrust.Runnable."],
             ("Namespaces", docs[0]),
             ("Namespaces", docs[1]),
             ("Namespaces", docs[2]),
@@ -1616,11 +1754,7 @@ public class RazorDocsViewsTests
         var html = await RenderViewAsync(
             services,
             "/Views/Shared/Components/Sidebar/Default.cshtml",
-            grouped,
-            viewData =>
-            {
-                viewData["NamespacePrefixes"] = new[] { "ForgeTrust.Runnable." };
-            });
+            model);
 
         Assert.Contains("href=\"/docs/Namespaces\"", html);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.Runnable.Web\"", html);
@@ -1996,6 +2130,53 @@ public class RazorDocsViewsTests
             .GroupBy(item => item.Group, item => item.Node)
             .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static DocDetailsViewModel CreateDetailsViewModel(
+        DocNode doc,
+        IReadOnlyList<DocOutlineItem>? outline = null,
+        DocPageLinkViewModel? previousPage = null,
+        DocPageLinkViewModel? nextPage = null,
+        IReadOnlyList<DocPageLinkViewModel>? relatedPages = null)
+    {
+        var metadata = doc.Metadata;
+
+        return new DocDetailsViewModel
+        {
+            Document = doc,
+            Title = string.IsNullOrWhiteSpace(metadata?.Title) ? doc.Title : metadata!.Title!.Trim(),
+            Summary = metadata?.Summary,
+            ShowSummary = !string.IsNullOrWhiteSpace(metadata?.Summary) && metadata?.SummaryIsDerived != true,
+            IsCSharpApiDoc = doc.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase),
+            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType),
+            Component = metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Component)
+                ? null
+                : metadata!.Component!.Trim(),
+            Audience = metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Audience)
+                ? null
+                : metadata!.Audience!.Trim(),
+            Outline = outline ?? doc.Outline ?? [],
+            PreviousPage = previousPage,
+            NextPage = nextPage,
+            RelatedPages = relatedPages ?? []
+        };
+    }
+
+    private static DocSidebarViewModel CreateSidebarViewModel(
+        IReadOnlyList<string> namespacePrefixes,
+        params (string Group, DocNode Node)[] items)
+    {
+        var grouped = items
+            .GroupBy(item => item.Group, item => item.Node)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        {
+            ["NamespacePrefixes"] = namespacePrefixes
+        };
+
+        return CreateSidebarViewModel(grouped, viewData);
     }
 
     private static List<DocNode> CreateDocs()

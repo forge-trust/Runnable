@@ -1,11 +1,13 @@
 using System.Globalization;
 using System.Text;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Web;
 
 /// <summary>
-/// Resolves a deterministic development port for Runnable web hosts when the caller has not already supplied
-/// an explicit port or URL configuration.
+/// Resolves a deterministic development port for Runnable web hosts in development when the caller has not
+/// already supplied explicit ASP.NET Core endpoint configuration.
 /// </summary>
 internal static class RunnableWebDevelopmentPortDefaults
 {
@@ -13,13 +15,14 @@ internal static class RunnableWebDevelopmentPortDefaults
     private const int DevelopmentPortRange = 1000;
 
     /// <summary>
-    /// Applies a deterministic <c>--port</c> fallback when neither command-line arguments nor environment
-    /// variables specify where the host should listen.
+    /// Applies a deterministic localhost <c>--urls</c> fallback in development when command-line arguments,
+    /// environment variables, and local appsettings files do not specify where the host should listen.
     /// </summary>
     /// <param name="args">The command-line arguments supplied by the caller.</param>
     /// <param name="currentDirectory">The current working directory for the process.</param>
     /// <param name="applicationBaseDirectory">The application base directory for the host entry assembly.</param>
-    /// <param name="environmentReader">Reads environment variables needed to detect explicit URL configuration.</param>
+    /// <param name="environmentReader">Reads environment variables needed to detect the environment and explicit endpoint configuration.</param>
+    /// <param name="environmentVariableNames">The available environment variable names, used to detect named Kestrel endpoint variables.</param>
     /// <returns>
     /// A resolution describing the effective arguments. If no fallback was needed, the returned arguments match
     /// the supplied <paramref name="args"/>.
@@ -28,41 +31,114 @@ internal static class RunnableWebDevelopmentPortDefaults
         string[] args,
         string currentDirectory,
         string applicationBaseDirectory,
-        Func<string, string?> environmentReader)
+        Func<string, string?> environmentReader,
+        IEnumerable<string>? environmentVariableNames = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(currentDirectory);
         ArgumentNullException.ThrowIfNull(applicationBaseDirectory);
         ArgumentNullException.ThrowIfNull(environmentReader);
 
-        if (HasExplicitUrlConfiguration(args, environmentReader))
+        var environmentName = ResolveEnvironmentName(environmentReader);
+        if (!string.Equals(environmentName, Environments.Development, StringComparison.OrdinalIgnoreCase)
+            || HasExplicitEndpointConfiguration(args, currentDirectory, environmentName, environmentReader, environmentVariableNames))
         {
             return new(args, null, null);
         }
 
         var seedPath = ResolveSeedPath(currentDirectory, applicationBaseDirectory);
         var port = ComputeDeterministicPort(seedPath);
+        var url = $"http://localhost:{port.ToString(CultureInfo.InvariantCulture)}";
 
-        return new([.. args, "--port", port.ToString(CultureInfo.InvariantCulture)], port, seedPath);
+        return new([.. args, "--urls", url], port, seedPath);
     }
 
-    private static bool HasExplicitUrlConfiguration(
-        IReadOnlyList<string> args,
-        Func<string, string?> environmentReader)
+    private static string ResolveEnvironmentName(Func<string, string?> environmentReader)
     {
-        foreach (var arg in args)
-        {
-            if (string.Equals(arg, "--port", StringComparison.OrdinalIgnoreCase)
-                || arg.StartsWith("--port=", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--urls", StringComparison.OrdinalIgnoreCase)
-                || arg.StartsWith("--urls=", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
+        return environmentReader("ASPNETCORE_ENVIRONMENT")
+               ?? environmentReader("DOTNET_ENVIRONMENT")
+               ?? Environments.Production;
+    }
 
-        return !string.IsNullOrWhiteSpace(environmentReader("ASPNETCORE_URLS"))
-               || !string.IsNullOrWhiteSpace(environmentReader("URLS"));
+    private static bool HasExplicitEndpointConfiguration(
+        IReadOnlyList<string> args,
+        string currentDirectory,
+        string environmentName,
+        Func<string, string?> environmentReader,
+        IEnumerable<string>? environmentVariableNames)
+    {
+        return HasExplicitUrlArgument(args)
+               || HasExplicitEndpointEnvironmentVariable(environmentReader, environmentVariableNames)
+               || HasExplicitEndpointConfigurationSource(args, currentDirectory, environmentName);
+    }
+
+    private static bool HasExplicitUrlArgument(IReadOnlyList<string> args)
+    {
+        return args.Any(arg =>
+            string.Equals(arg, "--port", StringComparison.OrdinalIgnoreCase)
+            || arg.StartsWith("--port=", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(arg, "--urls", StringComparison.OrdinalIgnoreCase)
+            || arg.StartsWith("--urls=", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool HasExplicitEndpointEnvironmentVariable(
+        Func<string, string?> environmentReader,
+        IEnumerable<string>? environmentVariableNames)
+    {
+        return HasEnvironmentValue(environmentReader, "ASPNETCORE_URLS")
+               || HasEnvironmentValue(environmentReader, "URLS")
+               || HasEnvironmentValue(environmentReader, "ASPNETCORE_HTTP_PORTS")
+               || HasEnvironmentValue(environmentReader, "DOTNET_HTTP_PORTS")
+               || HasEnvironmentValue(environmentReader, "HTTP_PORTS")
+               || HasEnvironmentValue(environmentReader, "ASPNETCORE_HTTPS_PORTS")
+               || HasEnvironmentValue(environmentReader, "DOTNET_HTTPS_PORTS")
+               || HasEnvironmentValue(environmentReader, "HTTPS_PORTS")
+               || HasKestrelEndpointEnvironmentVariable(environmentReader, environmentVariableNames);
+    }
+
+    private static bool HasKestrelEndpointEnvironmentVariable(
+        Func<string, string?> environmentReader,
+        IEnumerable<string>? environmentVariableNames)
+    {
+        return environmentVariableNames?.Any(variableName =>
+            variableName.StartsWith("Kestrel__Endpoints__", StringComparison.OrdinalIgnoreCase)
+            && variableName.EndsWith("__Url", StringComparison.OrdinalIgnoreCase)
+            && HasEnvironmentValue(environmentReader, variableName)) == true;
+    }
+
+    private static bool HasEnvironmentValue(
+        Func<string, string?> environmentReader,
+        string variableName)
+    {
+        return !string.IsNullOrWhiteSpace(environmentReader(variableName));
+    }
+
+    private static bool HasExplicitEndpointConfigurationSource(
+        IReadOnlyList<string> args,
+        string currentDirectory,
+        string environmentName)
+    {
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(currentDirectory)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+            .AddJsonFile($"appsettings.{environmentName}.json", optional: true, reloadOnChange: false)
+            .AddCommandLine(args.ToArray())
+            .Build();
+
+        return HasConfigurationValue(configuration, "urls")
+               || HasConfigurationValue(configuration, "http_ports")
+               || HasConfigurationValue(configuration, "https_ports")
+               || configuration
+                   .GetSection("Kestrel:Endpoints")
+                   .GetChildren()
+                   .Any(endpoint => HasConfigurationValue(endpoint, "Url"));
+    }
+
+    private static bool HasConfigurationValue(
+        IConfiguration configuration,
+        string key)
+    {
+        return !string.IsNullOrWhiteSpace(configuration[key]);
     }
 
     private static string ResolveSeedPath(string currentDirectory, string applicationBaseDirectory)

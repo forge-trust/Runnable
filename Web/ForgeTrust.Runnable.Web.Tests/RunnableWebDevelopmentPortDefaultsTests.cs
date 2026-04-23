@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Web;
+using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Web.Tests;
 
@@ -15,12 +16,30 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             [],
             environment.WorkspaceRoot,
             appBaseDirectory,
-            _ => null);
+            ReadDevelopmentEnvironment);
 
         Assert.NotNull(resolution.AppliedPort);
         Assert.Equal(environment.WorkspaceRoot, resolution.SeedPath);
-        Assert.Equal(["--port", resolution.AppliedPort.Value.ToString()], resolution.Args);
+        Assert.Equal(["--urls", $"http://localhost:{resolution.AppliedPort.Value}"], resolution.Args);
         Assert.InRange(resolution.AppliedPort.Value, 5600, 6599);
+    }
+
+    [Fact]
+    public void Resolve_DoesNotAppendDeterministicPort_WhenEnvironmentIsNotDevelopment()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            appBaseDirectory,
+            key => key == "ASPNETCORE_ENVIRONMENT" ? Environments.Production : null);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Empty(resolution.Args);
+        Assert.Null(resolution.SeedPath);
     }
 
     [Fact]
@@ -36,19 +55,19 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             [],
             environment.WorkspaceRoot,
             appBaseDirectory,
-            _ => null);
+            ReadDevelopmentEnvironment);
         var nestedResolution = RunnableWebDevelopmentPortDefaults.Resolve(
             [],
             nestedDirectory,
             appBaseDirectory,
-            _ => null);
+            ReadDevelopmentEnvironment);
 
         Assert.Equal(rootResolution.AppliedPort, nestedResolution.AppliedPort);
         Assert.Equal(rootResolution.SeedPath, nestedResolution.SeedPath);
     }
 
     [Fact]
-    public void Resolve_UsesDifferentPorts_ForDifferentRepositoryRoots()
+    public void Resolve_UsesRepositoryRootSeed_ForDifferentRepositoryRoots()
     {
         using var first = new TemporaryEnvironment();
         using var second = new TemporaryEnvironment();
@@ -59,14 +78,18 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             [],
             first.WorkspaceRoot,
             first.CreateApplicationBaseDirectory("saturn"),
-            _ => null);
+            ReadDevelopmentEnvironment);
         var secondResolution = RunnableWebDevelopmentPortDefaults.Resolve(
             [],
             second.WorkspaceRoot,
             second.CreateApplicationBaseDirectory("jupiter"),
-            _ => null);
+            ReadDevelopmentEnvironment);
 
-        Assert.NotEqual(firstResolution.AppliedPort, secondResolution.AppliedPort);
+        Assert.Equal(first.WorkspaceRoot, firstResolution.SeedPath);
+        Assert.Equal(second.WorkspaceRoot, secondResolution.SeedPath);
+        Assert.NotEqual(firstResolution.SeedPath, secondResolution.SeedPath);
+        Assert.NotNull(firstResolution.AppliedPort);
+        Assert.NotNull(secondResolution.AppliedPort);
     }
 
     [Fact]
@@ -80,7 +103,24 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             args,
             environment.WorkspaceRoot,
             environment.CreateApplicationBaseDirectory("workspace"),
-            _ => null);
+            ReadDevelopmentEnvironment);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Same(args, resolution.Args);
+    }
+
+    [Fact]
+    public void Resolve_DoesNotOverrideExplicitPortArgument_WhenSpecifiedInline()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var args = new[] { "--port=5005" };
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            args,
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            ReadDevelopmentEnvironment);
 
         Assert.Null(resolution.AppliedPort);
         Assert.Same(args, resolution.Args);
@@ -97,14 +137,22 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             args,
             environment.WorkspaceRoot,
             environment.CreateApplicationBaseDirectory("workspace"),
-            _ => null);
+            ReadDevelopmentEnvironment);
 
         Assert.Null(resolution.AppliedPort);
         Assert.Same(args, resolution.Args);
     }
 
-    [Fact]
-    public void Resolve_DoesNotOverrideAspNetCoreUrlsEnvironmentVariable()
+    [Theory]
+    [InlineData("ASPNETCORE_URLS")]
+    [InlineData("URLS")]
+    [InlineData("ASPNETCORE_HTTP_PORTS")]
+    [InlineData("DOTNET_HTTP_PORTS")]
+    [InlineData("HTTP_PORTS")]
+    [InlineData("ASPNETCORE_HTTPS_PORTS")]
+    [InlineData("DOTNET_HTTPS_PORTS")]
+    [InlineData("HTTPS_PORTS")]
+    public void Resolve_DoesNotOverrideEndpointEnvironmentVariable(string variableName)
     {
         using var environment = new TemporaryEnvironment();
         environment.CreateGitRepo("workspace");
@@ -113,7 +161,93 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             [],
             environment.WorkspaceRoot,
             environment.CreateApplicationBaseDirectory("workspace"),
-            key => key == "ASPNETCORE_URLS" ? "http://127.0.0.1:5005" : null);
+            key => key switch
+            {
+                "ASPNETCORE_ENVIRONMENT" => Environments.Development,
+                _ when key == variableName => variableName.Contains("PORTS", StringComparison.OrdinalIgnoreCase)
+                    ? "5005"
+                    : "http://127.0.0.1:5005",
+                _ => null
+            });
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Empty(resolution.Args);
+    }
+
+    [Fact]
+    public void Resolve_DoesNotOverrideNamedKestrelEndpointEnvironmentVariable()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        const string endpointVariableName = "Kestrel__Endpoints__Https__Url";
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            key => key switch
+            {
+                "ASPNETCORE_ENVIRONMENT" => Environments.Development,
+                endpointVariableName => "https://localhost:5006",
+                _ => null
+            },
+            [endpointVariableName]);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Empty(resolution.Args);
+    }
+
+    [Theory]
+    [InlineData("urls", "http://127.0.0.1:5005")]
+    [InlineData("http_ports", "5005")]
+    [InlineData("https_ports", "5006")]
+    public void Resolve_DoesNotOverrideEndpointConfigurationInAppSettings(
+        string key,
+        string value)
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        environment.CreateApplicationBaseDirectory("workspace");
+        environment.WriteAppSettings($$"""
+            {
+              "{{key}}": "{{value}}"
+            }
+            """);
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            ReadDevelopmentEnvironment);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Empty(resolution.Args);
+    }
+
+    [Fact]
+    public void Resolve_DoesNotOverrideKestrelEndpointConfigurationInAppSettings()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        environment.CreateApplicationBaseDirectory("workspace");
+        environment.WriteAppSettings(
+            """
+            {
+              "Kestrel": {
+                "Endpoints": {
+                  "Http": {
+                    "Url": "http://localhost:5005"
+                  }
+                }
+              }
+            }
+            """);
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            ReadDevelopmentEnvironment);
 
         Assert.Null(resolution.AppliedPort);
         Assert.Empty(resolution.Args);
@@ -131,10 +265,15 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             [],
             workingDirectory,
             appBaseDirectory,
-            _ => null);
+            ReadDevelopmentEnvironment);
 
         Assert.Equal(environment.ProjectRoot, resolution.SeedPath);
         Assert.NotNull(resolution.AppliedPort);
+    }
+
+    private static string? ReadDevelopmentEnvironment(string key)
+    {
+        return key == "ASPNETCORE_ENVIRONMENT" ? Environments.Development : null;
     }
 
     private sealed class TemporaryEnvironment : IDisposable
@@ -171,6 +310,11 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             var baseDirectory = Path.Combine(ProjectRoot, "bin", "Debug", "net10.0");
             Directory.CreateDirectory(baseDirectory);
             return baseDirectory;
+        }
+
+        public void WriteAppSettings(string content)
+        {
+            File.WriteAllText(Path.Combine(WorkspaceRoot, "appsettings.json"), content);
         }
 
         public void Dispose()

@@ -1,13 +1,13 @@
 using ForgeTrust.Runnable.Core;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Routing;
 
 namespace ForgeTrust.Runnable.Web;
 
@@ -38,7 +38,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
     /// <summary>
     /// Starts the web host with Runnable Web's deterministic development-port fallback when the caller has not
-    /// explicitly configured a port or URL through command-line arguments or environment variables.
+    /// explicitly configured an endpoint through command-line arguments, environment variables, or appsettings.
     /// </summary>
     /// <param name="args">The command-line arguments supplied by the caller.</param>
     /// <returns>A task that completes when the web host run exits.</returns>
@@ -48,7 +48,11 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
             args,
             Directory.GetCurrentDirectory(),
             AppContext.BaseDirectory,
-            Environment.GetEnvironmentVariable);
+            Environment.GetEnvironmentVariable,
+            Environment
+                .GetEnvironmentVariables()
+                .Keys
+                .Cast<string>());
 
         if (resolution.AppliedPort is null)
         {
@@ -57,7 +61,7 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
 
         GetStartupLogger()
             .LogInformation(
-                "No explicit web port or URL was configured. Defaulting to deterministic development port {Port} for '{SeedPath}'. Override with --port, --urls, or ASPNETCORE_URLS.",
+                "No explicit development web endpoint was configured. Defaulting to deterministic localhost port {Port} for '{SeedPath}'. Override with --port, --urls, ASPNETCORE_URLS, or ASPNETCORE_HTTP_PORTS.",
                 resolution.AppliedPort.Value,
                 resolution.SeedPath);
 

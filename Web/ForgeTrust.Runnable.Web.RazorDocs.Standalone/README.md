@@ -16,10 +16,10 @@ The app boots through [`Program.cs`](./Program.cs) and delegates the actual docs
 
 ## Local URL Behavior
 
-When you run this host without an explicit `--port`, `--urls`, or `ASPNETCORE_URLS`, Runnable Web assigns a deterministic development port from the current workspace path. That keeps sibling worktrees from colliding on the same default localhost URL.
+When you run this host in `Development` without explicit endpoint configuration, Runnable Web assigns a deterministic localhost-only development URL from the current workspace path. That keeps sibling worktrees from colliding on the same default localhost URL.
 
 - Use the startup log as the source of truth for the selected local URL.
-- Pass `--port 5189` or `--urls http://127.0.0.1:5189` when you intentionally want a fixed address.
+- Pass `--port 5189`, `--urls http://127.0.0.1:5189`, `ASPNETCORE_HTTP_PORTS=5189`, or a `Kestrel:Endpoints` appsettings/environment entry when you intentionally want a fixed address.
 - The checked-in launch profile no longer pins a single shared localhost port, because that was the source of cross-worktree QA confusion.
 
 ## Related Projects

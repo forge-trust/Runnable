@@ -408,7 +408,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
             appBaseDirectory,
             ReadDevelopmentEnvironment);
 
-        Assert.Equal(workingDirectory, resolution.SeedPath);
+        Assert.Equal(NormalizePathForAssertion(workingDirectory), resolution.SeedPath);
         Assert.NotNull(resolution.AppliedPort);
     }
 
@@ -417,14 +417,28 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         return key == "ASPNETCORE_ENVIRONMENT" ? Environments.Development : null;
     }
 
+    private static string NormalizePathForAssertion(string path)
+    {
+        var normalized = Path.GetFullPath(path)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (OperatingSystem.IsWindows())
+        {
+            normalized = normalized.ToUpperInvariant();
+        }
+
+        return normalized.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+    }
+
     private sealed class TemporaryEnvironment : IDisposable
     {
         public TemporaryEnvironment()
         {
-            RootDirectory = Path.Combine(
-                Path.GetTempPath(),
-                "runnable-web-port-defaults-tests",
-                Guid.NewGuid().ToString("N"));
+            RootDirectory = NormalizePathForAssertion(
+                Path.Combine(
+                    Path.GetTempPath(),
+                    "runnable-web-port-defaults-tests",
+                    Guid.NewGuid().ToString("N")));
             Directory.CreateDirectory(RootDirectory);
         }
 
@@ -436,7 +450,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
 
         public void CreateGitRepo(string workspaceName)
         {
-            WorkspaceRoot = Path.Combine(RootDirectory, workspaceName);
+            WorkspaceRoot = NormalizePathForAssertion(Path.Combine(RootDirectory, workspaceName));
             Directory.CreateDirectory(WorkspaceRoot);
             File.WriteAllText(Path.Combine(WorkspaceRoot, ".git"), "gitdir: test");
         }
@@ -444,7 +458,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         public string CreateApplicationBaseDirectory(string projectName)
         {
             var containerRoot = string.IsNullOrEmpty(WorkspaceRoot) ? RootDirectory : WorkspaceRoot;
-            ProjectRoot = Path.Combine(containerRoot, projectName);
+            ProjectRoot = NormalizePathForAssertion(Path.Combine(containerRoot, projectName));
             Directory.CreateDirectory(ProjectRoot);
             File.WriteAllText(Path.Combine(ProjectRoot, $"{projectName}.csproj"), "<Project />");
 

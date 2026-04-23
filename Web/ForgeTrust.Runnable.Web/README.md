@@ -86,6 +86,7 @@ You can override the application's listening port using several methods:
     }
     ```
 4.  **Kestrel Endpoints**: Configure named endpoints when you need protocol, certificate, or endpoint-specific settings.
+
     ```json
     {
       "Kestrel": {
@@ -100,7 +101,6 @@ You can override the application's listening port using several methods:
 
 > [!NOTE]
 > The `--port` flag is a convenience shortcut that maps to `http://localhost:{port};http://*:{port}`. This ensures the application is accessible on all interfaces while logging a clickable `localhost` URL in the console. If both `--port` and `--urls` are provided, `--port` takes precedence.
-
 > [!TIP]
 > If you rely on the deterministic development-port fallback, different worktrees on the same machine will get different stable ports. If you need a predictable shared URL for docs, QA, or CI instructions, pass `--port` or `--urls` explicitly instead of depending on the fallback.
 

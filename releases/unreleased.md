@@ -29,6 +29,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 ### RazorDocs product example
 
 - Runnable's own release pages now double as a working RazorDocs example for consumers who want better release notes.
+- RazorDocs pages can now expose typed `On this page` outlines, explicit proof-path previous/next links, related-page cards, and sidebar anchor navigation from harvested metadata instead of scraping rendered HTML.
 - The release contract is designed so future tooling can generate both a changelog entry and a blog-style tagged release note from the same underlying signals.
 
 ## Migration watch
@@ -38,6 +39,7 @@ There is no tagged migration guide yet because Runnable has not cut `v0.1.0`. Un
 - breaking changes should be called out here as soon as they land
 - the stable policy lives in [Pre-1.0 upgrade policy](./upgrade-policy.md)
 - finalized migration steps move into the tagged release note when the version ships
+- custom RazorDocs harvesters that want detail-page outlines and search heading metadata should populate `DocNode.Outline`; pages without outline metadata continue to render without the optional outline section
 
 ## Proof artifacts
 

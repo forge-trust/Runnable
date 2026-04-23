@@ -430,6 +430,51 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task Section_ShouldRedirectAliasSectionRequests_ToCanonicalSlug()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var result = await InvokeDocsActionAsync(services, "Section", controller => controller.Section("quickstart"));
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs/sections/start-here", redirect.Url);
+    }
+
+    [Fact]
+    public async Task Section_ShouldRedirectToLandingDoc_WhenSectionHasAuthoredLanding()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Concept Landing",
+                "concepts/landing.md",
+                "<p>Concept landing</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    SectionLanding = true
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var result = await InvokeDocsActionAsync(services, "Section", controller => controller.Section("concepts"));
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs/concepts/landing.md.html", redirect.Url);
+    }
+
+    [Fact]
     public async Task SectionView_ShouldHideStartHereCta_WhenViewingStartHereSection()
     {
         var docs = new List<DocNode>
@@ -675,6 +720,33 @@ public class RazorDocsViewsTests
         Assert.Contains(
             groups.SelectMany(group => group.Links),
             link => string.Equals(link.Href, "/docs/Namespaces/Foo.html", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildGroups_ShouldMatchTypeAnchorChildren_CaseInsensitively()
+    {
+        var snapshot = new DocSectionSnapshot
+        {
+            Section = DocPublicSection.ApiReference,
+            Label = "API Reference",
+            Slug = "api-reference",
+            VisiblePages =
+            [
+                new("Foo", "Namespaces/Foo", "<p>Foo namespace</p>", CanonicalPath: "Namespaces/Foo.html"),
+                new(
+                    "Widget",
+                    "Namespaces/Foo#Widget",
+                    string.Empty,
+                    ParentPath: "namespaces/foo",
+                    CanonicalPath: "Namespaces/Foo.html#Widget")
+            ]
+        };
+
+        var groups = DocSectionDisplayBuilder.BuildGroups(snapshot);
+        var link = Assert.Single(groups.SelectMany(group => group.Links));
+        var child = Assert.Single(link.Children);
+
+        Assert.Equal("Widget", child.Title);
     }
 
     [Fact]
@@ -1524,6 +1596,35 @@ public class RazorDocsViewsTests
         httpContext.Response.Body.Position = 0;
         using var reader = new StreamReader(httpContext.Response.Body);
         return await reader.ReadToEndAsync();
+    }
+
+    private static async Task<IActionResult> InvokeDocsActionAsync(
+        ServiceProvider services,
+        string actionName,
+        Func<DocsController, Task<IActionResult>> action)
+    {
+        using var scope = services.CreateScope();
+        var scopedServices = scope.ServiceProvider;
+
+        var controller = ActivatorUtilities.CreateInstance<DocsController>(scopedServices);
+        var routeData = new RouteData();
+        routeData.Values["controller"] = "Docs";
+        routeData.Values["action"] = actionName;
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                RequestServices = scopedServices
+            },
+            RouteData = routeData,
+            ActionDescriptor = new ControllerActionDescriptor
+            {
+                ControllerName = "Docs",
+                ActionName = actionName
+            }
+        };
+
+        return await action(controller);
     }
 
     private static async Task<string> RenderViewAsync(

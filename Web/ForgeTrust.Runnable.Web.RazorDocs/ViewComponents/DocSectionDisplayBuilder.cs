@@ -114,7 +114,8 @@ internal static class DocSectionDisplayBuilder
         var href = $"/docs/{GetCanonicalPath(doc)}";
         var badge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType);
         var children = sectionDocs
-            .Where(item => item.ParentPath == doc.Path && SidebarDisplayHelper.IsTypeAnchorNode(item))
+            .Where(item => string.Equals(item.ParentPath, doc.Path, StringComparison.OrdinalIgnoreCase)
+                && SidebarDisplayHelper.IsTypeAnchorNode(item))
             .OrderBy(item => item.Metadata?.Order ?? int.MaxValue)
             .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
             .Select(

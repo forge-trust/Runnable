@@ -12,6 +12,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.IntegrationTests;
 public sealed class RazorDocsSearchTurboCtaRegression1Tests
 {
     private const string MiniSearchRuntimePath = "/docs/minisearch.min.js";
+    private const string SearchWorkspaceLinkSelector = "#docs-search-shell a[href='/docs/search']";
     private readonly RazorDocsPlaywrightFixture _fixture;
 
     public RazorDocsSearchTurboCtaRegression1Tests(RazorDocsPlaywrightFixture fixture)
@@ -36,13 +37,13 @@ public sealed class RazorDocsSearchTurboCtaRegression1Tests
             });
 
         await page.GotoAsync(_fixture.DocsUrl);
-        await page.WaitForSelectorAsync(".docs-search-shell-cta", new PageWaitForSelectorOptions
+        await page.WaitForSelectorAsync(SearchWorkspaceLinkSelector, new PageWaitForSelectorOptions
         {
             Timeout = 30_000,
             State = WaitForSelectorState.Visible
         });
 
-        await page.ClickAsync(".docs-search-shell-cta");
+        await page.ClickAsync(SearchWorkspaceLinkSelector);
         await WaitForPathAsync(page, "/docs/search");
         await WaitForSearchPageSettledAsync(page);
 

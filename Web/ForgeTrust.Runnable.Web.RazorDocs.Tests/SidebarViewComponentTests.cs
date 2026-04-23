@@ -4,6 +4,8 @@ using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewComponents;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -286,6 +288,104 @@ public sealed class SidebarViewComponentTests
         }
     }
 
+    [Fact]
+    public async Task InvokeAsync_ShouldMarkSectionActive_WhenCurrentPathIsSectionRoute()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ]);
+        SetRequestPath(component, "/docs/sections/concepts");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(DocPublicSection.Concepts, section.Section);
+            Assert.True(section.IsActive);
+            Assert.True(section.IsExpanded);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldNotMarkSectionActive_WhenSectionRouteIsUnknown()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ]);
+        SetRequestPath(component, "/docs/sections/unknown-section");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.False(section.IsActive);
+            Assert.False(section.IsExpanded);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldNotMarkSectionActive_ForSearchRoutes()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Quickstart", "guides/start.md", "Start Here")
+            ]);
+        SetRequestPath(component, "/docs/search");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.False(section.IsActive);
+            Assert.False(section.IsExpanded);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldMarkDocSectionActive_WhenCurrentPathMatchesDoc()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ]);
+        SetRequestPath(component, "/docs/concepts/overview.md.html");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            var link = Assert.Single(Assert.Single(section.Groups).Links);
+            Assert.True(section.IsActive);
+            Assert.True(section.IsExpanded);
+            Assert.True(link.IsCurrent);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldKeepSectionsInactive_WhenDocsPathDoesNotResolve()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Quickstart", "guides/start.md", "Start Here")
+            ]);
+        SetRequestPath(component, "/docs/missing.md.html");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.False(section.IsActive);
+            Assert.False(section.IsExpanded);
+        }
+    }
+
     private static DocNode CreateDoc(
         string title,
         string path,
@@ -310,6 +410,19 @@ public sealed class SidebarViewComponentTests
         var result = await component.InvokeAsync();
         var viewResult = Assert.IsType<ViewViewComponentResult>(result);
         return Assert.IsType<DocSidebarViewModel>(viewResult.ViewData!.Model);
+    }
+
+    private static void SetRequestPath(SidebarViewComponent component, string path)
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Path = path;
+        component.ViewComponentContext = new ViewComponentContext
+        {
+            ViewContext = new ViewContext
+            {
+                HttpContext = httpContext
+            }
+        };
     }
 
     private static (SidebarViewComponent Component, MemoryCache Cache, Memo Memo) CreateComponent(

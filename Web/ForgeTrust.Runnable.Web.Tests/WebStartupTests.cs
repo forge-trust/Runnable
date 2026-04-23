@@ -73,6 +73,17 @@ public class WebStartupTests
     }
 
     [Fact]
+    public async Task RunResolvedAsync_DelegatesToBaseRunPath()
+    {
+        var startup = new StoppingWebStartup(new StoppingWebModule());
+
+        var exception = await Record.ExceptionAsync(
+            () => startup.RunResolvedAsync(["--urls", "http://127.0.0.1:0"]));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public void BuildModules_CorrectlyCollectsWebModules()
     {
         var root = new TestWebModule();
@@ -686,6 +697,73 @@ public class WebStartupTests
         internal override Task RunResolvedAsync(string[] args)
         {
             RunArgs = args;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StoppingWebStartup : WebStartup<StoppingWebModule>
+    {
+        private readonly StoppingWebModule _module;
+
+        public StoppingWebStartup(StoppingWebModule module)
+        {
+            _module = module;
+        }
+
+        protected override StoppingWebModule CreateRootModule() => _module;
+    }
+
+    private sealed class StoppingWebModule : IRunnableWebModule
+    {
+        public bool IncludeAsApplicationPart => false;
+
+        public void ConfigureWebOptions(StartupContext context, WebOptions options)
+        {
+        }
+
+        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
+        {
+            services.AddHostedService<StopApplicationHostedService>();
+        }
+
+        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+        {
+        }
+
+        public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
+        {
+        }
+
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
+        {
+        }
+    }
+
+    private sealed class StopApplicationHostedService : IHostedService
+    {
+        private readonly IHostApplicationLifetime _applicationLifetime;
+
+        public StopApplicationHostedService(IHostApplicationLifetime applicationLifetime)
+        {
+            _applicationLifetime = applicationLifetime;
+        }
+
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            _applicationLifetime.StopApplication();
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
             return Task.CompletedTask;
         }
     }

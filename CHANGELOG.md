@@ -11,9 +11,9 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 
 ## Unreleased
 
-Narrative release note: [Upcoming release note](./releases/unreleased.md)
-Upgrade policy: [Pre-1.0 upgrade policy](./releases/upgrade-policy.md)
-Authoring workflow: [Release authoring checklist](./releases/release-authoring-checklist.md)
+- Narrative release note: [Upcoming release note](./releases/unreleased.md)
+- Upgrade policy: [Pre-1.0 upgrade policy](./releases/upgrade-policy.md)
+- Authoring workflow: [Release authoring checklist](./releases/release-authoring-checklist.md)
 
 ### Added
 

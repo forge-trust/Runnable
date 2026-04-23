@@ -149,7 +149,7 @@ related_pages:
   - Web/ForgeTrust.Runnable.Web.RazorWire/Docs/antiforgery.md
 ```
 
-- `sequence_key` opt-ins a page to a specific sequence. Pages do not join a sequence just because they share a folder.
+- `sequence_key` opts a page into a specific sequence. Pages do not join a sequence just because they share a folder.
 - `order` determines the relative previous/next position inside that sequence.
 - `related_pages` stays independent from sequencing and can point to source paths, canonical docs paths, or exact page titles.
 

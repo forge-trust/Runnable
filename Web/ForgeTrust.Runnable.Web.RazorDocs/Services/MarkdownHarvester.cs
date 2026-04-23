@@ -354,6 +354,6 @@ public class MarkdownHarvester : IDocHarvester
             builder.Append(ch);
         }
 
-        return builder.ToString().Trim();
+        return builder.ToString();
     }
 }

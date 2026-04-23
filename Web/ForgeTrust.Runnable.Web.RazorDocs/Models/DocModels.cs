@@ -166,19 +166,9 @@ public sealed record DocMetadata
             fallback.Breadcrumbs,
             fallback.BreadcrumbsMatchPathTargets);
 
-        static string? PreferNonBlank(string? preferred, string? fallbackValue)
-        {
-            if (!string.IsNullOrWhiteSpace(preferred))
-            {
-                return preferred.Trim();
-            }
-
-            return string.IsNullOrWhiteSpace(fallbackValue) ? null : fallbackValue.Trim();
-        }
-
         return new DocMetadata
         {
-            Title = PreferNonBlank(primary.Title, fallback.Title),
+            Title = DocTrustMergeHelpers.PreferNonBlank(primary.Title, fallback.Title),
             Summary = summary,
             SummaryIsDerived = summaryIsDerived,
             PageType = pageType,
@@ -190,14 +180,14 @@ public sealed record DocMetadata
             Aliases = MergeLists(primary.Aliases, fallback.Aliases),
             RedirectAliases = MergeLists(primary.RedirectAliases, fallback.RedirectAliases),
             Keywords = MergeLists(primary.Keywords, fallback.Keywords),
-            Status = PreferNonBlank(primary.Status, fallback.Status),
+            Status = DocTrustMergeHelpers.PreferNonBlank(primary.Status, fallback.Status),
             NavGroup = navGroup,
             NavGroupIsDerived = navGroupIsDerived,
             Order = primary.Order ?? fallback.Order,
             HideFromPublicNav = primary.HideFromPublicNav ?? fallback.HideFromPublicNav,
             HideFromSearch = primary.HideFromSearch ?? fallback.HideFromSearch,
             RelatedPages = MergeLists(primary.RelatedPages, fallback.RelatedPages),
-            CanonicalSlug = PreferNonBlank(primary.CanonicalSlug, fallback.CanonicalSlug),
+            CanonicalSlug = DocTrustMergeHelpers.PreferNonBlank(primary.CanonicalSlug, fallback.CanonicalSlug),
             Breadcrumbs = breadcrumbs,
             BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets,
             FeaturedPages = MergeLists(primary.FeaturedPages, fallback.FeaturedPages),

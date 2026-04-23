@@ -974,12 +974,15 @@ public class RazorDocsViewsTests
             "Quickstart",
             "guides/quickstart.md",
             "<p>Guide body</p>",
-            Metadata: new DocMetadata
-            {
-                NavGroup = "How-to Guides",
-                Breadcrumbs = ["Get Started", "Quickstart"],
-                BreadcrumbsMatchPathTargets = true
-            });
+            Metadata: DocMetadataFactory.CreateMarkdownMetadata(
+                "guides/quickstart.md",
+                "Quickstart",
+                new DocMetadata
+                {
+                    NavGroup = "How-to Guides",
+                    Breadcrumbs = ["Get Started", "Quickstart"]
+                },
+                derivedSummary: null));
 
         var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);

@@ -76,16 +76,24 @@ internal static class DocMetadataFactory
         bool? summaryIsDerived = string.IsNullOrWhiteSpace(merged.Summary)
             ? null
             : string.IsNullOrWhiteSpace(explicitMetadata?.Summary);
-        var breadcrumbs = merged.Breadcrumbs is { Count: > 0 }
-            ? merged.Breadcrumbs
+        var authoredBreadcrumbs = merged.Breadcrumbs?
+            .Where(label => !string.IsNullOrWhiteSpace(label))
+            .Select(label => label.Trim())
+            .ToArray();
+        var breadcrumbs = authoredBreadcrumbs is { Length: > 0 }
+            ? authoredBreadcrumbs
             : BuildDefaultBreadcrumbs(normalizedNavGroup, resolvedTitle);
+        var breadcrumbsMatchPathTargets = authoredBreadcrumbs is { Length: > 0 }
+            ? DoMarkdownBreadcrumbsMatchPathTargets(path, authoredBreadcrumbs)
+            : merged.BreadcrumbsMatchPathTargets;
 
         return merged with
         {
             NavGroup = normalizedNavGroup,
             NavGroupIsDerived = normalizedExplicitNavGroup is not null ? false : true,
             SummaryIsDerived = summaryIsDerived,
-            Breadcrumbs = breadcrumbs
+            Breadcrumbs = breadcrumbs,
+            BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets
         };
     }
 
@@ -345,6 +353,21 @@ internal static class DocMetadataFactory
         return string.Equals(navGroup, resolvedTitle, StringComparison.OrdinalIgnoreCase)
             ? [navGroup]
             : [navGroup, resolvedTitle];
+    }
+
+    private static bool DoMarkdownBreadcrumbsMatchPathTargets(string path, IReadOnlyList<string> authoredBreadcrumbs)
+    {
+        var normalizedPath = NormalizePath(path).Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            return false;
+        }
+
+        var targetCount = normalizedPath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Length;
+
+        return targetCount == authoredBreadcrumbs.Count;
     }
 
     private static IReadOnlyList<string> BuildApiReferenceBreadcrumbs(string title, string namespaceName)

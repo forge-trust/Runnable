@@ -888,12 +888,15 @@ public class DocsControllerTests : IDisposable
                 "Quickstart",
                 "guides/quickstart.md",
                 "content",
-                Metadata: new DocMetadata
-                {
-                    NavGroup = "How-to Guides",
-                    Breadcrumbs = ["Get Started", "Quickstart"],
-                    BreadcrumbsMatchPathTargets = true
-                })
+                Metadata: DocMetadataFactory.CreateMarkdownMetadata(
+                    "guides/quickstart.md",
+                    "Quickstart",
+                    new DocMetadata
+                    {
+                        NavGroup = "How-to Guides",
+                        Breadcrumbs = ["Get Started", "Quickstart"]
+                    },
+                    derivedSummary: null))
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 

@@ -24,6 +24,38 @@ public sealed class DocMetadataFactoryTests
         Assert.Equal(["Concepts", "Quickstart"], metadata.Breadcrumbs);
     }
 
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldMarkAuthoredBreadcrumbsAsMatchingPathTargets_WhenMarkdownPathSegmentsAlign()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "guides/quickstart.md",
+            "Quickstart",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Get Started", "Quickstart"]
+            },
+            null);
+
+        Assert.Equal(["Get Started", "Quickstart"], metadata.Breadcrumbs);
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
+    public void CreateMarkdownMetadata_ShouldNotMarkAuthoredBreadcrumbsAsMatchingPathTargets_WhenMarkdownPathSegmentCountDiffers()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "guides/quickstart.md",
+            "Quickstart",
+            new DocMetadata
+            {
+                Breadcrumbs = ["Start Here", "Quickstart", "Extra"]
+            },
+            null);
+
+        Assert.Equal(["Start Here", "Quickstart", "Extra"], metadata.Breadcrumbs);
+        Assert.False(metadata.BreadcrumbsMatchPathTargets);
+    }
+
     [Theory]
     [InlineData("Tests/guide.md")]
     [InlineData("test/guide.md")]

@@ -43,6 +43,41 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
     }
 
     [Fact]
+    public void Resolve_DoesNotAppendDeterministicPort_WhenEnvironmentIsUnset()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            appBaseDirectory,
+            _ => null);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Empty(resolution.Args);
+        Assert.Null(resolution.SeedPath);
+    }
+
+    [Fact]
+    public void Resolve_AppendsDeterministicPort_WhenDotnetEnvironmentIsDevelopment()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            appBaseDirectory,
+            key => key == "DOTNET_ENVIRONMENT" ? Environments.Development : null);
+
+        Assert.NotNull(resolution.AppliedPort);
+        Assert.Equal(["--urls", $"http://localhost:{resolution.AppliedPort.Value}"], resolution.Args);
+    }
+
+    [Fact]
     public void Resolve_UsesSamePort_ForDifferentDirectoriesInsideTheSameRepository()
     {
         using var environment = new TemporaryEnvironment();
@@ -143,6 +178,42 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         Assert.Same(args, resolution.Args);
     }
 
+    [Fact]
+    public void Resolve_DoesNotOverrideExplicitUrlsArgument_WhenSpecifiedInline()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var args = new[] { "--urls=http://127.0.0.1:5005" };
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            args,
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            ReadDevelopmentEnvironment);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Same(args, resolution.Args);
+    }
+
+    [Theory]
+    [InlineData("http_ports")]
+    [InlineData("https_ports")]
+    public void Resolve_DoesNotOverrideEndpointCommandLineConfiguration(string key)
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var args = new[] { $"--{key}", "5005" };
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            args,
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            ReadDevelopmentEnvironment);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Same(args, resolution.Args);
+    }
+
     [Theory]
     [InlineData("ASPNETCORE_URLS")]
     [InlineData("URLS")]
@@ -197,6 +268,33 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         Assert.Empty(resolution.Args);
     }
 
+    [Fact]
+    public void Resolve_AppendsDeterministicPort_WhenKestrelEndpointEnvironmentVariablesDoNotConfigureUrl()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        const string emptyEndpointVariableName = "Kestrel__Endpoints__Http__Url";
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            key => key switch
+            {
+                "ASPNETCORE_ENVIRONMENT" => Environments.Development,
+                emptyEndpointVariableName => " ",
+                _ => null
+            },
+            [
+                "Other__Endpoints__Http__Url",
+                "Kestrel__Endpoints__Http__Port",
+                emptyEndpointVariableName
+            ]);
+
+        Assert.NotNull(resolution.AppliedPort);
+        Assert.Equal(["--urls", $"http://localhost:{resolution.AppliedPort.Value}"], resolution.Args);
+    }
+
     [Theory]
     [InlineData("urls", "http://127.0.0.1:5005")]
     [InlineData("http_ports", "5005")]
@@ -211,6 +309,30 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         environment.WriteAppSettings($$"""
             {
               "{{key}}": "{{value}}"
+            }
+            """);
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            ReadDevelopmentEnvironment);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Empty(resolution.Args);
+    }
+
+    [Fact]
+    public void Resolve_DoesNotOverrideEndpointConfigurationInEnvironmentAppSettings()
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        environment.CreateApplicationBaseDirectory("workspace");
+        environment.WriteAppSettings(
+            Environments.Development,
+            """
+            {
+              "urls": "http://127.0.0.1:5005"
             }
             """);
 
@@ -271,6 +393,25 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         Assert.NotNull(resolution.AppliedPort);
     }
 
+    [Fact]
+    public void Resolve_FallsBackToCurrentDirectory_WhenNoRepositoryOrProjectRootExists()
+    {
+        using var environment = new TemporaryEnvironment();
+        var workingDirectory = Path.Combine(environment.RootDirectory, "work");
+        var appBaseDirectory = Path.Combine(environment.RootDirectory, "bin", "Debug", "net10.0");
+        Directory.CreateDirectory(workingDirectory);
+        Directory.CreateDirectory(appBaseDirectory);
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            [],
+            workingDirectory,
+            appBaseDirectory,
+            ReadDevelopmentEnvironment);
+
+        Assert.Equal(workingDirectory, resolution.SeedPath);
+        Assert.NotNull(resolution.AppliedPort);
+    }
+
     private static string? ReadDevelopmentEnvironment(string key)
     {
         return key == "ASPNETCORE_ENVIRONMENT" ? Environments.Development : null;
@@ -315,6 +456,11 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         public void WriteAppSettings(string content)
         {
             File.WriteAllText(Path.Combine(WorkspaceRoot, "appsettings.json"), content);
+        }
+
+        public void WriteAppSettings(string environmentName, string content)
+        {
+            File.WriteAllText(Path.Combine(WorkspaceRoot, $"appsettings.{environmentName}.json"), content);
         }
 
         public void Dispose()

@@ -26,6 +26,10 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Pull requests are expected to update this page unless maintainers explicitly mark the change as outside the public release story.
 - Markdown-only changes on `main` now republish the docs surface, so release-note and policy edits are treated as first-class product updates.
 
+### Web host development defaults
+
+- Runnable web hosts now choose a deterministic localhost-only development URL when no endpoint is configured, while production, staging, container, and appsettings-based endpoint choices remain untouched.
+
 ### RazorDocs product example
 
 - Runnable's own release pages now double as a working RazorDocs example for consumers who want better release notes.

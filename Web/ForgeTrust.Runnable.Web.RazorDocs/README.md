@@ -191,7 +191,7 @@ The built-in Markdown and C# harvesters now populate `DocNode.Outline` directly 
 - heading metadata in `/docs/search-index.json`
 - stable behavior without re-parsing rendered HTML later
 
-Each outline entry should provide the rendered fragment `Id`, the reader-facing `Title`, and the normalized heading `Level`.
+Each outline entry should provide the rendered fragment `Id`, the reader-facing `Title`, and the normalized heading `Level`. For visual parity with the built-in wayfinding UI, custom `IDocHarvester` implementations should populate `DocNode.Outline` only with entries that have a non-empty rendered fragment `Id` and non-empty `Title`; headings or generated sections missing either value are skipped by the built-ins. The Markdown harvester emits source-ordered H2-H3 headings by default, with titles normalized from inline heading text and IDs taken from the rendered heading fragment. The C# harvester emits level 2 entries for documented types and enums, and level 3 entries for method groups and properties. Matching those defaults keeps custom outlines aligned with the built-in `On this page` section and search heading metadata.
 
 ## Trust Metadata For Release Notes And Policy Pages
 

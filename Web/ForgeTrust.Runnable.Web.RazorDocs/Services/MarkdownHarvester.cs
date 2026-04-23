@@ -48,13 +48,13 @@ public class MarkdownHarvester : IDocHarvester
     }
 
     /// <summary>
-    /// Harvests Markdown files under the specified root directory and converts each into a DocNode containing a display title, relative path, and generated HTML.
+    /// Harvests Markdown files under the specified root directory and converts each into a DocNode containing a display title, relative path, generated HTML, metadata, and page outline.
     /// </summary>
     /// <param name="rootPath">The root directory to search recursively for `.md` files.</param>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
-    /// <returns>A collection of DocNode objects representing each processed Markdown file, containing the display title, path relative to <paramref name="rootPath"/>, and generated HTML.</returns>
+    /// <returns>A collection of DocNode objects representing each processed Markdown file, including the display title, path relative to <paramref name="rootPath"/>, generated HTML, metadata, and <see cref="DocNode.Outline"/> entries when outline headings are available.</returns>
     /// <remarks>
-    /// Skips files in excluded directories (for example "node_modules", "bin", "obj", and "Tests") and hidden dot-prefixed directories unless explicitly allowlisted. Dot-prefixed files are included. If a file's name is "README" (case-insensitive), its title is set to the parent directory name or "Home" for a repository root README. Files that fail to process are skipped and an error is logged.
+    /// Skips files in excluded directories (for example "node_modules", "bin", "obj", and "Tests") and hidden dot-prefixed directories unless explicitly allowlisted. Dot-prefixed files are included. If a file's name is "README" (case-insensitive), its title is set to the parent directory name or "Home" for a repository root README. The Markdown body is parsed once with <c>Markdown.Parse(markdownBody, _pipeline)</c>; HTML is rendered from that AST and <see cref="DocNode.Outline"/> is populated from the same AST with <see cref="ExtractOutline"/> so callers can rely on outline data being present when eligible headings are available. Files that fail to process are skipped and an error is logged.
     /// </remarks>
     public async Task<IReadOnlyList<DocNode>> HarvestAsync(string rootPath, CancellationToken cancellationToken = default)
     {
@@ -251,6 +251,21 @@ public class MarkdownHarvester : IDocHarvester
                && value[index + 1] == ' ';
     }
 
+    /// <summary>
+    /// Extracts page-local outline entries from Markdown heading blocks.
+    /// </summary>
+    /// <param name="document">The parsed Markdown document whose heading blocks should be inspected.</param>
+    /// <returns>
+    /// A source-ordered list of <see cref="DocOutlineItem"/> values. Each item contains the rendered fragment <see cref="DocOutlineItem.Id"/>,
+    /// normalized reader-facing <see cref="DocOutlineItem.Title"/>, and original heading <see cref="DocOutlineItem.Level"/>.
+    /// </returns>
+    /// <remarks>
+    /// Only <see cref="HeadingBlock"/> descendants with levels between <c>MinOutlineHeadingLevel</c> and <c>MaxOutlineHeadingLevel</c> are included,
+    /// which means the built-in Markdown harvester emits H2-H3 headings by default. Fragment IDs come from
+    /// <c>HtmlAttributesExtensions.GetAttributes(heading).Id</c> and titles are produced by
+    /// <c>NormalizeHeadingText(ExtractInlineText(heading.Inline))</c>. Headings without a non-empty fragment ID or normalized title are silently
+    /// omitted; consumers and tests should account for those drops and for whitespace normalization when comparing outline titles.
+    /// </remarks>
     internal static IReadOnlyList<DocOutlineItem> ExtractOutline(MarkdownDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);

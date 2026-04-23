@@ -37,6 +37,7 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 
 - New one-off page header spacing or typography in owned Razor markup: use Tailwind utilities in the view.
 - New reusable badge, metadata chip, or shared search workspace shell element: add or extend a semantic component class, then use utilities around it only when they are purely local.
+- For `Views/Docs/Search.cshtml`, keep the stateful search container or interactive hook semantic, but use local utilities for one-off header copy, helper layout, and fallback-link chrome inside that view.
 - Restyling paragraphs, headings, or code blocks inside `.docs-content`: update wrapper-scoped CSS instead of pushing utility classes into harvested HTML.
 - New search filter pill, active-filter surface, or other stateful search UI: use a semantic hook class because CSS and JavaScript both need to recognize it.
 
@@ -50,6 +51,7 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 
 - Do not refactor between utilities and semantic CSS for purity alone. Follow the surface contract unless a real usability or maintainability problem exists.
 - Do not treat required `id` values, such as `docs-search-page-input` or `docs-search-page-filters-panel`, as the reusable styling contract. They exist for uniqueness, targeting, and ARIA relationships.
+- Do not assume every child inside a semantic search container needs its own semantic class; local typography and spacing inside one view can still stay inline.
 - Do not add semantic classes to static package chrome when plain utilities are clearer and the styling is truly local.
 
 ## Configuration

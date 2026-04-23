@@ -68,6 +68,8 @@ Classes such as `docs-page-badge` and `docs-metadata-chip` are not a failure of 
 
 The search workspace renders semantic classes such as `docs-search-page`, `docs-search-page-filters-toggle`, and `docs-search-page-active-filters` directly in Razor, then extends those hooks in CSS and JavaScript. That is intentional. Shared hooks keep stateful UI readable and stable.
 
+That does not mean every heading, paragraph, or fallback-link wrapper inside `Search.cshtml` needs its own semantic class. Keep the stateful container and interactive hook semantic, then use local utilities for one-off typography and spacing inside that single view.
+
 #### Required `id` values
 
 Some search controls still need unique `id` values such as `docs-search-page-input` and `docs-search-page-filters-panel`. Those support uniqueness, accessibility relationships, and DOM targeting. They do not replace semantic classes as the reusable styling contract.

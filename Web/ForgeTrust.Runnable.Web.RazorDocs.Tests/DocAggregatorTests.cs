@@ -141,12 +141,13 @@ public class DocAggregatorTests : IDisposable
             new(
                 "Releases",
                 "releases/README.md",
-                "<p><a href=\"./unreleased.md\">Unreleased</a> <a href=\"https://example.com/releases\">External</a></p>")
+                "<p><a href=\"./unreleased.md\">Unreleased</a> <a href=\"https://example.com/releases\">External</a></p>"),
+            new("Unreleased", "releases/unreleased.md", "<p>Draft</p>")
         };
 
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
-        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+        var result = (await _aggregator.GetDocsAsync()).Single(doc => doc.Path == "releases/README.md");
 
         Assert.Contains("href=\"/docs/releases/unreleased.md.html\"", result.Content);
         Assert.Contains("data-turbo-frame=\"doc-content\"", result.Content);
@@ -162,18 +163,40 @@ public class DocAggregatorTests : IDisposable
             new(
                 "Guide",
                 "README.md",
-                "<p><a href=\"guide.md\" title=\"1 > 0\">guide</a></p>")
+                "<p><a href=\"guide.md\" title=\"1 > 0\">guide</a></p>"),
+            new("Guide", "guide.md", "<p>Guide body</p>")
         };
 
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
-        var result = Assert.Single((await _aggregator.GetDocsAsync()).ToList());
+        var result = (await _aggregator.GetDocsAsync()).Single(doc => doc.Path == "README.md");
         var document = new HtmlParser().ParseDocument(result.Content);
         var anchor = Assert.Single(document.QuerySelectorAll("a"));
 
         Assert.Equal("/docs/guide.md.html", anchor.GetAttribute("href"));
         Assert.Equal("1 > 0", anchor.GetAttribute("title"));
         Assert.Equal("guide", anchor.TextContent);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldNotRewriteSourceLikeLinks_WhenTargetWasNotHarvested()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Releases",
+                "releases/README.md",
+                "<p><a href=\"./missing.md\">Missing</a> <a href=\"./unreleased.md\">Unreleased</a></p>"),
+            new("Unreleased", "releases/unreleased.md", "<p>Draft</p>")
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var result = (await _aggregator.GetDocsAsync()).Single(doc => doc.Path == "releases/README.md");
+
+        Assert.Contains("href=\"./missing.md\"", result.Content);
+        Assert.Contains("href=\"/docs/releases/unreleased.md.html\"", result.Content);
+        Assert.DoesNotContain("href=\"/docs/releases/missing.md.html\"", result.Content);
     }
 
     [Fact]
@@ -739,7 +762,11 @@ public class DocAggregatorTests : IDisposable
         var harvestedDocs = new List<DocNode>
         {
             new("Web", "Namespaces/ForgeTrust.Web", namespaceContent),
-            new("README", "docs/ForgeTrust.Web/README.md", "<p>Namespace intro</p>")
+            new(
+                "README",
+                "docs/ForgeTrust.Web/README.md",
+                "<p>Namespace intro <a href=\"./README.md\">self</a> <a href=\"./guide.md\">guide</a></p>"),
+            new("Guide", "docs/ForgeTrust.Web/guide.md", "<p>Guide</p>")
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
 
@@ -750,7 +777,10 @@ public class DocAggregatorTests : IDisposable
         var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
         Assert.DoesNotContain(docs, d => d.Path == "docs/ForgeTrust.Web/README.md");
         Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
-        Assert.Contains("<p>Namespace intro</p>", namespaceDoc.Content);
+        Assert.Contains("Namespace intro", namespaceDoc.Content);
+        Assert.Contains("href=\"./README.md\"", namespaceDoc.Content);
+        Assert.Contains("href=\"/docs/docs/ForgeTrust.Web/guide.md.html\"", namespaceDoc.Content);
+        Assert.DoesNotContain("href=\"/docs/docs/ForgeTrust.Web/README.md.html\"", namespaceDoc.Content);
         Assert.Contains("</section><section class=\"doc-namespace-intro\">", namespaceDoc.Content);
     }
 

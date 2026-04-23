@@ -154,7 +154,10 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
         Assert.Equal("Documentation", model.Heading);
-        Assert.Equal("Welcome to the technical documentation. Select a topic from the sidebar to verify implementation details and usage guides.", model.Description);
+        Assert.Equal(
+            "Start with the strongest proof path, then branch into guides, examples, and reference once you know where you want to go deeper.",
+            model.Description);
+        Assert.Null(model.StartHereHref);
         Assert.Single(model.VisibleDocs);
     }
 
@@ -174,6 +177,7 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
         Assert.Equal("Documentation", model.Heading);
+        Assert.Null(model.StartHereHref);
         Assert.Equal(2, model.VisibleDocs.Count);
     }
 
@@ -199,7 +203,174 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
+        Assert.Null(model.StartHereHref);
         Assert.Equal(2, model.VisibleDocs.Count);
+    }
+
+    [Fact]
+    public async Task Index_ShouldExposeStartHereHref_WhenStartHereSectionExists()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Home", "README.md", "<p>Home</p>"),
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Start here."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        Assert.Equal("/docs/sections/start-here", model.StartHereHref);
+    }
+
+    [Fact]
+    public async Task Index_ShouldNotUseRootReadmeAsFallbackFeaturedPage()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Start here."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        Assert.False(model.HasFeaturedPages);
+        Assert.Empty(model.FeaturedPages);
+    }
+
+    [Fact]
+    public async Task Section_ShouldNotExposeStartHereHref_WhenStartHereSectionIsUnavailable()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "Understand the concepts."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Section("concepts");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocSectionPageViewModel>(viewResult.Model);
+        Assert.False(model.IsUnavailable);
+        Assert.Null(model.StartHereHref);
+        Assert.Equal("/docs", model.DocsHomeHref);
+    }
+
+    [Fact]
+    public async Task Section_ShouldNotExposeStartHereHref_OnUnavailablePage_WhenStartHereSectionIsUnavailable()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Section("start-here");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocSectionPageViewModel>(viewResult.Model);
+        Assert.True(model.IsUnavailable);
+        Assert.Null(model.StartHereHref);
+        Assert.Equal("/docs", model.DocsHomeHref);
+    }
+
+    [Fact]
+    public async Task Section_ShouldReturnUnavailableView_ForUnknownSlugs()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Guide", "guides/intro.md", "<p>Guide body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Section("definitely-not-a-section");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocSectionPageViewModel>(viewResult.Model);
+        Assert.True(model.IsUnavailable);
+        Assert.Null(model.Section);
+    }
+
+    [Fact]
+    public async Task Section_ShouldRedirectToLandingDoc_WhenSectionHasAuthoredLanding()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Concept Landing",
+                "concepts/landing.md",
+                "<p>Landing body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    SectionLanding = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Section("concepts");
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs/concepts/landing.md.html", redirect.Url);
+    }
+
+    [Theory]
+    [InlineData("api")]
+    [InlineData("reference")]
+    [InlineData("API Reference")]
+    public async Task Section_ShouldRedirectAliasSectionRequests_ToCanonicalSlug(string requestedSlug)
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Service API",
+                "api/service.md",
+                "<p>API body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Section(requestedSlug);
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs/sections/api-reference", redirect.Url);
     }
 
     [Fact]
@@ -352,6 +523,34 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Index_ShouldUseLandingDocAsFallbackKeyRoute_WhenSecondarySectionHasNoOtherVisiblePages()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Home", "README.md", "<p>Home</p>"),
+            new(
+                "Concept Landing",
+                "concepts/landing.md",
+                "<p>Landing body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    SectionLanding = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        var secondarySection = Assert.Single(model.SecondarySections);
+        var keyRoute = Assert.Single(secondarySection.KeyRoutes);
+        Assert.Equal("Concept Landing", keyRoute.Title);
+        Assert.Equal("/docs/concepts/landing.md.html", keyRoute.Href);
+    }
+
+    [Fact]
     public async Task Index_ShouldPreferAuthoredSupportingCopy_AndResolveCanonicalFeaturedPaths()
     {
         var docs = new List<DocNode>
@@ -433,7 +632,7 @@ public class DocsControllerTests : IDisposable
         var featuredPage = Assert.Single(model.FeaturedPages);
         Assert.Equal("Documentation", model.Heading);
         Assert.Equal(
-            "Start with the proof paths that answer the first evaluator questions, then drill into guides, examples, and API details.",
+            "Start with the proof path that answers the first evaluator questions, then move into the sections that fit your next decision.",
             model.Description);
         Assert.Equal("Composition Guide", featuredPage.Question);
         Assert.Equal("Composition Guide", featuredPage.Title);
@@ -584,6 +783,7 @@ public class DocsControllerTests : IDisposable
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal("Title", model.Title);
         Assert.Equal("Title", model.Document.Title);
     }
 
@@ -644,6 +844,7 @@ public class DocsControllerTests : IDisposable
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal("Title", model.Title);
         Assert.Equal("Title", model.Document.Title);
     }
 
@@ -660,6 +861,7 @@ public class DocsControllerTests : IDisposable
         // Assert
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal("Legacy", model.Title);
         Assert.Equal("Legacy", model.Document.Title);
     }
 
@@ -673,7 +875,38 @@ public class DocsControllerTests : IDisposable
 
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal("Guide", model.Title);
         Assert.Equal("Guide", model.Document.Title);
+    }
+
+    [Fact]
+    public async Task Details_ShouldHonorMetadataBreadcrumbs_ForNonApiPublicDocs_WhenTargetsMatch()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "content",
+                Metadata: DocMetadataFactory.CreateMarkdownMetadata(
+                    "guides/quickstart.md",
+                    "Quickstart",
+                    new DocMetadata
+                    {
+                        NavGroup = "How-to Guides",
+                        Breadcrumbs = ["Get Started", "Quickstart"]
+                    },
+                    derivedSummary: null))
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("guides/quickstart.md");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal(["Get Started", "Quickstart"], model.Breadcrumbs.Select(crumb => crumb.Label).ToArray());
+        Assert.Equal("/docs/guides.html", model.Breadcrumbs[0].Href);
+        Assert.Null(model.Breadcrumbs[1].Href);
     }
 
     [Fact]
@@ -921,6 +1154,50 @@ public class DocsControllerTests : IDisposable
         Assert.Equal(
             ["Guides", "Getting Started"],
             document.GetProperty("breadcrumbs").EnumerateArray().Select(item => item.GetString() ?? string.Empty).ToArray());
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldMarkOnlyResolvedSectionLandingDoc_AsSectionLanding()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Alpha",
+                "guides/alpha.md",
+                "<p>Alpha</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    SectionLanding = true,
+                    Order = 20
+                }),
+            new(
+                "Beta",
+                "guides/beta.md",
+                "<p>Beta</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    SectionLanding = true,
+                    Order = 10
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.SearchIndex();
+        var json = Assert.IsType<JsonResult>(result);
+
+        var payload = JsonSerializer.Serialize(json.Value);
+        using var doc = JsonDocument.Parse(payload);
+        var documents = doc.RootElement.GetProperty("documents")
+            .EnumerateArray()
+            .ToDictionary(
+                item => item.GetProperty("id").GetString() ?? string.Empty,
+                item => item.GetProperty("isSectionLanding").GetBoolean(),
+                StringComparer.OrdinalIgnoreCase);
+
+        Assert.False(documents["guides/alpha.md"]);
+        Assert.True(documents["guides/beta.md"]);
     }
 
     [Fact]

@@ -91,7 +91,17 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             null,
             new PageWaitForFunctionOptions { Timeout = 15_000 });
 
-        var neighborLink = page.Locator("#docs-sidebar a[href='/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/antiforgery.md.html']").First;
+        const string neighborHref = "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/antiforgery.md.html";
+        var neighborSection = page.Locator("#docs-sidebar details").Filter(new LocatorFilterOptions
+        {
+            Has = page.Locator($"a[href='{neighborHref}']")
+        }).First;
+        if (!await neighborSection.EvaluateAsync<bool>("section => section.open"))
+        {
+            await neighborSection.Locator("summary span[aria-hidden='true']").ClickAsync();
+        }
+
+        var neighborLink = page.Locator($"#docs-sidebar a[href='{neighborHref}']").First;
         await neighborLink.WaitForAsync(new LocatorWaitForOptions
         {
             Timeout = 30_000,

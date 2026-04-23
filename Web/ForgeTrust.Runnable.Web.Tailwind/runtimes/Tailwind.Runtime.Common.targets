@@ -11,7 +11,7 @@
     <TailwindBinaryName Condition="'$(TailwindRid)' == 'osx-x64'">tailwindcss-macos-x64</TailwindBinaryName>
     <TailwindBinaryName Condition="'$(TailwindRid)' == 'linux-x64'">tailwindcss-linux-x64</TailwindBinaryName>
     <TailwindBinaryName Condition="'$(TailwindRid)' == 'linux-arm64'">tailwindcss-linux-arm64</TailwindBinaryName>
-    
+
     <TailwindDownloadUrl>$(TailwindBaseUrl)/$(TailwindBinaryName)</TailwindDownloadUrl>
   </PropertyGroup>
 
@@ -39,7 +39,7 @@
     <MakeDir Directories="$(_TailwindCacheDir)" Condition="!Exists('$(_TailwindCacheDir)')" />
 
     <DownloadFile SourceUrl="$(TailwindSumsUrl)" DestinationFolder="$(_TailwindCacheDir)" DestinationFileName="sha256sums.txt" Condition="!Exists('$(ChecksumFile)')" />
-    
+
     <FindChecksum ChecksumFile="$(ChecksumFile)" BinaryName="$(TailwindBinaryName)">
       <Output TaskParameter="Hash" PropertyName="ExpectedHash" />
     </FindChecksum>

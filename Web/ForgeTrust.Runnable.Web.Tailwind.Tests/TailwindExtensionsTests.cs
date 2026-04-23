@@ -1,7 +1,7 @@
+using ForgeTrust.Runnable.Web.Tailwind;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using ForgeTrust.Runnable.Web.Tailwind;
 
 namespace ForgeTrust.Runnable.Web.Tailwind.Tests;
 
@@ -17,7 +17,7 @@ public class TailwindExtensionsTests
         services.AddSingleton<IHostEnvironment>(FakeItEasy.A.Fake<IHostEnvironment>());
 
         // Act
-        services.AddTailwind(opt => 
+        services.AddTailwind(opt =>
         {
             opt.InputPath = "test-input.css";
             opt.OutputPath = "test-output.css";
@@ -32,7 +32,7 @@ public class TailwindExtensionsTests
         Assert.Equal("test-output.css", options.Value.OutputPath);
 
         Assert.NotNull(serviceProvider.GetService<TailwindCliManager>());
-        
+
         var hostedServices = serviceProvider.GetServices<IHostedService>();
         Assert.Contains(hostedServices, s => s is TailwindWatchService);
     }

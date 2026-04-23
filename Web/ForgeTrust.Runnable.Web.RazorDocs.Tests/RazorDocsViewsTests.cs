@@ -122,9 +122,10 @@ public class RazorDocsViewsTests
         var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
 
         Assert.Contains("Documentation Index", html);
+        Assert.Contains("href=\"/docs/sections/api-reference\"", html);
         Assert.Contains("href=\"/docs/Namespaces.html\"", html);
         Assert.Contains("data-doc-anchor-link=\"true\"", html);
-        Assert.Contains("href=\"/docs/src/Example.cs.html#Example.Run\"", html);
+        Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.Runnable.Web.html#ForgeTrust.Runnable.Web.AspireApp\"", html);
         Assert.Contains("ForgeTrust", html);
     }
 
@@ -169,7 +170,7 @@ public class RazorDocsViewsTests
         Assert.Contains(">Runnable</h1>", html);
         Assert.Contains("Proof before promises.", html);
         Assert.Contains("How does composition work?", html);
-        Assert.Contains(">Composition</h2>", html);
+        Assert.Contains(">Composition</h3>", html);
         Assert.Contains("Follow the composition model.", html);
         Assert.Contains("Guide", html);
         Assert.Contains("docs-page-badge--guide", html);
@@ -324,7 +325,456 @@ public class RazorDocsViewsTests
 
         Assert.Contains("Documentation", html);
         Assert.DoesNotContain("Show me internals", html);
-        Assert.Contains("articles", html);
+        Assert.Contains("Follow the proof path first.", html);
+        Assert.DoesNotContain("Open Start Here", html);
+    }
+
+    [Fact]
+    public async Task IndexView_ShouldRenderStartHereCta_AndSecondarySectionRoutes()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Home", "README.md", "<p>Home</p>"),
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here"
+                }),
+            new(
+                "Concept Landing",
+                "concepts/landing.md",
+                "<p>Concept landing</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    SectionLanding = true,
+                    FeaturedPages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Learn the mental model",
+                            Path = "concepts/deep-dive.md"
+                        }
+                    ]
+                }),
+            new(
+                "Deep Dive",
+                "concepts/deep-dive.md",
+                "<p>Deep dive</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "The deeper summary.",
+                    PageType = "guide"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
+
+        Assert.Contains("href=\"/docs/sections/start-here\"", html);
+        Assert.Contains("Open Start Here", html);
+        Assert.Contains("href=\"/docs/sections/concepts\"", html);
+        Assert.Contains("Build the mental model before you choose an implementation path.", html);
+        Assert.Contains("Learn the mental model", html);
+        Assert.Contains("Guide", html);
+        Assert.Contains("The deeper summary.", html);
+    }
+
+    [Fact]
+    public async Task SectionView_ShouldHideStartHereCta_WhenStartHereSectionIsUnavailable()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "Understand the concepts."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("concepts"));
+
+        Assert.DoesNotContain("href=\"/docs/sections/start-here\"", html);
+        Assert.DoesNotContain(">Start Here<", html);
+        Assert.Contains("href=\"/docs\"", html);
+    }
+
+    [Fact]
+    public async Task SectionView_ShouldRenderAvailabilityMessage_WhenSectionIsUnavailable()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("start-here"));
+
+        Assert.Contains("This section may be hidden from the public shell", html);
+    }
+
+    [Fact]
+    public async Task Section_ShouldRedirectAliasSectionRequests_ToCanonicalSlug()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var result = await InvokeDocsActionAsync(services, "Section", controller => controller.Section("quickstart"));
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs/sections/start-here", redirect.Url);
+    }
+
+    [Fact]
+    public async Task Section_ShouldRedirectToLandingDoc_WhenSectionHasAuthoredLanding()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Concept Landing",
+                "concepts/landing.md",
+                "<p>Concept landing</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    SectionLanding = true
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var result = await InvokeDocsActionAsync(services, "Section", controller => controller.Section("concepts"));
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs/concepts/landing.md.html", redirect.Url);
+    }
+
+    [Fact]
+    public async Task SectionView_ShouldHideStartHereCta_WhenViewingStartHereSection()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Start here."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("start-here"));
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var actionLinks = document.QuerySelectorAll("div.mt-6.flex.flex-wrap.gap-3 > a")
+            .Select(link => link.GetAttribute("href"))
+            .Where(href => !string.IsNullOrWhiteSpace(href))
+            .ToArray();
+
+        Assert.DoesNotContain("/docs/sections/start-here", actionLinks);
+        Assert.Contains("href=\"/docs\"", html);
+    }
+
+    [Fact]
+    public async Task SectionView_ShouldShowStartHereCta_WhenStartHereSectionExistsAndNotViewingIt()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Start here."
+                }),
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "Understand the concepts."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("concepts"));
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var actionLinks = document.QuerySelectorAll("div.mt-6.flex.flex-wrap.gap-3 > a").ToArray();
+
+        Assert.Contains(
+            actionLinks,
+            link => string.Equals(link.GetAttribute("href"), "/docs/sections/start-here", StringComparison.Ordinal));
+        Assert.Contains(actionLinks, link => link.TextContent.Contains("Start Here", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SectionView_ShouldRenderSparseRoutes_WithBadgesAndSummaries()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Quickstart",
+                "guides/quickstart.md",
+                "<p>Quickstart body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here"
+                }),
+            new(
+                "Conceptual Overview",
+                "concepts/overview.md",
+                "<p>Concept body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    Summary = "Understand the concepts.",
+                    PageType = "guide"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("concepts"));
+
+        Assert.Contains("This section is still growing", html);
+        Assert.Contains("Understand the concepts.", html);
+        Assert.Contains("docs-page-badge--guide", html);
+    }
+
+    [Fact]
+    public async Task SectionView_ShouldRenderGroupedLinks_BadgesSummariesAndChildren()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Namespaces",
+                "Namespaces",
+                "<p>Namespace root</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference",
+                    PageType = "api-reference"
+                }),
+            new(
+                "Foo",
+                "Namespaces/Foo",
+                "<p>Foo namespace</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference",
+                    PageType = "api-reference",
+                    Summary = "Foo namespace summary."
+                }),
+            new(
+                "FooService",
+                "Namespaces/Foo#FooService",
+                string.Empty,
+                ParentPath: "Namespaces/Foo",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference",
+                    PageType = "api-reference"
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(services, "Section", c => c.Section("api-reference"));
+
+        Assert.Contains("Browse the public pages here.", html);
+        Assert.Contains("Foo namespace summary.", html);
+        Assert.Contains("docs-page-badge--api-reference", html);
+        Assert.Contains("FooService", html);
+    }
+
+    [Fact]
+    public async Task SidebarView_ShouldRenderAriaCurrentAttributes_UsingConditionalAttributeValues()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var model = new DocSidebarViewModel
+        {
+            Sections =
+            [
+                new DocSidebarSectionViewModel
+                {
+                    Section = DocPublicSection.HowToGuides,
+                    Label = "How-to Guides",
+                    Slug = "how-to-guides",
+                    Href = "/docs/sections/how-to-guides",
+                    IsActive = true,
+                    IsExpanded = true,
+                    Groups =
+                    [
+                        new DocSectionGroupViewModel
+                        {
+                            Links =
+                            [
+                                new DocSectionLinkViewModel
+                                {
+                                    Title = "Guide",
+                                    Href = "/docs/guides/guide.md.html",
+                                    IsCurrent = true,
+                                    Children =
+                                    [
+                                        new DocSectionLinkViewModel
+                                        {
+                                            Title = "Run",
+                                            Href = "/docs/guides/guide.md.html#run",
+                                            IsCurrent = true
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Shared/Components/Sidebar/Default.cshtml",
+            model);
+
+        Assert.Contains("href=\"/docs/sections/how-to-guides\"", html);
+        Assert.Contains("aria-current=\"location\"", html);
+        Assert.Contains("href=\"/docs/guides/guide.md.html\"", html);
+        Assert.Contains("aria-current=\"page\"", html);
+        Assert.DoesNotContain("aria-current=&quot;page&quot;", html);
+        Assert.DoesNotContain("aria-current=&quot;location&quot;", html);
+    }
+
+    [Fact]
+    public void BuildGroups_ShouldSetUseAnchorNavigation_OnTopLevelSectionLinks()
+    {
+        var snapshot = new DocSectionSnapshot
+        {
+            Section = DocPublicSection.HowToGuides,
+            Label = "How-to Guides",
+            Slug = "how-to-guides",
+            VisiblePages =
+            [
+                new(
+                    "Guide",
+                    "guides/guide.md",
+                    "<p>Guide body</p>",
+                    Metadata: new DocMetadata
+                    {
+                        Summary = "Follow this guide."
+                    })
+            ]
+        };
+
+        var groups = DocSectionDisplayBuilder.BuildGroups(snapshot);
+        var link = Assert.Single(Assert.Single(groups).Links);
+
+        Assert.True(link.UseAnchorNavigation);
+    }
+
+    [Fact]
+    public void BuildGroups_ShouldIncludeSlashPaddedNamespacePaths_InApiReferenceGroups()
+    {
+        var snapshot = new DocSectionSnapshot
+        {
+            Section = DocPublicSection.ApiReference,
+            Label = "API Reference",
+            Slug = "api-reference",
+            VisiblePages =
+            [
+                new("Namespaces", "Namespaces", "<p>Namespaces</p>", CanonicalPath: "Namespaces.html"),
+                new("Foo", "/Namespaces/Foo", "<p>Foo namespace</p>", CanonicalPath: "Namespaces/Foo.html")
+            ]
+        };
+
+        var groups = DocSectionDisplayBuilder.BuildGroups(snapshot, namespacePrefixes: ["Foo"]);
+
+        Assert.Contains(
+            groups.SelectMany(group => group.Links),
+            link => string.Equals(link.Href, "/docs/Namespaces/Foo.html", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildGroups_ShouldNormalizeSourcePaths_ForHrefFallbackAndChildren()
+    {
+        var snapshot = new DocSectionSnapshot
+        {
+            Section = DocPublicSection.ApiReference,
+            Label = "API Reference",
+            Slug = "api-reference",
+            VisiblePages =
+            [
+                new("Foo", "/Namespaces/Foo", "<p>Foo namespace</p>"),
+                new(
+                    "Widget",
+                    "Namespaces/Foo#Widget",
+                    string.Empty,
+                    ParentPath: "Namespaces/Foo")
+            ]
+        };
+
+        var groups = DocSectionDisplayBuilder.BuildGroups(snapshot);
+        var link = Assert.Single(groups.SelectMany(group => group.Links));
+        var child = Assert.Single(link.Children);
+
+        Assert.Equal("/docs/Namespaces/Foo", link.Href);
+        Assert.DoesNotContain("//Namespaces", link.Href, StringComparison.Ordinal);
+        Assert.Equal("Widget", child.Title);
+    }
+
+    [Fact]
+    public void BuildGroups_ShouldMatchTypeAnchorChildren_CaseInsensitively()
+    {
+        var snapshot = new DocSectionSnapshot
+        {
+            Section = DocPublicSection.ApiReference,
+            Label = "API Reference",
+            Slug = "api-reference",
+            VisiblePages =
+            [
+                new("Foo", "Namespaces/Foo", "<p>Foo namespace</p>", CanonicalPath: "Namespaces/Foo.html"),
+                new(
+                    "Widget",
+                    "Namespaces/Foo#Widget",
+                    string.Empty,
+                    ParentPath: "namespaces/foo",
+                    CanonicalPath: "Namespaces/Foo.html#Widget")
+            ]
+        };
+
+        var groups = DocSectionDisplayBuilder.BuildGroups(snapshot);
+        var link = Assert.Single(groups.SelectMany(group => group.Links));
+        var child = Assert.Single(link.Children);
+
+        Assert.Equal("Widget", child.Title);
     }
 
     [Fact]
@@ -342,6 +792,99 @@ public class RazorDocsViewsTests
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.html\"", html);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.Runnable.html\"", html);
         Assert.Contains(">Web</h1>", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderSectionLandingChrome_WithFeaturedPagesAndSectionGroups()
+    {
+        var landingDoc = new DocNode(
+            "Concept Landing",
+            "concepts/landing.md",
+            "<p>Landing body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts",
+                SectionLanding = true,
+                Summary = "Landing summary.",
+                FeaturedPages =
+                [
+                    new DocFeaturedPageDefinition
+                    {
+                        Question = "Go deeper",
+                        Path = "concepts/deep-dive.md",
+                        SupportingCopy = "Follow the next route."
+                    }
+                ]
+            });
+        var deepDive = new DocNode(
+            "Deep Dive",
+            "concepts/deep-dive.md",
+            "<p>Deep dive body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts",
+                Summary = "Deep dive summary.",
+                PageType = "guide"
+            });
+        var anchor = new DocNode(
+            "Jump to section",
+            "concepts/deep-dive.md#jump",
+            string.Empty,
+            ParentPath: "concepts/deep-dive.md",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts"
+            });
+
+        var html = await RenderDetailsViewAsync(landingDoc, deepDive, anchor);
+
+        Assert.Contains("Section landing", html);
+        Assert.Contains("Use this section as the entry point.", html);
+        Assert.Contains("href=\"/docs/sections/concepts\"", html);
+        Assert.Contains("Next steps", html);
+        Assert.Contains("Go deeper", html);
+        Assert.Contains("Follow the next route.", html);
+        Assert.Contains("In this section", html);
+        Assert.Contains("Deep dive summary.", html);
+        Assert.Contains("Jump to section", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderSectionLandingGroupTitles_WhenGroupsHaveTitles()
+    {
+        var landingDoc = new DocNode(
+            "Namespaces",
+            "Namespaces",
+            "<p>Namespace root</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "API Reference",
+                PageType = "api-reference",
+                SectionLanding = true
+            });
+        var fooBar = new DocNode(
+            "Foo.Bar",
+            "Namespaces/Foo.Bar",
+            "<p>Foo.Bar namespace</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "API Reference",
+                PageType = "api-reference"
+            });
+        var fooBaz = new DocNode(
+            "Foo.Baz",
+            "Namespaces/Foo.Baz",
+            "<p>Foo.Baz namespace</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "API Reference",
+                PageType = "api-reference"
+            });
+
+        var html = await RenderDetailsViewAsync(landingDoc, fooBar, fooBaz);
+
+        Assert.Contains(">Bar<", html);
+        Assert.Contains(">Baz<", html);
     }
 
     [Fact]
@@ -375,7 +918,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldFallbackToModelTitle_WhenMetadataTitleIsWhitespace()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Fallback Title",
             "guides/whitespace.md",
@@ -385,10 +927,7 @@ public class RazorDocsViewsTests
                 Title = "   "
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">Fallback Title</h1>", html);
     }
@@ -396,7 +935,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldFallbackToModelTitle_WhenMetadataTitleIsNull()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Fallback Title",
             "guides/null-title.md",
@@ -406,10 +944,7 @@ public class RazorDocsViewsTests
                 Title = null
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">Fallback Title</h1>", html);
     }
@@ -417,7 +952,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderTrimmedMetadataTitle_WhenMetadataTitleIsPresent()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Fallback Title",
             "guides/trimmed-title.md",
@@ -427,10 +961,7 @@ public class RazorDocsViewsTests
                 Title = "  Authored Title  "
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">Authored Title</h1>", html);
         Assert.DoesNotContain(">Fallback Title</h1>", html);
@@ -439,7 +970,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataTargetsCannotBeVerified()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -449,21 +979,22 @@ public class RazorDocsViewsTests
                 Breadcrumbs = ["Start Here", "Quickstart"]
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
 
-        Assert.Contains(">guides</a>", html);
+        Assert.Contains("guides", breadcrumbTexts);
         Assert.Contains(">Quickstart</h1>", html);
-        Assert.Contains(">quickstart.md</span>", html);
+        Assert.Contains("quickstart.md", breadcrumbTexts);
         Assert.DoesNotContain("Start Here", html);
     }
 
     [Fact]
     public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataBreadcrumbCountDoesNotMatchPath()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -474,20 +1005,21 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
 
-        Assert.Contains(">guides</a>", html);
-        Assert.Contains(">quickstart.md</span>", html);
+        Assert.Contains("guides", breadcrumbTexts);
+        Assert.Contains("quickstart.md", breadcrumbTexts);
         Assert.DoesNotContain(">Start Here</a>", html);
     }
 
     [Fact]
     public async Task DetailsView_ShouldFallbackToPathBreadcrumbLabels_WhenMetadataBreadcrumbsCollapseToEmpty()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -498,20 +1030,21 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
 
-        Assert.Contains(">guides</a>", html);
-        Assert.Contains(">quickstart.md</span>", html);
+        Assert.Contains("guides", breadcrumbTexts);
+        Assert.Contains("quickstart.md", breadcrumbTexts);
         Assert.DoesNotContain(">Start Here</a>", html);
     }
 
     [Fact]
     public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_WhenTargetsAreKnownToMatch()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Web",
             "Namespaces/ForgeTrust.Runnable.Web",
@@ -522,38 +1055,62 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
 
-        Assert.Contains(">API Reference</a>", html);
+        Assert.Equal(new[] { "API Reference", "ForgeTrust", "Runnable", "Web" }, breadcrumbTexts);
         Assert.Contains("href=\"/docs/Namespaces.html\"", html);
         Assert.Contains("href=\"/docs/Namespaces/ForgeTrust.html\"", html);
     }
 
     [Fact]
+    public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_ForEditorialDocs_WhenTargetsAreKnownToMatch()
+    {
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: DocMetadataFactory.CreateMarkdownMetadata(
+                "guides/quickstart.md",
+                "Quickstart",
+                new DocMetadata
+                {
+                    NavGroup = "How-to Guides",
+                    Breadcrumbs = ["Get Started", "Quickstart"]
+                },
+                derivedSummary: null));
+
+        var html = await RenderDetailsViewAsync(doc);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var breadcrumbTexts = document.QuerySelectorAll("nav[aria-label='Breadcrumb'] a, nav[aria-label='Breadcrumb'] span")
+            .Select(node => node.TextContent.Trim())
+            .Where(text => !string.IsNullOrWhiteSpace(text) && text != "/")
+            .ToArray();
+
+        Assert.Equal(new[] { "Get Started", "Quickstart" }, breadcrumbTexts);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldCollapseNestedReadmePathBreadcrumbs()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Releases",
             "releases/README.md",
             "<p>Guide body</p>");
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
-        Assert.Contains(">releases</span>", html);
+        Assert.Contains("aria-label=\"Breadcrumb\"", html);
         Assert.DoesNotContain(">README.md</span>", html);
     }
 
     [Fact]
     public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_ForNestedReadmeLandings()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Releases",
             "releases/README.md",
@@ -564,10 +1121,7 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">Releases</span>", html);
         Assert.DoesNotContain(">releases</span>", html);
@@ -577,7 +1131,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_WhenRootDocHasNavGroupParent()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Changelog",
             "CHANGELOG.md",
@@ -589,10 +1142,7 @@ public class RazorDocsViewsTests
                 BreadcrumbsMatchPathTargets = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">Releases</span>", html);
         Assert.Contains(">Changelog</span>", html);
@@ -602,16 +1152,12 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderSingleSegmentBreadcrumbWithoutParentLinks()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "quickstart.md",
             "<p>Guide body</p>");
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains(">quickstart.md</span>", html);
         Assert.DoesNotContain("href=\"/docs/quickstart.md.html\"", html);
@@ -620,7 +1166,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldNotRenderDerivedSummaryBlurb()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -631,10 +1176,7 @@ public class RazorDocsViewsTests
                 SummaryIsDerived = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.DoesNotContain("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the first paragraph.</p>", html);
     }
@@ -642,7 +1184,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderExplicitSummaryBlurb()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -653,10 +1194,7 @@ public class RazorDocsViewsTests
                 SummaryIsDerived = false
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
     }
@@ -664,7 +1202,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderSummaryBlurb_WhenDerivedFlagIsUnset()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -674,10 +1211,7 @@ public class RazorDocsViewsTests
                 Summary = "This is the summary paragraph."
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
 
         Assert.Contains("<p class=\"mt-3 max-w-3xl text-base text-slate-400\">This is the summary paragraph.</p>", html);
     }
@@ -685,7 +1219,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderPageTypeBadge_AndMetadataContextChips()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -697,10 +1230,7 @@ public class RazorDocsViewsTests
                 Audience = "Evaluators"
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Equal("API Reference", document.QuerySelector(".docs-page-meta .docs-page-badge")?.TextContent.Trim());
@@ -714,7 +1244,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldSuppressDerivedAudienceAndComponentChips()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -728,10 +1257,7 @@ public class RazorDocsViewsTests
                 AudienceIsDerived = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Equal("Guide", document.QuerySelector(".docs-page-meta .docs-page-badge")?.TextContent.Trim());
@@ -743,7 +1269,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldNotRenderMetaContainer_WhenBadgeAndChipsAreUnavailable()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Quickstart",
             "guides/quickstart.md",
@@ -757,10 +1282,7 @@ public class RazorDocsViewsTests
                 AudienceIsDerived = true
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Null(document.QuerySelector(".docs-page-meta"));
@@ -912,7 +1434,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderTrustBar_WhenTrustMetadataIsPresent()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Unreleased",
             "releases/unreleased.md",
@@ -935,10 +1456,7 @@ public class RazorDocsViewsTests
                 }
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         var trustBar = document.QuerySelector(".docs-trust-bar");
@@ -956,7 +1474,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderExternalMigrationAndFilteredSources()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Unreleased",
             "releases/unreleased.md",
@@ -975,10 +1492,7 @@ public class RazorDocsViewsTests
                 }
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         var trustBar = document.QuerySelector(".docs-trust-bar");
@@ -1001,7 +1515,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldRenderArchiveWithoutSourcesList_WhenSourcesAreMissing()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Unreleased",
             "releases/unreleased.md",
@@ -1014,10 +1527,7 @@ public class RazorDocsViewsTests
                 }
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         var trustBar = document.QuerySelector(".docs-trust-bar");
@@ -1029,7 +1539,6 @@ public class RazorDocsViewsTests
     [Fact]
     public async Task DetailsView_ShouldNotRenderTrustBar_WhenTrustMetadataHasNoDisplayableValues()
     {
-        using var services = CreateServiceProvider(CreateDocs());
         var doc = new DocNode(
             "Unreleased",
             "releases/unreleased.md",
@@ -1042,10 +1551,7 @@ public class RazorDocsViewsTests
                 }
             });
 
-        var html = await RenderViewAsync(
-            services,
-            "/Views/Docs/Details.cshtml",
-            CreateDetailsViewModel(doc));
+        var html = await RenderDetailsViewAsync(doc);
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Null(document.QuerySelector(".docs-trust-bar"));
@@ -1449,6 +1955,35 @@ public class RazorDocsViewsTests
         return await reader.ReadToEndAsync();
     }
 
+    private static async Task<IActionResult> InvokeDocsActionAsync(
+        ServiceProvider services,
+        string actionName,
+        Func<DocsController, Task<IActionResult>> action)
+    {
+        using var scope = services.CreateScope();
+        var scopedServices = scope.ServiceProvider;
+
+        var controller = ActivatorUtilities.CreateInstance<DocsController>(scopedServices);
+        var routeData = new RouteData();
+        routeData.Values["controller"] = "Docs";
+        routeData.Values["action"] = actionName;
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                RequestServices = scopedServices
+            },
+            RouteData = routeData,
+            ActionDescriptor = new ControllerActionDescriptor
+            {
+                ControllerName = "Docs",
+                ActionName = actionName
+            }
+        };
+
+        return await action(controller);
+    }
+
     private static async Task<string> RenderViewAsync(
         ServiceProvider services,
         string viewName,
@@ -1466,9 +2001,10 @@ public class RazorDocsViewsTests
 
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         {
-            Model = model
+            Model = null
         };
         configureViewData?.Invoke(viewData);
+        viewData.Model = AdaptViewModel(viewName, model, viewData);
 
         var result = new ViewResult
         {
@@ -1489,6 +2025,113 @@ public class RazorDocsViewsTests
         return await reader.ReadToEndAsync();
     }
 
+    private static async Task<string> RenderDetailsViewAsync(DocNode doc, params DocNode[] additionalDocs)
+    {
+        using var services = CreateServiceProvider(CreateDocsWithOverrides([doc, .. additionalDocs]));
+
+        return await RenderDocsViewAsync(
+            services,
+            "Details",
+            controller => controller.Details(doc.Path));
+    }
+
+    private static object AdaptViewModel(string viewName, object model, ViewDataDictionary viewData)
+    {
+        if (viewName.EndsWith("/Views/Shared/Components/Sidebar/Default.cshtml", StringComparison.OrdinalIgnoreCase)
+            && model is IEnumerable<IGrouping<string, DocNode>> groupedDocs)
+        {
+            return CreateSidebarViewModel(groupedDocs, viewData);
+        }
+
+        return model;
+    }
+
+    private static DocSidebarViewModel CreateSidebarViewModel(
+        IEnumerable<IGrouping<string, DocNode>> groupedDocs,
+        ViewDataDictionary viewData)
+    {
+        var namespacePrefixes = viewData["NamespacePrefixes"] as IReadOnlyList<string>;
+        var sections = groupedDocs
+            .Select(
+                group =>
+                {
+                    var section = ResolveSidebarSection(group.Key, group);
+                    var snapshot = new DocSectionSnapshot
+                    {
+                        Section = section,
+                        Label = DocPublicSectionCatalog.GetLabel(section),
+                        Slug = DocPublicSectionCatalog.GetSlug(section),
+                        VisiblePages = group.ToList()
+                    };
+
+                    return new DocSidebarSectionViewModel
+                    {
+                        Section = section,
+                        Label = DocPublicSectionCatalog.GetLabel(section),
+                        Slug = DocPublicSectionCatalog.GetSlug(section),
+                        Href = DocPublicSectionCatalog.GetHref(section),
+                        Groups = DocSectionDisplayBuilder.BuildGroups(snapshot, namespacePrefixes: namespacePrefixes)
+                    };
+                })
+            .ToList();
+
+        return new DocSidebarViewModel { Sections = sections };
+    }
+
+    private static DocPublicSection ResolveSidebarSection(string groupKey, IEnumerable<DocNode> docs)
+    {
+        if (DocPublicSectionCatalog.TryResolve(groupKey, out var section))
+        {
+            return section;
+        }
+
+        return groupKey.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
+               || docs.Any(doc => NormalizeSidebarPath(doc.Path).StartsWith("Namespaces", StringComparison.OrdinalIgnoreCase))
+            ? DocPublicSection.ApiReference
+            : DocPublicSection.HowToGuides;
+    }
+
+    private static string NormalizeSidebarPath(string? path)
+    {
+        return string.IsNullOrWhiteSpace(path)
+            ? string.Empty
+            : path.Trim().Trim('/', '\\');
+    }
+
+    [Fact]
+    public void ResolveSidebarSection_ShouldFallbackToHowToGuides_ForUnknownGroups()
+    {
+        var docs = new[]
+        {
+            new DocNode("Guide", "guides/guide.md", "<p>Guide</p>")
+        };
+
+        var section = ResolveSidebarSection("Custom Group", docs);
+
+        Assert.Equal(DocPublicSection.HowToGuides, section);
+    }
+
+    [Fact]
+    public void ResolveSidebarSection_ShouldFallbackToApiReference_WhenNamespaceDocsArePresent()
+    {
+        var docs = new[]
+        {
+            new DocNode("Foo", "/Namespaces/Foo", "<p>Namespace</p>")
+        };
+
+        var section = ResolveSidebarSection("Custom Group", docs);
+
+        Assert.Equal(DocPublicSection.ApiReference, section);
+    }
+
+    private static List<IGrouping<string, DocNode>> CreateGroupedSidebarModel(params (string Group, DocNode Node)[] items)
+    {
+        return items
+            .GroupBy(item => item.Group, item => item.Node)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     private static DocDetailsViewModel CreateDetailsViewModel(
         DocNode doc,
         IReadOnlyList<DocOutlineItem>? outline = null,
@@ -1496,9 +2139,22 @@ public class RazorDocsViewsTests
         DocPageLinkViewModel? nextPage = null,
         IReadOnlyList<DocPageLinkViewModel>? relatedPages = null)
     {
+        var metadata = doc.Metadata;
+
         return new DocDetailsViewModel
         {
             Document = doc,
+            Title = string.IsNullOrWhiteSpace(metadata?.Title) ? doc.Title : metadata!.Title!.Trim(),
+            Summary = metadata?.Summary,
+            ShowSummary = !string.IsNullOrWhiteSpace(metadata?.Summary) && metadata?.SummaryIsDerived != true,
+            IsCSharpApiDoc = doc.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase),
+            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType),
+            Component = metadata?.ComponentIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Component)
+                ? null
+                : metadata!.Component!.Trim(),
+            Audience = metadata?.AudienceIsDerived == true || string.IsNullOrWhiteSpace(metadata?.Audience)
+                ? null
+                : metadata!.Audience!.Trim(),
             Outline = outline ?? doc.Outline ?? [],
             PreviousPage = previousPage,
             NextPage = nextPage,
@@ -1515,27 +2171,50 @@ public class RazorDocsViewsTests
             .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return SidebarViewComponent.BuildViewModel(grouped, namespacePrefixes);
+        var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        {
+            ["NamespacePrefixes"] = namespacePrefixes
+        };
+
+        return CreateSidebarViewModel(grouped, viewData);
     }
 
     private static List<DocNode> CreateDocs()
     {
         return
         [
-            new("Namespaces", "Namespaces", "<p>Namespace root</p>"),
-            new("ForgeTrust", "Namespaces/ForgeTrust", "<p>ForgeTrust namespace</p>"),
-            new("Runnable", "Namespaces/ForgeTrust.Runnable", "<p>Runnable namespace</p>"),
-            new("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web namespace</p>"),
-            new("Api", "Namespaces/ForgeTrust.Runnable.Web.Api", "<p>Api namespace</p>"),
-            new("AspireApp", "Namespaces/ForgeTrust.Runnable.Web#ForgeTrust.Runnable.Web.AspireApp", string.Empty, "Namespaces/ForgeTrust.Runnable.Web"),
+            new("Namespaces", "Namespaces", "<p>Namespace root</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("ForgeTrust", "Namespaces/ForgeTrust", "<p>ForgeTrust namespace</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Runnable", "Namespaces/ForgeTrust.Runnable", "<p>Runnable namespace</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web namespace</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Api", "Namespaces/ForgeTrust.Runnable.Web.Api", "<p>Api namespace</p>", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new(
+                "AspireApp",
+                "Namespaces/ForgeTrust.Runnable.Web#ForgeTrust.Runnable.Web.AspireApp",
+                string.Empty,
+                "Namespaces/ForgeTrust.Runnable.Web",
+                Metadata: new DocMetadata { NavGroup = "API Reference" }),
             new("RunAsync", "Namespaces/ForgeTrust.Runnable.Web#ForgeTrust.Runnable.Web.AspireApp.RunAsync(System.String[])", string.Empty, "Namespaces/ForgeTrust.Runnable.Web"),
             new(
                 "Example",
                 "src/Example.cs",
-                "<section id='example' class='doc-type'><header class='doc-type-header'><span class='doc-kind'>Type</span><h2>Example</h2></header><div class='doc-body'><p>Example body</p></div></section>"),
-            new("Run", "src/Example.cs#Example.Run", string.Empty, "src/Example.cs"),
-            new("Guide", "guides/intro.md", "<p>Guide body</p>")
+                "<section id='example' class='doc-type'><header class='doc-type-header'><span class='doc-kind'>Type</span><h2>Example</h2></header><div class='doc-body'><p>Example body</p></div></section>",
+                Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Run", "src/Example.cs#Example.Run", string.Empty, "src/Example.cs", Metadata: new DocMetadata { NavGroup = "API Reference" }),
+            new("Guide", "guides/intro.md", "<p>Guide body</p>", Metadata: new DocMetadata { NavGroup = "How-to Guides" })
         ];
+    }
+
+    private static List<DocNode> CreateDocsWithOverrides(IEnumerable<DocNode> overrides)
+    {
+        var docs = CreateDocs();
+        foreach (var doc in overrides)
+        {
+            docs.RemoveAll(existing => string.Equals(existing.Path, doc.Path, StringComparison.OrdinalIgnoreCase));
+            docs.Add(doc);
+        }
+
+        return docs;
     }
 
     private sealed class StaticDocHarvester : IDocHarvester

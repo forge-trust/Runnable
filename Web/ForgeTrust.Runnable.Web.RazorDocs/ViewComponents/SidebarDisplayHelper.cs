@@ -110,6 +110,47 @@ internal static class SidebarDisplayHelper
         return fullNamespace;
     }
 
+    internal static string[] GetDerivedNamespacePrefixes(IEnumerable<DocNode> docs)
+    {
+        var namespaces = docs
+            .Where(d => string.IsNullOrEmpty(d.ParentPath))
+            .Select(d => d.Path.Trim().Trim('/'))
+            .Where(path => path.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
+            .Select(path => path["Namespaces/".Length..])
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToList();
+
+        if (namespaces.Count == 0)
+        {
+            return [];
+        }
+
+        var sharedSegments = namespaces[0].Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var sharedLength = sharedSegments.Length;
+
+        foreach (var namespaceName in namespaces.Skip(1))
+        {
+            var parts = namespaceName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            sharedLength = Math.Min(sharedLength, parts.Length);
+            for (var i = 0; i < sharedLength; i++)
+            {
+                if (!string.Equals(sharedSegments[i], parts[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    sharedLength = i;
+                    break;
+                }
+            }
+        }
+
+        if (sharedLength == 0)
+        {
+            return [];
+        }
+
+        var sharedPrefix = string.Join(".", sharedSegments.Take(sharedLength));
+        return [sharedPrefix + ".", sharedPrefix];
+    }
+
     private static string GetLastNamespaceSegment(string namespaceValue)
     {
         var separatorIndex = namespaceValue.LastIndexOf('.');

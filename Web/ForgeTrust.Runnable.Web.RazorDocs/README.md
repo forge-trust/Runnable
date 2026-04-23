@@ -80,13 +80,73 @@ Reference the package and add the module to your Runnable web application:
 await WebApp<RazorDocsWebModule>.RunAsync(args);
 ```
 
+## Public Sections
+
+RazorDocs now organizes public documentation around a fixed section-first model instead of a flat directory-first landing.
+
+### Built-in sections
+
+- `Start Here`
+- `Concepts`
+- `How-to Guides`
+- `Examples`
+- `API Reference`
+- `Troubleshooting`
+- `Internals`
+
+These sections back the `/docs` home, the sidebar shell, and the dedicated section routes under `/docs/sections/{slug}`.
+
+### `nav_group` normalization and fallback rules
+
+- `nav_group` can explicitly select a built-in public section by canonical label, slug, or alias.
+- Invalid explicit `nav_group` values log a warning and fall back to RazorDocs-derived section assignment instead of creating ad hoc groups.
+- Markdown docs with no explicit `nav_group` are derived into built-in sections using path and filename heuristics:
+  - repository-root `README.md` and start-like names such as `quickstart` or `getting-started` fall into `Start Here`
+  - `examples/` content falls into `Examples`
+  - concepts, architecture, explanation, and glossary-style paths fall into `Concepts`
+  - troubleshooting, faq, debug, and error-oriented paths fall into `Troubleshooting`
+  - internal-oriented paths fall into `Internals`
+  - anything else falls into `How-to Guides`
+- API reference content continues to use the canonical `API Reference` section.
+
+### Section routes and landing docs
+
+- `/docs/sections/{slug}` resolves one public section route such as `/docs/sections/start-here` or `/docs/sections/api-reference`.
+- Only canonical slugs are served directly; label- or alias-shaped section requests redirect to the canonical section route.
+- When a section has an authored landing doc, RazorDocs redirects the section route to that page.
+- Sections with visible pages but no landing doc render a grouped fallback section page instead of a dead end.
+- Invalid slugs or sections with no public pages render an unavailable section surface with recovery links back to `/docs` and `Start Here`.
+
+### `section_landing`
+
+Use `section_landing: true` on a page to mark it as the authored entry point for its public section.
+
+```yaml
+title: Start Here
+nav_group: Start Here
+section_landing: true
+summary: Start with the strongest evaluator proof path before drilling into implementation detail.
+```
+
+Field behavior and pitfalls:
+
+- The page must still belong to a valid built-in public section through explicit or derived `nav_group`.
+- If multiple docs in one section set `section_landing: true`, RazorDocs keeps the lowest `order` value, then the lowest canonical path, and logs a warning for the others.
+- A section landing doc can also author `featured_pages`; RazorDocs uses those entries for section-level “next steps” on the detail page and for the section preview links surfaced on `/docs`.
+- `HideFromPublicNav = true` always wins. Hidden pages do not appear in section routes, the sidebar, the docs home, or the public search index even if they declare a section or landing status.
+
 ## Landing Curation
 
 RazorDocs can turn the root docs landing into a curated proof-path surface by reading `featured_pages` from the repository-root `README.md` metadata.
 
 ### Authoring contract
 
-`featured_pages` is parsed as part of `DocMetadata`, so the metadata contract stays page-agnostic. The built-in `/docs` landing consumes those entries only from the root `README.md` metadata, but authors can now supply that metadata in either of two places:
+`featured_pages` is parsed as part of `DocMetadata`, so the metadata contract stays page-agnostic. RazorDocs uses those entries in two places:
+
+- the root `README.md` metadata drives the primary proof-path rows on `/docs`
+- any authored section landing doc can drive its own section-level next-step rows and the section preview links shown on `/docs`
+
+Authors can now supply that metadata in either of two places:
 
 - Inline Markdown front matter at the top of the `.md` file
 - A paired sidecar YAML file such as `README.md.yml` or `README.md.yaml`
@@ -180,6 +240,9 @@ The `/docs/search-index.json` payload continues to emit the raw `pageType` metad
 
 - `pageTypeLabel` for the normalized display label used by the built-in search UI
 - `pageTypeVariant` for the built-in badge variant suffix used by CSS classes such as `docs-page-badge--guide`
+- `publicSection` for the normalized built-in section slug when the page is publicly visible
+- `publicSectionLabel` for the reader-facing section label
+- `isSectionLanding` for authored section landing entry points
 
 These fields let custom search clients stay visually aligned with the landing and detail experiences without re-implementing the mapping table.
 
@@ -192,6 +255,11 @@ The built-in Markdown and C# harvesters now populate `DocNode.Outline` directly 
 - stable behavior without re-parsing rendered HTML later
 
 Each outline entry should provide the rendered fragment `Id`, the reader-facing `Title`, and the normalized heading `Level`. For visual parity with the built-in wayfinding UI, custom `IDocHarvester` implementations should populate `DocNode.Outline` only with entries that have a non-empty rendered fragment `Id` and non-empty `Title`; headings or generated sections missing either value are skipped by the built-ins. The Markdown harvester emits source-ordered H2-H3 headings by default, with titles normalized from inline heading text and IDs taken from the rendered heading fragment. The C# harvester emits level 2 entries for documented types and enums, and level 3 entries for method groups and properties. Matching those defaults keeps custom outlines aligned with the built-in `On this page` section and search heading metadata.
+
+Public visibility note:
+
+- `HideFromSearch = true` removes a page from the search payload directly.
+- `HideFromPublicNav = true` also removes the page from the search payload because the public shell treats hidden pages as fully non-public.
 
 ## Trust Metadata For Release Notes And Policy Pages
 

@@ -30,7 +30,7 @@ public static class TailwindExtensions
         services.Configure(configureOptions);
         services.TryAddSingleton<TailwindCliManager>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TailwindWatchService>());
-        
+
         return services;
     }
 }

@@ -76,6 +76,11 @@ public sealed record DocMetadata
     public string? SequenceKey { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the page is the authored landing doc for its public section.
+    /// </summary>
+    public bool? SectionLanding { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the page should be hidden from public navigation.
     /// </summary>
     public bool? HideFromPublicNav { get; init; }
@@ -195,6 +200,7 @@ public sealed record DocMetadata
             NavGroupIsDerived = navGroupIsDerived,
             Order = primary.Order ?? fallback.Order,
             SequenceKey = DocTrustMergeHelpers.PreferNonBlank(primary.SequenceKey, fallback.SequenceKey),
+            SectionLanding = primary.SectionLanding ?? fallback.SectionLanding,
             HideFromPublicNav = primary.HideFromPublicNav ?? fallback.HideFromPublicNav,
             HideFromSearch = primary.HideFromSearch ?? fallback.HideFromSearch,
             RelatedPages = MergeLists(primary.RelatedPages, fallback.RelatedPages),
@@ -407,6 +413,78 @@ public record DocNode(
     IReadOnlyList<DocOutlineItem>? Outline = null);
 
 /// <summary>
+/// Enumerates the built-in public documentation sections used by RazorDocs.
+/// </summary>
+public enum DocPublicSection
+{
+    /// <summary>
+    /// A first-read routing surface for evaluators who need to understand what the product is for before going deeper.
+    /// </summary>
+    StartHere,
+
+    /// <summary>
+    /// Explanatory material that builds conceptual understanding before implementation details.
+    /// </summary>
+    Concepts,
+
+    /// <summary>
+    /// Task-oriented guides that show a reader how to accomplish something concrete.
+    /// </summary>
+    HowToGuides,
+
+    /// <summary>
+    /// Concrete examples and proof artifacts that demonstrate the system working in practice.
+    /// </summary>
+    Examples,
+
+    /// <summary>
+    /// API and namespace reference material intended for readers who already know what they are looking for.
+    /// </summary>
+    ApiReference,
+
+    /// <summary>
+    /// Recovery-oriented material for failures, debugging, and operational honesty.
+    /// </summary>
+    Troubleshooting,
+
+    /// <summary>
+    /// Contributor-oriented or otherwise internal material that should only appear when explicitly made public.
+    /// </summary>
+    Internals
+}
+
+/// <summary>
+/// Represents one normalized public-section snapshot derived from the harvested docs corpus.
+/// </summary>
+public sealed record DocSectionSnapshot
+{
+    /// <summary>
+    /// Gets the typed public section identifier.
+    /// </summary>
+    public DocPublicSection Section { get; init; }
+
+    /// <summary>
+    /// Gets the canonical display label for the section.
+    /// </summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the stable route slug for the section.
+    /// </summary>
+    public string Slug { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the optional authored landing doc that represents the section.
+    /// </summary>
+    public DocNode? LandingDoc { get; init; }
+
+    /// <summary>
+    /// Gets the public pages that belong to the section, ordered for display.
+    /// </summary>
+    public IReadOnlyList<DocNode> VisiblePages { get; init; } = [];
+}
+
+/// <summary>
 /// Defines one authored featured-page entry for a docs landing surface.
 /// </summary>
 public sealed record DocFeaturedPageDefinition
@@ -461,17 +539,27 @@ public sealed record DocLandingViewModel
     public DocNode? LandingDoc { get; init; }
 
     /// <summary>
+    /// Gets the href for the section-level <c>Start Here</c> route when that section exists in the current public docs corpus.
+    /// </summary>
+    public string? StartHereHref { get; init; }
+
+    /// <summary>
     /// Gets the visible documentation nodes used by the neutral fallback landing state.
     /// </summary>
     public IReadOnlyList<DocNode> VisibleDocs { get; init; } = [];
 
     /// <summary>
-    /// Gets the resolved featured cards for the landing experience.
+    /// Gets the resolved proof-path rows for the landing experience.
     /// </summary>
     public IReadOnlyList<DocLandingFeaturedPageViewModel> FeaturedPages { get; init; } = [];
 
     /// <summary>
-    /// Gets a value indicating whether the landing should render curated proof-path cards.
+    /// Gets the secondary section summaries shown under the primary <c>Start Here</c> route.
+    /// </summary>
+    public IReadOnlyList<DocHomeSectionViewModel> SecondarySections { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the landing should render a proof-path lead section.
     /// </summary>
     public bool HasFeaturedPages => FeaturedPages.Count > 0;
 }
@@ -510,6 +598,370 @@ public sealed record DocLandingFeaturedPageViewModel
     /// Gets the supporting body copy shown on the card.
     /// </summary>
     public string? SupportingText { get; init; }
+}
+
+/// <summary>
+/// View model describing one secondary public-section summary on the docs home.
+/// </summary>
+public sealed record DocHomeSectionViewModel
+{
+    /// <summary>
+    /// Gets the typed public section represented by the summary.
+    /// </summary>
+    public DocPublicSection Section { get; init; }
+
+    /// <summary>
+    /// Gets the section label shown to the reader.
+    /// </summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the stable route slug for the section.
+    /// </summary>
+    public string Slug { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the route that enters the section.
+    /// </summary>
+    public string Href { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the one-sentence utility copy that explains what the reader can do in the section.
+    /// </summary>
+    public string Purpose { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the key routes surfaced for the section on the docs home.
+    /// </summary>
+    public IReadOnlyList<DocSectionLinkViewModel> KeyRoutes { get; init; } = [];
+}
+
+/// <summary>
+/// View model for a section-scoped or doc-scoped breadcrumb item.
+/// </summary>
+public sealed record DocBreadcrumbViewModel
+{
+    /// <summary>
+    /// Gets the breadcrumb label shown to the reader.
+    /// </summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the optional target href for the breadcrumb.
+    /// </summary>
+    public string? Href { get; init; }
+}
+
+/// <summary>
+/// View model for one section list or sidebar link.
+/// </summary>
+public sealed record DocSectionLinkViewModel
+{
+    /// <summary>
+    /// Gets the displayed link title.
+    /// </summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the destination href.
+    /// </summary>
+    public string Href { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets optional utility copy shown with the link.
+    /// </summary>
+    public string? Summary { get; init; }
+
+    /// <summary>
+    /// Gets optional short eyebrow text shown above the link title.
+    /// </summary>
+    public string? Eyebrow { get; init; }
+
+    /// <summary>
+    /// Gets the normalized page-type badge for the destination when one is available.
+    /// </summary>
+    public DocPageTypeBadgePresentation? PageTypeBadge { get; init; }
+
+    /// <summary>
+    /// Gets nested child links shown under the current link.
+    /// </summary>
+    public IReadOnlyList<DocSectionLinkViewModel> Children { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the link should use docs anchor navigation semantics.
+    /// </summary>
+    public bool UseAnchorNavigation { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether this link represents the current page.
+    /// </summary>
+    public bool IsCurrent { get; init; }
+}
+
+/// <summary>
+/// View model for one grouped set of section links.
+/// </summary>
+public sealed record DocSectionGroupViewModel
+{
+    /// <summary>
+    /// Gets the optional group heading shown above the link list.
+    /// </summary>
+    public string? Title { get; init; }
+
+    /// <summary>
+    /// Gets the links that belong to the group.
+    /// </summary>
+    public IReadOnlyList<DocSectionLinkViewModel> Links { get; init; } = [];
+}
+
+/// <summary>
+/// View model for one resolved documentation link shown in related or sequence wayfinding.
+/// </summary>
+public sealed record DocPageLinkViewModel
+{
+    /// <summary>
+    /// Gets the destination page title.
+    /// </summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the browser-facing destination URL.
+    /// </summary>
+    public string Href { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets optional supporting text for the destination.
+    /// </summary>
+    public string? Summary { get; init; }
+
+    /// <summary>
+    /// Gets the normalized page type badge metadata for the destination when available.
+    /// </summary>
+    public DocPageTypeBadgePresentation? PageTypeBadge { get; init; }
+}
+
+/// <summary>
+/// View model for the sidebar navigation shell.
+/// </summary>
+public sealed record DocSidebarViewModel
+{
+    /// <summary>
+    /// Gets the sections shown in the sidebar.
+    /// </summary>
+    public IReadOnlyList<DocSidebarSectionViewModel> Sections { get; init; } = [];
+}
+
+/// <summary>
+/// View model for one public section in the sidebar.
+/// </summary>
+public sealed record DocSidebarSectionViewModel
+{
+    /// <summary>
+    /// Gets the typed section represented by the sidebar entry.
+    /// </summary>
+    public DocPublicSection Section { get; init; }
+
+    /// <summary>
+    /// Gets the section label shown in the sidebar.
+    /// </summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the stable section slug.
+    /// </summary>
+    public string Slug { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the section route href.
+    /// </summary>
+    public string Href { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets a value indicating whether the section owns the current page context.
+    /// </summary>
+    public bool IsActive { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the section should render expanded by default.
+    /// </summary>
+    public bool IsExpanded { get; init; }
+
+    /// <summary>
+    /// Gets the grouped links rendered when the section is expanded.
+    /// </summary>
+    public IReadOnlyList<DocSectionGroupViewModel> Groups { get; init; } = [];
+}
+
+/// <summary>
+/// View model for the grouped-section fallback and unavailable section surfaces.
+/// </summary>
+public sealed record DocSectionPageViewModel
+{
+    /// <summary>
+    /// Gets the typed section when the route resolved to a known built-in section.
+    /// </summary>
+    public DocPublicSection? Section { get; init; }
+
+    /// <summary>
+    /// Gets the section label or unavailable-page heading.
+    /// </summary>
+    public string Heading { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the primary explanatory copy for the page.
+    /// </summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the docs home route.
+    /// </summary>
+    public string DocsHomeHref { get; init; } = "/docs";
+
+    /// <summary>
+    /// Gets the href for the section-level <c>Start Here</c> route when that section exists in the current public docs corpus.
+    /// </summary>
+    public string? StartHereHref { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the route resolved to an unavailable section surface.
+    /// </summary>
+    public bool IsUnavailable { get; init; }
+
+    /// <summary>
+    /// Gets the explanatory copy shown when the section is unavailable.
+    /// </summary>
+    public string? AvailabilityMessage { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the fallback section is intentionally sparse.
+    /// </summary>
+    public bool IsSparse { get; init; }
+
+    /// <summary>
+    /// Gets the key routes surfaced for a sparse section fallback.
+    /// </summary>
+    public IReadOnlyList<DocSectionLinkViewModel> KeyRoutes { get; init; } = [];
+
+    /// <summary>
+    /// Gets the grouped page lists shown for the section.
+    /// </summary>
+    public IReadOnlyList<DocSectionGroupViewModel> Groups { get; init; } = [];
+}
+
+/// <summary>
+/// View model for a rendered documentation details page.
+/// </summary>
+public sealed record DocDetailsViewModel
+{
+    /// <summary>
+    /// Gets the underlying documentation node.
+    /// </summary>
+    public DocNode Document { get; init; } = new(string.Empty, string.Empty, string.Empty);
+
+    /// <summary>
+    /// Gets the in-page outline entries for the current document.
+    /// </summary>
+    public IReadOnlyList<DocOutlineItem> Outline { get; init; } = [];
+
+    /// <summary>
+    /// Gets the previous page within the current authored sequence, when one exists.
+    /// </summary>
+    public DocPageLinkViewModel? PreviousPage { get; init; }
+
+    /// <summary>
+    /// Gets the next page within the current authored sequence, when one exists.
+    /// </summary>
+    public DocPageLinkViewModel? NextPage { get; init; }
+
+    /// <summary>
+    /// Gets the authored related pages that resolved successfully.
+    /// </summary>
+    public IReadOnlyList<DocPageLinkViewModel> RelatedPages { get; init; } = [];
+
+    /// <summary>
+    /// Gets the resolved display title for the page.
+    /// </summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the authored summary that should be rendered under the title when available.
+    /// </summary>
+    public string? Summary { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether <see cref="Summary"/> should be rendered.
+    /// </summary>
+    public bool ShowSummary { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the page is a C# API reference document.
+    /// </summary>
+    public bool IsCSharpApiDoc { get; init; }
+
+    /// <summary>
+    /// Gets the normalized page-type badge presentation for the current page when available.
+    /// </summary>
+    public DocPageTypeBadgePresentation? PageTypeBadge { get; init; }
+
+    /// <summary>
+    /// Gets the explicit component metadata shown with the page when available.
+    /// </summary>
+    public string? Component { get; init; }
+
+    /// <summary>
+    /// Gets the explicit audience metadata shown with the page when available.
+    /// </summary>
+    public string? Audience { get; init; }
+
+    /// <summary>
+    /// Gets the breadcrumb trail used by the page.
+    /// </summary>
+    public IReadOnlyList<DocBreadcrumbViewModel> Breadcrumbs { get; init; } = [];
+
+    /// <summary>
+    /// Gets the current public section when the page belongs to a public docs section.
+    /// </summary>
+    public DocPublicSection? PublicSection { get; init; }
+
+    /// <summary>
+    /// Gets the current public-section label when one exists.
+    /// </summary>
+    public string? PublicSectionLabel { get; init; }
+
+    /// <summary>
+    /// Gets the current public-section route href when one exists.
+    /// </summary>
+    public string? PublicSectionHref { get; init; }
+
+    /// <summary>
+    /// Gets the current public-section utility sentence when one exists.
+    /// </summary>
+    public string? PublicSectionPurpose { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the current document is a section landing doc.
+    /// </summary>
+    public bool IsSectionLanding { get; init; }
+
+    /// <summary>
+    /// Gets the curated next-step rows shown by a section landing doc.
+    /// </summary>
+    public IReadOnlyList<DocLandingFeaturedPageViewModel> FeaturedPages { get; init; } = [];
+
+    /// <summary>
+    /// Gets the grouped <c>In this section</c> lists shown by a section landing doc.
+    /// </summary>
+    public IReadOnlyList<DocSectionGroupViewModel> SectionGroups { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the page has an in-page outline to render.
+    /// </summary>
+    public bool HasOutline => Outline.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether the page has any sequence or related-page wayfinding links to render.
+    /// </summary>
+    public bool HasWayfinding => PreviousPage is not null || NextPage is not null || RelatedPages.Count > 0;
 }
 
 /// <summary>

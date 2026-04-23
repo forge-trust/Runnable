@@ -4,6 +4,8 @@ using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewComponents;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -66,19 +68,18 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode("A", "src/alpha.md", "<p>A</p>"),
-                new DocNode("B", "docs/beta.md", "<p>B</p>"),
-                new DocNode("C", "gamma.md", "<p>C</p>")
+                CreateDoc("Concepts", "concepts/model.md", "Concepts"),
+                CreateDoc("Quickstart", "guides/start.md", "Start Here"),
+                CreateDoc("Web", "Namespaces/Contoso.Product.Web", "API Reference")
             ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            Assert.Equal(new[] { "docs", "General", "src" }, model.Groups.Select(g => g.Title).ToArray());
-            Assert.Single(Assert.Single(model.Groups, g => g.Title == "General").Sections.Single().Items);
-            Assert.Single(Assert.Single(model.Groups, g => g.Title == "docs").Sections.Single().Items);
-            Assert.Single(Assert.Single(model.Groups, g => g.Title == "src").Sections.Single().Items);
+            Assert.Equal(
+                new[] { "Start Here", "Concepts", "API Reference" },
+                model.Sections.Select(section => section.Label).ToArray());
         }
     }
 
@@ -87,33 +88,20 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode(
-                    "Quickstart",
-                    "guides/start.md",
-                    "<p>Start</p>",
-                    Metadata: new DocMetadata
-                    {
-                        NavGroup = "Start Here",
-                        Order = 1
-                    }),
-                new DocNode(
-                    "Hidden",
-                    "guides/hidden.md",
-                    "<p>Hidden</p>",
-                    Metadata: new DocMetadata
-                    {
-                        NavGroup = "Start Here",
-                        HideFromPublicNav = true
-                    })
+                CreateDoc("Quickstart", "guides/start.md", "Start Here", order: 1),
+                CreateDoc("Hidden", "guides/hidden.md", "Start Here", hideFromPublicNav: true)
             ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            var startHereGroup = Assert.Single(model.Groups, g => g.Title == "Start Here");
-            var visibleDoc = Assert.Single(startHereGroup.Sections.Single().Items);
-            Assert.Equal("Quickstart", visibleDoc.Title);
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(DocPublicSection.StartHere, section.Section);
+
+            var group = Assert.Single(section.Groups);
+            var link = Assert.Single(group.Links);
+            Assert.Equal("Quickstart", link.Title);
         }
     }
 
@@ -122,24 +110,19 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode(
-                    "Web",
-                    "Namespaces/ForgeTrust.Runnable.Web",
-                    "<p>Web namespace docs</p>",
-                    Metadata: new DocMetadata
-                    {
-                        NavGroup = "API Reference"
-                    })
+                CreateDoc("Web", "Namespaces/ForgeTrust.Runnable.Web", "API Reference")
             ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            var namespacesGroup = Assert.Single(model.Groups);
-            Assert.Equal("Namespaces", namespacesGroup.Title);
-            Assert.Single(namespacesGroup.Sections);
-            Assert.Single(namespacesGroup.Sections.Single().Items);
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(DocPublicSection.ApiReference, section.Section);
+
+            var group = Assert.Single(section.Groups);
+            Assert.Equal("Web", group.Title);
+            Assert.Equal("Web", Assert.Single(group.Links).Title);
         }
     }
 
@@ -148,22 +131,15 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode(
-                    "Quickstart",
-                    "guides/start.md",
-                    "<p>Start</p>",
-                    Metadata: new DocMetadata
-                    {
-                        NavGroup = " Start Here "
-                    })
+                CreateDoc("Quickstart", "guides/start.md", " Start Here ")
             ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            var startHereGroup = Assert.Single(model.Groups);
-            Assert.Equal("Start Here", startHereGroup.Title);
+            var section = Assert.Single(model.Sections);
+            Assert.Equal("Start Here", section.Label);
         }
     }
 
@@ -172,16 +148,18 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode("Namespaces", "Namespaces", "<p>Root namespace docs</p>"),
-                new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web namespace docs</p>")
+                CreateDoc("Namespaces", "Namespaces", "API Reference"),
+                CreateDoc("Web", "Namespaces/ForgeTrust.Runnable.Web", "API Reference")
             ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            Assert.Contains(model.Groups, g => g.Title == "Namespaces");
-            Assert.DoesNotContain(model.Groups, g => g.Title == "General");
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(DocPublicSection.ApiReference, section.Section);
+            Assert.Equal("Namespaces", Assert.Single(section.Groups[0].Links).Title);
+            Assert.Equal("Web", Assert.Single(section.Groups[1].Links).Title);
         }
     }
 
@@ -197,14 +175,20 @@ public sealed class SidebarViewComponentTests
         };
 
         var (component, cache, memo) = CreateComponent(
-            [new DocNode("Core", "Namespaces/Contoso.Product.Core", "<p>Core docs</p>")],
+            [
+                CreateDoc("One", "Namespaces/Contoso.Product.Feature.One", "API Reference"),
+                CreateDoc("Two", "Namespaces/Contoso.Product.Feature.Two", "API Reference")
+            ],
             options);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            Assert.Equal(new[] { "Contoso.Product.", "Contoso.Product" }, model.NamespacePrefixes);
+            var section = Assert.Single(model.Sections);
+            var featureGroup = Assert.Single(section.Groups);
+            Assert.Equal("Feature", featureGroup.Title);
+            Assert.Equal(new[] { "One", "Two" }, featureGroup.Links.Select(link => link.Title).ToArray());
         }
     }
 
@@ -213,15 +197,17 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
-                new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
+                CreateDoc("One", "Namespaces/ForgeTrust.Runnable.Feature.One", "API Reference"),
+                CreateDoc("Two", "Namespaces/ForgeTrust.Runnable.Feature.Two", "API Reference")
             ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, model.NamespacePrefixes);
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(new[] { "One", "Two" }, section.Groups.Select(group => group.Title).ToArray());
+            Assert.Equal(new[] { "One", "Two" }, section.Groups.SelectMany(group => group.Links).Select(link => link.Title).ToArray());
         }
     }
 
@@ -230,15 +216,17 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode("One", "Namespaces/Alpha.One", "<p>Alpha docs</p>"),
-                new DocNode("Two", "Namespaces/Beta.Two", "<p>Beta docs</p>")
+                CreateDoc("One", "Namespaces/Alpha.One", "API Reference"),
+                CreateDoc("Two", "Namespaces/Beta.Two", "API Reference")
             ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            Assert.Empty(model.NamespacePrefixes);
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(new[] { "Alpha", "Beta" }, section.Groups.Select(group => group.Title).ToArray());
+            Assert.Equal(new[] { "One", "Two" }, section.Groups.SelectMany(group => group.Links).Select(link => link.Title).ToArray());
         }
     }
 
@@ -246,13 +234,17 @@ public sealed class SidebarViewComponentTests
     public async Task InvokeAsync_ShouldDeriveNoPrefix_WhenNoNamespacesExist()
     {
         var (component, cache, memo) = CreateComponent(
-            [new DocNode("Home", "docs/readme.md", "<p>Home docs</p>")]);
+            [
+                CreateDoc("Home", "docs/readme.md", "Start Here")
+            ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            Assert.Empty(model.NamespacePrefixes);
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(DocPublicSection.StartHere, section.Section);
+            Assert.Equal("Home", Assert.Single(Assert.Single(section.Groups).Links).Title);
         }
     }
 
@@ -261,8 +253,8 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
-                new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
+                CreateDoc("Web", "Namespaces/ForgeTrust.Runnable.Web", "API Reference"),
+                CreateDoc("Core", "Namespaces/ForgeTrust.Runnable.Core", "API Reference")
             ],
             new RazorDocsOptions
             {
@@ -271,9 +263,10 @@ public sealed class SidebarViewComponentTests
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, model.NamespacePrefixes);
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(new[] { "Core", "Web" }, section.Groups.Select(group => group.Title).ToArray());
         }
     }
 
@@ -282,23 +275,154 @@ public sealed class SidebarViewComponentTests
     {
         var (component, cache, memo) = CreateComponent(
             [
-                new DocNode("Web", "Namespaces/ForgeTrust.Runnable.Web", "<p>Web docs</p>"),
-                new DocNode("Core", "Namespaces/ForgeTrust.Runnable.Core", "<p>Core docs</p>")
+                CreateDoc("Web", "Namespaces/ForgeTrust.Runnable.Web", "API Reference"),
+                CreateDoc("Core", "Namespaces/ForgeTrust.Runnable.Core", "API Reference")
             ]);
         using (memo)
         using (cache)
         {
-            var model = await InvokeAsync(component);
+            var model = await GetModelAsync(component);
 
-            Assert.Equal(new[] { "ForgeTrust.Runnable.", "ForgeTrust.Runnable" }, model.NamespacePrefixes);
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(new[] { "Core", "Web" }, section.Groups.Select(group => group.Title).ToArray());
         }
     }
 
-    private static async Task<DocSidebarViewModel> InvokeAsync(SidebarViewComponent component)
+    [Fact]
+    public async Task InvokeAsync_ShouldMarkSectionActive_WhenCurrentPathIsSectionRoute()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ]);
+        SetRequestPath(component, "/docs/sections/concepts");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.Equal(DocPublicSection.Concepts, section.Section);
+            Assert.True(section.IsActive);
+            Assert.True(section.IsExpanded);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldNotMarkSectionActive_WhenSectionRouteIsUnknown()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ]);
+        SetRequestPath(component, "/docs/sections/unknown-section");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.False(section.IsActive);
+            Assert.False(section.IsExpanded);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldNotMarkSectionActive_ForSearchRoutes()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Quickstart", "guides/start.md", "Start Here")
+            ]);
+        SetRequestPath(component, "/docs/search");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.False(section.IsActive);
+            Assert.False(section.IsExpanded);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldMarkDocSectionActive_WhenCurrentPathMatchesDoc()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ]);
+        SetRequestPath(component, "/docs/concepts/overview.md.html");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            var link = Assert.Single(Assert.Single(section.Groups).Links);
+            Assert.True(section.IsActive);
+            Assert.True(section.IsExpanded);
+            Assert.True(link.IsCurrent);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldKeepSectionsInactive_WhenDocsPathDoesNotResolve()
+    {
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Quickstart", "guides/start.md", "Start Here")
+            ]);
+        SetRequestPath(component, "/docs/missing.md.html");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.False(section.IsActive);
+            Assert.False(section.IsExpanded);
+        }
+    }
+
+    private static DocNode CreateDoc(
+        string title,
+        string path,
+        string navGroup,
+        int? order = null,
+        bool hideFromPublicNav = false)
+    {
+        return new DocNode(
+            title,
+            path,
+            $"<p>{title}</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = navGroup,
+                Order = order,
+                HideFromPublicNav = hideFromPublicNav
+            });
+    }
+
+    private static async Task<DocSidebarViewModel> GetModelAsync(SidebarViewComponent component)
     {
         var result = await component.InvokeAsync();
         var viewResult = Assert.IsType<ViewViewComponentResult>(result);
         return Assert.IsType<DocSidebarViewModel>(viewResult.ViewData!.Model);
+    }
+
+    private static void SetRequestPath(SidebarViewComponent component, string path)
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Path = path;
+        component.ViewComponentContext = new ViewComponentContext
+        {
+            ViewContext = new ViewContext
+            {
+                HttpContext = httpContext
+            }
+        };
     }
 
     private static (SidebarViewComponent Component, MemoryCache Cache, Memo Memo) CreateComponent(

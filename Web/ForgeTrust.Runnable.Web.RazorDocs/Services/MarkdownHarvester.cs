@@ -91,7 +91,8 @@ public class MarkdownHarvester : IDocHarvester
                     relativePath,
                     resolvedTitle,
                     explicitMetadata,
-                    ExtractSummary(markdownBody));
+                    ExtractSummary(markdownBody),
+                    _logger);
                 var outline = ExtractOutline(document);
 
                 nodes.Add(new DocNode(resolvedTitle, relativePath, html, Metadata: metadata, Outline: outline));

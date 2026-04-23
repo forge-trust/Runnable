@@ -1,6 +1,7 @@
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorWire;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs;
 
@@ -10,6 +11,8 @@ namespace ForgeTrust.Runnable.Web.RazorDocs;
 public class RazorDocsWebModule : IRunnableWebModule
 {
     private const string RazorDocsStaticAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";
+    private const string RazorDocsPackagedStylesheetPath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css";
+    private const string RazorDocsRootStylesheetPath = "/css/site.gen.css";
 
     /// <inheritdoc />
     public bool IncludeAsApplicationPart => true;
@@ -24,11 +27,15 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// Registers services required by the RazorDocs module into the provided service collection.
     /// </summary>
     /// <remarks>
-    /// Adds HTML sanitizer, Markdown and C# harvesters, and the documentation aggregator.
+    /// Adds the RazorDocs harvesting, aggregation, and sanitization services via <c>services.AddRazorDocs()</c>.
+    /// RazorDocs styling is compiled into the package during the RazorDocs build and the layout resolves the correct
+    /// static asset path for root-module versus embedded consumer hosts, so hosts do not register
+    /// <c>services.AddTailwind()</c> just to light up the embedded docs UI.
     /// </remarks>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
         services.AddRazorDocs();
+        services.Replace(ServiceDescriptor.Singleton(RazorDocsAssetPathResolver.CreateForRootModule(context.RootModuleAssembly)));
     }
 
     /// <summary>
@@ -71,10 +78,24 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <summary>
     /// Adds the module's default catch-all controller route for documentation endpoints.
     /// </summary>
+    /// <remarks>
+    /// When RazorDocs is the root module assembly, standalone and static-export hosts preserve the historical
+    /// <c>/css/site.gen.css</c> URL by redirecting it to the packaged Razor Class Library stylesheet at
+    /// <c>/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css</c>. Embedded hosts do not register that
+    /// redirect because they already link to the packaged asset directly. Redirects preserve the request
+    /// <see cref="HttpRequest.PathBase"/> and query string so legacy links continue to work behind a virtual path.
+    /// </remarks>
     /// <param name="context">Startup context for the application and environment.</param>
     /// <param name="endpoints">Endpoint route builder used to map the module's routes.</param>
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
+        if (ShouldPreserveRootStylesheetPath(context))
+        {
+            // Published/exported standalone hosts can resolve the packaged stylesheet only under /_content.
+            // Preserve the historical root stylesheet URL so docs HTML and static exports stay portable.
+            MapLegacyAssetRedirect(endpoints, RazorDocsRootStylesheetPath, RazorDocsPackagedStylesheetPath);
+        }
+
         // Preserve the historical /docs asset URLs even though the assets now live in the RazorDocs RCL package.
         MapLegacyAssetRedirect(endpoints, "/docs/search.css", $"{RazorDocsStaticAssetBasePath}/search.css");
         MapLegacyAssetRedirect(endpoints, "/docs/minisearch.min.js", $"{RazorDocsStaticAssetBasePath}/minisearch.min.js");
@@ -144,5 +165,10 @@ public class RazorDocsWebModule : IRunnableWebModule
                 context.Response.Redirect(redirectPath, permanent: false);
                 return Task.CompletedTask;
             });
+    }
+
+    private static bool ShouldPreserveRootStylesheetPath(StartupContext context)
+    {
+        return RazorDocsAssetPathResolver.IsRootModuleAssembly(context.RootModuleAssembly);
     }
 }

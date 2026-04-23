@@ -1823,41 +1823,49 @@
     bindSearchPage();
   }
 
-  function getCurrentUrlKey() {
-    return `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  }
-
   installDocsPartialHook();
   const hasTurbo = typeof window !== 'undefined'
     && (Object.prototype.hasOwnProperty.call(window, 'Turbo')
       || typeof window.Turbo !== 'undefined'
       || document.documentElement.hasAttribute('data-turbo'));
-  let lastInitializedUrlKey = null;
+  let skipNextTurboLoadInit = false;
 
   function runInit() {
     init().catch((error) => console.error('Search init failed:', error));
   }
 
-  function runInitForCurrentUrl() {
-    runInit();
-    lastInitializedUrlKey = getCurrentUrlKey();
+  function isCurrentSearchDomBound() {
+    const sidebar = getSidebarSearchElements();
+    if (sidebar.input?.getAttribute(sidebarBoundAttribute) === '1') {
+      return true;
+    }
+
+    const page = getSearchPageElements();
+    return page.root?.getAttribute(searchPageBoundAttribute) === '1';
   }
 
   if (hasTurbo) {
     document.addEventListener('turbo:load', () => {
-      const currentUrlKey = getCurrentUrlKey();
-      if (currentUrlKey === lastInitializedUrlKey) {
+      if (skipNextTurboLoadInit && isCurrentSearchDomBound()) {
+        skipNextTurboLoadInit = false;
         return;
       }
 
-      runInitForCurrentUrl();
+      skipNextTurboLoadInit = false;
+      runInit();
     });
     document.addEventListener('turbo:frame-load', initOnTurboFrameLoad);
 
+    // The initial page load still needs an eager bootstrap so search works
+    // before Turbo emits its first load event for the document.
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', runInitForCurrentUrl, { once: true });
+      skipNextTurboLoadInit = true;
+      document.addEventListener('DOMContentLoaded', runInit, { once: true });
+    } else if (document.readyState === 'interactive') {
+      skipNextTurboLoadInit = true;
+      runInit();
     } else {
-      runInitForCurrentUrl();
+      runInit();
     }
   } else if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', runInit, { once: true });

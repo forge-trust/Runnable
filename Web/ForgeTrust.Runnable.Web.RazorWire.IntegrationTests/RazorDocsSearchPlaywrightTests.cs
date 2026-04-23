@@ -37,11 +37,54 @@ public sealed class RazorDocsSearchPlaywrightTests
         await WaitForSidebarSearchReadyAsync(page);
         await RunSidebarSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
 
-        await page.ClickAsync(".docs-search-shell-cta");
+        await page.ClickAsync("#docs-search-shell a[href='/docs/search']");
         await WaitForPathAsync(page, "/docs/search");
         await WaitForSearchPageSettledAsync(page);
         await RunAdvancedSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
         await RunSidebarSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
+    }
+
+    [Fact]
+    public async Task SearchPage_RemainsFunctional_AfterSidebarCta_RevisitsCurrentPage()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search");
+        await WaitForSearchPageSettledAsync(page);
+
+        await page.EvaluateAsync(
+            """
+            () => {
+              window.__rwSearchQa = {
+                initialRoot: document.getElementById("docs-search-page"),
+                turboLoads: 0
+              };
+
+              document.addEventListener("turbo:load", () => {
+                window.__rwSearchQa.turboLoads += 1;
+              });
+            }
+            """);
+
+        await page.ClickAsync("#docs-search-shell a[href='/docs/search']");
+        await page.WaitForFunctionAsync(
+            """
+            () => {
+              const qa = window.__rwSearchQa;
+              const currentRoot = document.getElementById("docs-search-page");
+              return Boolean(qa)
+                && qa.turboLoads > 0
+                && currentRoot
+                && currentRoot !== qa.initialRoot;
+            }
+            """,
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        await WaitForSearchPageSettledAsync(page);
+        Assert.True(await page.Locator("#docs-search-page-starter").IsVisibleAsync());
+
+        await RunAdvancedSearchAndAssertResultsAsync(page, _fixture.SearchQuery);
     }
 
     [Fact]
@@ -320,7 +363,7 @@ public sealed class RazorDocsSearchPlaywrightTests
         });
 
         Assert.True(await page.Locator("#docs-search-page-retry").IsVisibleAsync());
-        Assert.True(await page.Locator(".docs-search-page-failure-link").First.IsVisibleAsync());
+        Assert.True(await page.Locator("#docs-search-page-failure a[href]").First.IsVisibleAsync());
 
         await page.EvaluateAsync(
             """

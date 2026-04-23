@@ -1,17 +1,62 @@
 # ForgeTrust.Runnable.Web.RazorDocs
 
-Reusable Razor Class Library package for harvesting and serving repository documentation inside a Runnable web application.
+Documentation site generation and hosting for Runnable web applications.
 
-## What it provides
+## Overview
+
+`ForgeTrust.Runnable.Web.RazorDocs` is the reusable Razor Class Library package behind the RazorDocs experience. It aggregates Markdown and C# API documentation into a browsable `/docs` UI and is intended to be embedded into Runnable web applications or used by the standalone RazorDocs host.
+
+## What It Provides
 
 - `RazorDocsWebModule` for wiring the docs UI into a Runnable web host
 - `AddRazorDocs()` for typed options binding and core service registration
-- `DocAggregator` plus the built-in markdown and C# harvesters
+- `DocAggregator` plus the built-in Markdown and C# harvesters
 - Search UI assets and the `/docs` MVC surface used by RazorDocs consumers
+- Precompiled Tailwind-powered styling with layout-time path resolution for root-module and embedded hosts
+
+## Styling Boundary
+
+When choosing where a new RazorDocs style should live, use this order:
+
+1. If the surface needs a reusable component contract or a selector shared across CSS and JavaScript, use a semantic class.
+2. Otherwise, if RazorDocs does not fully control the nested content markup, use wrapper-scoped semantic CSS.
+3. Otherwise, for one-off package chrome that RazorDocs owns directly, prefer Tailwind utility classes in markup.
+
+This section is the normative source of truth for the boundary. `DESIGN.md` explains why the rule exists and how to review edge cases. `ROADMAP.md` only points future work back to this contract.
+
+### Decision Matrix
+
+| Surface | Default | Why | Real examples | Exception / note |
+| --- | --- | --- | --- | --- |
+| One-off owned package chrome in Razor views | Prefer Tailwind utility classes in markup | RazorDocs fully owns the markup, so local utility classes keep intent obvious where the change happens | docs landing shell in `Views/Docs/Index.cshtml`, sidebar shell and layout framing in `Views/Shared/_Layout.cshtml`, one-off page header spacing in `Views/Docs/Details.cshtml` | If the same styling contract repeats across package surfaces, promote it to a semantic component class instead of copying long utility strings |
+| Reusable owned package components or stable cross-file UI selectors | Use semantic component classes | Shared selectors keep repeated UI stable across Razor, CSS, and sometimes JavaScript | `docs-page-badge`, `docs-metadata-chip`, `docs-search-page`, `docs-search-page-filters-toggle`, `docs-search-page-active-filters` | Utilities can still handle surrounding layout and one-off placement |
+| Harvested or generated document bodies that RazorDocs does not fully author element by element | Use wrapper-scoped semantic CSS such as `.docs-content ...` | RazorDocs cannot safely push utility classes into nested harvested HTML | headings, paragraphs, code blocks, overload groups, and namespace sections inside `.docs-content` in `Views/Docs/Details.cshtml` and `wwwroot/css/app.css` | Do not rewrite harvested nested HTML just to satisfy utility-class purity |
+| JavaScript-generated or stateful UI that needs CSS and JavaScript to share stable hooks | Use semantic hook classes, then style them in CSS | Runtime UI needs stable names both the stylesheet and script can rely on | search result rows, filter chips, active-filter pills, and state containers in `wwwroot/docs/search.css` and `wwwroot/docs/search-client.js` | Use `id` values where uniqueness or ARIA wiring require them, but keep reusable styling and state contracts on semantic classes |
+
+### Common Calls
+
+- New one-off page header spacing or typography in owned Razor markup: use Tailwind utilities in the view.
+- New reusable badge, metadata chip, or shared search workspace shell element: add or extend a semantic component class, then use utilities around it only when they are purely local.
+- For `Views/Docs/Search.cshtml`, keep the stateful search container or interactive hook semantic, but use local utilities for one-off header copy, helper layout, and fallback-link chrome inside that view.
+- Restyling paragraphs, headings, or code blocks inside `.docs-content`: update wrapper-scoped CSS instead of pushing utility classes into harvested HTML.
+- New search filter pill, active-filter surface, or other stateful search UI: use a semantic hook class because CSS and JavaScript both need to recognize it.
+
+### Terms
+
+- **Package chrome**: one-off layout and presentation markup that RazorDocs owns directly, such as page shells, spacing, and framing.
+- **Harvested content**: nested documentation HTML that RazorDocs renders but does not fully author element by element, such as the body inside `.docs-content`.
+- **Stable selector / hook**: a semantic class or required unique `id` that Razor, CSS, accessibility wiring, and sometimes JavaScript rely on consistently across files.
+
+### Pitfalls
+
+- Do not refactor between utilities and semantic CSS for purity alone. Follow the surface contract unless a real usability or maintainability problem exists.
+- Do not treat required `id` values, such as `docs-search-page-input` or `docs-search-page-filters-panel`, as the reusable styling contract. They exist for uniqueness, targeting, and ARIA relationships.
+- Do not assume every child inside a semantic search container needs its own semantic class; local typography and spacing inside one view can still stay inline.
+- Do not add semantic classes to static package chrome when plain utilities are clearer and the styling is truly local.
 
 ## Configuration
 
-Slice 1 supports source-backed docs via `RazorDocsOptions`:
+Source-backed docs are configured via `RazorDocsOptions`:
 
 ```json
 {
@@ -24,7 +69,15 @@ Slice 1 supports source-backed docs via `RazorDocsOptions`:
 }
 ```
 
-If `RazorDocs:Source:RepositoryRoot` is omitted, the package falls back to repository discovery from the app content root. Bundle mode is modeled but intentionally rejected until Slice 2 lands.
+If `RazorDocs:Source:RepositoryRoot` is omitted, the package falls back to repository discovery from the app content root. Bundle mode is modeled but intentionally rejected until the next slice lands.
+
+## Usage
+
+Reference the package and add the module to your Runnable web application:
+
+```csharp
+await WebApp<RazorDocsWebModule>.RunAsync(args);
+```
 
 ## Public Sections
 
@@ -168,3 +221,10 @@ Public visibility note:
 - [ForgeTrust.Runnable.Web.RazorDocs.Standalone](../ForgeTrust.Runnable.Web.RazorDocs.Standalone/README.md) for the runnable/exportable host used in docs export and smoke testing
 - [Back to Web List](../README.md)
 - [Back to Root](../../README.md)
+
+## Notes
+
+- This package is the reusable documentation surface; `ForgeTrust.Runnable.Web.RazorDocs.Standalone` is the thin executable wrapper used for local hosting and export scenarios.
+- The bundled RazorDocs UI already includes its generated stylesheet as a static web asset. The layout resolves the correct stylesheet path automatically from the host's root module shape for standalone/root-module hosts versus embedded application-part consumers.
+- Consumers do not need to call `services.AddTailwind()` unless they also want Tailwind build/watch integration for their own host application's CSS.
+- It depends on the Tailwind package family for RazorDocs package build-time styling generation and on the caching package for docs aggregation performance.

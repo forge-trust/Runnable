@@ -1,10 +1,10 @@
 using ForgeTrust.Runnable.Core;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.Cors.Infrastructure;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -29,6 +29,58 @@ public class WebStartupTests
         builder.Build();
 
         Assert.True(called);
+    }
+
+    [Fact]
+    public async Task RunAsync_UsesOriginalArguments_WhenDevelopmentPortFallbackDoesNotApply()
+    {
+        var args = new[] { "--urls", "http://127.0.0.1:5005" };
+        var startup = new CapturingRunWebStartup(
+            new TestWebModule(),
+            new(args, null, null));
+
+        await startup.RunAsync(args);
+
+        Assert.Same(args, startup.ResolveInputArgs);
+        Assert.Same(args, startup.RunArgs);
+    }
+
+    [Fact]
+    public async Task RunAsync_UsesResolvedArguments_WhenDevelopmentPortFallbackApplies()
+    {
+        var originalArgs = Array.Empty<string>();
+        var resolvedArgs = new[] { "--urls", "http://localhost:6123" };
+        var startup = new CapturingRunWebStartup(
+            new TestWebModule(),
+            new(resolvedArgs, 6123, "/workspace"));
+
+        await startup.RunAsync(originalArgs);
+
+        Assert.Same(originalArgs, startup.ResolveInputArgs);
+        Assert.Same(resolvedArgs, startup.RunArgs);
+    }
+
+    [Fact]
+    public void ResolveDevelopmentPortDefaults_UsesProcessInputs()
+    {
+        var args = new[] { "--urls", "http://127.0.0.1:5005" };
+        var startup = new TestWebStartup(new TestWebModule());
+
+        var resolution = startup.ResolveDevelopmentPortDefaults(args);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Same(args, resolution.Args);
+    }
+
+    [Fact]
+    public async Task RunResolvedAsync_DelegatesToBaseRunPath()
+    {
+        var startup = new StoppingWebStartup(new StoppingWebModule());
+
+        var exception = await Record.ExceptionAsync(
+            () => startup.RunResolvedAsync(["--urls", "http://127.0.0.1:0"]));
+
+        Assert.Null(exception);
     }
 
     [Fact]
@@ -616,6 +668,105 @@ public class WebStartupTests
     }
 
     private class AnotherTestWebModuleInSameAssembly : TestWebModule;
+
+    private sealed class CapturingRunWebStartup : WebStartup<TestWebModule>
+    {
+        private readonly TestWebModule _module;
+        private readonly RunnableWebDevelopmentPortResolution _resolution;
+
+        public CapturingRunWebStartup(
+            TestWebModule module,
+            RunnableWebDevelopmentPortResolution resolution)
+        {
+            _module = module;
+            _resolution = resolution;
+        }
+
+        public string[]? ResolveInputArgs { get; private set; }
+
+        public string[]? RunArgs { get; private set; }
+
+        protected override TestWebModule CreateRootModule() => _module;
+
+        internal override RunnableWebDevelopmentPortResolution ResolveDevelopmentPortDefaults(string[] args)
+        {
+            ResolveInputArgs = args;
+            return _resolution;
+        }
+
+        internal override Task RunResolvedAsync(string[] args)
+        {
+            RunArgs = args;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StoppingWebStartup : WebStartup<StoppingWebModule>
+    {
+        private readonly StoppingWebModule _module;
+
+        public StoppingWebStartup(StoppingWebModule module)
+        {
+            _module = module;
+        }
+
+        protected override StoppingWebModule CreateRootModule() => _module;
+    }
+
+    private sealed class StoppingWebModule : IRunnableWebModule
+    {
+        public bool IncludeAsApplicationPart => false;
+
+        public void ConfigureWebOptions(StartupContext context, WebOptions options)
+        {
+        }
+
+        public void ConfigureHostBeforeServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureHostAfterServices(StartupContext context, IHostBuilder builder)
+        {
+        }
+
+        public void ConfigureServices(StartupContext context, IServiceCollection services)
+        {
+            services.AddHostedService<StopApplicationHostedService>();
+        }
+
+        public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
+        {
+        }
+
+        public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
+        {
+        }
+
+        public void RegisterDependentModules(ModuleDependencyBuilder builder)
+        {
+        }
+    }
+
+    private sealed class StopApplicationHostedService : IHostedService
+    {
+        private readonly IHostApplicationLifetime _applicationLifetime;
+
+        public StopApplicationHostedService(IHostApplicationLifetime applicationLifetime)
+        {
+            _applicationLifetime = applicationLifetime;
+        }
+
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            _applicationLifetime.StopApplication();
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
     private class NonWebModule : IRunnableModule
     {

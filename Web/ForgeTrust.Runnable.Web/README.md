@@ -55,6 +55,15 @@ Modules can define their own endpoints, making it easy to slice features vertica
 
 The web application supports standard ASP.NET Core configuration sources (command-line arguments, environment variables, and `appsettings.json`).
 
+#### Deterministic Development Port Default
+
+When a Runnable web application starts in `Development` without explicit endpoint configuration, Runnable Web chooses a deterministic localhost-only fallback URL based on the current workspace path. That gives each local worktree a stable URL instead of every development environment fighting for the same hard-coded dev port.
+
+- Use this default for local `dotnet run` convenience when you do not care about a specific port ahead of time.
+- Override it any time with `--port`, `--urls`, `ASPNETCORE_URLS`/`URLS`, `ASPNETCORE_HTTP_PORTS`/`DOTNET_HTTP_PORTS`/`HTTP_PORTS`, `ASPNETCORE_HTTPS_PORTS`/`DOTNET_HTTPS_PORTS`/`HTTPS_PORTS`, `urls`/`http_ports`/`https_ports` in appsettings, or `Kestrel:Endpoints` in appsettings/environment variables.
+- Treat the startup log as the source of truth for the selected local URL.
+- The automatic fallback binds only `http://localhost:{port}`. Use `--port` or an explicit wildcard URL when you intentionally need LAN/container access.
+
 #### Port Overrides
 
 You can override the application's listening port using several methods:
@@ -76,9 +85,24 @@ You can override the application's listening port using several methods:
       "urls": "http://localhost:5001"
     }
     ```
+4.  **Kestrel Endpoints**: Configure named endpoints when you need protocol, certificate, or endpoint-specific settings.
+
+    ```json
+    {
+      "Kestrel": {
+        "Endpoints": {
+          "Http": {
+            "Url": "http://localhost:5001"
+          }
+        }
+      }
+    }
+    ```
 
 > [!NOTE]
 > The `--port` flag is a convenience shortcut that maps to `http://localhost:{port};http://*:{port}`. This ensures the application is accessible on all interfaces while logging a clickable `localhost` URL in the console. If both `--port` and `--urls` are provided, `--port` takes precedence.
+> [!TIP]
+> If you rely on the deterministic development-port fallback, different worktrees on the same machine will get different stable ports. If you need a predictable shared URL for docs, QA, or CI instructions, pass `--port` or `--urls` explicitly instead of depending on the fallback.
 
 ---
 [📂 Back to Web List](../README.md) | [🏠 Back to Root](../../README.md)

@@ -215,6 +215,25 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
     }
 
     [Theory]
+    [InlineData("http_ports")]
+    [InlineData("https_ports")]
+    public void Resolve_DoesNotOverrideEndpointCommandLineConfiguration_WhenSpecifiedInline(string key)
+    {
+        using var environment = new TemporaryEnvironment();
+        environment.CreateGitRepo("workspace");
+        var args = new[] { $"--{key}=5005" };
+
+        var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
+            args,
+            environment.WorkspaceRoot,
+            environment.CreateApplicationBaseDirectory("workspace"),
+            ReadDevelopmentEnvironment);
+
+        Assert.Null(resolution.AppliedPort);
+        Assert.Same(args, resolution.Args);
+    }
+
+    [Theory]
     [InlineData("ASPNETCORE_URLS")]
     [InlineData("URLS")]
     [InlineData("ASPNETCORE_HTTP_PORTS")]

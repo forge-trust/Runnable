@@ -60,7 +60,7 @@ The web application supports standard ASP.NET Core configuration sources (comman
 When a Runnable web application starts in `Development` without explicit endpoint configuration, Runnable Web chooses a deterministic localhost-only fallback URL based on the current workspace path. That gives each local worktree a stable URL instead of every development environment fighting for the same hard-coded dev port.
 
 - Use this default for local `dotnet run` convenience when you do not care about a specific port ahead of time.
-- Override it any time with `--port`, `--urls`, `ASPNETCORE_URLS`, `ASPNETCORE_HTTP_PORTS`, `DOTNET_HTTP_PORTS`, `ASPNETCORE_HTTPS_PORTS`, `DOTNET_HTTPS_PORTS`, `urls`/`http_ports`/`https_ports` in appsettings, or `Kestrel:Endpoints` in appsettings/environment variables.
+- Override it any time with `--port`, `--urls`, `ASPNETCORE_URLS`/`URLS`, `ASPNETCORE_HTTP_PORTS`/`DOTNET_HTTP_PORTS`/`HTTP_PORTS`, `ASPNETCORE_HTTPS_PORTS`/`DOTNET_HTTPS_PORTS`/`HTTPS_PORTS`, `urls`/`http_ports`/`https_ports` in appsettings, or `Kestrel:Endpoints` in appsettings/environment variables.
 - Treat the startup log as the source of truth for the selected local URL.
 - The automatic fallback binds only `http://localhost:{port}`. Use `--port` or an explicit wildcard URL when you intentionally need LAN/container access.
 

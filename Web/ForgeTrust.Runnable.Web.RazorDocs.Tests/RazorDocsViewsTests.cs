@@ -575,6 +575,31 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldUseMetadataBreadcrumbLabels_WhenRootDocHasNavGroupParent()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Changelog",
+            "CHANGELOG.md",
+            "<p>Release ledger</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Releases",
+                Breadcrumbs = ["Releases", "Changelog"],
+                BreadcrumbsMatchPathTargets = true
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            doc);
+
+        Assert.Contains(">Releases</span>", html);
+        Assert.Contains(">Changelog</span>", html);
+        Assert.DoesNotContain(">CHANGELOG.md</span>", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderSingleSegmentBreadcrumbWithoutParentLinks()
     {
         using var services = CreateServiceProvider(CreateDocs());

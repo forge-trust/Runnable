@@ -93,15 +93,25 @@
     var hasMetadataBreadcrumbs = metadataBreadcrumbCount > 0;
     var metadataBreadcrumbsMatchPathTargets = metadata?.BreadcrumbsMatchPathTargets == true;
     var metadataBreadcrumbCountMatchesPath = metadataBreadcrumbCount == parsedBreadcrumbs.Count;
+    var metadataBreadcrumbCountIncludesNavGroupParent = metadataBreadcrumbCount == parsedBreadcrumbs.Count + 1
+                                                       && !string.IsNullOrWhiteSpace(metadata?.NavGroup)
+                                                       && string.Equals(
+                                                           metadataBreadcrumbs?[0],
+                                                           metadata!.NavGroup!.Trim(),
+                                                           StringComparison.OrdinalIgnoreCase);
     var canUseMetadataBreadcrumbs = hasMetadataBreadcrumbs
                                     && metadataBreadcrumbsMatchPathTargets
-                                    && metadataBreadcrumbCountMatchesPath;
+                                    && (metadataBreadcrumbCountMatchesPath
+                                        || metadataBreadcrumbCountIncludesNavGroupParent);
 
     if (canUseMetadataBreadcrumbs)
     {
+        var parsedBreadcrumbOffset = metadataBreadcrumbCount - parsedBreadcrumbs.Count;
         for (var i = 0; i < metadataBreadcrumbs!.Count; i++)
         {
-            breadcrumbs.Add((metadataBreadcrumbs[i], parsedBreadcrumbs[i].Href));
+            var parsedBreadcrumbIndex = i - parsedBreadcrumbOffset;
+            var href = parsedBreadcrumbIndex >= 0 ? parsedBreadcrumbs[parsedBreadcrumbIndex].Href : null;
+            breadcrumbs.Add((metadataBreadcrumbs[i], href));
         }
     }
     else

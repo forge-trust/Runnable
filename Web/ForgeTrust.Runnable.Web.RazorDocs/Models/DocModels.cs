@@ -302,24 +302,14 @@ public sealed record DocTrustMetadata
             return primary;
         }
 
-        static string? PreferNonBlank(string? preferred, string? fallbackValue)
-        {
-            if (!string.IsNullOrWhiteSpace(preferred))
-            {
-                return preferred.Trim();
-            }
-
-            return string.IsNullOrWhiteSpace(fallbackValue) ? null : fallbackValue.Trim();
-        }
-
         return new DocTrustMetadata
         {
-            Status = PreferNonBlank(primary.Status, fallback.Status),
-            Summary = PreferNonBlank(primary.Summary, fallback.Summary),
-            Freshness = PreferNonBlank(primary.Freshness, fallback.Freshness),
-            ChangeScope = PreferNonBlank(primary.ChangeScope, fallback.ChangeScope),
+            Status = DocTrustMergeHelpers.PreferNonBlank(primary.Status, fallback.Status),
+            Summary = DocTrustMergeHelpers.PreferNonBlank(primary.Summary, fallback.Summary),
+            Freshness = DocTrustMergeHelpers.PreferNonBlank(primary.Freshness, fallback.Freshness),
+            ChangeScope = DocTrustMergeHelpers.PreferNonBlank(primary.ChangeScope, fallback.ChangeScope),
             Migration = DocTrustLink.Merge(primary.Migration, fallback.Migration),
-            Archive = PreferNonBlank(primary.Archive, fallback.Archive),
+            Archive = DocTrustMergeHelpers.PreferNonBlank(primary.Archive, fallback.Archive),
             Sources = DocMetadata.MergeLists(primary.Sources, fallback.Sources)
         };
     }
@@ -352,21 +342,24 @@ public sealed record DocTrustLink
             return primary;
         }
 
-        static string? PreferNonBlank(string? preferred, string? fallbackValue)
-        {
-            if (!string.IsNullOrWhiteSpace(preferred))
-            {
-                return preferred.Trim();
-            }
-
-            return string.IsNullOrWhiteSpace(fallbackValue) ? null : fallbackValue.Trim();
-        }
-
         return new DocTrustLink
         {
-            Label = PreferNonBlank(primary.Label, fallback.Label),
-            Href = PreferNonBlank(primary.Href, fallback.Href)
+            Label = DocTrustMergeHelpers.PreferNonBlank(primary.Label, fallback.Label),
+            Href = DocTrustMergeHelpers.PreferNonBlank(primary.Href, fallback.Href)
         };
+    }
+}
+
+file static class DocTrustMergeHelpers
+{
+    internal static string? PreferNonBlank(string? preferred, string? fallbackValue)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return preferred.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(fallbackValue) ? null : fallbackValue.Trim();
     }
 }
 

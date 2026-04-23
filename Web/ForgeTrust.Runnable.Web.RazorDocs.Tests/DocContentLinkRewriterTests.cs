@@ -47,6 +47,30 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void RewriteInternalDocLinks_ShouldCanonicalizeSourceDocsLinks_UnderDocsRoot()
+    {
+        var html = "<p><a href=\"/docs/releases/upgrade-policy.md\">Policy</a></p>";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/unreleased.md", html);
+
+        Assert.Contains("href=\"/docs/releases/upgrade-policy.md.html\"", rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.Contains("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteInternalDocLinks_ShouldLeaveNonPageDocsAssets_Unchanged()
+    {
+        var html = "<p><a href=\"/docs/search-index.json\">Search index</a></p>";
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("releases/unreleased.md", html);
+
+        Assert.Contains("href=\"/docs/search-index.json\"", rewritten);
+        Assert.DoesNotContain("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.DoesNotContain("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldDecorateDocsLandingLinks_WithoutChangingTheirRoutes()
     {
         var html = "<p><a href=\"/docs\">Docs home</a></p>";
@@ -139,7 +163,7 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
-    public void RewriteInternalDocLinks_ShouldAppendAttributes_ToSelfClosingAnchors()
+    public void RewriteInternalDocLinks_ShouldRewriteSelfClosingAnchors_AsValidHtmlAnchors()
     {
         var html = "<a href=\"./unreleased.md\" />";
 
@@ -148,7 +172,7 @@ public sealed class DocContentLinkRewriterTests
         Assert.Contains("href=\"/docs/releases/unreleased.md.html\"", rewritten);
         Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
         Assert.Contains("data-turbo-action=\"advance\"", rewritten);
-        Assert.EndsWith("/>", rewritten, StringComparison.Ordinal);
+        Assert.Contains("</a>", rewritten);
     }
 
     [Fact]

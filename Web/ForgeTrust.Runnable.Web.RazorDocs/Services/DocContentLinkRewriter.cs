@@ -1,5 +1,5 @@
-using System.Net;
-using System.Text.RegularExpressions;
+using AngleSharp.Dom;
+using AngleSharp.Html.Parser;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
@@ -11,15 +11,6 @@ internal static class DocContentLinkRewriter
 {
     private const string DocsRootPath = "/docs";
     private const string DocsFrameId = "doc-content";
-    private static readonly Regex AnchorTagRegex = new(
-        "<a\\b[^>]*>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex HrefAttributeRegex = new(
-        "\\bhref\\s*=\\s*(?:([\"'])(?<value>.*?)\\1|(?<value>[^\\s>]+))",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled | RegexOptions.Singleline);
-    private static readonly Regex TargetAttributeRegex = new(
-        "\\btarget\\s*=\\s*(?:([\"'])(?<value>.*?)\\1|(?<value>[^\\s>]+))",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled | RegexOptions.Singleline);
 
     /// <summary>
     /// Rewrites internal documentation anchors in rendered HTML so they point at canonical RazorDocs routes and carry
@@ -38,69 +29,44 @@ internal static class DocContentLinkRewriter
             return html;
         }
 
-        return AnchorTagRegex.Replace(
-            html,
-            match => RewriteAnchorTag(sourcePath, match.Value));
+        var parser = new HtmlParser();
+        var document = parser.ParseDocument(html);
+        foreach (var anchor in document.QuerySelectorAll("a[href]"))
+        {
+            RewriteAnchorElement(sourcePath, anchor);
+        }
+
+        return document.Body?.InnerHtml ?? html;
     }
 
-    private static string RewriteAnchorTag(string sourcePath, string anchorTag)
+    private static void RewriteAnchorElement(string sourcePath, IElement anchor)
     {
-        if (HasNonSelfTarget(anchorTag))
+        if (HasNonSelfTarget(anchor))
         {
-            return anchorTag;
+            return;
         }
 
-        var href = GetAttributeValue(anchorTag, HrefAttributeRegex);
+        var href = anchor.GetAttribute("href");
         if (!TryBuildDocsHref(sourcePath, href, out var docsHref))
         {
-            return anchorTag;
+            return;
         }
 
-        var rewrittenTag = ReplaceOrAppendAttribute(anchorTag, "href", docsHref);
-        rewrittenTag = ReplaceOrAppendAttribute(rewrittenTag, "data-turbo-frame", DocsFrameId);
-        rewrittenTag = ReplaceOrAppendAttribute(rewrittenTag, "data-turbo-action", "advance");
+        anchor.SetAttribute("href", docsHref);
+        anchor.SetAttribute("data-turbo-frame", DocsFrameId);
+        anchor.SetAttribute("data-turbo-action", "advance");
 
         if (docsHref.Contains('#'))
         {
-            rewrittenTag = ReplaceOrAppendAttribute(rewrittenTag, "data-doc-anchor-link", "true");
+            anchor.SetAttribute("data-doc-anchor-link", "true");
         }
-
-        return rewrittenTag;
     }
 
-    private static bool HasNonSelfTarget(string anchorTag)
+    private static bool HasNonSelfTarget(IElement anchor)
     {
-        var target = GetAttributeValue(anchorTag, TargetAttributeRegex);
+        var target = anchor.GetAttribute("target")?.Trim();
         return !string.IsNullOrWhiteSpace(target)
                && !string.Equals(target, "_self", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string? GetAttributeValue(string tag, Regex attributeRegex)
-    {
-        var match = attributeRegex.Match(tag);
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        return WebUtility.HtmlDecode(match.Groups["value"].Value).Trim();
-    }
-
-    private static string ReplaceOrAppendAttribute(string tag, string attributeName, string value)
-    {
-        var encodedValue = WebUtility.HtmlEncode(value);
-        var attributePattern = new Regex(
-            $"(?<![A-Za-z0-9_:-]){Regex.Escape(attributeName)}\\s*=\\s*(?:([\"']).*?\\1|[^\\s>]+)",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-        var replacement = $"{attributeName}=\"{encodedValue}\"";
-
-        if (attributePattern.IsMatch(tag))
-        {
-            return attributePattern.Replace(tag, replacement, 1);
-        }
-
-        var insertIndex = tag.EndsWith("/>", StringComparison.Ordinal) ? tag.Length - 2 : tag.Length - 1;
-        return tag.Insert(insertIndex, $" {replacement}");
     }
 
     private static bool TryBuildDocsHref(string sourcePath, string? href, out string docsHref)
@@ -114,10 +80,21 @@ internal static class DocContentLinkRewriter
         var trimmedHref = href.Trim();
         var (path, query, fragment) = SplitHref(trimmedHref);
 
-        if (string.Equals(path, DocsRootPath, StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(DocsRootPath + "/", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(path, DocsRootPath, StringComparison.OrdinalIgnoreCase))
         {
-            docsHref = path + query + fragment;
+            docsHref = DocsRootPath + query + fragment;
+            return true;
+        }
+
+        if (path.StartsWith(DocsRootPath + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            var docsRelativePath = path[(DocsRootPath.Length + 1)..];
+            if (!LooksLikeDocTarget(docsRelativePath))
+            {
+                return false;
+            }
+
+            docsHref = BuildDocsHref(docsRelativePath, query, fragment);
             return true;
         }
 

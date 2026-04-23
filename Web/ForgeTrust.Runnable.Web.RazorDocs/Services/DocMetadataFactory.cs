@@ -42,8 +42,20 @@ internal static class DocMetadataFactory
         var breadcrumbs = merged.Breadcrumbs is { Count: > 0 }
             ? merged.Breadcrumbs
             : BuildDefaultBreadcrumbs(normalizedNavGroup, resolvedTitle);
+        var firstAuthoredBreadcrumb = explicitMetadata?.Breadcrumbs?
+            .FirstOrDefault(label => !string.IsNullOrWhiteSpace(label))?
+            .Trim();
+        var breadcrumbTargetCount = GetMarkdownBreadcrumbTargetCount(path);
+        var authoredBreadcrumbsMatchPathTargets = authoredBreadcrumbCount == breadcrumbTargetCount;
+        var authoredBreadcrumbsIncludeNavGroupParent = !string.IsNullOrWhiteSpace(normalizedNavGroup)
+                                                       && authoredBreadcrumbCount == breadcrumbTargetCount + 1
+                                                       && string.Equals(
+                                                           firstAuthoredBreadcrumb,
+                                                           normalizedNavGroup,
+                                                           StringComparison.OrdinalIgnoreCase);
         bool? breadcrumbsMatchPathTargets = authoredBreadcrumbCount > 0
-                                            && authoredBreadcrumbCount == GetMarkdownBreadcrumbTargetCount(path)
+                                            && (authoredBreadcrumbsMatchPathTargets
+                                                || authoredBreadcrumbsIncludeNavGroupParent)
             ? true
             : null;
 

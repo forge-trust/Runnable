@@ -53,6 +53,22 @@ public sealed class DocMetadataFactoryTests
     }
 
     [Fact]
+    public void CreateMarkdownMetadata_ShouldMarkExplicitBreadcrumbs_WhenTheyIncludeAuthoredNavGroupParent()
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "CHANGELOG.md",
+            "Changelog",
+            new DocMetadata
+            {
+                NavGroup = "Releases",
+                Breadcrumbs = ["Releases", "Changelog"]
+            },
+            null);
+
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+    }
+
+    [Fact]
     public void CreateMarkdownMetadata_ShouldNotMarkExplicitBreadcrumbs_WhenTargetCountDoesNotMatch()
     {
         var metadata = DocMetadataFactory.CreateMarkdownMetadata(

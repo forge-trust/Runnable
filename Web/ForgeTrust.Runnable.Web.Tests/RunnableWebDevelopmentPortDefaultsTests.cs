@@ -360,7 +360,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
     {
         using var environment = new TemporaryEnvironment();
         environment.CreateGitRepo("workspace");
-        environment.CreateApplicationBaseDirectory("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
         environment.WriteAppSettings($$"""
             {
               "{{key}}": "{{value}}"
@@ -370,7 +370,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
             [],
             environment.WorkspaceRoot,
-            environment.CreateApplicationBaseDirectory("workspace"),
+            appBaseDirectory,
             ReadDevelopmentEnvironment);
 
         Assert.Null(resolution.AppliedPort);
@@ -382,7 +382,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
     {
         using var environment = new TemporaryEnvironment();
         environment.CreateGitRepo("workspace");
-        environment.CreateApplicationBaseDirectory("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
         environment.WriteAppSettings(
             Environments.Development,
             """
@@ -394,7 +394,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
             [],
             environment.WorkspaceRoot,
-            environment.CreateApplicationBaseDirectory("workspace"),
+            appBaseDirectory,
             ReadDevelopmentEnvironment);
 
         Assert.Null(resolution.AppliedPort);
@@ -406,7 +406,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
     {
         using var environment = new TemporaryEnvironment();
         environment.CreateGitRepo("workspace");
-        environment.CreateApplicationBaseDirectory("workspace");
+        var appBaseDirectory = environment.CreateApplicationBaseDirectory("workspace");
         environment.WriteAppSettings(
             """
             {
@@ -423,7 +423,7 @@ public sealed class RunnableWebDevelopmentPortDefaultsTests
         var resolution = RunnableWebDevelopmentPortDefaults.Resolve(
             [],
             environment.WorkspaceRoot,
-            environment.CreateApplicationBaseDirectory("workspace"),
+            appBaseDirectory,
             ReadDevelopmentEnvironment);
 
         Assert.Null(resolution.AppliedPort);

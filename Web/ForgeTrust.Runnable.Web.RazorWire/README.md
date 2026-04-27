@@ -10,7 +10,7 @@ This quickstart assumes you are in a clone of this repository with the .NET 10 S
 dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
 ```
 
-Open `http://localhost:5233/Reactivity` (or use the URL printed in the console if the port differs), wait for the `Permanent Island` card to load, then click the `+` button. The `Instance Score` and `Session Score` update in place without a full-page reload.
+Open the URL printed in the console and navigate to `/Reactivity`, wait for the `Permanent Island` card to load, then click the `+` button. The `Instance Score` and `Session Score` update in place without a full-page reload.
 
 ## Hero Proof
 

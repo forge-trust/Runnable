@@ -14,7 +14,7 @@ This sample is the concrete proof behind the RazorWire package README. It shows 
 
    If you `cd examples/razorwire-mvc` first, `dotnet run` also works from there.
 
-2. Open `http://localhost:5233/Reactivity` or use the port printed in the console if it differs.
+2. Open the URL printed in the console and navigate to `/Reactivity`.
 3. Wait for the `Permanent Island` sidebar to load.
 4. Click the `+` button in the counter widget.
 5. Watch `Instance Score` and `Session Score` update in place without a full page reload.

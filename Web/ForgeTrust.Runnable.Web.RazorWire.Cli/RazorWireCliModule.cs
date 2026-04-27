@@ -11,7 +11,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 public class RazorWireCliModule : IRunnableHostModule
 {
     /// <summary>
-    /// Configures services needed for the CLI, including the <see cref="ExportEngine"/> and enhanced console logging.
+    /// Configures services needed for the CLI, including the export pipeline and command-owned logging defaults.
     /// </summary>
     /// <param name="context">The startup context.</param>
     /// <param name="services">The service collection to populate.</param>
@@ -23,13 +23,7 @@ public class RazorWireCliModule : IRunnableHostModule
         services.AddSingleton<ITargetAppProcessFactory, TargetAppProcessFactory>();
         services.AddHttpClient("ExportEngine", client => { client.Timeout = TimeSpan.FromSeconds(60); });
 
-
-        // Configure logging
-        services.AddLogging(builder =>
-        {
-            builder.AddConsole();
-            builder.SetMinimumLevel(LogLevel.Information);
-        });
+        services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Information));
     }
 
     /// <summary>

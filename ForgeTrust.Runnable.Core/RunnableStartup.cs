@@ -75,7 +75,10 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
 
             await host.RunAsync();
 
-            logger.LogInformation("Run Exited - Shutting down");
+            if (context.ConsoleOutputMode != ConsoleOutputMode.CommandFirst)
+            {
+                logger.LogInformation("Run Exited - Shutting down");
+            }
         }
         catch (OperationCanceledException ex)
         {

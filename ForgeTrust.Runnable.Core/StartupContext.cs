@@ -27,6 +27,16 @@ public record StartupContext(
     public Assembly? OverrideEntryPointAssembly { get; set; } = null;
 
     /// <summary>
+    /// Gets or sets how console-oriented apps should present command output relative to ambient host lifecycle diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// The default value is <see cref="ConsoleOutputMode.Default"/>, which preserves the standard Generic Host behavior.
+    /// Console startups can switch to <see cref="ConsoleOutputMode.CommandFirst"/> when command output should remain the
+    /// primary user-facing console experience. Non-console apps can ignore this setting.
+    /// </remarks>
+    public ConsoleOutputMode ConsoleOutputMode { get; set; } = ConsoleOutputMode.Default;
+
+    /// <summary>
     /// Gets the assembly that contains the root module.
     /// </summary>
     public Assembly RootModuleAssembly { get; } = RootModule.GetType().Assembly;

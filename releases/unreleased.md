@@ -26,6 +26,12 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Pull requests are expected to update this page unless maintainers explicitly mark the change as outside the public release story.
 - Markdown-only changes on `main` now republish the docs surface, so release-note and policy edits are treated as first-class product updates.
 
+### Console and CLI polish
+
+- Runnable console apps can now opt into a command-first output contract so public CLI help and validation flows stay quiet instead of printing Generic Host lifecycle chatter.
+- RazorWire CLI now uses that contract for `--help`, `export --help`, invalid option output, and missing-source validation while still preserving command-owned export progress logs.
+- The shared console startup seam now exposes `ConsoleOptions` and `ConsoleOutputMode`, so future public Runnable CLIs can adopt the same behavior without forking startup logic.
+
 ### RazorDocs product example
 
 - Runnable's own release pages now double as a working RazorDocs example for consumers who want better release notes.

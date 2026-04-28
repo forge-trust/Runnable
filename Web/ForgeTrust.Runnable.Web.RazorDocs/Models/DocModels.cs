@@ -66,6 +66,16 @@ public sealed record DocMetadata
     public int? Order { get; init; }
 
     /// <summary>
+    /// Gets the explicit sequence identifier used to connect pages into one proof path.
+    /// </summary>
+    /// <remarks>
+    /// RazorDocs does not infer sequence membership from folders or filenames in this slice. Pages participate in
+    /// next/previous wayfinding only when authors opt them into the same <see cref="SequenceKey"/> and assign
+    /// comparable <see cref="Order"/> values.
+    /// </remarks>
+    public string? SequenceKey { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the page is the authored landing doc for its public section.
     /// </summary>
     public bool? SectionLanding { get; init; }
@@ -189,6 +199,7 @@ public sealed record DocMetadata
             NavGroup = navGroup,
             NavGroupIsDerived = navGroupIsDerived,
             Order = primary.Order ?? fallback.Order,
+            SequenceKey = DocTrustMergeHelpers.PreferNonBlank(primary.SequenceKey, fallback.SequenceKey),
             SectionLanding = primary.SectionLanding ?? fallback.SectionLanding,
             HideFromPublicNav = primary.HideFromPublicNav ?? fallback.HideFromPublicNav,
             HideFromSearch = primary.HideFromSearch ?? fallback.HideFromSearch,
@@ -244,6 +255,27 @@ public sealed record DocMetadata
             ? (fallbackValue, fallbackFlag)
             : (null, null);
     }
+}
+
+/// <summary>
+/// Represents one navigable heading captured while harvesting a documentation page.
+/// </summary>
+public sealed record DocOutlineItem
+{
+    /// <summary>
+    /// Gets the heading text shown in the page-local outline and search metadata.
+    /// </summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the HTML fragment identifier that anchors this outline item within the page.
+    /// </summary>
+    public string Id { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the normalized heading level for this entry.
+    /// </summary>
+    public int Level { get; init; }
 }
 
 /// <summary>
@@ -369,6 +401,7 @@ file static class DocTrustMergeHelpers
 /// <param name="IsDirectory">Indicates if this node represents a directory container.</param>
 /// <param name="CanonicalPath">The browser-facing docs route path used for linking and lookup.</param>
 /// <param name="Metadata">Structured metadata associated with the documentation node.</param>
+/// <param name="Outline">Structured in-page outline entries captured during harvesting.</param>
 public record DocNode(
     string Title,
     string Path,
@@ -376,7 +409,8 @@ public record DocNode(
     string? ParentPath = null,
     bool IsDirectory = false,
     string? CanonicalPath = null,
-    DocMetadata? Metadata = null);
+    DocMetadata? Metadata = null,
+    IReadOnlyList<DocOutlineItem>? Outline = null);
 
 /// <summary>
 /// Enumerates the built-in public documentation sections used by RazorDocs.
@@ -681,6 +715,32 @@ public sealed record DocSectionGroupViewModel
 }
 
 /// <summary>
+/// View model for one resolved documentation link shown in related or sequence wayfinding.
+/// </summary>
+public sealed record DocPageLinkViewModel
+{
+    /// <summary>
+    /// Gets the destination page title.
+    /// </summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the browser-facing destination URL.
+    /// </summary>
+    public string Href { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets optional supporting text for the destination.
+    /// </summary>
+    public string? Summary { get; init; }
+
+    /// <summary>
+    /// Gets the normalized page type badge metadata for the destination when available.
+    /// </summary>
+    public DocPageTypeBadgePresentation? PageTypeBadge { get; init; }
+}
+
+/// <summary>
 /// View model for the sidebar navigation shell.
 /// </summary>
 public sealed record DocSidebarViewModel
@@ -799,6 +859,26 @@ public sealed record DocDetailsViewModel
     public DocNode Document { get; init; } = new(string.Empty, string.Empty, string.Empty);
 
     /// <summary>
+    /// Gets the in-page outline entries for the current document.
+    /// </summary>
+    public IReadOnlyList<DocOutlineItem> Outline { get; init; } = [];
+
+    /// <summary>
+    /// Gets the previous page within the current authored sequence, when one exists.
+    /// </summary>
+    public DocPageLinkViewModel? PreviousPage { get; init; }
+
+    /// <summary>
+    /// Gets the next page within the current authored sequence, when one exists.
+    /// </summary>
+    public DocPageLinkViewModel? NextPage { get; init; }
+
+    /// <summary>
+    /// Gets the authored related pages that resolved successfully.
+    /// </summary>
+    public IReadOnlyList<DocPageLinkViewModel> RelatedPages { get; init; } = [];
+
+    /// <summary>
     /// Gets the resolved display title for the page.
     /// </summary>
     public string Title { get; init; } = string.Empty;
@@ -872,6 +952,16 @@ public sealed record DocDetailsViewModel
     /// Gets the grouped <c>In this section</c> lists shown by a section landing doc.
     /// </summary>
     public IReadOnlyList<DocSectionGroupViewModel> SectionGroups { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the page has an in-page outline to render.
+    /// </summary>
+    public bool HasOutline => Outline.Count > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether the page has any sequence or related-page wayfinding links to render.
+    /// </summary>
+    public bool HasWayfinding => PreviousPage is not null || NextPage is not null || RelatedPages.Count > 0;
 }
 
 /// <summary>

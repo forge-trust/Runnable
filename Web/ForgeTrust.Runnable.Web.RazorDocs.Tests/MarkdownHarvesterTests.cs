@@ -1,5 +1,7 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
+using Markdig;
+using Markdig.Syntax.Inlines;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -125,6 +127,7 @@ public class MarkdownHarvesterTests : IDisposable
             keywords: [turbo, streams]
             nav_group: Start Here
             order: 10
+            sequence_key: getting-started
             hide_from_public_nav: true
             hide_from_search: false
             related_pages:
@@ -155,11 +158,47 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal(["turbo", "streams"], doc.Metadata?.Keywords);
         Assert.Equal("Start Here", doc.Metadata?.NavGroup);
         Assert.Equal(10, doc.Metadata?.Order);
+        Assert.Equal("getting-started", doc.Metadata?.SequenceKey);
         Assert.True(doc.Metadata?.HideFromPublicNav);
         Assert.False(doc.Metadata?.HideFromSearch);
         Assert.Equal(["Security & Anti-Forgery"], doc.Metadata?.RelatedPages);
         Assert.Equal("start/quickstart", doc.Metadata?.CanonicalSlug);
         Assert.Equal(["Start Here", "Quickstart"], doc.Metadata?.Breadcrumbs);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldCaptureOutlineFromMarkdownAst()
+    {
+        var content = """
+            # Quickstart
+
+            Intro paragraph.
+
+            ## Install
+
+            ### Verify Setup
+
+            #### Deep Detail
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), content);
+
+        var doc = Assert.Single(await _harvester.HarvestAsync(_testRoot));
+
+        Assert.NotNull(doc.Outline);
+        Assert.Collection(
+            doc.Outline!,
+            first =>
+            {
+                Assert.Equal("Install", first.Title);
+                Assert.Equal("install", first.Id);
+                Assert.Equal(2, first.Level);
+            },
+            second =>
+            {
+                Assert.Equal("Verify Setup", second.Title);
+                Assert.Equal("verify-setup", second.Id);
+                Assert.Equal(3, second.Level);
+            });
     }
 
     [Fact]
@@ -373,6 +412,44 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal("This is the first paragraph.", doc.Metadata?.Summary);
         Assert.True(doc.Metadata?.SummaryIsDerived);
         Assert.Equal("guide", doc.Metadata?.PageType);
+    }
+
+    [Fact]
+    public void ExtractOutline_ShouldSkipHeadingsWithoutUsableIdsOrTitles()
+    {
+        var noIdDocument = Markdown.Parse("## Heading without an ID");
+        var pipeline = new MarkdownPipelineBuilder()
+            .UseAdvancedExtensions()
+            .Build();
+        var noTitleDocument = Markdown.Parse("## {#empty-title}", pipeline);
+
+        Assert.Empty(MarkdownHarvester.ExtractOutline(noIdDocument));
+        Assert.Empty(MarkdownHarvester.ExtractOutline(noTitleDocument));
+    }
+
+    [Fact]
+    public void ExtractInlineText_ShouldFlattenSupportedInlineKinds_AndHandleNull()
+    {
+        var root = new ContainerInline();
+        var nested = new ContainerInline();
+        nested.AppendChild(new LiteralInline("nested"));
+
+        root.AppendChild(new LiteralInline("Start"));
+        root.AppendChild(new LineBreakInline());
+        root.AppendChild(new CodeInline("code"));
+        root.AppendChild(nested);
+
+        var flattened = MarkdownHarvester.ExtractInlineText(root);
+
+        Assert.Equal(string.Empty, MarkdownHarvester.ExtractInlineText(null));
+        Assert.Equal("Start codenested", flattened);
+    }
+
+    [Fact]
+    public void NormalizeHeadingText_ShouldCollapseWhitespace_AndHandleBlankInput()
+    {
+        Assert.Equal(string.Empty, MarkdownHarvester.NormalizeHeadingText(" \t "));
+        Assert.Equal("Alpha Beta", MarkdownHarvester.NormalizeHeadingText("  Alpha \n\t Beta  "));
     }
 
     [Fact]

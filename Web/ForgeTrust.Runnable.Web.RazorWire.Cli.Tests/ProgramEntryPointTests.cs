@@ -6,12 +6,13 @@ using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli.Tests;
 
+[Collection(ProgramEntryPointCollection.Name)]
 public class ProgramEntryPointTests
 {
     [Fact]
     public async Task EntryPoint_Should_Print_Root_Help_Without_Lifecycle_Noise()
     {
-        var result = await InvokeCliAsync(["--help"]);
+        var result = await InvokeEntryPointAsync(["--help"]);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("usage", result.AllText, StringComparison.OrdinalIgnoreCase);
@@ -26,7 +27,7 @@ public class ProgramEntryPointTests
     [Fact]
     public async Task EntryPoint_Should_Print_Export_Help_Without_Lifecycle_Noise()
     {
-        var result = await InvokeCliAsync(["export", "--help"]);
+        var result = await InvokeEntryPointAsync(["export", "--help"]);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("Export a RazorWire site to a static directory.", result.AllText, StringComparison.Ordinal);
@@ -41,7 +42,7 @@ public class ProgramEntryPointTests
     [Fact]
     public async Task EntryPoint_Should_Print_Invalid_Option_Error_Without_Lifecycle_Noise()
     {
-        var result = await InvokeCliAsync(["export", "--definitely-invalid"]);
+        var result = await InvokeEntryPointAsync(["export", "--definitely-invalid"]);
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("--definitely-invalid", result.AllText, StringComparison.Ordinal);
@@ -56,7 +57,7 @@ public class ProgramEntryPointTests
     [Fact]
     public async Task EntryPoint_Should_Print_Missing_Source_Validation_Without_Lifecycle_Noise()
     {
-        var result = await InvokeCliAsync(["export"]);
+        var result = await InvokeEntryPointAsync(["export"]);
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("exactly one source", result.AllText, StringComparison.OrdinalIgnoreCase);
@@ -71,30 +72,121 @@ public class ProgramEntryPointTests
     [Fact]
     public async Task EntryPoint_Main_Should_Delegate_To_RazorWireCliApp()
     {
+        var overrideApplied = false;
+
+        var result = await InvokeEntryPointAsync(
+            ["--help"],
+            _ => { overrideApplied = true; });
+
+        Assert.True(overrideApplied);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("usage", result.AllText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task EntryPoint_Main_Should_Capture_Raw_SystemConsole_Output()
+    {
+        const string rawStdout = "raw stdout marker";
+        const string rawStderr = "raw stderr marker";
+
+        var result = await InvokeEntryPointAsync(
+            ["--help"],
+            _ =>
+            {
+                global::System.Console.Out.Write(rawStdout);
+                global::System.Console.Error.Write(rawStderr);
+            });
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(rawStdout, result.AllText, StringComparison.Ordinal);
+        Assert.Contains(rawStderr, result.AllText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ProgramEntryPoint_RunAsync_WithExplicitConfigureOptions_WorksWithoutTestOverride()
+    {
+        var explicitConfigureApplied = false;
+
+        var result = await InvokeProgramEntryPointAsync(
+            ["--help"],
+            options => { explicitConfigureApplied = true; });
+
+        Assert.True(explicitConfigureApplied);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("usage", result.AllText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProgramEntryPoint_RunAsync_WithExplicitConfigureOptions_AndTestOverride_AppliesBoth()
+    {
+        var explicitConfigureApplied = false;
+        var overrideApplied = false;
+        using var overrideScope = ProgramEntryPoint.PushConfigureOptionsOverrideForTests(
+            options =>
+            {
+                overrideApplied = true;
+            });
+
+        var result = await InvokeProgramEntryPointAsync(
+            ["--help"],
+            options => { explicitConfigureApplied = true; });
+
+        Assert.True(explicitConfigureApplied);
+        Assert.True(overrideApplied);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("usage", result.AllText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<CapturedCliRun> InvokeEntryPointAsync(
+        string[] args,
+        Action<ConsoleOptions>? configureOptions = null)
+    {
+        var console = new FakeInMemoryConsole();
+        var loggerProvider = new InMemoryLoggerProvider();
         var entryPoint = typeof(ExportCommand).Assembly.EntryPoint;
         Assert.NotNull(entryPoint);
-
         var originalExitCode = Environment.ExitCode;
+        var originalStdout = global::System.Console.Out;
+        var originalStderr = global::System.Console.Error;
+        using var rawStdoutWriter = new StringWriter();
+        using var rawStderrWriter = new StringWriter();
+        using var overrideScope = ProgramEntryPoint.PushConfigureOptionsOverrideForTests(
+            options =>
+            {
+                AddCaptureServices(options, console, loggerProvider);
+                configureOptions?.Invoke(options);
+            });
 
         try
         {
             Environment.ExitCode = 0;
-
-            var invocation = entryPoint!.Invoke(null, [new[] { "--help" }]);
+            global::System.Console.SetOut(rawStdoutWriter);
+            global::System.Console.SetError(rawStderrWriter);
+            var invocation = entryPoint!.Invoke(null, [args]);
             if (invocation is Task task)
             {
                 await task;
             }
 
-            Assert.Equal(0, Environment.ExitCode);
+            return new CapturedCliRun(
+                rawStdoutWriter.ToString(),
+                rawStderrWriter.ToString(),
+                console.ReadOutputString(),
+                console.ReadErrorString(),
+                loggerProvider.GetMessages(),
+                Environment.ExitCode);
         }
         finally
         {
+            global::System.Console.SetOut(originalStdout);
+            global::System.Console.SetError(originalStderr);
             Environment.ExitCode = originalExitCode;
         }
     }
 
-    private static async Task<CapturedCliRun> InvokeCliAsync(string[] args)
+    private static async Task<CapturedCliRun> InvokeProgramEntryPointAsync(
+        string[] args,
+        Action<ConsoleOptions>? configureOptions = null)
     {
         var console = new FakeInMemoryConsole();
         var loggerProvider = new InMemoryLoggerProvider();
@@ -103,18 +195,17 @@ public class ProgramEntryPointTests
         try
         {
             Environment.ExitCode = 0;
-            await RazorWireCliApp.RunAsync(
+            await ProgramEntryPoint.RunAsync(
                 args,
                 options =>
                 {
-                    options.CustomRegistrations.Add(services =>
-                    {
-                        services.AddSingleton<IConsole>(console);
-                        services.AddSingleton<ILoggerProvider>(loggerProvider);
-                    });
+                    AddCaptureServices(options, console, loggerProvider);
+                    configureOptions?.Invoke(options);
                 });
 
             return new CapturedCliRun(
+                string.Empty,
+                string.Empty,
                 console.ReadOutputString(),
                 console.ReadErrorString(),
                 loggerProvider.GetMessages(),
@@ -126,7 +217,21 @@ public class ProgramEntryPointTests
         }
     }
 
+    private static void AddCaptureServices(
+        ConsoleOptions options,
+        FakeInMemoryConsole console,
+        InMemoryLoggerProvider loggerProvider)
+    {
+        options.CustomRegistrations.Add(services =>
+        {
+            services.AddSingleton<IConsole>(console);
+            services.AddSingleton<ILoggerProvider>(loggerProvider);
+        });
+    }
+
     private sealed record CapturedCliRun(
+        string RawStdout,
+        string RawStderr,
         string Stdout,
         string Stderr,
         IReadOnlyList<string> LogMessages,
@@ -137,6 +242,8 @@ public class ProgramEntryPointTests
                 Environment.NewLine,
                 new[]
                 {
+                    RawStdout,
+                    RawStderr,
                     Stdout,
                     Stderr,
                     string.Join(Environment.NewLine, LogMessages)

@@ -68,6 +68,32 @@ public class ProgramEntryPointTests
         Assert.DoesNotContain("Run Exited - Shutting down", result.AllText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task EntryPoint_Main_Should_Delegate_To_RazorWireCliApp()
+    {
+        var entryPoint = typeof(ExportCommand).Assembly.EntryPoint;
+        Assert.NotNull(entryPoint);
+
+        var originalExitCode = Environment.ExitCode;
+
+        try
+        {
+            Environment.ExitCode = 0;
+
+            var invocation = entryPoint!.Invoke(null, [new[] { "--help" }]);
+            if (invocation is Task task)
+            {
+                await task;
+            }
+
+            Assert.Equal(0, Environment.ExitCode);
+        }
+        finally
+        {
+            Environment.ExitCode = originalExitCode;
+        }
+    }
+
     private static async Task<CapturedCliRun> InvokeCliAsync(string[] args)
     {
         var console = new FakeInMemoryConsole();

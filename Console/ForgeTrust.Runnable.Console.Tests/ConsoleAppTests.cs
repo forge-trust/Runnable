@@ -92,6 +92,38 @@ public class ConsoleAppTests
         Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingModule.LastContextOutputMode);
     }
 
+    [Fact]
+    public async Task RunAsync_ReusesBuiltOptions_OnSubsequentRuns_WithoutRebuilding()
+    {
+        TrackingStartup.Reset();
+        TrackingModule.Reset();
+
+        var startup = new TrackingStartup();
+        var configureCalls = 0;
+
+        startup.WithOptions(options =>
+        {
+            configureCalls++;
+            options.OutputMode = ConsoleOutputMode.CommandFirst;
+        });
+
+        Environment.ExitCode = 0;
+        await startup.RunAsync([]);
+
+        Assert.Equal(0, Environment.ExitCode);
+        Assert.Equal(1, configureCalls);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingStartup.ContextOutputMode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingModule.LastContextOutputMode);
+
+        Environment.ExitCode = 0;
+        await startup.RunAsync([]);
+
+        Assert.Equal(0, Environment.ExitCode);
+        Assert.Equal(1, configureCalls);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingStartup.ContextOutputMode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingModule.LastContextOutputMode);
+    }
+
     private class TrackingStartup : ConsoleStartup<TrackingModule>
     {
         public static int InstancesCreated { get; private set; }

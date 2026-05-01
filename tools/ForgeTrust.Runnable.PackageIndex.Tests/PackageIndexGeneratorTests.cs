@@ -276,6 +276,76 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateAsync_ThrowsWhenNonPublicEntryNoteIsMissing()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable");
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: public
+                order: 10
+                use_when: Install this first for a normal ASP.NET Core app with Runnable modules.
+                includes: Base web startup.
+                does_not_include: OpenAPI.
+                start_here_path: Web/ForgeTrust.Runnable.Web/README.md
+              - project: Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj
+                classification: proof_host
+                order: 20
+                start_here_path: Web/ForgeTrust.Runnable.Web.RazorDocs/README.md
+            """);
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj", "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/README.md", "# Web");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj", "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web.RazorDocs/README.md", "# RazorDocs");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web"),
+            ["Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj",
+                "ForgeTrust.Runnable.Web.RazorDocs")
+        });
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("Note", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ThrowsWhenStartHerePathEscapesRepositoryRoot()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable");
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: public
+                order: 10
+                use_when: Install this first for a normal ASP.NET Core app with Runnable modules.
+                includes: Base web startup.
+                does_not_include: OpenAPI.
+                start_here_path: ../outside.md
+            """);
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj", "<Project />");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web")
+        });
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("outside the repository root", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GenerateAsync_ThrowsWhenManifestOmitsRunnableWebPackage()
     {
         await WriteFileAsync("packages/README.md.yml", "title: Runnable");
@@ -381,6 +451,38 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         Assert.Contains("### Support and runtime packages", markdown, StringComparison.Ordinal);
         Assert.Contains("### Docs and proof hosts", markdown, StringComparison.Ordinal);
         Assert.Contains("### Not in the direct-install matrix", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ThrowsWhenStaticChooserLinkTargetIsMissing()
+    {
+        await WriteCommonChooserFilesAsync(includeUnreleased: true);
+        File.Delete(Path.Combine(_repositoryRoot, "releases", "upgrade-policy.md"));
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web"),
+            ["Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj",
+                "ForgeTrust.Runnable.Web.OpenApi"),
+            ["Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj",
+                "ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64"),
+            ["Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj",
+                "ForgeTrust.Runnable.Web.RazorDocs"),
+            ["Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj",
+                "ForgeTrust.Runnable.Web.RazorWire.Cli",
+                outputType: "Exe")
+        });
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("Pre-1.0 upgrade policy", error.Message, StringComparison.Ordinal);
+        Assert.Contains("missing documentation", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1028,7 +1130,7 @@ public sealed class PackageIndexGeneratorTests : IDisposable
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "/bin/sh",
-                    Arguments = $"-lc \"sleep {durationSeconds}\"",
+                    Arguments = $"-c \"sleep {durationSeconds}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false

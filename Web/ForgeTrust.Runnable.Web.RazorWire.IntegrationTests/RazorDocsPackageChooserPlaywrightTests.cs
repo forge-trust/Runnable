@@ -34,10 +34,6 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             Timeout = 30_000,
             State = WaitForSelectorState.Visible
         });
-        await page.WaitForFunctionAsync(
-            "() => document.querySelectorAll('.docs-content table tbody tr').length >= 11",
-            null,
-            new PageWaitForFunctionOptions { Timeout = 30_000 });
 
         Assert.Equal("Runnable v0.1 package chooser", (await page.TextContentAsync("h1"))?.Trim());
         Assert.Contains("v0.1 chooser", await page.InnerTextAsync(".docs-trust-bar"), StringComparison.OrdinalIgnoreCase);

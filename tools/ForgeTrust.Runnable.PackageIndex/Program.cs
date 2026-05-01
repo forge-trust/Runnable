@@ -1,5 +1,8 @@
 namespace ForgeTrust.Runnable.PackageIndex;
 
+/// <summary>
+/// CLI entry point for generating or verifying the package chooser.
+/// </summary>
 internal static class Program
 {
     private const string GenerateCommand = "generate";
@@ -11,11 +14,25 @@ internal static class Program
           dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- verify [--repo-root <path>] [--manifest <path>] [--output <path>]
         """;
 
+    /// <summary>
+    /// Launches the package chooser CLI with the current process IO streams and working directory.
+    /// </summary>
+    /// <param name="args">Command-line arguments supplied to the process.</param>
+    /// <returns>Process exit code where <c>0</c> indicates success.</returns>
     internal static async Task<int> Main(string[] args)
     {
         return await RunAsync(args, Console.Out, Console.Error, Directory.GetCurrentDirectory());
     }
 
+    /// <summary>
+    /// Runs the package chooser CLI against the supplied IO streams and working directory.
+    /// </summary>
+    /// <param name="args">Command-line arguments, including the command and optional path overrides.</param>
+    /// <param name="standardOut">Writer that receives success messages.</param>
+    /// <param name="standardError">Writer that receives usage and failure messages.</param>
+    /// <param name="currentDirectory">Working directory used to resolve default repository-relative paths.</param>
+    /// <param name="cancellationToken">Cancellation token propagated to generator operations.</param>
+    /// <returns><c>0</c> when the command succeeds; otherwise a non-zero exit code.</returns>
     internal static async Task<int> RunAsync(
         string[] args,
         TextWriter standardOut,
@@ -72,8 +89,19 @@ internal static class Program
     }
 }
 
+/// <summary>
+/// Parsed CLI options for one package chooser command invocation.
+/// </summary>
+/// <param name="Request">Resolved package chooser request derived from command-line options.</param>
 internal sealed record CommandLineOptions(PackageIndexRequest Request)
 {
+    /// <summary>
+    /// Parses path-related CLI options into a resolved chooser request.
+    /// </summary>
+    /// <param name="args">Arguments after the command verb.</param>
+    /// <param name="currentDirectory">Working directory used to resolve relative overrides.</param>
+    /// <returns>The parsed command-line options.</returns>
+    /// <exception cref="PackageIndexException">Thrown when an option is unknown or missing its required value.</exception>
     internal static CommandLineOptions Parse(string[] args, string currentDirectory)
     {
         string? repositoryRoot = null;

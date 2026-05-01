@@ -8,6 +8,15 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace ForgeTrust.Runnable.PackageIndex;
 
+/// <summary>
+/// Generates and verifies the manifest-backed package chooser markdown for the repository.
+/// </summary>
+/// <remarks>
+/// This generator is intentionally repository-aware. It expects the manifest, chooser sidecar,
+/// package README links, and release-surface links to resolve to files under the supplied
+/// repository root. Callers should validate repository layout drift through <see cref="VerifyAsync"/>
+/// in CI whenever package or docs paths change.
+/// </remarks>
 internal sealed class PackageIndexGenerator
 {
     private const string WebPackageId = "ForgeTrust.Runnable.Web";
@@ -22,6 +31,12 @@ internal sealed class PackageIndexGenerator
     private readonly IProjectMetadataProvider _metadataProvider;
     private readonly PackageManifestLoader _manifestLoader;
 
+    /// <summary>
+    /// Creates a generator that discovers candidate projects, loads package metadata, and reads the chooser manifest.
+    /// </summary>
+    /// <param name="scanner">Project scanner used to discover direct candidate project files under the repository root.</param>
+    /// <param name="metadataProvider">Metadata provider that evaluates candidate projects into package metadata.</param>
+    /// <param name="manifestLoader">Manifest loader responsible for parsing the chooser manifest.</param>
     internal PackageIndexGenerator(
         PackageProjectScanner scanner,
         IProjectMetadataProvider metadataProvider,
@@ -32,6 +47,19 @@ internal sealed class PackageIndexGenerator
         _manifestLoader = manifestLoader;
     }
 
+    /// <summary>
+    /// Generates chooser markdown and writes it to the configured output path.
+    /// </summary>
+    /// <param name="request">Generation request describing the repository root, manifest path, and output path.</param>
+    /// <param name="cancellationToken">Cancellation token used for manifest loading, metadata evaluation, and file writes.</param>
+    /// <returns>A task that completes when the chooser file has been written.</returns>
+    /// <exception cref="PackageIndexException">
+    /// Thrown when the repository layout is invalid, required docs are missing, or the manifest cannot be rendered safely.
+    /// </exception>
+    /// <remarks>
+    /// This method creates the output directory when it does not already exist and overwrites the chooser file atomically
+    /// from the generated markdown payload.
+    /// </remarks>
     internal async Task GenerateToFileAsync(PackageIndexRequest request, CancellationToken cancellationToken = default)
     {
         var markdown = await GenerateAsync(request, cancellationToken);
@@ -39,6 +67,15 @@ internal sealed class PackageIndexGenerator
         await File.WriteAllTextAsync(request.OutputPath, markdown, cancellationToken);
     }
 
+    /// <summary>
+    /// Generates chooser markdown from the manifest and evaluated project metadata without writing it to disk.
+    /// </summary>
+    /// <param name="request">Generation request describing the repository root, manifest path, and output path context.</param>
+    /// <param name="cancellationToken">Cancellation token used while loading the manifest and project metadata.</param>
+    /// <returns>The fully rendered chooser markdown.</returns>
+    /// <exception cref="PackageIndexException">
+    /// Thrown when repository layout, manifest content, or linked docs targets do not satisfy the chooser contract.
+    /// </exception>
     internal async Task<string> GenerateAsync(PackageIndexRequest request, CancellationToken cancellationToken = default)
     {
         ValidateRequest(request);
@@ -47,9 +84,19 @@ internal sealed class PackageIndexGenerator
         var candidateProjects = _scanner.DiscoverProjects(request.RepositoryRoot);
         var metadata = await LoadMetadataAsync(request.RepositoryRoot, candidateProjects, cancellationToken);
         var entries = ResolveEntries(request.RepositoryRoot, manifest, candidateProjects, metadata);
+        ValidateStaticDocumentationTargets(request.RepositoryRoot);
         return RenderMarkdown(request, entries);
     }
 
+    /// <summary>
+    /// Verifies that the checked-in chooser file matches the current repository truth.
+    /// </summary>
+    /// <param name="request">Verification request describing the repository root, manifest path, and generated chooser file.</param>
+    /// <param name="cancellationToken">Cancellation token used while regenerating and reading the existing chooser file.</param>
+    /// <returns>A task that completes when verification succeeds.</returns>
+    /// <exception cref="PackageIndexException">
+    /// Thrown when the generated chooser is missing or differs from the freshly generated markdown.
+    /// </exception>
     internal async Task VerifyAsync(PackageIndexRequest request, CancellationToken cancellationToken = default)
     {
         var expected = await GenerateAsync(request, cancellationToken);
@@ -86,6 +133,14 @@ internal sealed class PackageIndexGenerator
             throw new PackageIndexException(
                 $"Expected paired sidecar '{Path.GetRelativePath(request.RepositoryRoot, sidecarPath)}' to exist beside the generated chooser.");
         }
+    }
+
+    private static void ValidateStaticDocumentationTargets(string repositoryRoot)
+    {
+        ResolveRepositoryFilePath(repositoryRoot, WebExamplePath, "Web example README");
+        ResolveRepositoryFilePath(repositoryRoot, ReleaseHubPath, "Release hub");
+        ResolveRepositoryFilePath(repositoryRoot, ChangelogPath, "Changelog");
+        ResolveRepositoryFilePath(repositoryRoot, UpgradePolicyPath, "Pre-1.0 upgrade policy");
     }
 
     private async Task<IReadOnlyDictionary<string, PackageProjectMetadata>> LoadMetadataAsync(
@@ -167,15 +222,17 @@ internal sealed class PackageIndexGenerator
             RequireValue(entry.Project, nameof(entry.DoesNotInclude), entry.DoesNotInclude);
             RequireValue(entry.Project, nameof(entry.StartHerePath), entry.StartHerePath);
         }
+        else
+        {
+            RequireValue(entry.Project, nameof(entry.Note), entry.Note);
+        }
 
         if (!string.IsNullOrWhiteSpace(entry.StartHerePath))
         {
-            var resolvedPath = Path.Combine(repositoryRoot, entry.StartHerePath.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(resolvedPath))
-            {
-                throw new PackageIndexException(
-                    $"Manifest entry '{entry.Project}' points at missing documentation '{entry.StartHerePath}'.");
-            }
+            ResolveRepositoryFilePath(
+                repositoryRoot,
+                entry.StartHerePath,
+                $"Manifest entry '{entry.Project}' documentation target");
         }
 
         foreach (var dependency in entry.DependsOn)
@@ -366,11 +423,42 @@ internal sealed class PackageIndexGenerator
     {
         var outputDirectory = Path.GetDirectoryName(request.OutputPath)
             ?? throw new PackageIndexException($"Output path '{request.OutputPath}' does not have a parent directory.");
-        var targetPath = Path.Combine(
+        var targetPath = ResolveRepositoryFilePath(
             request.RepositoryRoot,
-            repositoryRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            repositoryRelativePath,
+            $"Chooser link target '{repositoryRelativePath}'");
         return Path.GetRelativePath(outputDirectory, targetPath)
             .Replace('\\', '/');
+    }
+
+    private static string ResolveRepositoryFilePath(string repositoryRoot, string repositoryRelativePath, string description)
+    {
+        if (string.IsNullOrWhiteSpace(repositoryRelativePath))
+        {
+            throw new PackageIndexException($"{description} must define a repository-relative file path.");
+        }
+
+        var normalizedRoot = Path.GetFullPath(repositoryRoot);
+        var resolvedPath = Path.GetFullPath(
+            Path.Combine(normalizedRoot, repositoryRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+        var rootPrefix = normalizedRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? normalizedRoot
+            : normalizedRoot + Path.DirectorySeparatorChar;
+
+        if (!string.Equals(resolvedPath, normalizedRoot, StringComparison.OrdinalIgnoreCase)
+            && !resolvedPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new PackageIndexException(
+                $"{description} points outside the repository root: '{repositoryRelativePath}'.");
+        }
+
+        if (!File.Exists(resolvedPath))
+        {
+            throw new PackageIndexException(
+                $"{description} points at missing documentation '{repositoryRelativePath}'.");
+        }
+
+        return resolvedPath;
     }
 
     private static string EscapeTableCell(string value)
@@ -387,26 +475,66 @@ internal sealed class PackageIndexGenerator
     }
 }
 
+/// <summary>
+/// Describes one package chooser generation or verification request.
+/// </summary>
+/// <param name="RepositoryRoot">Absolute repository root that contains the manifest, docs, and project files.</param>
+/// <param name="ManifestPath">Absolute path to the chooser manifest file.</param>
+/// <param name="OutputPath">Absolute path to the generated chooser markdown file.</param>
 internal sealed record PackageIndexRequest(string RepositoryRoot, string ManifestPath, string OutputPath);
 
+/// <summary>
+/// Couples one manifest row with the evaluated package metadata used to render the chooser.
+/// </summary>
+/// <param name="Manifest">The manifest row that provides classification, prose, and docs pointers.</param>
+/// <param name="Metadata">The evaluated project metadata that provides package identity and install details.</param>
 internal sealed record ResolvedPackageEntry(PackageManifestEntry Manifest, PackageProjectMetadata Metadata);
 
+/// <summary>
+/// Represents a package chooser generation or verification failure.
+/// </summary>
+/// <remarks>
+/// These exceptions are written directly to CLI stderr, so messages should stay actionable and user-facing.
+/// </remarks>
 internal sealed class PackageIndexException : Exception
 {
+    /// <summary>
+    /// Creates a new package chooser exception with an actionable message.
+    /// </summary>
+    /// <param name="message">User-facing description of the failed chooser precondition or generation step.</param>
     internal PackageIndexException(string message)
         : base(message)
     {
     }
 }
 
+/// <summary>
+/// Contract for evaluating one discovered project into package metadata suitable for chooser rendering.
+/// </summary>
 internal interface IProjectMetadataProvider
 {
+    /// <summary>
+    /// Evaluates one project file and returns the package metadata used by the chooser.
+    /// </summary>
+    /// <param name="repositoryRoot">Absolute repository root used as the evaluation working directory.</param>
+    /// <param name="projectPath">Repository-relative project path for the project being evaluated.</param>
+    /// <param name="cancellationToken">Cancellation token that should abort the evaluation when possible.</param>
+    /// <returns>The evaluated project metadata for the supplied project.</returns>
     Task<PackageProjectMetadata> GetMetadataAsync(
         string repositoryRoot,
         string projectPath,
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Evaluated package metadata used by the chooser renderer.
+/// </summary>
+/// <param name="ProjectPath">Repository-relative path to the project that produced this metadata.</param>
+/// <param name="PackageId">NuGet package identifier emitted by the project.</param>
+/// <param name="TargetFramework">Resolved target framework summary used in chooser copy.</param>
+/// <param name="IsPackable">Whether the project reports itself as packable.</param>
+/// <param name="OutputType">Resolved output type, such as <c>Library</c> or <c>Exe</c>.</param>
+/// <param name="ProjectReferences">Evaluated project reference paths reported by MSBuild.</param>
 internal sealed record PackageProjectMetadata(
     string ProjectPath,
     string PackageId,
@@ -415,11 +543,26 @@ internal sealed record PackageProjectMetadata(
     string OutputType,
     IReadOnlyList<string> ProjectReferences)
 {
+    /// <summary>
+    /// Gets the primary install command shown in the chooser for this package.
+    /// </summary>
     internal string InstallCommand => $"dotnet package add {PackageId}";
 }
 
+/// <summary>
+/// Discovers candidate projects that should be classified by the package chooser manifest.
+/// </summary>
+/// <remarks>
+/// The scanner intentionally excludes tests, examples, tooling, and generated directories so the manifest only
+/// needs to classify packages that are meaningful to external adopters or package-surface maintainers.
+/// </remarks>
 internal sealed class PackageProjectScanner
 {
+    /// <summary>
+    /// Enumerates candidate project files under the repository root.
+    /// </summary>
+    /// <param name="repositoryRoot">Absolute repository root to scan.</param>
+    /// <returns>Repository-relative project paths ordered for stable manifest validation.</returns>
     internal IReadOnlyList<string> DiscoverProjects(string repositoryRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
@@ -431,6 +574,11 @@ internal sealed class PackageProjectScanner
             .ToArray();
     }
 
+    /// <summary>
+    /// Determines whether a repository-relative project path belongs in the chooser manifest.
+    /// </summary>
+    /// <param name="relativePath">Repository-relative project path to evaluate.</param>
+    /// <returns><c>true</c> when the path should be classified by the chooser manifest; otherwise, <c>false</c>.</returns>
     internal static bool IsCandidateProject(string relativePath)
     {
         var normalizedPath = "/" + relativePath.Replace('\\', '/').Trim('/').ToLowerInvariant();
@@ -468,11 +616,20 @@ internal sealed class PackageProjectScanner
     }
 }
 
+/// <summary>
+/// Evaluates project metadata by invoking <c>dotnet msbuild</c> and reading JSON property output.
+/// </summary>
+/// <remarks>
+/// This provider depends on a functioning local .NET SDK and assumes the project can be evaluated from the
+/// repository root. Timeouts and malformed output are surfaced as <see cref="PackageIndexException"/> so CLI
+/// callers can fail fast in CI.
+/// </remarks>
 internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
 {
     internal const string TargetFrameworksPropertyName = "TargetFrameworks";
     internal const int DefaultProcessTimeoutMilliseconds = 120_000;
 
+    /// <inheritdoc />
     public async Task<PackageProjectMetadata> GetMetadataAsync(
         string repositoryRoot,
         string projectPath,
@@ -536,6 +693,17 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
         }
     }
 
+    /// <summary>
+    /// Runs one configured process and returns captured stdout and stderr output.
+    /// </summary>
+    /// <param name="startInfo">Process start configuration for the command to run.</param>
+    /// <param name="projectPath">Project path used only for error reporting context.</param>
+    /// <param name="timeoutMilliseconds">Timeout applied to the process wait.</param>
+    /// <param name="cancellationToken">Cancellation token that aborts waiting and output reads.</param>
+    /// <returns>The captured standard output and standard error streams.</returns>
+    /// <exception cref="PackageIndexException">
+    /// Thrown when the process cannot start, times out, or exits unsuccessfully.
+    /// </exception>
     internal static async Task<(string StandardOutput, string StandardError)> RunProcessAsync(
         ProcessStartInfo startInfo,
         string projectPath,
@@ -634,6 +802,9 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
     }
 }
 
+/// <summary>
+/// Loads the chooser manifest from YAML into strongly typed manifest models.
+/// </summary>
 internal sealed class PackageManifestLoader
 {
     private readonly IDeserializer _deserializer = new DeserializerBuilder()
@@ -641,6 +812,15 @@ internal sealed class PackageManifestLoader
         .WithEnumNamingConvention(UnderscoredNamingConvention.Instance)
         .Build();
 
+    /// <summary>
+    /// Reads and parses the chooser manifest file.
+    /// </summary>
+    /// <param name="manifestPath">Absolute path to the chooser manifest file.</param>
+    /// <param name="cancellationToken">Cancellation token used while reading the manifest from disk.</param>
+    /// <returns>The parsed chooser manifest.</returns>
+    /// <exception cref="PackageIndexException">
+    /// Thrown when the manifest cannot be parsed or does not define any package rows.
+    /// </exception>
     internal async Task<PackageManifest> LoadAsync(string manifestPath, CancellationToken cancellationToken)
     {
         var content = await File.ReadAllTextAsync(manifestPath, cancellationToken);
@@ -663,40 +843,105 @@ internal sealed class PackageManifestLoader
     }
 }
 
+/// <summary>
+/// Root manifest model for the chooser YAML file.
+/// </summary>
 internal sealed class PackageManifest
 {
+    /// <summary>
+    /// Gets the ordered manifest rows that describe each package, support surface, or excluded package entry.
+    /// </summary>
     public List<PackageManifestEntry> Packages { get; init; } = [];
 }
 
+/// <summary>
+/// One manifest row describing how a project should appear in the chooser.
+/// </summary>
+/// <remarks>
+/// Public rows must define install guidance and docs pointers. Non-public rows must define <see cref="Note"/>
+/// because their rendered bullets rely on that prose to explain why they are visible but not recommended as
+/// first installs.
+/// </remarks>
 internal sealed class PackageManifestEntry
 {
+    /// <summary>
+    /// Gets the repository-relative project path classified by this manifest entry.
+    /// </summary>
     public string Project { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Gets the chooser classification that controls which section renders the package.
+    /// </summary>
     public PackageClassification Classification { get; init; }
 
+    /// <summary>
+    /// Gets the stable display order within the chooser section.
+    /// </summary>
     public int Order { get; init; }
 
+    /// <summary>
+    /// Gets the adopter-focused “use when” guidance for public package rows.
+    /// </summary>
     public string? UseWhen { get; init; }
 
+    /// <summary>
+    /// Gets the concise statement describing what the package includes for public rows.
+    /// </summary>
     public string? Includes { get; init; }
 
+    /// <summary>
+    /// Gets the concise statement describing what the package intentionally does not include for public rows.
+    /// </summary>
     public string? DoesNotInclude { get; init; }
 
+    /// <summary>
+    /// Gets the repository-relative documentation file linked from this chooser row.
+    /// </summary>
     public string? StartHerePath { get; init; }
 
+    /// <summary>
+    /// Gets the optional chooser label used for the linked documentation target.
+    /// </summary>
     public string? StartHereLabel { get; init; }
 
+    /// <summary>
+    /// Gets the optional recipe summary shown in the “Also building...” section.
+    /// </summary>
     public string? RecipeSummary { get; init; }
 
+    /// <summary>
+    /// Gets the explanatory note rendered for non-public package rows.
+    /// </summary>
     public string? Note { get; init; }
 
+    /// <summary>
+    /// Gets the optional package ids that this row depends on for install guidance.
+    /// </summary>
     public List<string> DependsOn { get; init; } = [];
 }
 
+/// <summary>
+/// Chooser section classifications for manifest entries.
+/// </summary>
 internal enum PackageClassification
 {
+    /// <summary>
+    /// A direct-install package that appears in the main package matrix.
+    /// </summary>
     Public,
+
+    /// <summary>
+    /// A support or runtime package that should stay visible but usually should not be installed directly.
+    /// </summary>
     Support,
+
+    /// <summary>
+    /// A proof host or docs host that explains supporting surfaces without treating them as the first install path.
+    /// </summary>
     ProofHost,
+
+    /// <summary>
+    /// A package intentionally omitted from direct-install guidance but still documented for maintainers.
+    /// </summary>
     Excluded
 }

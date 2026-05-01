@@ -280,6 +280,7 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal("Repository-wide.", doc.Metadata?.Trust?.ChangeScope);
         Assert.Equal("Read the policy", doc.Metadata?.Trust?.Migration?.Label);
         Assert.Equal("/docs/releases/upgrade-policy.md.html", doc.Metadata?.Trust?.Migration?.Href);
+        Assert.Equal("Package READMEs stay canonical.", doc.Metadata?.Trust?.Archive);
         Assert.Equal(["packages/package-index.yml", "README.md"], doc.Metadata?.Trust?.Sources);
     }
 

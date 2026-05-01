@@ -1,4 +1,5 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocDetailsViewModel
+@inject ForgeTrust.Runnable.Web.RazorDocs.Services.DocsUrlBuilder DocsUrlBuilder
 @{
     ViewData["Title"] = Model.Title;
     var trust = Model.Document.Metadata?.Trust;
@@ -17,7 +18,8 @@
     var trustMigrationLabel = string.IsNullOrWhiteSpace(trustMigration?.Label)
         ? "Migration guidance"
         : trustMigration!.Label!.Trim();
-    var trustMigrationUsesTurbo = trustMigrationHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
+    var trustMigrationUsesTurbo = DocsUrlBuilder.IsCurrentDocsPath(trustMigrationHref)
+                                  && !string.Equals(trustMigrationHref, DocsUrlBuilder.BuildHomeUrl(), StringComparison.OrdinalIgnoreCase);
     var showTrustBar = trustStatus is not null
                        || trustSummary is not null
                        || trustFreshness is not null

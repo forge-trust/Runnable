@@ -3,6 +3,10 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Controllers;
@@ -22,6 +26,8 @@ public class DocsController : Controller
     private static readonly TimeSpan SearchShellFallbackBudget = TimeSpan.FromMilliseconds(500);
 
     private readonly DocAggregator _aggregator;
+    private readonly DocsUrlBuilder _docsUrlBuilder;
+    private readonly RazorDocsVersionCatalogService _versionCatalogService;
     private readonly ILogger<DocsController> _logger;
 
     /// <summary>
@@ -30,8 +36,31 @@ public class DocsController : Controller
     /// <param name="aggregator">Service used to retrieve documentation items.</param>
     /// <param name="logger">Logger used for search index diagnostics.</param>
     public DocsController(DocAggregator aggregator, ILogger<DocsController> logger)
+        : this(
+            aggregator,
+            new DocsUrlBuilder(new RazorDocsOptions()),
+            CreateDefaultVersionCatalogService(),
+            logger)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="DocsController"/> with the specified documentation aggregator.
+    /// </summary>
+    /// <param name="aggregator">Service used to retrieve documentation items.</param>
+    /// <param name="docsUrlBuilder">Shared URL builder for the live source-backed docs surface.</param>
+    /// <param name="versionCatalogService">Resolved catalog service for published docs versions.</param>
+    /// <param name="logger">Logger used for search index diagnostics.</param>
+    [ActivatorUtilitiesConstructor]
+    public DocsController(
+        DocAggregator aggregator,
+        DocsUrlBuilder docsUrlBuilder,
+        RazorDocsVersionCatalogService versionCatalogService,
+        ILogger<DocsController> logger)
     {
         _aggregator = aggregator ?? throw new ArgumentNullException(nameof(aggregator));
+        _docsUrlBuilder = docsUrlBuilder ?? throw new ArgumentNullException(nameof(docsUrlBuilder));
+        _versionCatalogService = versionCatalogService ?? throw new ArgumentNullException(nameof(versionCatalogService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -53,6 +82,32 @@ public class DocsController : Controller
     }
 
     /// <summary>
+    /// Displays the stable docs entry fallback when versioning is enabled but the recommended released tree is not mounted.
+    /// </summary>
+    /// <returns>
+    /// A view result describing the available released versions plus the current preview surface, or a redirect to the
+    /// live docs home when versioning is disabled.
+    /// </returns>
+    public IActionResult VersionEntry()
+    {
+        if (!_docsUrlBuilder.VersioningEnabled)
+        {
+            return Redirect(_docsUrlBuilder.BuildHomeUrl());
+        }
+
+        return View("Versions", BuildVersionArchiveViewModel(entryFallback: true));
+    }
+
+    /// <summary>
+    /// Displays the public docs version archive.
+    /// </summary>
+    /// <returns>A view result that lists the published versions described by the configured version catalog.</returns>
+    public IActionResult Versions()
+    {
+        return View(BuildVersionArchiveViewModel(entryFallback: false));
+    }
+
+    /// <summary>
     /// Enters one normalized public documentation section.
     /// </summary>
     /// <param name="sectionSlug">The stable slug for the public section.</param>
@@ -68,7 +123,7 @@ public class DocsController : Controller
         {
             if (DocPublicSectionCatalog.TryResolve(sectionSlug, out var aliasSection))
             {
-                return Redirect(DocPublicSectionCatalog.GetHref(aliasSection));
+                return Redirect(_docsUrlBuilder.BuildSectionUrl(aliasSection));
             }
 
             return View("Section", BuildUnavailableSectionViewModel(null, startHereHref));
@@ -82,7 +137,7 @@ public class DocsController : Controller
 
         if (snapshot.LandingDoc is not null)
         {
-            return Redirect($"/docs/{GetSnapshotCanonicalPath(snapshot.LandingDoc)}");
+            return Redirect(_docsUrlBuilder.BuildDocUrl(GetSnapshotCanonicalPath(snapshot.LandingDoc)));
         }
 
         return View("Section", BuildSectionPageViewModel(snapshot, startHereHref));
@@ -272,7 +327,7 @@ public class DocsController : Controller
             Heading = landingDoc is not null ? GetCuratedHeading(landingDoc) : NeutralLandingHeading,
             Description = landingDoc is not null ? GetCuratedDescription(landingDoc) : NeutralLandingDescription,
             LandingDoc = landingDoc,
-            StartHereHref = startHereSection is null ? null : DocPublicSectionCatalog.GetHref(DocPublicSection.StartHere),
+            StartHereHref = startHereSection is null ? null : _docsUrlBuilder.BuildSectionUrl(DocPublicSection.StartHere),
             VisibleDocs = visibleDocs,
             FeaturedPages = featuredPages,
             SecondarySections = BuildSecondarySections(sections, docs)
@@ -309,7 +364,7 @@ public class DocsController : Controller
                 {
                     Question = DefaultProofPathStageLabels[Math.Min(index, DefaultProofPathStageLabels.Length - 1)],
                     Title = ResolveDisplayTitle(doc),
-                    Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
+                    Href = _docsUrlBuilder.BuildDocUrl(GetSnapshotCanonicalPath(doc)),
                     PageType = doc.Metadata?.PageType,
                     PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType),
                     SupportingText = string.IsNullOrWhiteSpace(doc.Metadata?.Summary) ? null : doc.Metadata!.Summary!.Trim()
@@ -329,7 +384,7 @@ public class DocsController : Controller
                     Section = section.Section,
                     Label = section.Label,
                     Slug = section.Slug,
-                    Href = DocPublicSectionCatalog.GetHref(section.Section),
+                    Href = _docsUrlBuilder.BuildSectionUrl(section.Section),
                     Purpose = DocPublicSectionCatalog.GetPurpose(section.Section),
                     KeyRoutes = BuildSectionKeyRoutes(section, docs, maxRoutes: 2)
                 })
@@ -382,7 +437,7 @@ public class DocsController : Controller
         DocSectionSnapshot snapshot,
         string? startHereHref)
     {
-        var currentHref = DocPublicSectionCatalog.GetHref(snapshot.Section);
+        var currentHref = _docsUrlBuilder.BuildSectionUrl(snapshot.Section);
         var sparseRoutes = snapshot.VisiblePages.Count <= 1
             ? BuildSparseSectionRoutes(snapshot)
             : [];
@@ -394,13 +449,13 @@ public class DocsController : Controller
             Description = DocPublicSectionCatalog.GetPurpose(snapshot.Section),
             IsSparse = snapshot.VisiblePages.Count <= 1,
             KeyRoutes = sparseRoutes,
-            Groups = DocSectionDisplayBuilder.BuildGroups(snapshot, currentHref),
-            DocsHomeHref = "/docs",
+            Groups = DocSectionDisplayBuilder.BuildGroups(snapshot, currentHref, docsRootPath: _docsUrlBuilder.CurrentDocsRootPath),
+            DocsHomeHref = _docsUrlBuilder.BuildHomeUrl(),
             StartHereHref = startHereHref
         };
     }
 
-    private static IReadOnlyList<DocSectionLinkViewModel> BuildSparseSectionRoutes(DocSectionSnapshot snapshot)
+    private IReadOnlyList<DocSectionLinkViewModel> BuildSparseSectionRoutes(DocSectionSnapshot snapshot)
     {
         return snapshot.VisiblePages
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
@@ -429,15 +484,15 @@ public class DocsController : Controller
             Description = description,
             IsUnavailable = true,
             AvailabilityMessage = "This section may be hidden from the public shell, moved to a different route, or not have any visible pages yet.",
-            DocsHomeHref = "/docs",
+            DocsHomeHref = _docsUrlBuilder.BuildHomeUrl(),
             StartHereHref = startHereHref
         };
     }
 
-    private static string? ResolveStartHereHref(IReadOnlyList<DocSectionSnapshot> sections)
+    private string? ResolveStartHereHref(IReadOnlyList<DocSectionSnapshot> sections)
     {
         return sections.Any(snapshot => snapshot.Section == DocPublicSection.StartHere)
-            ? DocPublicSectionCatalog.GetHref(DocPublicSection.StartHere)
+            ? _docsUrlBuilder.BuildSectionUrl(DocPublicSection.StartHere)
             : null;
     }
 
@@ -461,7 +516,7 @@ public class DocsController : Controller
         var currentSectionSnapshot = TryResolvePublicSection(metadata?.NavGroup, sections, out var publicSection)
             ? sections.First(section => section.Section == publicSection)
             : null;
-        var currentHref = $"/docs/{GetSnapshotCanonicalPath(doc)}";
+        var currentHref = _docsUrlBuilder.BuildDocUrl(GetSnapshotCanonicalPath(doc));
         var isSectionLanding = currentSectionSnapshot?.LandingDoc is not null
                                && string.Equals(currentSectionSnapshot.LandingDoc.Path, doc.Path, StringComparison.OrdinalIgnoreCase);
 
@@ -480,7 +535,10 @@ public class DocsController : Controller
                     LandingDoc = null,
                     VisiblePages = remainingPages
                 };
-                sectionGroups = DocSectionDisplayBuilder.BuildGroups(sectionSnapshot, currentHref);
+                sectionGroups = DocSectionDisplayBuilder.BuildGroups(
+                    sectionSnapshot,
+                    currentHref,
+                    docsRootPath: _docsUrlBuilder.CurrentDocsRootPath);
             }
         }
 
@@ -497,7 +555,7 @@ public class DocsController : Controller
             Breadcrumbs = BuildBreadcrumbs(doc, currentSectionSnapshot, resolvedTitle),
             PublicSection = currentSectionSnapshot?.Section,
             PublicSectionLabel = currentSectionSnapshot?.Label,
-            PublicSectionHref = currentSectionSnapshot is null ? null : DocPublicSectionCatalog.GetHref(currentSectionSnapshot.Section),
+            PublicSectionHref = currentSectionSnapshot is null ? null : _docsUrlBuilder.BuildSectionUrl(currentSectionSnapshot.Section),
             PublicSectionPurpose = currentSectionSnapshot is null ? null : DocPublicSectionCatalog.GetPurpose(currentSectionSnapshot.Section),
             IsSectionLanding = isSectionLanding,
             FeaturedPages = featuredPages,
@@ -571,7 +629,7 @@ public class DocsController : Controller
                 {
                     Question = question,
                     Title = destinationTitle,
-                    Href = $"/docs/{destinationLinkPath}",
+                    Href = _docsUrlBuilder.BuildDocUrl(destinationLinkPath),
                     PageType = destination.Metadata?.PageType,
                     PageTypeBadge = pageTypeBadge,
                     SupportingText = GetSupportingText(definition, destination)
@@ -581,7 +639,7 @@ public class DocsController : Controller
         return resolvedCards;
     }
 
-    private static IReadOnlyList<DocBreadcrumbViewModel> BuildBreadcrumbs(
+    private IReadOnlyList<DocBreadcrumbViewModel> BuildBreadcrumbs(
         DocNode doc,
         DocSectionSnapshot? currentSectionSnapshot,
         string resolvedTitle)
@@ -597,7 +655,12 @@ public class DocsController : Controller
 
         if (isNamespacePath)
         {
-            parsedBreadcrumbs.Add(new DocBreadcrumbViewModel { Label = "Namespaces", Href = "/docs/Namespaces.html" });
+            parsedBreadcrumbs.Add(
+                new DocBreadcrumbViewModel
+                {
+                    Label = "Namespaces",
+                    Href = _docsUrlBuilder.BuildDocUrl("Namespaces.html")
+                });
 
             if (normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase))
             {
@@ -611,7 +674,7 @@ public class DocsController : Controller
                         new DocBreadcrumbViewModel
                         {
                             Label = parts[i],
-                            Href = isLast ? null : $"/docs/Namespaces/{prefix}.html"
+                            Href = isLast ? null : _docsUrlBuilder.BuildDocUrl($"Namespaces/{prefix}.html")
                         });
                 }
             }
@@ -635,7 +698,7 @@ public class DocsController : Controller
                     new DocBreadcrumbViewModel
                     {
                         Label = segment,
-                        Href = isLast ? null : $"/docs/{current}.html"
+                        Href = isLast ? null : _docsUrlBuilder.BuildDocUrl($"{current}.html")
                     });
             }
         }
@@ -649,7 +712,7 @@ public class DocsController : Controller
         {
             if (currentSectionSnapshot is not null && currentSectionSnapshot.Section != DocPublicSection.ApiReference)
             {
-                var sectionHref = DocPublicSectionCatalog.GetHref(currentSectionSnapshot.Section);
+                var sectionHref = _docsUrlBuilder.BuildSectionUrl(currentSectionSnapshot.Section);
                 return string.Equals(currentSectionSnapshot.Label, resolvedTitle, StringComparison.OrdinalIgnoreCase)
                     ? [new DocBreadcrumbViewModel { Label = currentSectionSnapshot.Label }]
                     :
@@ -703,12 +766,12 @@ public class DocsController : Controller
                && string.Equals(metadataBreadcrumbs![0], navGroupParent, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static DocSectionLinkViewModel CreateSectionLink(DocNode doc)
+    private DocSectionLinkViewModel CreateSectionLink(DocNode doc)
     {
         return new DocSectionLinkViewModel
         {
             Title = ResolveDisplayTitle(doc),
-            Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
+            Href = _docsUrlBuilder.BuildDocUrl(GetSnapshotCanonicalPath(doc)),
             Summary = string.IsNullOrWhiteSpace(doc.Metadata?.Summary) ? null : doc.Metadata!.Summary!.Trim(),
             PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType)
         };
@@ -806,7 +869,7 @@ public class DocsController : Controller
             .FirstOrDefault();
     }
 
-    private static SearchPageViewModel BuildSearchPageViewModel(IReadOnlyList<DocNode> docs)
+    private SearchPageViewModel BuildSearchPageViewModel(IReadOnlyList<DocNode> docs)
     {
         return new SearchPageViewModel(
             Title: "Search Documentation",
@@ -817,7 +880,45 @@ public class DocsController : Controller
             FailureFallbackLinks: BuildSearchFallbackLinks(docs));
     }
 
-    private static IReadOnlyList<SearchPageFallbackLink> BuildSearchFallbackLinks(IReadOnlyList<DocNode> docs)
+    private RazorDocsVersionArchiveViewModel BuildVersionArchiveViewModel(bool entryFallback)
+    {
+        var catalog = _versionCatalogService.GetCatalog();
+        var recommendedVersion = catalog.RecommendedVersion;
+        var versions = catalog.PublicVersions
+            .Select(
+                version => new RazorDocsVersionArchiveEntryViewModel
+                {
+                    Version = version.Version,
+                    Label = version.Label,
+                    Summary = version.Summary,
+                    Href = version.IsAvailable ? version.ExactRootUrl : null,
+                    IsRecommended = string.Equals(
+                        version.Version,
+                        recommendedVersion?.Version,
+                        StringComparison.OrdinalIgnoreCase),
+                    IsAvailable = version.IsAvailable,
+                    SupportStateLabel = GetSupportStateLabel(version.SupportState),
+                    AdvisoryLabel = GetAdvisoryLabel(version.AdvisoryState),
+                    AvailabilityMessage = version.AvailabilityIssue
+                })
+            .ToList();
+
+        return new RazorDocsVersionArchiveViewModel
+        {
+            Heading = entryFallback ? "Published documentation versions" : "Documentation versions",
+            Description = entryFallback
+                ? "The stable docs entry is waiting for a healthy recommended release tree. You can keep reading the preview surface or open an exact published version below."
+                : "Choose the exact release you want to read, or keep using the current preview surface for unreleased work.",
+            AvailabilityMessage = entryFallback
+                ? "No healthy recommended release tree is currently mounted at /docs."
+                : null,
+            PreviewHref = _docsUrlBuilder.BuildHomeUrl(),
+            VersionsHref = _docsUrlBuilder.BuildVersionsUrl(),
+            Versions = versions
+        };
+    }
+
+    private IReadOnlyList<SearchPageFallbackLink> BuildSearchFallbackLinks(IReadOnlyList<DocNode> docs)
     {
         var links = new List<SearchPageFallbackLink>();
 
@@ -865,14 +966,14 @@ public class DocsController : Controller
             links.Add(
                 new SearchPageFallbackLink(
                     "Documentation index",
-                    "/docs",
+                    _docsUrlBuilder.BuildHomeUrl(),
                     "Return to the docs index and keep exploring from there."));
         }
 
         return links;
     }
 
-    private static void TryAddFallbackLink(
+    private void TryAddFallbackLink(
         ICollection<SearchPageFallbackLink> links,
         DocNode? doc,
         string title,
@@ -883,7 +984,7 @@ public class DocsController : Controller
             return;
         }
 
-        var href = DocAggregator.BuildSearchDocUrl(doc.Path);
+        var href = DocAggregator.BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, doc.Path);
         if (links.Any(link => string.Equals(link.Href, href, StringComparison.OrdinalIgnoreCase)))
         {
             return;
@@ -906,6 +1007,29 @@ public class DocsController : Controller
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
             .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
+    }
+
+    private static string GetSupportStateLabel(RazorDocsVersionSupportState supportState)
+    {
+        return supportState switch
+        {
+            RazorDocsVersionSupportState.Current => "Current",
+            RazorDocsVersionSupportState.Maintained => "Maintained",
+            RazorDocsVersionSupportState.Deprecated => "Deprecated",
+            RazorDocsVersionSupportState.Archived => "Archived",
+            _ => supportState.ToString()
+        };
+    }
+
+    private static string? GetAdvisoryLabel(RazorDocsVersionAdvisoryState advisoryState)
+    {
+        return advisoryState switch
+        {
+            RazorDocsVersionAdvisoryState.None => null,
+            RazorDocsVersionAdvisoryState.Vulnerable => "Vulnerable",
+            RazorDocsVersionAdvisoryState.SecurityRisk => "Security risk",
+            _ => advisoryState.ToString()
+        };
     }
 
     private static string NormalizeLookupPath(string path)
@@ -986,5 +1110,28 @@ public class DocsController : Controller
         }
 
         return expectedTypes.Any(expected => string.Equals(pageType, expected, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static RazorDocsVersionCatalogService CreateDefaultVersionCatalogService()
+    {
+        return new RazorDocsVersionCatalogService(
+            new RazorDocsOptions(),
+            new DefaultWebHostEnvironment(),
+            NullLogger<RazorDocsVersionCatalogService>.Instance);
+    }
+
+    private sealed class DefaultWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = typeof(DocsController).Assembly.GetName().Name ?? "RazorDocs";
+
+        public IFileProvider WebRootFileProvider { get; set; } = null!;
+
+        public string WebRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public string EnvironmentName { get; set; } = Environments.Development;
+
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 }

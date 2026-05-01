@@ -96,12 +96,36 @@ internal sealed class DocLinkTargetManifest
         }
 
         normalized = normalized.Trim('/');
-        const string docsRoot = "docs/";
-        if (isRootedDocsRoute && normalized.StartsWith(docsRoot, StringComparison.OrdinalIgnoreCase))
+        if (isRootedDocsRoute)
         {
-            normalized = normalized[docsRoot.Length..];
+            normalized = TrimKnownDocsRootPrefix(normalized);
         }
 
         return normalized;
+    }
+
+    private static string TrimKnownDocsRootPrefix(string normalizedPath)
+    {
+        const string docsRoot = "docs/";
+        if (!normalizedPath.StartsWith(docsRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return normalizedPath;
+        }
+
+        var remaining = normalizedPath[docsRoot.Length..];
+        if (remaining.StartsWith("next/", StringComparison.OrdinalIgnoreCase))
+        {
+            return remaining["next/".Length..];
+        }
+
+        if (remaining.StartsWith("v/", StringComparison.OrdinalIgnoreCase))
+        {
+            var versionSeparatorIndex = remaining.IndexOf('/', "v/".Length);
+            return versionSeparatorIndex >= 0
+                ? remaining[(versionSeparatorIndex + 1)..]
+                : string.Empty;
+        }
+
+        return remaining;
     }
 }

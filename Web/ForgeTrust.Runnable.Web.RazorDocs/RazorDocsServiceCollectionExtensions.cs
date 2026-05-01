@@ -26,6 +26,8 @@ public static class RazorDocsServiceCollectionExtensions
                     options.Source ??= new RazorDocsSourceOptions();
                     options.Bundle ??= new RazorDocsBundleOptions();
                     options.Sidebar ??= new RazorDocsSidebarOptions();
+                    options.Routing ??= new RazorDocsRoutingOptions();
+                    options.Versioning ??= new RazorDocsVersioningOptions();
                     options.Sidebar.NamespacePrefixes ??= [];
 
                     if (options.Source.RepositoryRoot is null)
@@ -38,6 +40,10 @@ public static class RazorDocsServiceCollectionExtensions
                     }
 
                     options.Bundle.Path = NormalizeOrNull(options.Bundle.Path);
+                    options.Routing.DocsRootPath = NormalizeDocsRootPath(
+                        options.Routing.DocsRootPath,
+                        options.Versioning.Enabled);
+                    options.Versioning.CatalogPath = NormalizeOrNull(options.Versioning.CatalogPath);
                     options.Sidebar.NamespacePrefixes = options.Sidebar.NamespacePrefixes
                         .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
                         .Select(prefix => prefix.Trim())
@@ -50,6 +56,8 @@ public static class RazorDocsServiceCollectionExtensions
             ServiceDescriptor.Singleton<IValidateOptions<RazorDocsOptions>, RazorDocsOptionsValidator>());
         services.TryAddSingleton(sp => sp.GetRequiredService<IOptions<RazorDocsOptions>>().Value);
         services.TryAddSingleton(RazorDocsAssetPathResolver.CreateDefault());
+        services.TryAddSingleton<DocsUrlBuilder>();
+        services.TryAddSingleton<RazorDocsVersionCatalogService>();
         services.AddMemoryCache();
         services.TryAddSingleton<IMemo, Memo>();
         services.TryAddSingleton<IRazorDocsHtmlSanitizer, RazorDocsHtmlSanitizer>();
@@ -68,5 +76,17 @@ public static class RazorDocsServiceCollectionExtensions
         }
 
         return value.Trim();
+    }
+
+    private static string NormalizeDocsRootPath(string? value, bool versioningEnabled)
+    {
+        var normalized = NormalizeOrNull(value);
+        if (normalized is null)
+        {
+            return versioningEnabled ? "/docs/next" : "/docs";
+        }
+
+        var trimmed = normalized.TrimEnd('/');
+        return string.IsNullOrEmpty(trimmed) ? "/" : trimmed;
     }
 }

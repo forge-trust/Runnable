@@ -129,7 +129,19 @@ internal static class DocPublicSectionCatalog
     /// <returns>The canonical <c>/docs/sections/{slug}</c> route for the section.</returns>
     internal static string GetHref(DocPublicSection section)
     {
-        return $"/docs/sections/{GetSlug(section)}";
+        return GetHref(section, "/docs");
+    }
+
+    /// <summary>
+    /// Gets the canonical docs route for the specified public section rooted at a specific docs surface.
+    /// </summary>
+    /// <param name="section">The section whose href should be returned.</param>
+    /// <param name="docsRootPath">The app-relative docs root path to anchor the section route under.</param>
+    /// <returns>The canonical <c>{docsRootPath}/sections/{slug}</c> route for the section.</returns>
+    internal static string GetHref(DocPublicSection section, string docsRootPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(docsRootPath);
+        return $"{docsRootPath}/sections/{GetSlug(section)}";
     }
 
     /// <summary>
@@ -168,7 +180,8 @@ internal static class DocPublicSectionCatalog
     /// </returns>
     /// <remarks>
     /// Unlike <see cref="TryResolve"/>, this method does not accept labels or aliases. Callers that want to support
-    /// legacy or user-friendly alias inputs should resolve them separately and redirect to <see cref="GetHref"/>.
+    /// legacy or user-friendly alias inputs should resolve them separately and redirect to
+    /// <see cref="GetHref(DocPublicSection)"/>.
     /// </remarks>
     internal static bool TryResolveSlug(string? slug, out DocPublicSection section)
     {

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
@@ -21,6 +22,7 @@ public class DocAggregator
     private readonly string _repositoryRoot;
     private readonly IMemo _memo;
     private readonly IRazorDocsHtmlSanitizer _sanitizer;
+    private readonly DocsUrlBuilder _docsUrlBuilder;
     private readonly ILogger<DocAggregator> _logger;
     private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(SnapshotCacheDuration);
     private readonly Guid _cacheScope = Guid.NewGuid();
@@ -60,6 +62,7 @@ public class DocAggregator
     /// <param name="memo">Memoized cache used to store harvested documentation.</param>
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
     /// <param name="logger">Logger used for recording aggregation events and errors.</param>
+    [ActivatorUtilitiesConstructor]
     public DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
         RazorDocsOptions options,
@@ -67,17 +70,48 @@ public class DocAggregator
         IMemo memo,
         IRazorDocsHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
+        : this(
+            harvesters,
+            options,
+            environment,
+            memo,
+            sanitizer,
+            new DocsUrlBuilder(options),
+            logger)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="DocAggregator"/> with the provided dependencies and determines the repository root.
+    /// </summary>
+    /// <param name="harvesters">Collection of <see cref="IDocHarvester"/> instances used to harvest documentation nodes.</param>
+    /// <param name="options">Typed RazorDocs options that determine the active source mode and optional repository root override.</param>
+    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when options do not provide it.</param>
+    /// <param name="memo">Memoized cache used to store harvested documentation.</param>
+    /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
+    /// <param name="docsUrlBuilder">Shared URL builder for the live source-backed docs surface.</param>
+    /// <param name="logger">Logger used for recording aggregation events and errors.</param>
+    public DocAggregator(
+        IEnumerable<IDocHarvester> harvesters,
+        RazorDocsOptions options,
+        IWebHostEnvironment environment,
+        IMemo memo,
+        IRazorDocsHtmlSanitizer sanitizer,
+        DocsUrlBuilder docsUrlBuilder,
+        ILogger<DocAggregator> logger)
     {
         ArgumentNullException.ThrowIfNull(harvesters);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(memo);
         ArgumentNullException.ThrowIfNull(sanitizer);
+        ArgumentNullException.ThrowIfNull(docsUrlBuilder);
         ArgumentNullException.ThrowIfNull(logger);
 
         _harvesters = harvesters;
         _memo = memo;
         _sanitizer = sanitizer;
+        _docsUrlBuilder = docsUrlBuilder;
         _logger = logger;
         _repositoryRoot = options.Mode switch
         {
@@ -327,6 +361,7 @@ public class DocAggregator
                                    DocContentLinkRewriter.RewriteInternalDocLinks(
                                        n.Path,
                                        n.Content,
+                                       _docsUrlBuilder.CurrentDocsRootPath,
                                        linkTargetManifest),
                                    n.ParentPath,
                                    n.IsDirectory,
@@ -469,7 +504,7 @@ public class DocAggregator
     /// <param name="docs">The documentation nodes to index.</param>
     /// <param name="publicSections">The resolved public sections used to derive landing winners.</param>
     /// <returns>A tuple containing the serializable payload and the number of records indexed.</returns>
-    private static (object Payload, int RecordCount) BuildSearchIndexPayload(
+    private (object Payload, int RecordCount) BuildSearchIndexPayload(
         IEnumerable<DocNode> docs,
         IReadOnlyList<DocSectionSnapshot> publicSections)
     {
@@ -503,7 +538,7 @@ public class DocAggregator
                     return new
                     {
                         id = d.Path,
-                        path = BuildSearchDocUrl(d.Path),
+                        path = BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, d.Path),
                         title,
                         summary,
                         headings,
@@ -566,28 +601,18 @@ public class DocAggregator
     /// <returns>A URL string starting with "/docs".</returns>
     internal static string BuildSearchDocUrl(string path)
     {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return "/docs";
-        }
+        return BuildSearchDocUrl("/docs", path);
+    }
 
-        var fragmentSeparator = path.IndexOf('#');
-        var pathPart = fragmentSeparator >= 0 ? path[..fragmentSeparator] : path;
-        var fragmentPart = fragmentSeparator >= 0 ? path[(fragmentSeparator + 1)..] : string.Empty;
-
-        var encodedPath = string.Join(
-            "/",
-            pathPart
-                .Split('/', StringSplitOptions.RemoveEmptyEntries)
-                .Select(Uri.EscapeDataString));
-
-        var url = string.IsNullOrEmpty(encodedPath) ? "/docs" : $"/docs/{encodedPath}";
-        if (!string.IsNullOrWhiteSpace(fragmentPart))
-        {
-            url += $"#{Uri.EscapeDataString(fragmentPart)}";
-        }
-
-        return url;
+    /// <summary>
+    /// Constructs a browser-facing URL for a documentation path rooted at a specific docs surface.
+    /// </summary>
+    /// <param name="docsRootPath">The app-relative docs root path.</param>
+    /// <param name="path">The relative documentation path.</param>
+    /// <returns>A URL string rooted at <paramref name="docsRootPath" />.</returns>
+    internal static string BuildSearchDocUrl(string docsRootPath, string path)
+    {
+        return DocsUrlBuilder.BuildDocUrl(docsRootPath, path);
     }
 
     /// <summary>
@@ -690,7 +715,7 @@ public class DocAggregator
             .FirstOrDefault();
     }
 
-    private static DocPageLinkViewModel? ResolveSequenceNeighbor(
+    private DocPageLinkViewModel? ResolveSequenceNeighbor(
         DocNode currentDoc,
         IReadOnlyList<DocNode> docs,
         int direction)
@@ -773,7 +798,7 @@ public class DocAggregator
         return metadata.Order is not null;
     }
 
-    private static IReadOnlyList<DocPageLinkViewModel> ResolveRelatedPages(
+    private IReadOnlyList<DocPageLinkViewModel> ResolveRelatedPages(
         DocNode currentDoc,
         IReadOnlyList<DocNode> docs,
         IReadOnlyDictionary<string, DocLookupBucket> lookup,
@@ -788,7 +813,7 @@ public class DocAggregator
 
         var excludedHrefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            BuildSearchDocUrl(GetSnapshotCanonicalPath(currentDoc))
+            BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, GetSnapshotCanonicalPath(currentDoc))
         };
         if (!string.IsNullOrWhiteSpace(previousPage?.Href))
         {
@@ -817,7 +842,7 @@ public class DocAggregator
                 continue;
             }
 
-            var relatedHref = BuildSearchDocUrl(GetSnapshotCanonicalPath(relatedDoc));
+            var relatedHref = BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, GetSnapshotCanonicalPath(relatedDoc));
             if (!excludedHrefs.Add(relatedHref))
             {
                 continue;
@@ -840,14 +865,14 @@ public class DocAggregator
                 doc => string.Equals(GetDisplayTitle(doc), title, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static DocPageLinkViewModel CreatePageLink(DocNode doc)
+    private DocPageLinkViewModel CreatePageLink(DocNode doc)
     {
         var summary = NormalizeMetadataText(doc.Metadata?.Summary);
 
         return new DocPageLinkViewModel
         {
             Title = GetDisplayTitle(doc),
-            Href = BuildSearchDocUrl(GetSnapshotCanonicalPath(doc)),
+            Href = BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, GetSnapshotCanonicalPath(doc)),
             Summary = summary,
             PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType)
         };

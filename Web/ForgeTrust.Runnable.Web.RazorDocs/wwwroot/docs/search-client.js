@@ -1,6 +1,10 @@
 (() => {
-  const indexUrl = '/docs/search-index.json';
-  const miniSearchUrl = '/docs/minisearch.min.js';
+  const rawConfig = window.__razorDocsConfig || {};
+  const docsRootPath = normalizeDocsRootPath(rawConfig.docsRootPath || '/docs');
+  const docsSearchUrl = rawConfig.docsSearchUrl || `${docsRootPath}/search`;
+  const docsVersionsUrl = rawConfig.docsVersionsUrl || '/docs/versions';
+  const indexUrl = rawConfig.docsSearchIndexUrl || `${docsRootPath}/search-index.json`;
+  const miniSearchUrl = rawConfig.miniSearchUrl || `${docsRootPath}/minisearch.min.js`;
   const maxQueryLength = 500;
   const topResults = 8;
   const fetchTimeoutMs = 10000;
@@ -70,6 +74,15 @@
     };
   }
 
+  function normalizeDocsRootPath(path) {
+    const value = String(path || '').trim();
+    if (!value) {
+      return '/docs';
+    }
+
+    return value !== '/' && value.endsWith('/') ? value.slice(0, -1) : value;
+  }
+
   function getSidebarSearchElements() {
     return {
       input: document.getElementById('docs-search-input'),
@@ -116,7 +129,7 @@
   }
 
   function isDocsPath(path) {
-    return path === '/docs' || path.startsWith('/docs/');
+    return path === docsRootPath || path.startsWith(`${docsRootPath}/`);
   }
 
   function getHeader(headers, name) {
@@ -148,7 +161,7 @@
 
     const path = url.pathname;
 
-    if (!isDocsPath(path) || path === '/docs') {
+    if (!isDocsPath(path) || path === docsRootPath) {
       return null;
     }
 
@@ -191,7 +204,7 @@
       }
     }
 
-    url.pathname = canonicalPath || '/docs';
+    url.pathname = canonicalPath || docsRootPath;
     return url;
   }
 
@@ -660,7 +673,7 @@
 
   function shouldTargetDocsFrame(href) {
     const url = toUrl(href);
-    return Boolean(url && url.origin === window.location.origin && isDocsPath(url.pathname) && url.pathname !== '/docs');
+    return Boolean(url && url.origin === window.location.origin && isDocsPath(url.pathname) && url.pathname !== docsRootPath);
   }
 
   function applyDocsNavigationTarget(anchor, href) {
@@ -687,7 +700,7 @@
   }
 
   function navigateToSearchPageWithQuery(query) {
-    const url = new URL('/docs/search', window.location.origin);
+    const url = new URL(docsSearchUrl, window.location.origin);
     const normalized = normalizeQuery(query);
     if (normalized) {
       url.searchParams.set('q', normalized);
@@ -753,7 +766,7 @@
     const path = String(doc.path ?? '');
     const pathPart = path.split('#')[0];
     const pathSegments = pathPart
-      .replace(/^\/docs\/?/i, '')
+      .replace(new RegExp(`^${escapeRegExp(docsRootPath)}\\/?`, 'i'), '')
       .split('/')
       .map((segment) => {
         try {
@@ -869,7 +882,7 @@
   function normalizeDocReference(value) {
     return String(value ?? '')
       .trim()
-      .replace(/^\/docs\/?/i, '')
+      .replace(new RegExp(`^${escapeRegExp(docsRootPath)}\\/?`, 'i'), '')
       .replace(/\.html$/i, '')
       .replace(/\.md$/i, '')
       .replace(/^\/+/, '')
@@ -949,12 +962,14 @@
     }
 
     if (links.length < 3) {
-      const namespacesDoc = selectRecoveryDoc(allDocs, (doc) => doc.path.endsWith('/Namespaces.html') || doc.path === '/docs/Namespaces');
+      const namespacesDoc = selectRecoveryDoc(
+        allDocs,
+        (doc) => doc.path.endsWith('/Namespaces.html') || doc.path === `${docsRootPath}/Namespaces`);
       pushLink(namespacesDoc, 'Browse namespaces');
     }
 
     if (links.length < 3) {
-      links.push({ title: 'Documentation index', href: '/docs' });
+      links.push({ title: 'Documentation index', href: docsRootPath });
     }
 
     return links;

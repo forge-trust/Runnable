@@ -31,12 +31,13 @@ public class RazorDocsViewsTests
         var layout = ReadLayoutMarkup();
         Assert.Contains("id=\"docs-search-input\"", layout);
         Assert.Contains("id=\"docs-search-results\"", layout);
-        Assert.Contains("href=\"~/docs/search.css\"", layout);
-        Assert.Contains("href=\"~/docs/search-index.json\"", layout);
+        Assert.Contains("BuildAssetUrl(\"search.css\")", layout);
+        Assert.Contains("docsSearchIndexUrl", layout);
         Assert.Contains("var isSearchPage = string.Equals(", layout);
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", layout);
-        Assert.Contains("src=\"~/docs/search-client.js\"", layout);
+        Assert.Contains("window.__razorDocsConfig", layout);
+        Assert.Contains("BuildAssetUrl(\"search-client.js\")", layout);
     }
 
     [Fact]

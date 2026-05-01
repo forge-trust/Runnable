@@ -73,6 +73,42 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldDefaultDocsRootToDocs_WhenVersioningIsDisabled()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("/docs", options.Routing.DocsRootPath);
+    }
+
+    [Fact]
+    public void AddRazorDocs_ShouldDefaultDocsRootToDocsNext_WhenVersioningIsEnabled()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Versioning:Enabled"] = "true",
+                        ["RazorDocs:Versioning:CatalogPath"] = "catalog.json"
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("/docs/next", options.Routing.DocsRootPath);
+    }
+
+    [Fact]
     public void AddRazorDocs_ShouldRejectExplicitWhitespaceSourceRepositoryRoot()
     {
         var services = new ServiceCollection();
@@ -317,5 +353,51 @@ public sealed class RazorDocsOptionsTests
 
         Assert.True(result.Failed);
         Assert.Contains(result.Failures, failure => failure.Contains("not implemented", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectDocsRootAtDocs_WhenVersioningIsEnabled()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = "catalog.json"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("cannot use '/docs' as the live source docs root", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectReservedVersioningPreviewPath()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/v/1.0.0"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = "catalog.json"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("reserved versioning path", StringComparison.OrdinalIgnoreCase));
     }
 }

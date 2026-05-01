@@ -1,6 +1,7 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 
@@ -10,6 +11,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 public class SidebarViewComponent : ViewComponent
 {
     private readonly DocAggregator _aggregator;
+    private readonly DocsUrlBuilder _docsUrlBuilder;
     private readonly string[] _namespacePrefixes;
 
     /// <summary>
@@ -18,13 +20,27 @@ public class SidebarViewComponent : ViewComponent
     /// <param name="aggregator">The documentation aggregator used to retrieve document nodes.</param>
     /// <param name="options">Typed RazorDocs options used for optional namespace prefix simplification settings.</param>
     public SidebarViewComponent(DocAggregator aggregator, RazorDocsOptions options)
+        : this(aggregator, options, new DocsUrlBuilder(options))
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SidebarViewComponent"/> class.
+    /// </summary>
+    /// <param name="aggregator">The documentation aggregator used to retrieve document nodes.</param>
+    /// <param name="options">Typed RazorDocs options used for optional namespace prefix simplification settings.</param>
+    /// <param name="docsUrlBuilder">Shared URL builder for the live source-backed docs surface.</param>
+    [ActivatorUtilitiesConstructor]
+    public SidebarViewComponent(DocAggregator aggregator, RazorDocsOptions options, DocsUrlBuilder docsUrlBuilder)
     {
         ArgumentNullException.ThrowIfNull(aggregator);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.Sidebar);
         ArgumentNullException.ThrowIfNull(options.Sidebar.NamespacePrefixes);
+        ArgumentNullException.ThrowIfNull(docsUrlBuilder);
 
         _aggregator = aggregator;
+        _docsUrlBuilder = docsUrlBuilder;
         _namespacePrefixes = options.Sidebar.NamespacePrefixes
             .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
             .Select(prefix => prefix.Trim())
@@ -46,10 +62,14 @@ public class SidebarViewComponent : ViewComponent
                     Section = snapshot.Section,
                     Label = snapshot.Label,
                     Slug = snapshot.Slug,
-                    Href = DocPublicSectionCatalog.GetHref(snapshot.Section),
+                    Href = _docsUrlBuilder.BuildSectionUrl(snapshot.Section),
                     IsActive = currentContext.Section == snapshot.Section,
                     IsExpanded = currentContext.Section == snapshot.Section,
-                    Groups = DocSectionDisplayBuilder.BuildGroups(snapshot, currentContext.CurrentHref, _namespacePrefixes)
+                    Groups = DocSectionDisplayBuilder.BuildGroups(
+                        snapshot,
+                        currentContext.CurrentHref,
+                        _namespacePrefixes,
+                        _docsUrlBuilder.CurrentDocsRootPath)
                 })
             .ToList();
 
@@ -64,12 +84,12 @@ public class SidebarViewComponent : ViewComponent
             return (null, null);
         }
 
-        if (string.Equals(requestPath, "/docs", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(requestPath, _docsUrlBuilder.CurrentDocsRootPath, StringComparison.OrdinalIgnoreCase))
         {
             return (DocPublicSection.StartHere, requestPath);
         }
 
-        const string sectionPrefix = "/docs/sections/";
+        var sectionPrefix = _docsUrlBuilder.CurrentDocsRootPath + "/sections/";
         if (requestPath.StartsWith(sectionPrefix, StringComparison.OrdinalIgnoreCase))
         {
             var slug = requestPath[sectionPrefix.Length..].Trim('/');
@@ -79,14 +99,14 @@ public class SidebarViewComponent : ViewComponent
             }
         }
 
-        if (!requestPath.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(requestPath, "/docs/search", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(requestPath, "/docs/search-index.json", StringComparison.OrdinalIgnoreCase))
+        if (!_docsUrlBuilder.IsCurrentDocsPath(requestPath)
+            || string.Equals(requestPath, _docsUrlBuilder.BuildSearchUrl(), StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requestPath, _docsUrlBuilder.BuildSearchIndexUrl(), StringComparison.OrdinalIgnoreCase))
         {
             return (null, null);
         }
 
-        var docPath = requestPath["/docs/".Length..];
+        var docPath = requestPath[(_docsUrlBuilder.CurrentDocsRootPath.Length + 1)..];
         var doc = await _aggregator.GetDocByPathAsync(docPath);
         if (doc is not null && DocPublicSectionCatalog.TryResolve(doc.Metadata?.NavGroup, out var sectionForDoc))
         {

@@ -1,6 +1,19 @@
+@using System.Text.Json
 @inject ForgeTrust.Runnable.Web.RazorDocs.RazorDocsAssetPathResolver AssetPathResolver
+@inject ForgeTrust.Runnable.Web.RazorDocs.Services.DocsUrlBuilder DocsUrlBuilder
 @{
     var stylesheetPath = AssetPathResolver.StylesheetPath;
+    var docsHomeUrl = DocsUrlBuilder.BuildHomeUrl();
+    var docsSearchUrl = DocsUrlBuilder.BuildSearchUrl();
+    var docsSearchIndexUrl = DocsUrlBuilder.BuildSearchIndexUrl();
+    var docsClientConfigJson = JsonSerializer.Serialize(
+        new
+        {
+            docsRootPath = DocsUrlBuilder.CurrentDocsRootPath,
+            docsSearchUrl,
+            docsSearchIndexUrl,
+            docsVersionsUrl = DocsUrlBuilder.BuildVersionsUrl()
+        });
     var isSearchPage = string.Equals(
         ViewContext.RouteData.Values["action"]?.ToString(),
         "Search",
@@ -13,17 +26,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>@ViewData["Title"] - RazorDocs</title>
     <link rel="stylesheet" href="@stylesheetPath" asp-append-version="true" />
-    <link rel="stylesheet" href="~/docs/search.css" />
+    <link rel="stylesheet" href="@DocsUrlBuilder.BuildAssetUrl("search.css")" />
     @if (isSearchPage)
     {
-        <link rel="preload" href="~/docs/search-index.json" as="fetch" crossorigin="use-credentials" />
+        <link rel="preload" href="@docsSearchIndexUrl" as="fetch" crossorigin="use-credentials" />
     }
     <rw:scripts/>
     @if (isSearchPage)
     {
-        <script src="~/docs/minisearch.min.js" defer data-rw-search-runtime="minisearch"></script>
+        <script src="@DocsUrlBuilder.BuildAssetUrl("minisearch.min.js")" defer data-rw-search-runtime="minisearch"></script>
     }
-    <script src="~/docs/search-client.js" defer></script>
+    <script>window.__razorDocsConfig = @Html.Raw(docsClientConfigJson);</script>
+    <script src="@DocsUrlBuilder.BuildAssetUrl("search-client.js")" defer></script>
 </head>
 <body class="h-full flex flex-col text-slate-200 overflow-hidden">
 <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:p-4 focus:bg-slate-900 focus:text-white">Skip to content</a>
@@ -41,7 +55,7 @@
            tabindex="-1"
            aria-hidden="false">
         <div class="flex items-center justify-between p-4 border-b border-slate-800 md:hidden">
-            <a href="/docs" class="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            <a href="@docsHomeUrl" class="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 RazorDocs
             </a>
             <button id="docs-sidebar-close"
@@ -51,7 +65,7 @@
             </button>
         </div>
         <div class="hidden md:block p-6">
-            <a href="/docs" class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            <a href="@docsHomeUrl" class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 RazorDocs
             </a>
         </div>
@@ -67,7 +81,7 @@
                    autocomplete="off" />
             <p id="docs-search-status" class="mt-1 text-xs text-slate-500" aria-live="polite"></p>
             <ul id="docs-search-results" class="hidden" role="listbox" aria-label="Search results"></ul>
-            <a href="/docs/search"
+            <a href="@docsSearchUrl"
                class="mt-[0.7rem] inline-flex w-full items-center justify-between gap-3 rounded-[0.8rem] border border-cyan-400/30 bg-gradient-to-b from-cyan-950/60 to-cyan-950/20 px-3.5 py-2.5 text-[0.82rem] font-semibold text-cyan-100 no-underline transition-colors hover:border-cyan-400/55 hover:from-cyan-950/70 hover:to-cyan-950/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400">
                 <span>Open Search Workspace</span>
                 <span class="text-[0.7rem] uppercase tracking-[0.08em] text-cyan-300">Cmd/Ctrl+K</span>
@@ -94,8 +108,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16" />
                 </svg>
             </button>
-            <a href="/docs" class="text-lg font-semibold text-white">RazorDocs</a>
-            <a href="/docs/search" class="ml-auto inline-flex items-center gap-2 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/15">
+            <a href="@docsHomeUrl" class="text-lg font-semibold text-white">RazorDocs</a>
+            <a href="@docsSearchUrl" class="ml-auto inline-flex items-center gap-2 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/15">
                 <span>Search</span>
                 <span aria-hidden="true">/</span>
             </a>

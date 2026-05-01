@@ -199,6 +199,46 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
+    public void ConfigureEndpoints_ShouldMapVersionedRoutes_WhenVersioningIsEnabled()
+    {
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = "catalog.json"
+            }
+        };
+        builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton(new DocsUrlBuilder(options));
+        using var app = builder.Build();
+        var routeBuilder = (IEndpointRouteBuilder)app;
+
+        _module.ConfigureEndpoints(context, routeBuilder);
+
+        var routePatterns = routeBuilder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .Where(pattern => !string.IsNullOrEmpty(pattern))
+            .ToList();
+
+        Assert.Contains("docs", routePatterns);
+        Assert.Contains("docs/versions", routePatterns);
+        Assert.Contains("docs/next", routePatterns);
+        Assert.Contains("docs/next/search", routePatterns);
+        Assert.Contains("docs/next/search-index.json", routePatterns);
+        Assert.Contains("docs/next/{*path}", routePatterns);
+    }
+
+    [Fact]
     public void HostAndAppConfigureMethods_ShouldNotThrow()
     {
         var context = CreateStartupContext();

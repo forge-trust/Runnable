@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -146,6 +147,130 @@ public class RazorDocsWebModuleRegressionTests
         finally
         {
             await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfigureWebApplication_Versioning_ServesRecommendedAliasAndRewritesExactVersionTrees()
+    {
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-published-tree-regression-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+            var publishedTree = CreatePublishedExactTree(tempDirectory, "1.2.3");
+            var catalogPath = Path.Combine(tempDirectory, "catalog.json");
+            File.WriteAllText(
+                catalogPath,
+                """
+                {
+                  "recommendedVersion": "1.2.3",
+                  "versions": [
+                    {
+                      "version": "1.2.3",
+                      "label": "1.2.3",
+                      "exactTreePath": "1.2.3",
+                      "supportState": "Current",
+                      "visibility": "Public",
+                      "advisoryState": "None"
+                    }
+                  ]
+                }
+                """);
+
+            var module = new RazorDocsWebModule();
+            var startup = new TestRazorDocsStartup(module);
+            var context = new StartupContext([], module);
+            var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+            builder.ConfigureAppConfiguration(
+                (_, configuration) =>
+                {
+                    configuration.AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["RazorDocs:Source:RepositoryRoot"] = repoRoot,
+                            ["RazorDocs:Routing:DocsRootPath"] = "/docs/next",
+                            ["RazorDocs:Versioning:Enabled"] = "true",
+                            ["RazorDocs:Versioning:CatalogPath"] = catalogPath
+                        });
+                });
+            builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
+
+            using var host = builder.Build();
+            await host.StartAsync();
+
+            try
+            {
+                var server = host.Services.GetRequiredService<IServer>();
+                var addresses = server.Features.Get<IServerAddressesFeature>();
+                var baseAddress = Assert.Single(addresses!.Addresses);
+
+                using var client = new HttpClient
+                {
+                    BaseAddress = new Uri(baseAddress)
+                };
+
+                using var docsResponse = await client.GetAsync("/docs");
+                var docsHtml = await docsResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, docsResponse.StatusCode);
+                Assert.Contains("data-tree=\"release-1.2.3\"", docsHtml);
+                Assert.Contains("href=\"/docs/search.css\"", docsHtml);
+                Assert.Contains("\"docsRootPath\":\"/docs\"", docsHtml);
+
+                using var docsSearchResponse = await client.GetAsync("/docs/search");
+                var docsSearchHtml = await docsSearchResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, docsSearchResponse.StatusCode);
+                Assert.Contains("data-tree=\"release-search\"", docsSearchHtml);
+
+                using var archiveResponse = await client.GetAsync("/docs/versions");
+                var archiveHtml = await archiveResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, archiveResponse.StatusCode);
+                Assert.Contains("Documentation versions", archiveHtml);
+                Assert.DoesNotContain("data-tree=\"release-1.2.3\"", archiveHtml);
+
+                using var previewResponse = await client.GetAsync("/docs/next");
+                var previewHtml = await previewResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+                Assert.DoesNotContain("data-tree=\"release-1.2.3\"", previewHtml);
+
+                using var exactVersionResponse = await client.GetAsync("/docs/v/1.2.3");
+                var exactVersionHtml = await exactVersionResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, exactVersionResponse.StatusCode);
+                Assert.Contains("href=\"/docs/v/1.2.3/search.css\"", exactVersionHtml);
+                Assert.Contains("href=\"/docs/v/1.2.3/guide.html\"", exactVersionHtml);
+                Assert.Contains("href=\"/docs/versions\"", exactVersionHtml);
+                Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", exactVersionHtml);
+                Assert.Contains("\"docsSearchUrl\":\"/docs/v/1.2.3/search\"", exactVersionHtml);
+                Assert.Contains("\"docsSearchIndexUrl\":\"/docs/v/1.2.3/search-index.json\"", exactVersionHtml);
+                Assert.Contains("\"docsVersionsUrl\":\"/docs/versions\"", exactVersionHtml);
+
+                using var exactSearchResponse = await client.GetAsync("/docs/v/1.2.3/search");
+                var exactSearchHtml = await exactSearchResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, exactSearchResponse.StatusCode);
+                Assert.Contains("data-tree=\"release-search\"", exactSearchHtml);
+                Assert.Contains("href=\"/docs/v/1.2.3/guide.html\"", exactSearchHtml);
+
+                using var searchIndexResponse = await client.GetAsync("/docs/v/1.2.3/search-index.json");
+                var searchIndexJson = await searchIndexResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, searchIndexResponse.StatusCode);
+                Assert.Contains("\"path\":\"/docs/v/1.2.3/guide.html\"", searchIndexJson);
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
         }
     }
 
@@ -487,6 +612,49 @@ public class RazorDocsWebModuleRegressionTests
         var rootModule = A.Fake<IRunnableHostModule>();
         var environmentProvider = A.Fake<IEnvironmentProvider>();
         return new StartupContext(Array.Empty<string>(), rootModule, "TestApp", environmentProvider);
+    }
+
+    private static string CreatePublishedExactTree(string parentDirectory, string version)
+    {
+        var root = Path.Combine(parentDirectory, version);
+        Directory.CreateDirectory(root);
+        File.WriteAllText(
+            Path.Combine(root, "index.html"),
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <link rel="stylesheet" href="/docs/search.css" />
+              <link rel="preload" href="/docs/search-index.json" as="fetch" crossorigin="use-credentials" />
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+              <script src="/docs/search-client.js"></script>
+            </head>
+            <body data-tree="release-1.2.3">
+              <a id="home" href="/docs">Home</a>
+              <a id="guide" href="/docs/guide.html">Guide</a>
+              <a id="search" href="/docs/search">Search</a>
+              <a id="archive" href="/docs/versions">Archive</a>
+            </body>
+            </html>
+            """);
+        File.WriteAllText(
+            Path.Combine(root, "search.html"),
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+            </head>
+            <body data-tree="release-search">
+              <a href="/docs/guide.html">Guide</a>
+            </body>
+            </html>
+            """);
+        File.WriteAllText(Path.Combine(root, "guide.html"), "<!DOCTYPE html><html><body data-tree=\"release-guide\">Guide</body></html>");
+        File.WriteAllText(Path.Combine(root, "search.css"), "body { color: #fff; }");
+        File.WriteAllText(Path.Combine(root, "search-client.js"), "window.__releaseTree = true;");
+        File.WriteAllText(Path.Combine(root, "search-index.json"), "{\"documents\":[{\"path\":\"/docs/guide.html\",\"title\":\"Guide\"}]}");
+        return root;
     }
 
     private static BuildCoordinates GetCurrentBuildCoordinates()

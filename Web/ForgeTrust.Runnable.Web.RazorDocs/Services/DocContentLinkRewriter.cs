@@ -9,7 +9,6 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// </summary>
 internal static class DocContentLinkRewriter
 {
-    private const string DocsRootPath = "/docs";
     private const string DocsFrameId = "doc-content";
 
     /// <summary>
@@ -25,8 +24,27 @@ internal static class DocContentLinkRewriter
         string html,
         DocLinkTargetManifest targetManifest)
     {
+        return RewriteInternalDocLinks(sourcePath, html, "/docs", targetManifest);
+    }
+
+    /// <summary>
+    /// Rewrites internal documentation anchors in rendered HTML so they point at canonical RazorDocs routes and carry
+    /// Turbo navigation attributes that keep browser history aligned with frame navigation.
+    /// </summary>
+    /// <param name="sourcePath">The harvested source path whose content is being rewritten.</param>
+    /// <param name="html">The rendered and sanitized HTML fragment to rewrite.</param>
+    /// <param name="docsRootPath">The app-relative docs root path that should own rewritten links.</param>
+    /// <param name="targetManifest">Manifest of harvested documentation targets that may be rewritten to docs routes.</param>
+    /// <returns>The rewritten HTML fragment.</returns>
+    internal static string RewriteInternalDocLinks(
+        string sourcePath,
+        string html,
+        string docsRootPath,
+        DocLinkTargetManifest targetManifest)
+    {
         ArgumentNullException.ThrowIfNull(sourcePath);
         ArgumentNullException.ThrowIfNull(html);
+        ArgumentException.ThrowIfNullOrWhiteSpace(docsRootPath);
         ArgumentNullException.ThrowIfNull(targetManifest);
 
         if (html.IndexOf("<a", StringComparison.OrdinalIgnoreCase) < 0)
@@ -38,13 +56,17 @@ internal static class DocContentLinkRewriter
         var document = parser.ParseDocument(html);
         foreach (var anchor in document.QuerySelectorAll("a[href]"))
         {
-            RewriteAnchorElement(sourcePath, anchor, targetManifest);
+            RewriteAnchorElement(sourcePath, docsRootPath, anchor, targetManifest);
         }
 
         return document.Body?.InnerHtml ?? html;
     }
 
-    private static void RewriteAnchorElement(string sourcePath, IElement anchor, DocLinkTargetManifest targetManifest)
+    private static void RewriteAnchorElement(
+        string sourcePath,
+        string docsRootPath,
+        IElement anchor,
+        DocLinkTargetManifest targetManifest)
     {
         if (HasNonSelfTarget(anchor))
         {
@@ -52,7 +74,7 @@ internal static class DocContentLinkRewriter
         }
 
         var href = anchor.GetAttribute("href");
-        if (!TryBuildDocsHref(sourcePath, href, targetManifest, out var docsHref))
+        if (!TryBuildDocsHref(sourcePath, href, docsRootPath, targetManifest, out var docsHref))
         {
             return;
         }
@@ -77,6 +99,7 @@ internal static class DocContentLinkRewriter
     private static bool TryBuildDocsHref(
         string sourcePath,
         string? href,
+        string docsRootPath,
         DocLinkTargetManifest targetManifest,
         out string docsHref)
     {
@@ -89,21 +112,21 @@ internal static class DocContentLinkRewriter
         var trimmedHref = href.Trim();
         var (path, query, fragment) = SplitHref(trimmedHref);
 
-        if (string.Equals(path, DocsRootPath, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(path, docsRootPath, StringComparison.OrdinalIgnoreCase))
         {
-            docsHref = DocsRootPath + query + fragment;
+            docsHref = docsRootPath + query + fragment;
             return true;
         }
 
-        if (path.StartsWith(DocsRootPath + "/", StringComparison.OrdinalIgnoreCase))
+        if (path.StartsWith(docsRootPath + "/", StringComparison.OrdinalIgnoreCase))
         {
-            var docsRelativePath = path[(DocsRootPath.Length + 1)..];
+            var docsRelativePath = path[(docsRootPath.Length + 1)..];
             if (!targetManifest.Contains(docsRelativePath))
             {
                 return false;
             }
 
-            docsHref = BuildDocsHref(docsRelativePath, query, fragment);
+            docsHref = BuildDocsHref(docsRootPath, docsRelativePath, query, fragment);
             return true;
         }
 
@@ -114,7 +137,7 @@ internal static class DocContentLinkRewriter
                 return false;
             }
 
-            docsHref = $"{DocsRootPath}/{DocRoutePath.BuildCanonicalPath(GetSourceDocumentPath(sourcePath))}{fragment}";
+            docsHref = $"{docsRootPath}/{DocRoutePath.BuildCanonicalPath(GetSourceDocumentPath(sourcePath))}{fragment}";
             return true;
         }
 
@@ -136,7 +159,7 @@ internal static class DocContentLinkRewriter
                 return false;
             }
 
-            docsHref = BuildDocsHref(rootedTarget, query, fragment);
+            docsHref = BuildDocsHref(docsRootPath, rootedTarget, query, fragment);
             return true;
         }
 
@@ -151,13 +174,13 @@ internal static class DocContentLinkRewriter
             return false;
         }
 
-        docsHref = BuildDocsHref(resolvedTarget, query, fragment);
+        docsHref = BuildDocsHref(docsRootPath, resolvedTarget, query, fragment);
         return true;
     }
 
-    private static string BuildDocsHref(string docPath, string query, string fragment)
+    private static string BuildDocsHref(string docsRootPath, string docPath, string query, string fragment)
     {
-        return $"{DocsRootPath}/{DocRoutePath.BuildCanonicalPath(docPath)}{query}{fragment}";
+        return $"{docsRootPath}/{DocRoutePath.BuildCanonicalPath(docPath)}{query}{fragment}";
     }
 
     private static string ResolveRelativePath(string sourcePath, string relativePath)

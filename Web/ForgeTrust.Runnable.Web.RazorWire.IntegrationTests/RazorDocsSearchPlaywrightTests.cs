@@ -19,7 +19,7 @@ public sealed class RazorDocsIntegrationCollection : ICollectionFixture<RazorDoc
 public sealed class RazorDocsSearchPlaywrightTests
 {
     private const string SearchIndexPath = "/docs/search-index.json";
-    private const string MiniSearchRuntimePath = "/docs/minisearch.min.js";
+    private const string MiniSearchRuntimePathPattern = "**/docs/minisearch.min.js*";
     private readonly RazorDocsPlaywrightFixture _fixture;
 
     public RazorDocsSearchPlaywrightTests(RazorDocsPlaywrightFixture fixture)
@@ -395,7 +395,7 @@ public sealed class RazorDocsSearchPlaywrightTests
         var runtimeRequests = 0;
 
         await page.RouteAsync(
-            $"**{MiniSearchRuntimePath}",
+            MiniSearchRuntimePathPattern,
             async route =>
             {
                 var attempt = System.Threading.Interlocked.Increment(ref runtimeRequests);

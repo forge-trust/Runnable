@@ -1,4 +1,5 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.SearchPageViewModel
+@inject ForgeTrust.Runnable.Web.RazorDocs.Services.DocsUrlBuilder DocsUrlBuilder
 @{
     const string FailureLinkClass = "grid gap-1 rounded-[0.85rem] border border-slate-800 bg-slate-900/55 px-[0.95rem] py-[0.85rem] no-underline transition-colors hover:border-cyan-400/35 hover:bg-cyan-950/20";
 }
@@ -78,7 +79,8 @@
         <div class="grid gap-3 md:grid-cols-3">
             @foreach (var link in Model.FailureFallbackLinks)
             {
-                var usesDocsFrame = link.Href.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase);
+                var usesDocsFrame = DocsUrlBuilder.IsCurrentDocsPath(link.Href)
+                                    && !string.Equals(link.Href, DocsUrlBuilder.BuildHomeUrl(), StringComparison.OrdinalIgnoreCase);
                 if (usesDocsFrame)
                 {
                     <a class="@FailureLinkClass"

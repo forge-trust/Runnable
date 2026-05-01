@@ -67,6 +67,27 @@ public class ProgramEntryPointTests
     }
 
     [Fact]
+    public async Task EntryPoint_Should_Accept_Seeds_Option()
+    {
+        var missingSeedFile = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName(), "missing-file.txt");
+
+        var result = await InvokeEntryPointAsync(
+            ["export", "--seeds", missingSeedFile, "--url", "http://localhost:5001"],
+            options =>
+            {
+                options.CustomRegistrations.Add(services =>
+                {
+                    services.AddSingleton<IHttpClientFactory>(
+                        new TestHttpHelpers.Factory(TestHttpHelpers.UrlAwareHtmlRoot("http://localhost:5001")));
+                });
+            });
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains(missingSeedFile, result.AllText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unrecognized option", result.AllText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task EntryPoint_Should_Print_Missing_Source_Validation_Without_Lifecycle_Noise()
     {
         var result = await InvokeEntryPointAsync(["export"]);

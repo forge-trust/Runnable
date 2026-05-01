@@ -47,14 +47,21 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             await page.GetAttributeAsync(".docs-content a[href='/docs/examples/web-app/README.md.html']", "href"));
         Assert.NotNull(await page.GetAttributeAsync(".docs-content a[href='/docs/releases/README.md.html']", "href"));
 
-        var openApiReadmeLink = page.Locator("a[href*='ForgeTrust.Runnable.Web.OpenApi/README.md']").First;
+        const string openApiReadmePath = "/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html";
+        var openApiReadmeLink = page.Locator(
+            $".docs-content table tbody tr:has-text('ForgeTrust.Runnable.Web.OpenApi') a[href='{openApiReadmePath}']").First;
         await openApiReadmeLink.WaitForAsync(new LocatorWaitForOptions
         {
             Timeout = 30_000,
             State = WaitForSelectorState.Visible
         });
+        Assert.Equal(openApiReadmePath, await openApiReadmeLink.GetAttributeAsync("href"));
         await openApiReadmeLink.ClickAsync();
-        await WaitForPathAsync(page, "/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html");
+        await WaitForPathAsync(page, openApiReadmePath);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelector('h1')?.textContent?.trim() === 'ForgeTrust.Runnable.Web.OpenApi'",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
         Assert.Equal("ForgeTrust.Runnable.Web.OpenApi", (await page.TextContentAsync("h1"))?.Trim());
     }
 

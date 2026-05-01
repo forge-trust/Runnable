@@ -369,12 +369,7 @@ internal static class RazorDocsPublishedTreeContentRewriter
             scriptContent,
             match =>
             {
-                var configNode = JsonNode.Parse(match.Groups[1].Value) as JsonObject;
-                if (configNode is null)
-                {
-                    return match.Value;
-                }
-
+                var configNode = (JsonObject)JsonNode.Parse(match.Groups[1].Value)!;
                 configNode["docsRootPath"] = mountRootPath;
                 configNode["docsSearchUrl"] = mountRootPath + "/search";
                 configNode["docsSearchIndexUrl"] = mountRootPath + "/search-index.json";
@@ -412,11 +407,6 @@ internal static class RazorDocsPublishedTreeContentRewriter
 
     private static string RewriteMountedDocsUrl(string value, string mountRootPath)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return value;
-        }
-
         if (!value.StartsWith("/", StringComparison.Ordinal))
         {
             if (Uri.TryCreate(value, UriKind.Absolute, out var absoluteUri))
@@ -442,11 +432,6 @@ internal static class RazorDocsPublishedTreeContentRewriter
 
     private static string? RewriteMountedDocsPath(string path, string mountRootPath)
     {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return null;
-        }
-
         if (DocsUrlBuilder.IsUnderRoot(path, mountRootPath)
             || DocsUrlBuilder.IsUnderRoot(path, DocsUrlBuilder.DocsVersionsPath)
             || DocsUrlBuilder.IsUnderRoot(path, "/docs/next")

@@ -99,9 +99,68 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
     }
 
     [Fact]
+    public void RewriteHtml_ShouldLeaveNullDocsConfigScriptUnchanged_AndRewriteDescriptorlessSrcSetEntries()
+    {
+        const string html =
+            """
+            <!DOCTYPE html>
+            <html>
+            <body>
+              <script>window.__razorDocsConfig = null;</script>
+              <img srcset="/docs/img/hero.png, https://example.com/docs/img/hero@2x.png" />
+            </body>
+            </html>
+            """;
+
+        var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteHtml(html, "/docs/v/1.2.3");
+
+        Assert.Contains("window.__razorDocsConfig = null;", rewritten);
+        Assert.Contains("srcset=\"/docs/v/1.2.3/img/hero.png, https://example.com/docs/v/1.2.3/img/hero@2x.png\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteHtml_ShouldPreservePreviewArchiveAndExactVersionUrls()
+    {
+        const string html =
+            """
+            <!DOCTYPE html>
+            <html>
+            <body>
+              <a href="/docs/versions?view=full#archive">Archive</a>
+              <a href="/docs/next/search?tab=preview#input">Preview</a>
+              <a href="/docs/v/9.9.9/guide.html?view=full#top">Exact</a>
+            </body>
+            </html>
+            """;
+
+        var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteHtml(html, "/docs/v/1.2.3");
+
+        Assert.Contains("href=\"/docs/versions?view=full#archive\"", rewritten);
+        Assert.Contains("href=\"/docs/next/search?tab=preview#input\"", rewritten);
+        Assert.Contains("href=\"/docs/v/9.9.9/guide.html?view=full#top\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteHtml_ShouldRewriteFragmentHtmlWithoutInjectingDoctype()
+    {
+        const string html =
+            """
+            <div>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+            </div>
+            """;
+
+        var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteHtml(html, "/docs/v/1.2.3");
+
+        Assert.DoesNotContain("<!DOCTYPE html>", rewritten, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteSearchIndexJson_ShouldIgnoreUnexpectedPayloads_AndBlankDocumentPaths()
     {
         const string unexpectedPayload = "{\"items\":[]}";
+        const string nullPayload = "null";
         const string documentPayload =
             """
             {
@@ -116,9 +175,11 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
             """;
 
         var unchanged = RazorDocsPublishedTreeContentRewriter.RewriteSearchIndexJson(unexpectedPayload, "/docs/v/1.2.3");
+        var unchangedNull = RazorDocsPublishedTreeContentRewriter.RewriteSearchIndexJson(nullPayload, "/docs/v/1.2.3");
         var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteSearchIndexJson(documentPayload, "/docs/v/1.2.3");
 
         Assert.Equal(unexpectedPayload, unchanged);
+        Assert.Equal(nullPayload, unchangedNull);
         Assert.Contains("\"path\":\"/docs/v/1.2.3/guide.html\"", rewritten);
         Assert.Contains("\"path\":\"/docs/v/9.9.9/guide.html\"", rewritten);
         Assert.Contains("\"path\":\"https://example.com/blog\"", rewritten);

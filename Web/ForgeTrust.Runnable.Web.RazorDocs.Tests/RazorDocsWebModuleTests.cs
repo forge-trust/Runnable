@@ -7,11 +7,14 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.Tailwind;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -264,6 +267,88 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
+    public void ConfigureWebApplication_ShouldFallbackToConstructedDocsUrlBuilder_WhenServiceIsMissing()
+    {
+        var context = CreateStartupContext();
+        var services = new ServiceCollection();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = "missing/catalog.json"
+            }
+        };
+        services.AddSingleton(options);
+        services.AddSingleton(
+            new RazorDocsVersionCatalogService(
+                options,
+                new TestWebHostEnvironment { ContentRootPath = Path.GetTempPath(), WebRootPath = Path.GetTempPath() },
+                NullLogger<RazorDocsVersionCatalogService>.Instance));
+        var appBuilder = new ApplicationBuilder(services.BuildServiceProvider());
+
+        _module.ConfigureWebApplication(context, appBuilder);
+
+        Assert.True(true);
+    }
+
+    [Fact]
+    public void ConfigureWebApplication_ShouldReturn_WhenVersioningOptionsAreMissing()
+    {
+        var context = CreateStartupContext();
+        var services = new ServiceCollection();
+        services.AddSingleton(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs"
+                },
+                Versioning = null!
+            });
+        var appBuilder = new ApplicationBuilder(services.BuildServiceProvider());
+
+        _module.ConfigureWebApplication(context, appBuilder);
+
+        Assert.True(true);
+    }
+
+    [Fact]
+    public void ConfigureEndpoints_ShouldTreatNullVersioningOptionsAsDisabled()
+    {
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs"
+            },
+            Versioning = null!
+        };
+        builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton(new DocsUrlBuilder(options));
+        using var app = builder.Build();
+        var routeBuilder = (IEndpointRouteBuilder)app;
+
+        _module.ConfigureEndpoints(context, routeBuilder);
+
+        var routePatterns = routeBuilder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .Where(pattern => !string.IsNullOrEmpty(pattern))
+            .ToList();
+
+        Assert.DoesNotContain("docs/versions", routePatterns);
+    }
+
+    [Fact]
     public void HostAndAppConfigureMethods_ShouldNotThrow()
     {
         var context = CreateStartupContext();
@@ -282,5 +367,20 @@ public class RazorDocsWebModuleTests
         var rootModuleFake = A.Fake<IRunnableHostModule>();
         var envFake = A.Fake<IEnvironmentProvider>();
         return new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
+    }
+
+    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "RazorDocsTests";
+
+        public IFileProvider WebRootFileProvider { get; set; } = null!;
+
+        public string WebRootPath { get; set; } = string.Empty;
+
+        public string EnvironmentName { get; set; } = Environments.Development;
+
+        public string ContentRootPath { get; set; } = string.Empty;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 }

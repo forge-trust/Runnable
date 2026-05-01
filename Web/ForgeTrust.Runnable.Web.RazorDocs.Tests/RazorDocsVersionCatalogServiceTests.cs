@@ -18,6 +18,17 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_ShouldThrow_WhenDependenciesAreNull()
+    {
+        var environment = new TestWebHostEnvironment { ContentRootPath = _tempDirectory, WebRootPath = _tempDirectory };
+        var options = new RazorDocsOptions();
+
+        Assert.Throws<ArgumentNullException>(() => new RazorDocsVersionCatalogService(null!, environment, NullLogger<RazorDocsVersionCatalogService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new RazorDocsVersionCatalogService(options, null!, NullLogger<RazorDocsVersionCatalogService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new RazorDocsVersionCatalogService(options, environment, null!));
+    }
+
+    [Fact]
     public void GetCatalog_ShouldResolveRelativeTreePaths_AndRecommendedVersion()
     {
         var stableTree = CreateExactTree("stable");
@@ -167,6 +178,19 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetCatalog_ShouldTreatNullCatalogPayloadAsEmptyCatalog()
+    {
+        var catalogPath = WriteRawCatalogJson("null");
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Equal(catalogPath, catalog.CatalogPath);
+        Assert.Empty(catalog.PublicVersions);
+        Assert.Null(catalog.RecommendedVersion);
+    }
+
+    [Fact]
     public void GetCatalog_ShouldReturnDisabled_WhenVersioningIsOff()
     {
         var service = CreateCatalogService(catalogPath: null, versioningEnabled: false);
@@ -175,6 +199,23 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
 
         Assert.Same(RazorDocsResolvedVersionCatalog.Disabled, catalog);
         Assert.Empty(catalog.PublicVersions);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldReturnDisabled_WhenVersioningOptionsAreMissing()
+    {
+        var service = new RazorDocsVersionCatalogService(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions { DocsRootPath = "/docs/next" },
+                Versioning = null!
+            },
+            new TestWebHostEnvironment { ContentRootPath = _tempDirectory, WebRootPath = _tempDirectory },
+            NullLogger<RazorDocsVersionCatalogService>.Instance);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Same(RazorDocsResolvedVersionCatalog.Disabled, catalog);
     }
 
     [Fact]
@@ -214,6 +255,33 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetCatalog_ShouldMarkMissingExactTreeDirectoryAsUnavailable()
+    {
+        var missingTreePath = Path.Combine(_tempDirectory, "missing-tree");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, missingTreePath),
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        var version = Assert.Single(catalog.PublicVersions);
+        Assert.False(version.IsAvailable);
+        Assert.Contains("does not exist", version.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void GetCatalog_ShouldSkipBlankAndDuplicateVersions_AndIgnoreMissingRecommendedVersion()
     {
         var healthyTree = CreateExactTree("healthy");
@@ -231,6 +299,11 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
                     new RazorDocsPublishedVersion
                     {
                         Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, healthyTree)
+                    },
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = null!,
                         ExactTreePath = Path.GetRelativePath(_tempDirectory, healthyTree)
                     },
                     new RazorDocsPublishedVersion

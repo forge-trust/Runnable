@@ -1614,6 +1614,41 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SearchView_ShouldUseTopLevelNavigation_ForNonCurrentDocsFallbackLinks()
+    {
+        using var services = CreateServiceProvider(
+            CreateDocs(),
+            new Dictionary<string, string?>
+            {
+                ["RazorDocs:Routing:DocsRootPath"] = "/docs/next",
+                ["RazorDocs:Versioning:Enabled"] = "true",
+                ["RazorDocs:Versioning:CatalogPath"] = "catalog.json"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Search.cshtml",
+            new SearchPageViewModel(
+                Title: "Search Documentation",
+                Orientation: "Search across the docs set.",
+                StarterHint: "Try a starter query.",
+                SearchPlaceholder: "Search docs",
+                SuggestedQueries: ["getting started"],
+                FailureFallbackLinks:
+                [
+                    new SearchPageFallbackLink("Open preview guide", "/docs/next/guides/quickstart", "Stay in preview."),
+                    new SearchPageFallbackLink("Open exact release", "/docs/v/1.2.3/guides/quickstart", "Leave the live preview surface.")
+                ]));
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var previewLink = document.QuerySelector("a[href='/docs/next/guides/quickstart']");
+        var exactVersionLink = document.QuerySelector("a[href='/docs/v/1.2.3/guides/quickstart']");
+
+        Assert.Equal("doc-content", previewLink?.GetAttribute("data-turbo-frame"));
+        Assert.Equal("_top", exactVersionLink?.GetAttribute("data-turbo-frame"));
+    }
+
+    [Fact]
     public async Task VersionsView_ShouldUseTopLevelNavigation_ForCrossSurfaceLinks()
     {
         using var services = CreateServiceProvider(

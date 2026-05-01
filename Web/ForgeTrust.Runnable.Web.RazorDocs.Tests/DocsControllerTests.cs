@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -931,6 +932,28 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_ShouldThrow_WhenDocsUrlBuilderIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new DocsController(
+                _aggregator,
+                null!,
+                CreateDefaultVersionCatalogService(),
+                _controllerLoggerFake));
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenVersionCatalogServiceIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new DocsController(
+                _aggregator,
+                new DocsUrlBuilder(new RazorDocsOptions()),
+                null!,
+                _controllerLoggerFake));
+    }
+
+    [Fact]
     public async Task Details_ShouldReturnNotFound_WhenPartialSuffixResolvesToWhitespacePath()
     {
         var result = await _controller.Details(".partial.html");
@@ -1593,5 +1616,16 @@ public class DocsControllerTests : IDisposable
     {
         var message = call.GetArgument<object>(2)?.ToString();
         return message?.Contains(expectedMessageFragment, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static RazorDocsVersionCatalogService CreateDefaultVersionCatalogService()
+    {
+        var environment = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => environment.ContentRootPath).Returns(Path.GetTempPath());
+
+        return new RazorDocsVersionCatalogService(
+            new RazorDocsOptions(),
+            environment,
+            NullLogger<RazorDocsVersionCatalogService>.Instance);
     }
 }

@@ -60,6 +60,23 @@ public sealed class DocsUrlBuilderTests
     }
 
     [Fact]
+    public void Constructor_ShouldTreatMissingVersioningAsDisabled_AndPreserveAlreadyNormalizedRoot()
+    {
+        var builder = new DocsUrlBuilder(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/preview"
+                },
+                Versioning = null!
+            });
+
+        Assert.False(builder.VersioningEnabled);
+        Assert.Equal("/docs/preview", builder.CurrentDocsRootPath);
+    }
+
+    [Fact]
     public void BuildVersionUrls_ShouldEncodeVersionAndCanonicalPath()
     {
         var builder = new DocsUrlBuilder(new RazorDocsOptions());

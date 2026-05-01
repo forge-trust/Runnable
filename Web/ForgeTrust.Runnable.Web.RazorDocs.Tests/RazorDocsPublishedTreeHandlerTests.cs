@@ -28,6 +28,20 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task TryHandleAsync_ShouldTreatMissingRequestPathAsUnmatched()
+    {
+        var tree = CreatePublishedTree("release");
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Method = HttpMethods.Get;
+        httpContext.Response.Body = new MemoryStream();
+
+        var handled = await handler.TryHandleAsync(httpContext);
+
+        Assert.False(handled);
+    }
+
+    [Fact]
     public async Task TryHandleAsync_ShouldReturnFalse_WhenRequestDoesNotMatchMountOrResolvedFileIsMissing()
     {
         var tree = CreatePublishedTree("release");
@@ -38,6 +52,22 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
 
         Assert.False(await handler.TryHandleAsync(unrelatedRequest));
         Assert.False(await handler.TryHandleAsync(missingRequest));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldExhaustRootTrailingSlashAndExtensionCandidates_WhenFilesAreMissing()
+    {
+        var tree = CreatePublishedTree("missing-candidates");
+        File.Delete(Path.Combine(tree, "index.html"));
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+
+        var missingRootRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3");
+        var missingTrailingSlashRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/missing-dir/");
+        var missingExtensionRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/missing.css");
+
+        Assert.False(await handler.TryHandleAsync(missingRootRequest));
+        Assert.False(await handler.TryHandleAsync(missingTrailingSlashRequest));
+        Assert.False(await handler.TryHandleAsync(missingExtensionRequest));
     }
 
     [Fact]
@@ -78,6 +108,19 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
         Assert.Equal("text/css", headRequest.Response.ContentType);
         Assert.Equal(string.Empty, ReadBody(headRequest));
         Assert.NotNull(headRequest.Response.ContentLength);
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldFallbackToOctetStream_ForUnknownExtensions()
+    {
+        var tree = CreatePublishedTree("custom-asset");
+        File.WriteAllText(Path.Combine(tree, "asset.weird"), "custom-asset");
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/asset.weird");
+
+        Assert.True(await handler.TryHandleAsync(request));
+        Assert.Equal("application/octet-stream", request.Response.ContentType);
+        Assert.Contains("custom-asset", ReadBody(request));
     }
 
     [Fact]

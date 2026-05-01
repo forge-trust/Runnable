@@ -135,6 +135,30 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldNormalizeRootPathBeforeValidationRejectsIt()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Routing:DocsRootPath"] = "/"
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var ex = Assert.Throws<OptionsValidationException>(
+            () => _ = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value);
+
+        Assert.Contains(
+            ex.Failures,
+            failure => failure.Contains("DocsRootPath must start with '/docs'", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void AddRazorDocs_ShouldRehydrateNullNestedOptionsObjects()
     {
         var services = new ServiceCollection();
@@ -230,6 +254,29 @@ public sealed class RazorDocsOptionsTests
         Assert.NotNull(options.Sidebar);
         Assert.NotNull(options.Sidebar.NamespacePrefixes);
         Assert.Empty(options.Sidebar.NamespacePrefixes);
+    }
+
+    [Fact]
+    public void AddRazorDocs_ShouldRehydrateNullRoutingAndVersioningOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+
+        services.AddRazorDocs();
+        services.Configure<RazorDocsOptions>(
+            options =>
+            {
+                options.Routing = null!;
+                options.Versioning = null!;
+            });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.NotNull(options.Routing);
+        Assert.NotNull(options.Versioning);
+        Assert.Equal("/docs", options.Routing.DocsRootPath);
+        Assert.False(options.Versioning.Enabled);
     }
 
     [Fact]

@@ -47,17 +47,21 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             await page.GetAttributeAsync(".docs-content a[href='/docs/examples/web-app/README.md.html']", "href"));
         Assert.NotNull(await page.GetAttributeAsync(".docs-content a[href='/docs/releases/README.md.html']", "href"));
 
-        const string openApiReadmePath = "/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html";
-        var openApiReadmeLink = page.Locator(
-            $".docs-content table tbody tr:has-text('ForgeTrust.Runnable.Web.OpenApi') a[href='{openApiReadmePath}']").First;
+        var openApiRow = page.Locator(".docs-content table tbody tr:has-text('ForgeTrust.Runnable.Web.OpenApi')").First;
+        await openApiRow.WaitForAsync(new LocatorWaitForOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+        Assert.Contains("Package README", await openApiRow.InnerTextAsync(), StringComparison.Ordinal);
+
+        var openApiReadmeLink = openApiRow.Locator("a").First;
         await openApiReadmeLink.WaitForAsync(new LocatorWaitForOptions
         {
             Timeout = 30_000,
             State = WaitForSelectorState.Visible
         });
-        Assert.Equal(openApiReadmePath, await openApiReadmeLink.GetAttributeAsync("href"));
         await openApiReadmeLink.ClickAsync();
-        await WaitForPathAsync(page, openApiReadmePath);
         await page.WaitForFunctionAsync(
             "() => document.querySelector('h1')?.textContent?.trim() === 'ForgeTrust.Runnable.Web.OpenApi'",
             null,
@@ -103,13 +107,5 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             """);
 
         Assert.True(overflowIsIntentional);
-    }
-
-    private static async Task WaitForPathAsync(IPage page, string expectedPath)
-    {
-        await page.WaitForFunctionAsync(
-            "path => window.location.pathname === path",
-            expectedPath,
-            new PageWaitForFunctionOptions { Timeout = 15_000 });
     }
 }

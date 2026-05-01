@@ -148,6 +148,29 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void RewriteInternalDocLinks_ShouldRewritePackageReadmeLinks_InsideMarkdownTables()
+    {
+        var html = """
+            <table>
+              <tbody>
+                <tr>
+                  <td><code>ForgeTrust.Runnable.Web.OpenApi</code></td>
+                  <td><a href="../Web/ForgeTrust.Runnable.Web.OpenApi/README.md">Package README</a></td>
+                </tr>
+              </tbody>
+            </table>
+            """;
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks("packages/README.md", html);
+
+        Assert.Contains(
+            "href=\"/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html\"",
+            rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.Contains("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldLeaveRelativeNonDocHtmlLinksUnchanged()
     {
         var html = "<p><a href=\"../privacy.html\">Privacy</a> <a href=\"../../status.html\">Status</a></p>";

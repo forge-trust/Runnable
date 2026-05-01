@@ -166,6 +166,129 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         Assert.NotNull(catalog.RecommendedVersion);
     }
 
+    [Fact]
+    public void GetCatalog_ShouldReturnDisabled_WhenVersioningIsOff()
+    {
+        var service = CreateCatalogService(catalogPath: null, versioningEnabled: false);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Same(RazorDocsResolvedVersionCatalog.Disabled, catalog);
+        Assert.Empty(catalog.PublicVersions);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldReturnEnabledWithoutCatalog_WhenCatalogPathIsMissing()
+    {
+        var service = CreateCatalogService(catalogPath: null);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Same(RazorDocsResolvedVersionCatalog.EnabledWithoutCatalog, catalog);
+        Assert.Empty(catalog.PublicVersions);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldReturnUnavailable_WhenCatalogFileDoesNotExist()
+    {
+        var service = CreateCatalogService("missing/catalog.json");
+
+        var catalog = service.GetCatalog();
+
+        Assert.Equal(Path.GetFullPath(Path.Combine(_tempDirectory, "missing/catalog.json")), catalog.CatalogPath);
+        Assert.Empty(catalog.PublicVersions);
+        Assert.Null(catalog.RecommendedVersion);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldReturnUnavailable_WhenCatalogJsonIsMalformed()
+    {
+        var catalogPath = WriteRawCatalogJson("{");
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Equal(catalogPath, catalog.CatalogPath);
+        Assert.Empty(catalog.PublicVersions);
+        Assert.Null(catalog.RecommendedVersion);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldSkipBlankAndDuplicateVersions_AndIgnoreMissingRecommendedVersion()
+    {
+        var healthyTree = CreateExactTree("healthy");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "9.9.9",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "   ",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, healthyTree)
+                    },
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, healthyTree)
+                    },
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, healthyTree)
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Null(catalog.RecommendedVersion);
+        var version = Assert.Single(catalog.PublicVersions);
+        Assert.Equal("1.2.0", version.Version);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldIgnoreHiddenRecommendedVersion_AndTreatMissingExactTreePathAsUnavailable()
+    {
+        var hiddenTree = CreateExactTree("hidden");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "2.0.0",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "2.0.0",
+                        ExactTreePath = hiddenTree,
+                        SupportState = RazorDocsVersionSupportState.Current,
+                        Visibility = RazorDocsVersionVisibility.Hidden
+                    },
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.9.0",
+                        ExactTreePath = " ",
+                        SupportState = RazorDocsVersionSupportState.Maintained,
+                        Visibility = RazorDocsVersionVisibility.Public
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Null(catalog.RecommendedVersion);
+        Assert.Equal(2, catalog.Versions.Count);
+        var unavailableVersion = Assert.Single(catalog.PublicVersions);
+        Assert.Equal("1.9.0", unavailableVersion.Version);
+        Assert.False(unavailableVersion.IsAvailable);
+        Assert.Contains("missing", unavailableVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))
@@ -174,14 +297,14 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         }
     }
 
-    private RazorDocsVersionCatalogService CreateCatalogService(string catalogPath)
+    private RazorDocsVersionCatalogService CreateCatalogService(string? catalogPath, bool versioningEnabled = true)
     {
         var options = new RazorDocsOptions
         {
             Routing = new RazorDocsRoutingOptions { DocsRootPath = "/docs/next" },
             Versioning = new RazorDocsVersioningOptions
             {
-                Enabled = true,
+                Enabled = versioningEnabled,
                 CatalogPath = catalogPath
             }
         };

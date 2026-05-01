@@ -239,6 +239,31 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
+    public void ConfigureWebApplication_ShouldReturn_WhenVersioningIsEnabledButCatalogServiceIsMissing()
+    {
+        var context = CreateStartupContext();
+        var services = new ServiceCollection();
+        services.AddSingleton(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/next"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true,
+                    CatalogPath = "catalog.json"
+                }
+            });
+        var appBuilder = new ApplicationBuilder(services.BuildServiceProvider());
+
+        _module.ConfigureWebApplication(context, appBuilder);
+
+        Assert.True(true);
+    }
+
+    [Fact]
     public void HostAndAppConfigureMethods_ShouldNotThrow()
     {
         var context = CreateStartupContext();

@@ -91,6 +91,17 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
     }
 
     [Fact]
+    public void VersionEntry_ShouldRedirectToLiveHome_WhenVersioningIsDisabled()
+    {
+        var controller = CreateController(catalogPath: null, versioningEnabled: false, docsRootPath: "/docs");
+
+        var result = controller.VersionEntry();
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs", redirect.Url);
+    }
+
+    [Fact]
     public void Versions_ShouldPreserveCatalogOrder()
     {
         var firstTree = CreateExactTree("1.10.0");
@@ -127,6 +138,65 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
             second => Assert.Equal("1.2.0", second.Version));
     }
 
+    [Fact]
+    public void Versions_ShouldSurfaceKnownAndFallbackSupportAndAdvisoryLabels()
+    {
+        var deprecatedTree = CreateExactTree("1.1.0");
+        var archivedTree = CreateExactTree("1.0.0");
+        var customTree = CreateExactTree("0.9.0");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.1.0",
+                        ExactTreePath = deprecatedTree,
+                        SupportState = RazorDocsVersionSupportState.Deprecated,
+                        AdvisoryState = RazorDocsVersionAdvisoryState.Vulnerable
+                    },
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.0.0",
+                        ExactTreePath = archivedTree,
+                        SupportState = RazorDocsVersionSupportState.Archived,
+                        AdvisoryState = RazorDocsVersionAdvisoryState.SecurityRisk
+                    },
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "0.9.0",
+                        ExactTreePath = customTree,
+                        SupportState = (RazorDocsVersionSupportState)999,
+                        AdvisoryState = (RazorDocsVersionAdvisoryState)999
+                    }
+                ]
+            });
+        var controller = CreateController(catalogPath);
+
+        var result = controller.Versions();
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<RazorDocsVersionArchiveViewModel>(view.Model);
+        Assert.Collection(
+            model.Versions,
+            deprecated =>
+            {
+                Assert.Equal("Deprecated", deprecated.SupportStateLabel);
+                Assert.Equal("Vulnerable", deprecated.AdvisoryLabel);
+            },
+            archived =>
+            {
+                Assert.Equal("Archived", archived.SupportStateLabel);
+                Assert.Equal("Security risk", archived.AdvisoryLabel);
+            },
+            custom =>
+            {
+                Assert.Equal("999", custom.SupportStateLabel);
+                Assert.Equal("999", custom.AdvisoryLabel);
+            });
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))
@@ -135,17 +205,17 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
         }
     }
 
-    private DocsController CreateController(string catalogPath)
+    private DocsController CreateController(string? catalogPath, bool versioningEnabled = true, string docsRootPath = "/docs/next")
     {
         var docsOptions = new RazorDocsOptions
         {
             Routing = new RazorDocsRoutingOptions
             {
-                DocsRootPath = "/docs/next"
+                DocsRootPath = docsRootPath
             },
             Versioning = new RazorDocsVersioningOptions
             {
-                Enabled = true,
+                Enabled = versioningEnabled,
                 CatalogPath = catalogPath
             }
         };

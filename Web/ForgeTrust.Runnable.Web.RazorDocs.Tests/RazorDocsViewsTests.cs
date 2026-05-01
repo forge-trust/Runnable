@@ -1658,6 +1658,59 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task VersionsView_ShouldRenderEmptyArchiveState()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Versions.cshtml",
+            new RazorDocsVersionArchiveViewModel
+            {
+                Heading = "Documentation versions",
+                Description = "Choose the exact release you want to read.",
+                PreviewHref = "/docs/next",
+                VersionsHref = "/docs/versions",
+                Versions = []
+            });
+
+        Assert.Contains("No published versions are currently listed", html);
+    }
+
+    [Fact]
+    public async Task VersionsView_ShouldRenderAdvisoryBadgeAndSummaryCopy()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Versions.cshtml",
+            new RazorDocsVersionArchiveViewModel
+            {
+                Heading = "Documentation versions",
+                Description = "Choose the exact release you want to read.",
+                PreviewHref = "/docs/next",
+                VersionsHref = "/docs/versions",
+                Versions =
+                [
+                    new RazorDocsVersionArchiveEntryViewModel
+                    {
+                        Version = "1.2.3",
+                        Label = "1.2.3",
+                        Summary = "Use this release if you need the supported API surface.",
+                        Href = "/docs/v/1.2.3",
+                        IsAvailable = true,
+                        SupportStateLabel = "Current",
+                        AdvisoryLabel = "Security risk"
+                    }
+                ]
+            });
+
+        Assert.Contains("Security risk", html);
+        Assert.Contains("Use this release if you need the supported API surface.", html);
+    }
+
+    [Fact]
     public async Task IndexView_ShouldNotRenderSearchWorkspaceOnlyAssets()
     {
         using var services = CreateServiceProvider(CreateDocs());

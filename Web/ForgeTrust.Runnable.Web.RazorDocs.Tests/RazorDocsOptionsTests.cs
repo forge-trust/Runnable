@@ -279,7 +279,9 @@ public sealed class RazorDocsOptionsTests
         {
             Source = null!,
             Bundle = null!,
-            Sidebar = null!
+            Sidebar = null!,
+            Routing = null!,
+            Versioning = null!
         };
 
         var result = validator.Validate(Options.DefaultName, options);
@@ -288,6 +290,8 @@ public sealed class RazorDocsOptionsTests
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Source must not be null.", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Bundle must not be null.", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Sidebar must not be null.", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Routing must not be null.", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Versioning must not be null.", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -399,5 +403,53 @@ public sealed class RazorDocsOptionsTests
 
         Assert.True(result.Failed);
         Assert.Contains(result.Failures, failure => failure.Contains("reserved versioning path", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("guides")]
+    [InlineData("/docs/")]
+    public void Validator_ShouldRejectInvalidDocsRootPaths(string docsRootPath)
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = docsRootPath
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("DocsRootPath must start with '/docs'", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRequireCatalogPath_WhenVersioningIsEnabled()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = " "
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("requires RazorDocs:Versioning:CatalogPath", StringComparison.OrdinalIgnoreCase));
     }
 }

@@ -277,6 +277,30 @@ public sealed class DocContentLinkRewriterTests
         Assert.False(manifest.Contains("/docs/?view=compact"));
     }
 
+    [Fact]
+    public void DocLinkTargetManifest_ShouldMatchPreviewRootedDocsRoutes()
+    {
+        var manifest = DocLinkTargetManifest.FromPaths(["releases/unreleased.md"]);
+
+        Assert.True(manifest.Contains("/docs/next/releases/unreleased.md.html?view=compact#summary"));
+    }
+
+    [Fact]
+    public void DocLinkTargetManifest_ShouldMatchExactVersionDocsRoutes()
+    {
+        var manifest = DocLinkTargetManifest.FromPaths(["releases/unreleased.md"]);
+
+        Assert.True(manifest.Contains("/docs/v/1.2.3/releases/unreleased.md.html#summary"));
+    }
+
+    [Fact]
+    public void DocLinkTargetManifest_ShouldNotTreatExactVersionRootAsDocumentTarget()
+    {
+        var manifest = DocLinkTargetManifest.FromPaths(["releases/unreleased.md"]);
+
+        Assert.False(manifest.Contains("/docs/v/1.2.3?view=compact"));
+    }
+
     private static string Rewrite(string sourcePath, string html, params string[] knownPaths)
     {
         var manifest = DocLinkTargetManifest.FromPaths(knownPaths.Prepend(sourcePath));

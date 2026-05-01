@@ -1,7 +1,7 @@
+using ForgeTrust.Runnable.Web.Tailwind;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using ForgeTrust.Runnable.Web.Tailwind;
 
 namespace ForgeTrust.Runnable.Web.Tailwind.Tests;
 

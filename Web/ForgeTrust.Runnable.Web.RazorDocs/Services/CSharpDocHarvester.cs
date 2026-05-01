@@ -94,6 +94,7 @@ public class CSharpDocHarvester : IDocHarvester
                     var typeDisplayName = GetDisplayTypeName(typeDecl);
                     var typeId = StringUtils.ToSafeId(qualifiedTypeName);
                     var namespacePage = GetOrCreateNamespacePage(namespacePages, GetNamespaceName(typeDecl));
+                    AddOutlineItem(namespacePage, typeDisplayName, typeId, level: 2);
 
                     namespacePage.Content.Append(
                         $@"<section id=""{typeId}"" class=""doc-type"">
@@ -121,9 +122,11 @@ public class CSharpDocHarvester : IDocHarvester
                     foreach (var methodGroup in documentedMethods.GroupBy(x => x.Method.Identifier.Text))
                     {
                         var overloadCount = methodGroup.Count();
+                        var methodGroupId = GetMethodGroupId(methodGroup.Key, qualifiedTypeName);
+                        AddOutlineItem(namespacePage, methodGroup.Key, methodGroupId, level: 3);
 
                         namespacePage.Content.Append(
-                            $@"<section class=""doc-method-group"">
+                            $@"<section id=""{methodGroupId}"" class=""doc-method-group"">
                             <header class=""doc-method-group-header"">
                                 <span class=""doc-kind"">Method</span>
                                 <h3>{WebUtility.HtmlEncode(methodGroup.Key)}</h3>");
@@ -167,14 +170,15 @@ public class CSharpDocHarvester : IDocHarvester
                         var propertyDoc = propertyItem.Doc!;
                         var id = GetPropertyId(property, qualifiedTypeName);
                         var highlightedPropertySignature = GetHighlightedPropertySignature(property);
+                        AddOutlineItem(namespacePage, property.Identifier.Text, id, level: 3);
 
                         namespacePage.Content.Append(
-                            $@"<section class=""doc-method-group"">
+                            $@"<section id=""{id}"" class=""doc-method-group"">
                             <header class=""doc-method-group-header"">
                                 <span class=""doc-kind"">Property</span>
                                 <h3>{WebUtility.HtmlEncode(property.Identifier.Text)}</h3>
                             </header>
-                            <article id=""{id}"" class=""doc-overload doc-property"">
+                            <article class=""doc-overload doc-property"">
                                 <div class=""doc-property-signature"">
                                     <code class=""doc-signature"">{highlightedPropertySignature}</code>
                                 </div>
@@ -198,6 +202,7 @@ public class CSharpDocHarvester : IDocHarvester
                         var namespacePage = GetOrCreateNamespacePage(namespacePages, GetNamespaceName(enumDecl));
                         var qualifiedName = GetQualifiedName(enumDecl);
                         var enumId = StringUtils.ToSafeId(qualifiedName);
+                        AddOutlineItem(namespacePage, enumDecl.Identifier.Text, enumId, level: 2);
 
                         namespacePage.Content.Append(
                             $@"<section id=""{enumId}"" class=""doc-type doc-enum"">
@@ -240,7 +245,8 @@ public class CSharpDocHarvester : IDocHarvester
                     namespacePage.Title,
                     namespacePage.Path,
                     namespacePage.Content.ToString(),
-                    Metadata: namespacePage.Metadata));
+                    Metadata: namespacePage.Metadata,
+                    Outline: namespacePage.Outline));
         }
 
         nodes.AddRange(stubNodes);
@@ -287,6 +293,12 @@ public class CSharpDocHarvester : IDocHarvester
         var id = StringUtils.ToSafeId($"{qualifiedTypeName}.{signature}");
 
         return id;
+    }
+
+    private static string GetMethodGroupId(string methodName, string qualifiedTypeName)
+    {
+        // Reserve a distinct suffix so the group anchor never collides with a parameterless overload anchor.
+        return StringUtils.ToSafeId($"{qualifiedTypeName}.{methodName}.method-group");
     }
 
     /// <summary>
@@ -744,6 +756,38 @@ public class CSharpDocHarvester : IDocHarvester
     }
 
     /// <summary>
+    /// Adds an outline item to a namespace page when the entry is complete and its target ID has not already been recorded.
+    /// </summary>
+    /// <param name="namespacePage">The namespace page receiving the outline item.</param>
+    /// <param name="title">The reader-facing outline title.</param>
+    /// <param name="id">The fragment identifier for the rendered documentation section.</param>
+    /// <param name="level">The normalized outline level.</param>
+    internal static void AddOutlineItem(
+        NamespaceDocPage namespacePage,
+        string title,
+        string id,
+        int level)
+    {
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+
+        if (namespacePage.Outline.Any(item => string.Equals(item.Id, id, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        namespacePage.Outline.Add(
+            new DocOutlineItem
+            {
+                Title = title.Trim(),
+                Id = id.Trim(),
+                Level = level
+            });
+    }
+
+    /// <summary>
     /// Simplifies a "cref" attribute value by removing the type prefix (e.g., "M:", "T:").
     /// </summary>
     /// <param name="cref">The cref value to simplify.</param>
@@ -1009,6 +1053,8 @@ public class CSharpDocHarvester : IDocHarvester
         public DocMetadata Metadata { get; }
 
         public StringBuilder Content { get; } = new();
+
+        public List<DocOutlineItem> Outline { get; } = [];
 
         public HashSet<string> ChildNamespaces { get; } = new(StringComparer.OrdinalIgnoreCase);
     }

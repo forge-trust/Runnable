@@ -39,8 +39,7 @@ public sealed class RazorWireMvcPlaywrightTests
         await WaitForUserListReadyAsync(senderPage);
         await WaitForUserListReadyAsync(receiverPage);
 
-        await senderPage.FillAsync("#register-username", username);
-        var registerResponse = await SubmitAndWaitForPostAsync(senderPage, "#register-form", "/Reactivity/RegisterUser");
+        var registerResponse = await RegisterUserAndWaitForPostAsync(senderPage, username);
         Assert.True(registerResponse.Ok, $"RegisterUser POST failed with status {(int)registerResponse.Status}.");
 
         await WaitForUserInListAsync(receiverPage, username);
@@ -122,19 +121,11 @@ public sealed class RazorWireMvcPlaywrightTests
 
         await PlantNoRefreshMarkerAsync(actorPage);
 
-        await actorPage.FillAsync("#register-username", userOne);
-        var registerOneResponse = await SubmitAndWaitForPostAsync(
-            actorPage,
-            "#register-form",
-            "/Reactivity/RegisterUser");
+        var registerOneResponse = await RegisterUserAndWaitForPostAsync(actorPage, userOne);
         Assert.True(registerOneResponse.Ok, $"First RegisterUser POST failed with status {(int)registerOneResponse.Status}.");
         await WaitForUserInListAsync(observerPage, userOne);
 
-        await actorPage.FillAsync("#register-username", userTwo);
-        var registerTwoResponse = await SubmitAndWaitForPostAsync(
-            actorPage,
-            "#register-form",
-            "/Reactivity/RegisterUser");
+        var registerTwoResponse = await RegisterUserAndWaitForPostAsync(actorPage, userTwo);
         Assert.True(registerTwoResponse.Ok, $"Second RegisterUser POST failed with status {(int)registerTwoResponse.Status}.");
         await WaitForUserInListAsync(observerPage, userTwo);
 
@@ -316,6 +307,64 @@ public sealed class RazorWireMvcPlaywrightTests
             new PageWaitForFunctionOptions { Timeout = 30_000 });
     }
 
+    private static async Task<IResponse> RegisterUserAndWaitForPostAsync(IPage page, string username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            throw new ArgumentException("Username cannot be null or whitespace.", nameof(username));
+        }
+
+        const string formSelector = "#register-form";
+        const string inputSelector = "#register-username";
+        const string registerPath = "/Reactivity/RegisterUser";
+
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            try
+            {
+                await page.WaitForSelectorAsync(formSelector, new PageWaitForSelectorOptions
+                {
+                    State = WaitForSelectorState.Attached,
+                    Timeout = 30_000
+                });
+
+                return await page.RunAndWaitForResponseAsync(
+                    () => page.EvaluateAsync(
+                        @"args => {
+                            const form = document.querySelector(args.formSelector);
+                            if (!(form instanceof HTMLFormElement)) {
+                                throw new Error('Register form was not found.');
+                            }
+
+                            const input = document.querySelector(args.inputSelector);
+                            if (!(input instanceof HTMLInputElement)) {
+                                throw new Error('Register username input was not found.');
+                            }
+
+                            input.value = args.username;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            form.requestSubmit();
+                        }",
+                        new { formSelector, inputSelector, username }),
+                    response => response.Url.Contains(registerPath, StringComparison.OrdinalIgnoreCase)
+                                && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase),
+                    new PageRunAndWaitForResponseOptions { Timeout = 45_000 });
+            }
+            catch (PlaywrightException ex) when (
+                attempt == 1 &&
+                IsRetryableFormReplacementFailure(
+                    ex,
+                    "Register form was not found.",
+                    "Register username input was not found."))
+            {
+                // Retry once to absorb in-flight register form replacement races on slower runners.
+                await page.WaitForTimeoutAsync(300);
+            }
+        }
+
+        throw new InvalidOperationException("RegisterUser request did not complete after retry.");
+    }
+
     private static async Task<IResponse> PublishMessageAndWaitForPostAsync(IPage page, string message)
     {
         if (string.IsNullOrWhiteSpace(message))
@@ -358,7 +407,12 @@ public sealed class RazorWireMvcPlaywrightTests
                                 && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase),
                     new PageRunAndWaitForResponseOptions { Timeout = 45_000 });
             }
-            catch (Exception ex) when (attempt == 1 && (ex is TimeoutException || ex is PlaywrightException))
+            catch (PlaywrightException ex) when (
+                attempt == 1 &&
+                IsRetryableFormReplacementFailure(
+                    ex,
+                    "Publish form was not found.",
+                    "Publish message input was not found."))
             {
                 // Retry once to absorb in-flight form replacement races on slower CI runners.
                 await page.WaitForTimeoutAsync(300);
@@ -366,6 +420,24 @@ public sealed class RazorWireMvcPlaywrightTests
         }
 
         throw new InvalidOperationException("PublishMessage request did not complete after retry.");
+    }
+
+    private static bool IsRetryableFormReplacementFailure(PlaywrightException ex, params string[] expectedMarkers)
+    {
+        if (ex.Message.Contains("Execution context was destroyed", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        foreach (var marker in expectedMarkers)
+        {
+            if (ex.Message.Contains(marker, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static async Task WaitForCounterReadyAsync(IPage page)

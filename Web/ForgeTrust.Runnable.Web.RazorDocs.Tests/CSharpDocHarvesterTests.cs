@@ -180,6 +180,47 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldEmitTypedOutlineEntries_ForNamespacePages()
+    {
+        var code = """
+            namespace Test;
+
+            /// <summary>Type docs.</summary>
+            public class Calculator
+            {
+                /// <summary>Add docs.</summary>
+                public int Add(int left, int right) => left + right;
+
+                /// <summary>Name docs.</summary>
+                public string Name { get; } = "calc";
+            }
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Calculator.cs"), code);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        Assert.NotNull(namespaceNode.Outline);
+        Assert.Collection(
+            namespaceNode.Outline!,
+            type =>
+            {
+                Assert.Equal("Calculator", type.Title);
+                Assert.Equal(2, type.Level);
+            },
+            method =>
+            {
+                Assert.Equal("Add", method.Title);
+                Assert.Equal(3, method.Level);
+            },
+            property =>
+            {
+                Assert.Equal("Name", property.Title);
+                Assert.Equal(3, property.Level);
+            });
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldHandleMalformedXmlGracefully()
     {
         // Arrange
@@ -243,12 +284,60 @@ public class Calculator
         // Act
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
         var namespaceNode = results.Single(n => n.Path == "Namespaces/TestNamespace");
-        var overloadIdMatches = Regex.Matches(namespaceNode.Content, "id=\"TestNamespace-Calculator-Process");
+        var overloadIdMatches = Regex.Matches(namespaceNode.Content, "<details id=\"TestNamespace-Calculator-Process");
 
         // Assert: Should have two distinct Process methods
         Assert.Equal(2, overloadIdMatches.Count);
         Assert.Contains("<span class=\"sig-type\">int</span> <span class=\"sig-parameter\">value</span>", namespaceNode.Content);
         Assert.Contains("<span class=\"sig-modifier\">ref</span> <span class=\"sig-type\">int</span> <span class=\"sig-parameter\">value</span>", namespaceNode.Content);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldUseDistinctAnchors_ForMethodGroupsAndParameterlessOverloads()
+    {
+        var testFile = Path.Combine(_testRoot, "Calculator.cs");
+        await File.WriteAllTextAsync(
+            testFile,
+            """
+            namespace TestNamespace;
+
+            public class Calculator
+            {
+                /// <summary>Run the calculator.</summary>
+                public void Run() { }
+            }
+            """);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/TestNamespace");
+
+        Assert.Contains("id=\"TestNamespace-Calculator-Run-method-group\"", namespaceNode.Content);
+        Assert.Contains("<details id=\"TestNamespace-Calculator-Run\"", namespaceNode.Content);
+        Assert.Contains(
+            namespaceNode.Outline!,
+            item => item.Title == "Run"
+                    && item.Id == "TestNamespace-Calculator-Run-method-group"
+                    && item.Level == 3);
+    }
+
+    [Fact]
+    public void AddOutlineItem_ShouldSkipIncompleteAndDuplicateEntries()
+    {
+        var namespacePage = new CSharpDocHarvester.NamespaceDocPage(
+            "TestNamespace",
+            "Namespaces/TestNamespace",
+            "TestNamespace",
+            DocMetadataFactory.CreateApiReferenceMetadata("TestNamespace", "TestNamespace"));
+
+        CSharpDocHarvester.AddOutlineItem(namespacePage, "   ", "valid-id", level: 2);
+        CSharpDocHarvester.AddOutlineItem(namespacePage, "Valid", "   ", level: 2);
+        CSharpDocHarvester.AddOutlineItem(namespacePage, "Valid", "valid-id", level: 2);
+        CSharpDocHarvester.AddOutlineItem(namespacePage, "Duplicate", "valid-id", level: 3);
+
+        var item = Assert.Single(namespacePage.Outline);
+        Assert.Equal("Valid", item.Title);
+        Assert.Equal("valid-id", item.Id);
+        Assert.Equal(2, item.Level);
     }
 
     [Fact]

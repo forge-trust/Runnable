@@ -1122,6 +1122,7 @@ public class DocsControllerTests : IDisposable
                     Status = "stable",
                     NavGroup = "Start Here",
                     Order = 7,
+                    SequenceKey = "getting-started",
                     RelatedPages = ["examples/hello-world", "Namespaces/ForgeTrust.Runnable"],
                     Breadcrumbs = ["Guides", "Getting Started"]
                 })
@@ -1144,6 +1145,7 @@ public class DocsControllerTests : IDisposable
         Assert.Equal("stable", document.GetProperty("status").GetString());
         Assert.Equal("Start Here", document.GetProperty("navGroup").GetString());
         Assert.Equal(7, document.GetProperty("order").GetInt32());
+        Assert.Equal("getting-started", document.GetProperty("sequenceKey").GetString());
         Assert.Equal("quickstart", document.GetProperty("aliases").EnumerateArray().Single().GetString());
         Assert.Equal("install", document.GetProperty("keywords").EnumerateArray().Single().GetString());
         Assert.Equal(

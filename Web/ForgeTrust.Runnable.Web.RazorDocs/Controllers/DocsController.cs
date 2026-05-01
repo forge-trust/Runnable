@@ -89,10 +89,27 @@ public class DocsController : Controller
     }
 
     /// <summary>
-    /// Displays the details view for a documentation item identified by the given path.
+    /// Displays the full or partial details view for a documentation item identified by the given path.
     /// </summary>
-    /// <param name="path">The unique path or identifier of the documentation item to retrieve.</param>
-    /// <returns>An <see cref="IActionResult"/> rendering the details view with the document; returns <see cref="NotFoundResult"/> if the path is invalid or the document is missing.</returns>
+    /// <param name="path">
+    /// The source path, canonical docs path, or <c>.partial.html</c> resource identifier of the documentation item to
+    /// retrieve.
+    /// </param>
+    /// <returns>
+    /// An <see cref="IActionResult"/> rendering the details view or the <c>doc-content</c> RazorWire frame; returns
+    /// <see cref="NotFoundResult"/> when the path is invalid or no document is found after fallback resolution.
+    /// </returns>
+    /// <remarks>
+    /// Partial requests ending in <c>.partial.html</c> are resolved through the same
+    /// <see cref="DocAggregator.GetDocDetailsAsync(string, CancellationToken)"/> flow as full-page requests. When a
+    /// partial path resolves to an <c>/index</c> resource, such as <c>/index.partial.html</c>, the action transparently
+    /// retries the parent document before returning <see cref="NotFoundResult"/>. Successful requests load the complete
+    /// docs corpus and public-section snapshots with <see cref="DocAggregator.GetDocsAsync(CancellationToken)"/> and
+    /// <see cref="DocAggregator.GetPublicSectionsAsync(CancellationToken)"/>, then build the response model with
+    /// <c>BuildDetailsViewModel</c>. All aggregator calls observe <see cref="HttpContext.RequestAborted"/>. Visible
+    /// caller side effects are limited to returning either the full details view or a <c>doc-content</c> frame for
+    /// partial navigation.
+    /// </remarks>
     public async Task<IActionResult> Details(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -109,26 +126,26 @@ public class DocsController : Controller
             return NotFound();
         }
 
-        var doc = await _aggregator.GetDocByPathAsync(resolvedPath, HttpContext.RequestAborted);
-        if (doc == null
+        var docDetails = await _aggregator.GetDocDetailsAsync(resolvedPath, HttpContext.RequestAborted);
+        if (docDetails == null
             && servesPartial
             && resolvedPath.EndsWith("/index", StringComparison.OrdinalIgnoreCase))
         {
             var fallbackPath = resolvedPath[..^"/index".Length];
             if (!string.IsNullOrWhiteSpace(fallbackPath))
             {
-                doc = await _aggregator.GetDocByPathAsync(fallbackPath, HttpContext.RequestAborted);
+                docDetails = await _aggregator.GetDocDetailsAsync(fallbackPath, HttpContext.RequestAborted);
             }
         }
 
-        if (doc == null)
+        if (docDetails == null)
         {
             return NotFound();
         }
 
         var docs = await _aggregator.GetDocsAsync(HttpContext.RequestAborted);
         var sections = await _aggregator.GetPublicSectionsAsync(HttpContext.RequestAborted);
-        var viewModel = BuildDetailsViewModel(doc, docs, sections);
+        var viewModel = BuildDetailsViewModel(docDetails, docs, sections);
 
         if (servesPartial)
         {
@@ -425,10 +442,11 @@ public class DocsController : Controller
     }
 
     private DocDetailsViewModel BuildDetailsViewModel(
-        DocNode doc,
+        DocDetailsViewModel details,
         IReadOnlyList<DocNode> docs,
         IReadOnlyList<DocSectionSnapshot> sections)
     {
+        var doc = details.Document;
         var metadata = doc.Metadata;
         var resolvedTitle = ResolveDisplayTitle(doc);
         var summary = metadata?.Summary;
@@ -466,7 +484,7 @@ public class DocsController : Controller
             }
         }
 
-        return new DocDetailsViewModel
+        return details with
         {
             Document = doc,
             Title = resolvedTitle,

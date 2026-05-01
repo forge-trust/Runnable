@@ -49,12 +49,21 @@ public class AspireAppTests
     [Fact]
     public async Task RunAsync_WithoutModule_UsesCallingAssembly()
     {
-        Environment.ExitCode = 0;
+        var previousExitCode = Environment.ExitCode;
 
-        await AspireApp.RunAsync(["validate"]);
+        try
+        {
+            Environment.ExitCode = 0;
 
-        // The aspire application will not actually run
-        Assert.Equal(-150, Environment.ExitCode);
+            await AspireApp.RunAsync(["validate"]);
+
+            // The aspire application will not actually run
+            Assert.Equal(-150, Environment.ExitCode);
+        }
+        finally
+        {
+            Environment.ExitCode = previousExitCode;
+        }
     }
 
     [Theory]
@@ -64,11 +73,20 @@ public class AspireAppTests
     [InlineData("-f")]
     public async Task RunAsync_InvalidArgs_Throws(string arg)
     {
-        Environment.ExitCode = 0;
+        var previousExitCode = Environment.ExitCode;
 
-        await AspireApp.RunAsync([arg]);
+        try
+        {
+            Environment.ExitCode = 0;
 
-        Assert.Equal(1, Environment.ExitCode);
+            await AspireApp.RunAsync([arg]);
+
+            Assert.Equal(1, Environment.ExitCode);
+        }
+        finally
+        {
+            Environment.ExitCode = previousExitCode;
+        }
     }
 
 

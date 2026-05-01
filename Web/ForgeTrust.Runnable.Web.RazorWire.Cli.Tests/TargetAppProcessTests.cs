@@ -26,6 +26,8 @@ public class TargetAppProcessTests
     {
         var outputLines = new List<string>();
         var errorLines = new List<string>();
+        var outputReceived = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var exitedSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var exited = false;
 
         await using var process = new TargetAppProcess(new ProcessLaunchSpec
@@ -35,22 +37,34 @@ public class TargetAppProcessTests
             WorkingDirectory = Directory.GetCurrentDirectory()
         });
 
-        process.OutputLineReceived += line => outputLines.Add(line);
+        process.OutputLineReceived += line =>
+        {
+            outputLines.Add(line);
+            outputReceived.TrySetResult(line);
+        };
         process.ErrorLineReceived += line => errorLines.Add(line);
-        process.Exited += () => exited = true;
+        process.Exited += () =>
+        {
+            exited = true;
+            exitedSignal.TrySetResult();
+        };
 
         process.Start();
 
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!process.HasExited && DateTime.UtcNow < deadline)
+        var timeout = Task.Delay(TimeSpan.FromSeconds(10));
+        var firstSignal = await Task.WhenAny(outputReceived.Task, exitedSignal.Task, timeout);
+        Assert.NotSame(timeout, firstSignal);
+
+        if (firstSignal == exitedSignal.Task && !outputReceived.Task.IsCompleted)
         {
-            await Task.Delay(25);
+            await Task.WhenAny(outputReceived.Task, Task.Delay(TimeSpan.FromSeconds(2)));
         }
 
         await process.DisposeAsync();
 
         Assert.True(exited);
         Assert.Empty(errorLines);
+        Assert.True(outputReceived.Task.IsCompleted, "Expected at least one stdout line from 'dotnet --version'.");
         Assert.NotEmpty(outputLines);
     }
 

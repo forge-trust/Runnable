@@ -47,26 +47,14 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             await page.GetAttributeAsync(".docs-content a[href='/docs/examples/web-app/README.md.html']", "href"));
         Assert.NotNull(await page.GetAttributeAsync(".docs-content a[href='/docs/releases/README.md.html']", "href"));
 
-        var clickedOpenApiLink = await page.EvaluateAsync<bool>(
-            """
-            () => {
-              const packageRows = Array.from(document.querySelectorAll('.docs-content table tbody tr'));
-              const openApiRow = packageRows.find(row => row.textContent?.includes('ForgeTrust.Runnable.Web.OpenApi'));
-              const link = openApiRow?.querySelector('a');
-              if (!(link instanceof HTMLAnchorElement)) {
-                return false;
-              }
-
-              link.click();
-              return true;
-            }
-            """);
-
-        Assert.True(clickedOpenApiLink);
-        await page.WaitForFunctionAsync(
-            "() => document.querySelector('h1')?.textContent?.trim() === 'ForgeTrust.Runnable.Web.OpenApi'",
-            null,
-            new PageWaitForFunctionOptions { Timeout = 30_000 });
+        var openApiReadmeLink = page.Locator("a[href*='ForgeTrust.Runnable.Web.OpenApi/README.md']").First;
+        await openApiReadmeLink.WaitForAsync(new LocatorWaitForOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+        await openApiReadmeLink.ClickAsync();
+        await WaitForPathAsync(page, "/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html");
         Assert.Equal("ForgeTrust.Runnable.Web.OpenApi", (await page.TextContentAsync("h1"))?.Trim());
     }
 
@@ -108,5 +96,13 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             """);
 
         Assert.True(overflowIsIntentional);
+    }
+
+    private static async Task WaitForPathAsync(IPage page, string expectedPath)
+    {
+        await page.WaitForFunctionAsync(
+            "path => window.location.pathname === path",
+            expectedPath,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
     }
 }

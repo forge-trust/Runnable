@@ -53,7 +53,8 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
                 () => {
                   const packageRows = Array.from(document.querySelectorAll('.docs-content table tbody tr'));
                   const openApiRow = packageRows.find(row => row.textContent?.includes('ForgeTrust.Runnable.Web.OpenApi'));
-                  return openApiRow?.querySelector('a')?.getAttribute('href') ?? null;
+                  const rawHref = openApiRow?.querySelector('a')?.getAttribute('href');
+                  return rawHref ? new URL(rawHref, window.location.href).pathname : null;
                 }
                 """));
     }

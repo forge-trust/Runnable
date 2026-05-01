@@ -20,9 +20,17 @@ public class ExportCommand : ICommand
     public string OutputPath { get; init; } = "dist";
 
     /// <summary>
-    /// Gets or sets an optional path to a file containing initial seed routes for the exporter.
+    /// Gets or sets an optional path to a plain-text file containing one initial seed route per line.
     /// </summary>
-    [CommandOption("routes", 'r', Description = "Path to a file containing seed routes.")]
+    /// <remarks>
+    /// This property is bound from the <c>-r|--seeds</c> command option. When it is <see langword="null"/>
+    /// or empty, the exporter starts from the root route (<c>/</c>). When it points to a file, the exporter
+    /// reads each line, accepts root-relative routes and absolute HTTP(S) URLs, strips query strings and
+    /// fragments during normalization, and skips invalid, external, hash-only, JavaScript, or mailto entries.
+    /// If the file is missing or unreadable, export fails and returns a non-zero CLI exit code. If the file is
+    /// readable but contains no valid routes, the exporter logs a warning and falls back to the root route.
+    /// </remarks>
+    [CommandOption("seeds", 'r', Description = "Path to a file containing seed routes.")]
     public string? SeedRoutesPath { get; init; }
 
     /// <summary>

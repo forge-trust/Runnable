@@ -84,7 +84,28 @@ public class ExportCommandTests
         }
     }
 
-    private static ExportCommand CreateCommand(string? url, string? project, string? dll, string outputPath = "dist")
+    [Fact]
+    public async Task ExecuteAsync_Should_Use_SeedRoutesPath()
+    {
+        var missingSeedFile = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName(), "seeds.txt");
+        var command = CreateCommand(
+            "http://localhost:5001",
+            null,
+            null,
+            seedRoutesPath: missingSeedFile);
+
+        var ex = await Assert.ThrowsAsync<FileNotFoundException>(
+            async () => await command.ExecuteAsync(A.Fake<IConsole>()));
+
+        Assert.Equal(missingSeedFile, ex.FileName);
+    }
+
+    private static ExportCommand CreateCommand(
+        string? url,
+        string? project,
+        string? dll,
+        string outputPath = "dist",
+        string? seedRoutesPath = null)
     {
         var logger = A.Fake<ILogger<ExportCommand>>();
         var engineLogger = A.Fake<ILogger<ExportEngine>>();
@@ -103,7 +124,8 @@ public class ExportCommandTests
             OutputPath = outputPath,
             BaseUrl = url,
             ProjectPath = project,
-            DllPath = dll
+            DllPath = dll,
+            SeedRoutesPath = seedRoutesPath
         };
     }
 

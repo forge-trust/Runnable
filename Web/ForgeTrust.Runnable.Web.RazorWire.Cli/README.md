@@ -65,7 +65,7 @@ Exports a RazorWire application to a static directory.
 
 **Options:**
 - **`-o|--output <path>`**: Output directory where the static files will be saved (default: `dist`).
-- **`-r|--routes <path>`**: Optional path to a file containing seed routes to crawl.
+- **`-r|--seeds <path>`**: Optional path to a file containing seed routes to crawl.
 - **`-u|--url <url>`**: Base URL of a running application used for crawling.
 - **`-p|--project <path.csproj>`**: Path to a .NET project to run automatically and export.
 - **`-d|--dll <path.dll>`**: Path to a .NET DLL to run automatically and export.

@@ -219,6 +219,20 @@ public class DocModelsTests
     }
 
     [Fact]
+    public void Merge_ShouldReturnPrimaryContributorMetadata_WhenFallbackIsNull()
+    {
+        var primary = new DocContributorMetadata
+        {
+            HideContributorInfo = true,
+            SourcePathOverride = "docs/guide.md"
+        };
+
+        var merged = DocContributorMetadata.Merge(primary, null);
+
+        Assert.Same(primary, merged);
+    }
+
+    [Fact]
     public void Merge_ShouldKeepFlagStateAlignedWithTheSelectedValueSource()
     {
         var merged = DocMetadata.Merge(

@@ -380,4 +380,24 @@ public sealed class RazorDocsOptionsTests
         Assert.True(result.Failed);
         Assert.Contains(result.Failures, failure => failure.Contains("DefaultBranch is required", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void Validator_ShouldRejectUnsupportedContributorLastUpdatedMode()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                LastUpdatedMode = (RazorDocsLastUpdatedMode)999
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("Unsupported RazorDocs contributor last-updated mode", StringComparison.OrdinalIgnoreCase));
+    }
 }

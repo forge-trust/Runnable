@@ -952,6 +952,44 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldOmitGitFreshness_WhenDefaultResolverRunsOutsideGitRepo()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide</p>")
+            ]);
+
+        var aggregator = new DocAggregator(
+            [harvester],
+            new RazorDocsOptions
+            {
+                Source = new RazorDocsSourceOptions
+                {
+                    RepositoryRoot = Path.GetTempPath()
+                },
+                Contributor = new RazorDocsContributorOptions
+                {
+                    Enabled = true,
+                    DefaultBranch = "main",
+                    SourceUrlTemplate = "https://example.com/blob/{branch}/{path}",
+                    LastUpdatedMode = RazorDocsLastUpdatedMode.Git
+                }
+            },
+            _envFake,
+            _memo,
+            _sanitizerFake,
+            _loggerFake);
+
+        var details = await aggregator.GetDocDetailsAsync("guides/quickstart.md");
+
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Equal("https://example.com/blob/main/guides/quickstart.md", details!.ContributorProvenance!.SourceHref);
+        Assert.Null(details.ContributorProvenance.LastUpdatedUtc);
+    }
+
+    [Fact]
     public async Task GetDocDetailsAsync_ShouldSuppressAutomaticContributorProvenance_ForApiReferenceDocs()
     {
         var harvester = A.Fake<IDocHarvester>();

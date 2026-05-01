@@ -1188,6 +1188,101 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldCacheTimedOutContributorFreshness_ForSharedSourceOverrides()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "First",
+                    "guides/first.md",
+                    "<p>First</p>",
+                    Metadata: new DocMetadata
+                    {
+                        Contributor = new DocContributorMetadata
+                        {
+                            SourcePathOverride = "shared/source.md"
+                        }
+                    }),
+                new DocNode(
+                    "Second",
+                    "guides/second.md",
+                    "<p>Second</p>",
+                    Metadata: new DocMetadata
+                    {
+                        Contributor = new DocContributorMetadata
+                        {
+                            SourcePathOverride = "shared/source.md"
+                        }
+                    })
+            ]);
+
+        var resolverCalls = 0;
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                DefaultBranch = "main",
+                SourceUrlTemplate = "https://example.com/blob/{branch}/{path}",
+                LastUpdatedMode = RazorDocsLastUpdatedMode.Git
+            },
+            async (_, cancellationToken) =>
+            {
+                resolverCalls++;
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return DateTimeOffset.UtcNow;
+            },
+            contributorFreshnessTimeout: TimeSpan.FromMilliseconds(25));
+
+        var firstDetails = await aggregator.GetDocDetailsAsync("guides/first.md");
+        var secondDetails = await aggregator.GetDocDetailsAsync("guides/second.md");
+
+        Assert.NotNull(firstDetails?.ContributorProvenance);
+        Assert.NotNull(secondDetails?.ContributorProvenance);
+        Assert.Equal("https://example.com/blob/main/shared/source.md", firstDetails!.ContributorProvenance!.SourceHref);
+        Assert.Equal("https://example.com/blob/main/shared/source.md", secondDetails!.ContributorProvenance!.SourceHref);
+        Assert.Null(firstDetails.ContributorProvenance.LastUpdatedUtc);
+        Assert.Null(secondDetails.ContributorProvenance.LastUpdatedUtc);
+        Assert.Equal(1, resolverCalls);
+    }
+
+    [Fact]
+    public async Task GetDocDetailsAsync_ShouldPreserveContributorBranchSegments_WhenExpandingLinks()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide</p>")
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                DefaultBranch = "feature/issue-143",
+                SourceUrlTemplate = "https://example.com/blob/{branch}/{path}",
+                EditUrlTemplate = "https://example.com/edit/{branch}/{path}",
+                LastUpdatedMode = RazorDocsLastUpdatedMode.None
+            },
+            resolveGitLastUpdatedUtcAsync: null);
+
+        var details = await aggregator.GetDocDetailsAsync("guides/quickstart.md");
+
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Equal(
+            "https://example.com/blob/feature/issue-143/guides/quickstart.md",
+            details!.ContributorProvenance!.SourceHref);
+        Assert.Equal(
+            "https://example.com/edit/feature/issue-143/guides/quickstart.md",
+            details.ContributorProvenance.EditHref);
+        Assert.Null(details.ContributorProvenance.LastUpdatedUtc);
+    }
+
+    [Fact]
     public async Task ResolveGitLastUpdatedUtcAsync_ShouldReturnNull_WhenGitTimestampIsUnparseable()
     {
         var result = await DocAggregator.ResolveGitLastUpdatedUtcAsync(

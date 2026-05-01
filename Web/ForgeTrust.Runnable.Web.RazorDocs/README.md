@@ -115,7 +115,7 @@ Field behavior:
 Host contract:
 
 - If `SourceUrlTemplate` or `EditUrlTemplate` is configured, `DefaultBranch` is required and RazorDocs fails options validation on startup when it is missing.
-- Templates expand the normalized source path segment-by-segment, so spaces and special characters are URL-escaped while path separators stay intact.
+- Templates expand both the branch and normalized source path segment-by-segment, so slash-separated refs stay readable while spaces and other special characters are still URL-escaped safely.
 - Git-backed freshness runs during docs snapshot generation, not during view rendering. If git is unavailable, shallow, or missing history for a page, RazorDocs omits only `Last updated`.
 
 ### Page-level overrides

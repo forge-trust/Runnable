@@ -414,6 +414,22 @@ public sealed record DocContributorMetadata
     /// </summary>
     public DateTimeOffset? LastUpdatedOverride { get; init; }
 
+    /// <summary>
+    /// Merges contributor metadata by preferring authored primary values and filling missing values from fallback metadata.
+    /// </summary>
+    /// <remarks>
+    /// Precedence rules:
+    /// <list type="bullet">
+    /// <item><description><see cref="HideContributorInfo"/> uses nullable-boolean precedence, so explicit <see langword="false"/> is preserved.</description></item>
+    /// <item><description><see cref="SourcePathOverride"/>, <see cref="SourceUrlOverride"/>, and <see cref="EditUrlOverride"/> prefer the first non-blank string; whitespace-only values are treated as missing.</description></item>
+    /// <item><description><see cref="LastUpdatedOverride"/> uses null coalescing and therefore keeps the primary timestamp when present.</description></item>
+    /// </list>
+    /// Pitfalls:
+    /// <list type="bullet">
+    /// <item><description>Setting a string override to the empty string does not clear a fallback value; it falls back instead.</description></item>
+    /// <item><description>Callers that need to suppress inherited contributor rendering should use <see cref="HideContributorInfo"/> instead of relying on blank string overrides.</description></item>
+    /// </list>
+    /// </remarks>
     internal static DocContributorMetadata? Merge(DocContributorMetadata? primary, DocContributorMetadata? fallback)
     {
         if (primary is null)

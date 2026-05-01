@@ -26,7 +26,7 @@ When you run this host in `Development` without explicit endpoint configuration,
 
 The standalone host does not ship a checked-in source or edit target. Hard-coding a public repository or branch in the executable host would make feature-branch and fork smoke tests point readers at the wrong revision.
 
-If you want the live standalone host to exercise the full `Source of truth` strip, provide `RazorDocs:Contributor` explicitly in the environment or appsettings that launch the host:
+If you want the live standalone host to exercise the full `Source of truth` strip, provide `RazorDocs:Contributor` explicitly in the environment or app settings that launch the host:
 
 ```json
 {
@@ -42,6 +42,7 @@ If you want the live standalone host to exercise the full `Source of truth` stri
 ```
 
 - Set `DefaultBranch` and the repository templates to the exact repo and ref you want readers to reach.
+- Slash-separated refs such as `feature/issue-143` are preserved in the generated GitHub-style URLs while still escaping special characters inside each segment.
 - For local forks or branch previews, do not reuse upstream `main` unless that is truly the page's source of truth.
 - If you cannot provide a trustworthy source or edit destination, leave the templates unset. RazorDocs will still render `Last updated` when git freshness is available, and it will omit unsafe links instead of guessing.
 - The Playwright integration suite launches the standalone host with explicit contributor settings so this runtime configuration seam stays covered.

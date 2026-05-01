@@ -91,30 +91,42 @@ public sealed class RazorDocsSidebarOptions
 /// <summary>
 /// Contributor-provenance configuration for RazorDocs details pages.
 /// </summary>
+/// <remarks>
+/// This contract controls the global contributor-provenance surface. Use <see cref="Enabled"/> to switch the entire
+/// feature on or off for a host, and use page-level contributor metadata to suppress or override individual pages
+/// without mutating host-wide defaults.
+/// </remarks>
 public sealed class RazorDocsContributorOptions
 {
     /// <summary>
     /// Gets or sets a value indicating whether contributor provenance rendering is enabled for RazorDocs details pages.
+    /// Disable this when the host should suppress all contributor affordances, even if page-level overrides or
+    /// trustworthy source paths exist.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Gets or sets the stable branch name used when expanding configured source and edit URL templates.
+    /// Required when either <see cref="SourceUrlTemplate"/> or <see cref="EditUrlTemplate"/> is configured.
     /// </summary>
     public string? DefaultBranch { get; set; }
 
     /// <summary>
     /// Gets or sets the source-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
+    /// Pitfall: if the template omits one of the supported tokens, links can silently point at the wrong revision or file.
     /// </summary>
     public string? SourceUrlTemplate { get; set; }
 
     /// <summary>
     /// Gets or sets the edit-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
+    /// Prefer this when maintainers should land directly in an edit workflow rather than in repository browsing.
     /// </summary>
     public string? EditUrlTemplate { get; set; }
 
     /// <summary>
     /// Gets or sets the mode used to resolve contributor freshness.
+    /// <see cref="RazorDocsLastUpdatedMode.Git"/> uses local repository history when a trustworthy source path exists and
+    /// omits only freshness when git data is unavailable or untrustworthy.
     /// </summary>
     public RazorDocsLastUpdatedMode LastUpdatedMode { get; set; } = RazorDocsLastUpdatedMode.Git;
 }
@@ -131,6 +143,7 @@ public enum RazorDocsLastUpdatedMode
 
     /// <summary>
     /// Resolve contributor freshness from local git history when a trustworthy source path exists.
+    /// Hosts should expect graceful omission when git history is unavailable, shallow, or not trustworthy for the page.
     /// </summary>
     Git
 }

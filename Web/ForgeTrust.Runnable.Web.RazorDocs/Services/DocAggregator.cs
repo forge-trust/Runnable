@@ -84,6 +84,29 @@ public class DocAggregator
     {
     }
 
+    /// <summary>
+    /// Initializes a new <see cref="DocAggregator"/> with optional contributor-freshness test seams.
+    /// </summary>
+    /// <param name="harvesters">The documentation harvesters that populate the docs snapshot.</param>
+    /// <param name="options">The resolved RazorDocs options, including source and contributor settings.</param>
+    /// <param name="environment">The host environment used to resolve the repository root when needed.</param>
+    /// <param name="memo">The memo cache used for snapshot reuse.</param>
+    /// <param name="sanitizer">The HTML sanitizer applied to rendered docs content.</param>
+    /// <param name="logger">The logger used for harvest and contributor-freshness diagnostics.</param>
+    /// <param name="resolveGitLastUpdatedUtcAsync">
+    /// Optional freshness resolver used by tests to simulate git-backed timestamps and failure modes.
+    /// When <see langword="null" />, <see cref="ResolveGitLastUpdatedUtcAsync(string, string, ILogger, CancellationToken, Func{string, IReadOnlyList{string}, string, ILogger, CancellationToken, Task{CommandResult}}?)"/>
+    /// is used against the resolved repository root.
+    /// </param>
+    /// <param name="contributorFreshnessTimeout">
+    /// Optional timeout override for a single contributor-freshness lookup. When <see langword="null" />, the aggregator
+    /// uses the default 30 second freshness timeout for each source path during snapshot generation.
+    /// </param>
+    /// <remarks>
+    /// Contributor freshness is resolved during snapshot generation, not during Razor view rendering. Callers that inject
+    /// <paramref name="resolveGitLastUpdatedUtcAsync"/> should respect the supplied <see cref="CancellationToken"/>, because
+    /// timeout cancellation is treated as "omit Last updated" rather than as a fatal snapshot failure.
+    /// </remarks>
     internal DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
         RazorDocsOptions options,
@@ -484,6 +507,7 @@ public class DocAggregator
             catch (OperationCanceledException) when (freshnessTimeoutCts.IsCancellationRequested
                                                      && !cancellationToken.IsCancellationRequested)
             {
+                gitFreshnessBySourcePath[sourcePath] = null;
                 _logger.LogWarning(
                     "Contributor freshness lookup timed out after {TimeoutSeconds}s for {SourcePath}. Omitting Last updated.",
                     _contributorFreshnessTimeout.TotalSeconds,
@@ -550,8 +574,16 @@ public class DocAggregator
         }
 
         return normalizedTemplate
-            .Replace("{branch}", Uri.EscapeDataString(normalizedBranch), StringComparison.Ordinal)
+            .Replace("{branch}", EncodeContributorBranch(normalizedBranch), StringComparison.Ordinal)
             .Replace("{path}", EncodeContributorPath(normalizedSourcePath), StringComparison.Ordinal);
+    }
+
+    private static string EncodeContributorBranch(string branch)
+    {
+        return string.Join(
+            "/",
+            branch.Split('/', StringSplitOptions.None)
+                .Select(Uri.EscapeDataString));
     }
 
     private static string EncodeContributorPath(string path)

@@ -1,3 +1,4 @@
+using System.Threading;
 using ForgeTrust.Runnable.Console;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
@@ -7,7 +8,7 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 /// </summary>
 internal static class ProgramEntryPoint
 {
-    private static Action<ConsoleOptions>? _configureOptionsOverrideForTests;
+    private static readonly AsyncLocal<Action<ConsoleOptions>?> _configureOptionsOverrideForTests = new();
 
     /// <summary>
     /// Runs the RazorWire CLI using the same command-first startup path as the shipped program entrypoint.
@@ -16,7 +17,7 @@ internal static class ProgramEntryPoint
     /// <param name="configureOptions">Optional console startup customization applied before the CLI host starts.</param>
     /// <returns>A task that completes when CLI execution finishes.</returns>
     internal static Task RunAsync(string[] args, Action<ConsoleOptions>? configureOptions = null) =>
-        RazorWireCliApp.RunAsync(args, CombineConfigureOptions(configureOptions, _configureOptionsOverrideForTests));
+        RazorWireCliApp.RunAsync(args, CombineConfigureOptions(configureOptions, _configureOptionsOverrideForTests.Value));
 
     /// <summary>
     /// Temporarily injects additional console startup configuration for the duration of a test that invokes the real assembly entrypoint.
@@ -29,8 +30,8 @@ internal static class ProgramEntryPoint
     {
         ArgumentNullException.ThrowIfNull(configureOptions);
 
-        var previous = _configureOptionsOverrideForTests;
-        _configureOptionsOverrideForTests = configureOptions;
+        var previous = _configureOptionsOverrideForTests.Value;
+        _configureOptionsOverrideForTests.Value = configureOptions;
 
         return new RestoreOverrideScope(previous);
     }
@@ -60,7 +61,7 @@ internal static class ProgramEntryPoint
     {
         public void Dispose()
         {
-            _configureOptionsOverrideForTests = previous;
+            _configureOptionsOverrideForTests.Value = previous;
         }
     }
 }

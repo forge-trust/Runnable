@@ -350,7 +350,12 @@ public sealed class RazorWireMvcPlaywrightTests
                                 && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase),
                     new PageRunAndWaitForResponseOptions { Timeout = 45_000 });
             }
-            catch (Exception ex) when (attempt == 1 && (ex is TimeoutException || ex is PlaywrightException))
+            catch (PlaywrightException ex) when (
+                attempt == 1 &&
+                IsRetryableFormReplacementFailure(
+                    ex,
+                    "Register form was not found.",
+                    "Register username input was not found."))
             {
                 // Retry once to absorb in-flight register form replacement races on slower runners.
                 await page.WaitForTimeoutAsync(300);
@@ -402,7 +407,12 @@ public sealed class RazorWireMvcPlaywrightTests
                                 && response.Request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase),
                     new PageRunAndWaitForResponseOptions { Timeout = 45_000 });
             }
-            catch (Exception ex) when (attempt == 1 && (ex is TimeoutException || ex is PlaywrightException))
+            catch (PlaywrightException ex) when (
+                attempt == 1 &&
+                IsRetryableFormReplacementFailure(
+                    ex,
+                    "Publish form was not found.",
+                    "Publish message input was not found."))
             {
                 // Retry once to absorb in-flight form replacement races on slower CI runners.
                 await page.WaitForTimeoutAsync(300);
@@ -410,6 +420,24 @@ public sealed class RazorWireMvcPlaywrightTests
         }
 
         throw new InvalidOperationException("PublishMessage request did not complete after retry.");
+    }
+
+    private static bool IsRetryableFormReplacementFailure(PlaywrightException ex, params string[] expectedMarkers)
+    {
+        if (ex.Message.Contains("Execution context was destroyed", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        foreach (var marker in expectedMarkers)
+        {
+            if (ex.Message.Contains(marker, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static async Task WaitForCounterReadyAsync(IPage page)

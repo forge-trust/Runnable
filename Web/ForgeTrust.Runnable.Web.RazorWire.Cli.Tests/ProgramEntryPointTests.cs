@@ -137,6 +137,12 @@ public class ProgramEntryPointTests
         Assert.Contains("usage", result.AllText, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void PushConfigureOptionsOverrideForTests_Should_Throw_When_ConfigureOptions_IsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => ProgramEntryPoint.PushConfigureOptionsOverrideForTests(null!));
+    }
+
     private static async Task<CapturedCliRun> InvokeEntryPointAsync(
         string[] args,
         Action<ConsoleOptions>? configureOptions = null)

@@ -25,6 +25,10 @@ jobs:
           dotnet-version: |
             10.0.x
 
+      - name: Verify generated package chooser
+        run: |
+          dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- verify
+
       - name: Build project
         run: dotnet build --configuration Release
 
@@ -65,6 +69,10 @@ jobs:
         with:
           dotnet-version: |
             10.0.x
+
+      - name: Verify generated package chooser
+        run: |
+          dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- verify
 
       - name: Build RazorWire CLI (Release)
         run: |

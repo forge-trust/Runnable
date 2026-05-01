@@ -194,6 +194,56 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldReadChooserMetadataFromPairedSidecar()
+    {
+        var packagesDir = Path.Combine(_testRoot, "packages");
+        Directory.CreateDirectory(packagesDir);
+        await File.WriteAllTextAsync(Path.Combine(packagesDir, "README.md"), "# Packages");
+        await File.WriteAllTextAsync(
+            Path.Combine(packagesDir, "README.md.yml"),
+            """
+            title: Runnable v0.1 package chooser
+            summary: Start with the package chooser first.
+            page_type: guide
+            nav_group: Start Here
+            order: 5
+            section_landing: true
+            breadcrumbs:
+              - Start Here
+              - Packages
+            trust:
+              status: v0.1 chooser
+              summary: Generated from package metadata.
+              freshness: Regenerated on main.
+              change_scope: Repository-wide.
+              migration:
+                label: Read the policy
+                href: /docs/releases/upgrade-policy.md.html
+              archive: Package READMEs stay canonical.
+              sources:
+                - packages/package-index.yml
+                - README.md
+            """);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var doc = results.Single(node => node.Path == "packages/README.md");
+
+        Assert.Equal("Runnable v0.1 package chooser", doc.Title);
+        Assert.Equal("Start with the package chooser first.", doc.Metadata?.Summary);
+        Assert.Equal("guide", doc.Metadata?.PageType);
+        Assert.Equal("Start Here", doc.Metadata?.NavGroup);
+        Assert.Equal(5, doc.Metadata?.Order);
+        Assert.True(doc.Metadata?.SectionLanding);
+        Assert.Equal(["Start Here", "Packages"], doc.Metadata?.Breadcrumbs);
+        Assert.Equal("v0.1 chooser", doc.Metadata?.Trust?.Status);
+        Assert.Equal("Generated from package metadata.", doc.Metadata?.Trust?.Summary);
+        Assert.Equal("Repository-wide.", doc.Metadata?.Trust?.ChangeScope);
+        Assert.Equal("Read the policy", doc.Metadata?.Trust?.Migration?.Label);
+        Assert.Equal("/docs/releases/upgrade-policy.md.html", doc.Metadata?.Trust?.Migration?.Href);
+        Assert.Equal(["packages/package-index.yml", "README.md"], doc.Metadata?.Trust?.Sources);
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldReadSingleMdYamlSidecar()
     {
         await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), "# Guide");

@@ -10,6 +10,7 @@ It also acts as a concrete RazorDocs example for teams that want stronger releas
 
 ## Start here
 
+- [Package chooser](../packages/README.md) is the fastest install map for deciding which Runnable package to add first.
 - [Unreleased](./unreleased.md) is the living proof artifact for the next coordinated Runnable version.
 - [Changelog](../CHANGELOG.md) is the compact ledger that points to unreleased and tagged stories.
 - [Pre-1.0 upgrade policy](./upgrade-policy.md) explains the stability contract before `v1.0.0`.

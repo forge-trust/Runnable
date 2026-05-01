@@ -35,20 +35,20 @@ public sealed class RazorDocsLandingPlaywrightTests
         Assert.DoesNotContain(
             "Welcome to the technical documentation.",
             await page.InnerTextAsync("body"));
-        Assert.Equal("/docs/releases/README.md.html", await page.GetAttributeAsync("main a.group", "href"));
+        Assert.Equal("/docs/packages/README.md.html", await page.GetAttributeAsync("main a.group", "href"));
+
+        await AssertFeaturedCardAsync(
+            page,
+            "/docs/packages/README.md.html",
+            "Which Runnable package should I install first?",
+            "Runnable v0.1 package chooser",
+            "GUIDE");
 
         await AssertFeaturedCardAsync(
             page,
             "/docs/releases/README.md.html",
             "What is shipping next, and how risky is the upgrade?",
             "Releases",
-            "GUIDE");
-
-        await AssertFeaturedCardAsync(
-            page,
-            "/docs/Web/README.md.html",
-            "How do I ship a web app with Runnable?",
-            "Web",
             "GUIDE");
         await AssertFeaturedCardAsync(
             page,

@@ -61,11 +61,20 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             Timeout = 30_000,
             State = WaitForSelectorState.Visible
         });
+        Assert.Equal(
+            "/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html",
+            await openApiReadmeLink.GetAttributeAsync("href"));
         await openApiReadmeLink.ClickAsync();
         await page.WaitForFunctionAsync(
-            "() => document.querySelector('h1')?.textContent?.trim() === 'ForgeTrust.Runnable.Web.OpenApi'",
+            """
+            () => window.location.pathname === '/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html'
+              && document.querySelector('h1')?.textContent?.trim() === 'ForgeTrust.Runnable.Web.OpenApi'
+            """,
             null,
             new PageWaitForFunctionOptions { Timeout = 30_000 });
+        Assert.Equal(
+            "/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html",
+            new Uri(page.Url).AbsolutePath);
         Assert.Equal("ForgeTrust.Runnable.Web.OpenApi", (await page.TextContentAsync("h1"))?.Trim());
     }
 

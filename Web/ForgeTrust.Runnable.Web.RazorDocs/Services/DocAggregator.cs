@@ -307,17 +307,37 @@ public class DocAggregator
                                    return new DocNode(
                                        n.Title,
                                        n.Path,
-                                       DocContentLinkRewriter.RewriteInternalDocLinks(n.Path, sanitizedContent),
-                                       n.ParentPath,
-                                       n.IsDirectory,
-                                       DocRoutePath.BuildCanonicalPath(n.Path),
-                                       n.Metadata);
+                                      sanitizedContent,
+                                      n.ParentPath,
+                                      n.IsDirectory,
+                                      DocRoutePath.BuildCanonicalPath(n.Path),
+                                      n.Metadata);
                                })
                            .ToList();
 
-                       MergeNamespaceReadmes(sanitizedNodes);
+                       var targetNodes = sanitizedNodes.ToList();
+                       MergeNamespaceReadmes(targetNodes);
+                       var linkTargetManifest = DocLinkTargetManifest.FromNodes(targetNodes);
+                       // Rewrite before the real namespace merge so README-relative links keep their source path
+                       // context, while the manifest still reflects only final published docs targets.
+                       var rewrittenNodes = sanitizedNodes
+                           .Select(
+                               n => new DocNode(
+                                   n.Title,
+                                   n.Path,
+                                   DocContentLinkRewriter.RewriteInternalDocLinks(
+                                       n.Path,
+                                       n.Content,
+                                       linkTargetManifest),
+                                   n.ParentPath,
+                                   n.IsDirectory,
+                                   n.CanonicalPath,
+                                   n.Metadata))
+                           .ToList();
 
-                       var docsByPath = sanitizedNodes
+                       MergeNamespaceReadmes(rewrittenNodes);
+
+                       var docsByPath = rewrittenNodes
                            .GroupBy(n => n.Path)
                            .Select(g =>
                            {
@@ -837,12 +857,33 @@ public class DocAggregator
                 var candidate = string.Join(".", parts.Skip(start));
                 if (knownNamesSet.Contains(candidate))
                 {
+                    if (!HasNamespaceReadmePrefix(parts, start))
+                    {
+                        continue;
+                    }
+
                     return candidate;
                 }
             }
+
+            return null;
         }
 
         return parts.LastOrDefault();
+    }
+
+    private static bool HasNamespaceReadmePrefix(IReadOnlyList<string> parts, int namespaceStartIndex)
+    {
+        if (namespaceStartIndex <= 0)
+        {
+            return false;
+        }
+
+        return parts
+            .Take(namespaceStartIndex)
+            .Any(
+                segment => segment.Equals("docs", StringComparison.OrdinalIgnoreCase)
+                           || segment.Equals("Namespaces", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

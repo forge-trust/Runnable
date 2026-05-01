@@ -31,6 +31,8 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Runnable console apps can now opt into a command-first output contract so public CLI help and validation flows stay quiet instead of printing Generic Host lifecycle chatter.
 - RazorWire CLI now uses that contract for `--help`, `export --help`, invalid option output, and missing-source validation while still preserving command-owned export progress logs.
 - The shared console startup seam now exposes `ConsoleOptions` and `ConsoleOutputMode`, so future public Runnable CLIs can adopt the same behavior without forking startup logic.
+- RazorWire CLI now has a first-class .NET tool package contract with the `razorwire` command, supports exact-version `dnx` execution from published or explicit local package sources, and verifies the installed tool path through help and sample export smoke tests. Public package publishing remains manual until the coordinated release automation tracked in #161 lands.
+- Project exports now disable persistent MSBuild build servers during CLI-controlled publish and assembly-name probes so captured tool output cannot hang on reused build nodes.
 
 ### Web host development defaults
 

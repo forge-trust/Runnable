@@ -248,7 +248,14 @@ RazorWire also supports hybrid islands where a server-rendered region mounts a c
 
 ## Static Export
 
-RazorWire can generate static or hybrid sites. For more details, see the [RazorWire CLI](../../Web/ForgeTrust.Runnable.Web.RazorWire.Cli/README.md).
+RazorWire can generate static or hybrid sites with the installable `razorwire`
+.NET tool, or with the short-lived `dnx` tool execution path. Those
+package-based commands require a published package or an explicit local package
+source; public package publishing is still manual until the coordinated release
+automation tracked in #161 lands.
+
+For installation, `dnx`, local-package, and source-run examples, see the
+[RazorWire CLI](../../Web/ForgeTrust.Runnable.Web.RazorWire.Cli/README.md).
 
 ## Examples
 

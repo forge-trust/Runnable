@@ -58,11 +58,13 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
     public Task RunAsync(string[] args) => RunAsync(new StartupContext(args, CreateRootModule()));
 
     /// <summary>
-    /// Runs the host configured by the provided startup context and logs lifecycle events.
+    /// Runs the host configured by the provided startup context and logs lifecycle events according to the configured console output mode.
     /// </summary>
     /// <param name="context">Context containing application name, root module, dependencies, and any custom registrations used to build and configure the host.</param>
     /// <returns>A task that completes when the host run has finished and shutdown processing is complete.</returns>
     /// <remarks>
+    /// By default this method emits an informational shutdown log via <c>logger.LogInformation("Run Exited - Shutting down")</c> after <c>host.RunAsync()</c> completes.
+    /// When <see cref="StartupContext.ConsoleOutputMode"/> is <see cref="ConsoleOutputMode.CommandFirst"/>, that shutdown log is suppressed so command-first console flows can keep help and validation output free of lifecycle noise.
     /// Logs a warning if shutdown is cancelled or does not complete in time. On an unhandled exception logs a critical error and sets <c>Environment.ExitCode</c> to <c>-100</c>.
     /// </remarks>
     public async Task RunAsync(StartupContext context)
@@ -75,7 +77,10 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
 
             await host.RunAsync();
 
-            logger.LogInformation("Run Exited - Shutting down");
+            if (context.ConsoleOutputMode != ConsoleOutputMode.CommandFirst)
+            {
+                logger.LogInformation("Run Exited - Shutting down");
+            }
         }
         catch (OperationCanceledException ex)
         {

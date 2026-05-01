@@ -456,6 +456,7 @@ public class ExportSourceResolverTests
         Assert.NotNull(capturedPublishArgs);
         Assert.Equal("publish", capturedPublishArgs[0]);
         Assert.Contains(projectPath, capturedPublishArgs);
+        Assert.Contains("--disable-build-servers", capturedPublishArgs);
         Assert.Contains("-c", capturedPublishArgs);
         Assert.Contains("Release", capturedPublishArgs);
         Assert.Contains("-o", capturedPublishArgs);
@@ -620,6 +621,7 @@ public class ExportSourceResolverTests
             Path.Combine(tempDir.FullPath, "bin", "runnable-export", "MySite.dll"));
         Assert.Equal(normalizedExpected, resolved.SourceValue);
         Assert.NotNull(capturedPublishArgs);
+        Assert.Contains("--disable-build-servers", capturedPublishArgs);
         Assert.Contains("-f", capturedPublishArgs);
         Assert.Contains("net10.0", capturedPublishArgs);
     }
@@ -628,7 +630,7 @@ public class ExportSourceResolverTests
     public void ResolveBuiltDllPath_Should_Honor_Requested_Framework_When_Provided()
     {
         using var tempDir = new TempDirectory();
-        
+
         var net9Dir = Path.Combine(tempDir.FullPath, "bin", "Release", "net9.0", "publish");
         Directory.CreateDirectory(net9Dir);
         File.WriteAllBytes(Path.Combine(net9Dir, "MySite.dll"), [1, 2, 3]);
@@ -921,6 +923,7 @@ public class ExportSourceResolverTests
         Assert.Equal(projectPath, capturedArgs[1]);
         Assert.Contains("-getProperty:AssemblyName", capturedArgs);
         Assert.Contains("-nologo", capturedArgs);
+        Assert.Contains("-nodeReuse:false", capturedArgs);
         Assert.Contains("-p:Configuration=Release", capturedArgs);
         Assert.Contains("-p:TargetFramework=net10.0", capturedArgs);
     }
@@ -962,6 +965,7 @@ public class ExportSourceResolverTests
         Assert.Equal(projectPath, capturedArgs[1]);
         Assert.Contains("-getProperty:AssemblyName", capturedArgs);
         Assert.Contains("-nologo", capturedArgs);
+        Assert.Contains("-nodeReuse:false", capturedArgs);
         Assert.Contains("-p:Configuration=Release", capturedArgs);
         Assert.Contains("-p:TargetFramework=net10.0", capturedArgs);
     }

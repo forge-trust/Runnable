@@ -15,6 +15,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     private const string RazorDocsStaticAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";
     private const string RazorDocsPackagedStylesheetPath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css";
     private const string RazorDocsRootStylesheetPath = "/css/site.gen.css";
+    private const string RazorDocsRootHostedDocsAssetBasePath = "/docs";
 
     /// <inheritdoc />
     public bool IncludeAsApplicationPart => true;
@@ -148,10 +149,15 @@ public class RazorDocsWebModule : IRunnableWebModule
             MapLegacyAssetRedirect(endpoints, RazorDocsRootStylesheetPath, RazorDocsPackagedStylesheetPath);
         }
 
-        // Preserve the historical /docs asset URLs even though the assets now live in the RazorDocs RCL package.
-        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search.css"), $"{RazorDocsStaticAssetBasePath}/search.css");
-        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("minisearch.min.js"), $"{RazorDocsStaticAssetBasePath}/minisearch.min.js");
-        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search-client.js"), $"{RazorDocsStaticAssetBasePath}/search-client.js");
+        var searchAssetBasePath = ResolveLegacySearchAssetBasePath(context);
+
+        // Preserve the historical docs asset URLs even though the assets now live in the RazorDocs RCL package.
+        // Root-module hosts expose those runtime assets from the app's own /docs static-file path even when /docs
+        // itself falls back to the archive recovery surface, so preview roots such as /docs/next or /docs/preview
+        // can safely canonicalize their shared search runtime back to /docs.
+        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search.css"), $"{searchAssetBasePath}/search.css");
+        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("minisearch.min.js"), $"{searchAssetBasePath}/minisearch.min.js");
+        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search-client.js"), $"{searchAssetBasePath}/search-client.js");
 
         if (docsOptions.Versioning?.Enabled == true)
         {
@@ -249,6 +255,13 @@ public class RazorDocsWebModule : IRunnableWebModule
     private static bool ShouldPreserveRootStylesheetPath(StartupContext context)
     {
         return RazorDocsAssetPathResolver.IsRootModuleAssembly(context.RootModuleAssembly);
+    }
+
+    private static string ResolveLegacySearchAssetBasePath(StartupContext context)
+    {
+        return ShouldPreserveRootStylesheetPath(context)
+            ? RazorDocsRootHostedDocsAssetBasePath
+            : RazorDocsStaticAssetBasePath;
     }
 
     private static string TrimLeadingSlash(string route)

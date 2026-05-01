@@ -185,7 +185,11 @@ The version catalog is the release-level source of truth for version routing and
 Each `exactTreePath` directory is treated as a prebuilt static subtree for one exact release. It should be exported from the stable `/docs` surface, and at minimum it must include:
 
 - `index.html` at the tree root
+- `search.html` at the tree root
 - `search-index.json` at the tree root
+- `search.css` at the tree root
+- `search-client.js` at the tree root
+- `minisearch.min.js` at the tree root
 - any section, detail, partial, and asset routes that belong to the exported `/docs` surface for that release
 
 RazorDocs does not regenerate these trees at request time. It resolves extensionless requests back to the exported `.html` files and rewrites stable-root HTML plus `search-index.json` payloads so the same artifact can serve both `/docs` and `/docs/v/{version}` honestly. Use the [RazorWire CLI](../ForgeTrust.Runnable.Web.RazorWire.Cli/README.md) or another static-export pipeline to publish those trees ahead of time.

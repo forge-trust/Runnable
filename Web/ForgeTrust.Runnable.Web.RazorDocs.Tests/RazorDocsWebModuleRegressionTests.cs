@@ -366,6 +366,151 @@ public class RazorDocsWebModuleRegressionTests
     }
 
     [Fact]
+    public async Task ConfigureEndpoints_Versioning_RedirectsPreviewSearchAssetsToStableRoot_WhenRazorDocsIsRootModule()
+    {
+        var module = new RazorDocsWebModule();
+        var context = new StartupContext([], module);
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddSingleton(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/next"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true
+                }
+            });
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+
+        using var app = builder.Build();
+        module.ConfigureEndpoints(context, app);
+
+        await app.StartAsync();
+
+        try
+        {
+            var server = app.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            await AssertRedirectAsync(client, "/docs/next/search.css", "/docs/search.css");
+            await AssertRedirectAsync(client, "/docs/next/minisearch.min.js", "/docs/minisearch.min.js");
+            await AssertRedirectAsync(
+                client,
+                HttpMethod.Head,
+                "/docs/next/search-client.js?cache=abc",
+                "/docs/search-client.js?cache=abc");
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfigureWebApplication_Versioning_KeepsRootHostedSearchAssetsAvailable_WhenRecommendedReleaseIsUnavailable()
+    {
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-versioning-degraded-asset-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+            var brokenTree = Path.Combine(tempDirectory, "broken");
+            Directory.CreateDirectory(brokenTree);
+            File.WriteAllText(Path.Combine(brokenTree, "index.html"), "<html>broken</html>");
+
+            var catalogPath = Path.Combine(tempDirectory, "catalog.json");
+            File.WriteAllText(
+                catalogPath,
+                """
+                {
+                  "recommendedVersion": "2.0.0",
+                  "versions": [
+                    {
+                      "version": "2.0.0",
+                      "label": "2.0.0",
+                      "exactTreePath": "broken",
+                      "supportState": "Current",
+                      "visibility": "Public",
+                      "advisoryState": "None"
+                    }
+                  ]
+                }
+                """);
+
+            var module = new RazorDocsWebModule();
+            var startup = new TestRazorDocsStartup(module);
+            var context = new StartupContext([], module);
+            var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+
+            builder.ConfigureAppConfiguration(
+                (_, configuration) =>
+                {
+                    configuration.AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["RazorDocs:Source:RepositoryRoot"] = repoRoot,
+                            ["RazorDocs:Routing:DocsRootPath"] = "/docs/preview",
+                            ["RazorDocs:Versioning:Enabled"] = "true",
+                            ["RazorDocs:Versioning:CatalogPath"] = catalogPath
+                        });
+                });
+            builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
+
+            using var host = builder.Build();
+            await host.StartAsync();
+
+            try
+            {
+                var server = host.Services.GetRequiredService<IServer>();
+                var addresses = server.Features.Get<IServerAddressesFeature>();
+                var baseAddress = Assert.Single(addresses!.Addresses);
+
+                using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                {
+                    BaseAddress = new Uri(baseAddress)
+                };
+
+                using var entryResponse = await client.GetAsync("/docs");
+                var entryHtml = await entryResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, entryResponse.StatusCode);
+                Assert.Contains("No healthy recommended release tree", entryHtml, StringComparison.OrdinalIgnoreCase);
+
+                using var rootAssetResponse = await client.GetAsync("/docs/search.css");
+                var rootAssetBody = await rootAssetResponse.Content.ReadAsStringAsync();
+                Assert.Equal(HttpStatusCode.OK, rootAssetResponse.StatusCode);
+                Assert.Equal("/docs/search.css", rootAssetResponse.RequestMessage?.RequestUri?.AbsolutePath);
+                Assert.Contains(".docs-search-page-results", rootAssetBody);
+
+                await AssertRedirectAsync(client, "/docs/preview/search.css", "/docs/search.css");
+                await AssertRedirectAsync(client, "/docs/preview/minisearch.min.js", "/docs/minisearch.min.js");
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ConfigureEndpoints_Issue001_PreservesPathBaseInLegacyAssetRedirects()
     {
         var module = new RazorDocsWebModule();
@@ -643,6 +788,7 @@ public class RazorDocsWebModuleRegressionTests
             <!DOCTYPE html>
             <html>
             <head>
+              <script src="/docs/minisearch.min.js"></script>
               <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
             </head>
             <body data-tree="release-search">
@@ -653,6 +799,7 @@ public class RazorDocsWebModuleRegressionTests
         File.WriteAllText(Path.Combine(root, "guide.html"), "<!DOCTYPE html><html><body data-tree=\"release-guide\">Guide</body></html>");
         File.WriteAllText(Path.Combine(root, "search.css"), "body { color: #fff; }");
         File.WriteAllText(Path.Combine(root, "search-client.js"), "window.__releaseTree = true;");
+        File.WriteAllText(Path.Combine(root, "minisearch.min.js"), "window.MiniSearch = window.MiniSearch || {};");
         File.WriteAllText(Path.Combine(root, "search-index.json"), "{\"documents\":[{\"path\":\"/docs/guide.html\",\"title\":\"Guide\"}]}");
         return root;
     }

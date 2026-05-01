@@ -66,6 +66,10 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var brokenTree = Path.Combine(_tempDirectory, "broken");
         Directory.CreateDirectory(brokenTree);
         File.WriteAllText(Path.Combine(brokenTree, "index.html"), "<html>broken</html>");
+        File.WriteAllText(Path.Combine(brokenTree, "search.html"), "<html>search</html>");
+        File.WriteAllText(Path.Combine(brokenTree, "search.css"), "body { color: #fff; }");
+        File.WriteAllText(Path.Combine(brokenTree, "search-client.js"), "window.__searchClientLoaded = true;");
+        File.WriteAllText(Path.Combine(brokenTree, "minisearch.min.js"), "window.MiniSearch = window.MiniSearch || {};");
 
         var catalogPath = WriteCatalog(
             new RazorDocsVersionCatalog
@@ -98,6 +102,36 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         Assert.False(brokenVersion.IsAvailable);
         Assert.Contains("search-index.json", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
         Assert.True(healthyVersion.IsAvailable);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldMarkVersionUnavailable_WhenRequiredSearchAssetIsMissing()
+    {
+        var brokenTree = CreateExactTree("broken");
+        File.Delete(Path.Combine(brokenTree, "search-client.js"));
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "1.2.0",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, brokenTree),
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Null(catalog.RecommendedVersion);
+        var brokenVersion = Assert.Single(catalog.PublicVersions);
+        Assert.False(brokenVersion.IsAvailable);
+        Assert.Contains("search-client.js", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -163,7 +197,11 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var root = Path.Combine(_tempDirectory, name);
         Directory.CreateDirectory(root);
         File.WriteAllText(Path.Combine(root, "index.html"), "<html>ok</html>");
+        File.WriteAllText(Path.Combine(root, "search.html"), "<html>search</html>");
         File.WriteAllText(Path.Combine(root, "search-index.json"), "{\"documents\":[]}");
+        File.WriteAllText(Path.Combine(root, "search.css"), "body { color: #fff; }");
+        File.WriteAllText(Path.Combine(root, "search-client.js"), "window.__searchClientLoaded = true;");
+        File.WriteAllText(Path.Combine(root, "minisearch.min.js"), "window.MiniSearch = window.MiniSearch || {};");
         return root;
     }
 

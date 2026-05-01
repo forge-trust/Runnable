@@ -9,10 +9,21 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// <remarks>
 /// The service performs best-effort validation so a broken stored release tree becomes unavailable without preventing
 /// healthy versions or the live preview surface from loading. Validation is intentionally release-local: every version
-/// is checked independently for a readable tree root, a landing page, and a search index.
+/// is checked independently for a readable tree root, the required landing and search pages, the search index, and
+/// the shared search runtime assets that exact-version pages depend on.
 /// </remarks>
 public sealed class RazorDocsVersionCatalogService
 {
+    private static readonly string[] RequiredExactTreeFiles =
+    [
+        "index.html",
+        "search.html",
+        "search-index.json",
+        "search.css",
+        "search-client.js",
+        "minisearch.min.js"
+    ];
+
     private static readonly JsonSerializerOptions CatalogJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -233,16 +244,13 @@ public sealed class RazorDocsVersionCatalogService
             return $"ExactTreePath '{exactTreePath}' does not exist.";
         }
 
-        var landingPagePath = Path.Combine(exactTreePath, "index.html");
-        if (!File.Exists(landingPagePath))
+        foreach (var requiredFile in RequiredExactTreeFiles)
         {
-            return $"ExactTreePath '{exactTreePath}' is missing index.html.";
-        }
-
-        var searchIndexPath = Path.Combine(exactTreePath, "search-index.json");
-        if (!File.Exists(searchIndexPath))
-        {
-            return $"ExactTreePath '{exactTreePath}' is missing search-index.json.";
+            var requiredPath = Path.Combine(exactTreePath, requiredFile);
+            if (!File.Exists(requiredPath))
+            {
+                return $"ExactTreePath '{exactTreePath}' is missing {requiredFile}.";
+            }
         }
 
         return null;

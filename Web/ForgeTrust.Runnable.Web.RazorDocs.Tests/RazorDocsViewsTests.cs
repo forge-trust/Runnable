@@ -1614,6 +1614,50 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task VersionsView_ShouldUseTopLevelNavigation_ForCrossSurfaceLinks()
+    {
+        using var services = CreateServiceProvider(
+            CreateDocs(),
+            new Dictionary<string, string?>
+            {
+                ["RazorDocs:Routing:DocsRootPath"] = "/docs/next",
+                ["RazorDocs:Versioning:Enabled"] = "true",
+                ["RazorDocs:Versioning:CatalogPath"] = "catalog.json"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Versions.cshtml",
+            new RazorDocsVersionArchiveViewModel
+            {
+                Heading = "Documentation versions",
+                Description = "Choose the exact release you want to read, or keep using the preview surface.",
+                PreviewHref = "/docs/next",
+                VersionsHref = "/docs/versions",
+                Versions =
+                [
+                    new RazorDocsVersionArchiveEntryViewModel
+                    {
+                        Version = "1.2.3",
+                        Label = "1.2.3",
+                        Href = "/docs/v/1.2.3",
+                        IsAvailable = true,
+                        SupportStateLabel = "Current"
+                    }
+                ]
+            });
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var previewLink = document.QuerySelectorAll("a[href='/docs/next']")
+            .Single(link => link.TextContent.Contains("Open preview docs", StringComparison.Ordinal));
+        var exactVersionLink = document.QuerySelectorAll("a[href='/docs/v/1.2.3']")
+            .Single(link => link.TextContent.Contains("Open 1.2.3", StringComparison.Ordinal));
+
+        Assert.Equal("_top", previewLink.GetAttribute("data-turbo-frame"));
+        Assert.Equal("_top", exactVersionLink.GetAttribute("data-turbo-frame"));
+    }
+
+    [Fact]
     public async Task IndexView_ShouldNotRenderSearchWorkspaceOnlyAssets()
     {
         using var services = CreateServiceProvider(CreateDocs());

@@ -181,7 +181,11 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
         var root = Path.Combine(_tempDirectory, version);
         Directory.CreateDirectory(root);
         File.WriteAllText(Path.Combine(root, "index.html"), "<html>ok</html>");
+        File.WriteAllText(Path.Combine(root, "search.html"), "<html>search</html>");
         File.WriteAllText(Path.Combine(root, "search-index.json"), "{\"documents\":[]}");
+        File.WriteAllText(Path.Combine(root, "search.css"), "body { color: #fff; }");
+        File.WriteAllText(Path.Combine(root, "search-client.js"), "window.__searchClientLoaded = true;");
+        File.WriteAllText(Path.Combine(root, "minisearch.min.js"), "window.MiniSearch = window.MiniSearch || {};");
         return root;
     }
 

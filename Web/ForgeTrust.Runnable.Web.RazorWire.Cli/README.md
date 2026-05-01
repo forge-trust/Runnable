@@ -47,7 +47,7 @@ For both `--project` and `--dll`:
 When the target app hosts RazorDocs:
 
 - Export the live unreleased preview surface from its configured live docs root, such as `/docs` when versioning is off or `/docs/next` when versioning is on.
-- Export exact published release trees as standalone static subtrees that already contain their own `index.html`, `search-index.json`, section routes, and detail pages.
+- Export exact published release trees as standalone static subtrees that already contain their own `index.html`, `search.html`, `search-index.json`, `search.css`, `search-client.js`, `minisearch.min.js`, section routes, and detail pages.
 - Treat those exact release trees as immutable publish artifacts. The RazorDocs runtime mounts them later under `/docs/v/{version}` and may also mount the recommended one at `/docs`.
 - Use `--routes` when you want deterministic seeds for docs-specific surfaces instead of relying only on crawl discovery.
 

@@ -179,7 +179,7 @@ public sealed class ToolPackageContractTests
 
         var packageType = Assert.Single(nuspec.Descendants(ns + "packageType"));
         Assert.Equal("DotnetTool", packageType.Attribute("name")?.Value);
-        Assert.Empty(nuspec.Descendants(ns + "dependencies"));
+        Assert.Empty(nuspec.Descendants(ns + "dependency"));
 
         var settingsEntry = Assert.Single(
             archive.Entries,

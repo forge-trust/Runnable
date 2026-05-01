@@ -106,6 +106,99 @@
     margin-bottom: 1rem;
 }
 
+.docs-provenance-strip {
+    margin-top: 1.25rem;
+    display: grid;
+    gap: 0.55rem;
+    border-top: 1px solid rgba(51, 65, 85, 0.9);
+    padding-top: 0.85rem;
+}
+
+.docs-provenance-label {
+    margin: 0;
+    color: #67e8f9;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.docs-provenance-items {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1.1rem;
+    min-width: 0;
+}
+
+.docs-provenance-link,
+.docs-provenance-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.75rem;
+    line-height: 1.4;
+}
+
+.docs-provenance-link {
+    font-size: 0.92rem;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.18em;
+    transition:
+        color 120ms ease,
+        text-decoration-color 120ms ease;
+}
+
+.docs-provenance-link--primary {
+    color: #e2e8f0;
+    text-decoration-color: rgba(103, 232, 249, 0.45);
+}
+
+.docs-provenance-link--primary:hover {
+    color: #cffafe;
+    text-decoration-color: rgba(207, 250, 254, 0.78);
+}
+
+.docs-provenance-link--secondary {
+    color: #cbd5e1;
+    text-decoration-color: rgba(148, 163, 184, 0.6);
+}
+
+.docs-provenance-link--secondary:hover {
+    color: #e2e8f0;
+    text-decoration-color: rgba(226, 232, 240, 0.8);
+}
+
+.docs-provenance-link:visited {
+    color: #bfdbfe;
+}
+
+.docs-provenance-link--secondary:visited {
+    color: #93c5fd;
+}
+
+.docs-provenance-pencil {
+    color: #67e8f9;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+.docs-provenance-item {
+    color: #cbd5e1;
+    font-size: 0.88rem;
+}
+
+.docs-provenance-key {
+    color: #94a3b8;
+    font-weight: 700;
+}
+
+.docs-provenance-time {
+    color: #e2e8f0;
+}
+
 .docs-trust-bar {
     margin-top: 1.5rem;
     display: grid;
@@ -259,6 +352,16 @@
     margin: 0;
     color: #94a3b8;
     font-size: 0.92rem;
+}
+
+@media (max-width: 640px) {
+    .docs-provenance-strip {
+        gap: 0.45rem;
+    }
+
+    .docs-provenance-items {
+        gap: 0.25rem 1rem;
+    }
 }
 
 .docs-search-page-active-filters {

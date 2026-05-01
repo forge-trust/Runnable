@@ -73,6 +73,31 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldTrimConfiguredContributorOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Contributor:DefaultBranch"] = " main ",
+                        ["RazorDocs:Contributor:SourceUrlTemplate"] = " https://example.com/blob/{branch}/{path} ",
+                        ["RazorDocs:Contributor:EditUrlTemplate"] = " https://example.com/edit/{branch}/{path} "
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("main", options.Contributor.DefaultBranch);
+        Assert.Equal("https://example.com/blob/{branch}/{path}", options.Contributor.SourceUrlTemplate);
+        Assert.Equal("https://example.com/edit/{branch}/{path}", options.Contributor.EditUrlTemplate);
+    }
+
+    [Fact]
     public void AddRazorDocs_ShouldRejectExplicitWhitespaceSourceRepositoryRoot()
     {
         var services = new ServiceCollection();
@@ -109,7 +134,8 @@ public sealed class RazorDocsOptionsTests
                   "RazorDocs": {
                     "Source": null,
                     "Bundle": null,
-                    "Sidebar": null
+                    "Sidebar": null,
+                    "Contributor": null
                   }
                 }
                 """));
@@ -126,6 +152,7 @@ public sealed class RazorDocsOptionsTests
         Assert.NotNull(options.Source);
         Assert.NotNull(options.Bundle);
         Assert.NotNull(options.Sidebar);
+        Assert.NotNull(options.Contributor);
         Assert.NotNull(options.Sidebar.NamespacePrefixes);
         Assert.Empty(options.Sidebar.NamespacePrefixes);
     }
@@ -149,6 +176,12 @@ public sealed class RazorDocsOptionsTests
         {
             NamespacePrefixes = [" Contoso.Product. ", "contoso.product.", " "]
         };
+        var contributor = new RazorDocsContributorOptions
+        {
+            DefaultBranch = " main ",
+            SourceUrlTemplate = " https://example.com/blob/{branch}/{path} ",
+            EditUrlTemplate = " https://example.com/edit/{branch}/{path} "
+        };
 
         services.Configure<RazorDocsOptions>(
             options =>
@@ -156,6 +189,7 @@ public sealed class RazorDocsOptionsTests
                 options.Source = source;
                 options.Bundle = bundle;
                 options.Sidebar = sidebar;
+                options.Contributor = contributor;
             });
 
         services.AddRazorDocs();
@@ -166,9 +200,13 @@ public sealed class RazorDocsOptionsTests
         Assert.Same(source, options.Source);
         Assert.Same(bundle, options.Bundle);
         Assert.Same(sidebar, options.Sidebar);
+        Assert.Same(contributor, options.Contributor);
         Assert.Equal("/tmp/configured-root", options.Source.RepositoryRoot);
         Assert.Equal("/tmp/docs.bundle.json", options.Bundle.Path);
         Assert.Equal(["Contoso.Product."], options.Sidebar.NamespacePrefixes);
+        Assert.Equal("main", options.Contributor.DefaultBranch);
+        Assert.Equal("https://example.com/blob/{branch}/{path}", options.Contributor.SourceUrlTemplate);
+        Assert.Equal("https://example.com/edit/{branch}/{path}", options.Contributor.EditUrlTemplate);
     }
 
     [Fact]
@@ -184,6 +222,7 @@ public sealed class RazorDocsOptionsTests
                 options.Source = null!;
                 options.Bundle = null!;
                 options.Sidebar = null!;
+                options.Contributor = null!;
             });
 
         using var provider = services.BuildServiceProvider();
@@ -192,6 +231,7 @@ public sealed class RazorDocsOptionsTests
         Assert.NotNull(options.Source);
         Assert.NotNull(options.Bundle);
         Assert.NotNull(options.Sidebar);
+        Assert.NotNull(options.Contributor);
         Assert.NotNull(options.Sidebar.NamespacePrefixes);
         Assert.Empty(options.Sidebar.NamespacePrefixes);
     }
@@ -243,7 +283,8 @@ public sealed class RazorDocsOptionsTests
         {
             Source = null!,
             Bundle = null!,
-            Sidebar = null!
+            Sidebar = null!,
+            Contributor = null!
         };
 
         var result = validator.Validate(Options.DefaultName, options);
@@ -252,6 +293,7 @@ public sealed class RazorDocsOptionsTests
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Source must not be null.", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Bundle must not be null.", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Sidebar must not be null.", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Contributor must not be null.", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -317,5 +359,25 @@ public sealed class RazorDocsOptionsTests
 
         Assert.True(result.Failed);
         Assert.Contains(result.Failures, failure => failure.Contains("not implemented", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRequireDefaultBranch_WhenContributorTemplatesAreConfigured()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                SourceUrlTemplate = "https://example.com/blob/{branch}/{path}",
+                EditUrlTemplate = "https://example.com/edit/{branch}/{path}",
+                DefaultBranch = "   "
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("DefaultBranch is required", StringComparison.OrdinalIgnoreCase));
     }
 }

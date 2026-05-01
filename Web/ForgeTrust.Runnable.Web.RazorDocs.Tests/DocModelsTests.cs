@@ -23,6 +23,11 @@ public class DocModelsTests
                     Href = "/docs/releases/upgrade-policy.md.html"
                 }
             },
+            Contributor = new DocContributorMetadata
+            {
+                SourcePathOverride = "docs/guide.md",
+                LastUpdatedOverride = new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero)
+            },
             FeaturedPages =
             [
                 new DocFeaturedPageDefinition
@@ -64,6 +69,8 @@ public class DocModelsTests
         Assert.Equal("getting-started", node.Metadata?.SequenceKey);
         Assert.Equal("Unreleased", node.Metadata?.Trust?.Status);
         Assert.Equal("/docs/releases/upgrade-policy.md.html", node.Metadata?.Trust?.Migration?.Href);
+        Assert.Equal("docs/guide.md", node.Metadata?.Contributor?.SourcePathOverride);
+        Assert.Equal(new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero), node.Metadata?.Contributor?.LastUpdatedOverride);
         Assert.Single(node.Metadata?.FeaturedPages!);
         Assert.Equal(["alias-one"], node.Metadata?.Aliases);
         Assert.Equal(["legacy/alias"], node.Metadata?.RedirectAliases);
@@ -177,6 +184,38 @@ public class DocModelsTests
         Assert.Equal("/docs/releases/upgrade-policy.md.html", merged.Trust.Migration?.Href);
         Assert.Equal("Tagged release notes keep the durable record.", merged.Trust.Archive);
         Assert.Empty(merged.Trust.Sources!);
+    }
+
+    [Fact]
+    public void Merge_ShouldMergeContributorMetadata_FieldByField()
+    {
+        var merged = DocMetadata.Merge(
+            new DocMetadata
+            {
+                Contributor = new DocContributorMetadata
+                {
+                    HideContributorInfo = false,
+                    SourceUrlOverride = "https://example.com/source"
+                }
+            },
+            new DocMetadata
+            {
+                Contributor = new DocContributorMetadata
+                {
+                    SourcePathOverride = "docs/guide.md",
+                    EditUrlOverride = "https://example.com/edit",
+                    LastUpdatedOverride = new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero)
+                }
+            });
+
+        Assert.NotNull(merged?.Contributor);
+        Assert.False(merged!.Contributor!.HideContributorInfo);
+        Assert.Equal("docs/guide.md", merged.Contributor.SourcePathOverride);
+        Assert.Equal("https://example.com/source", merged.Contributor.SourceUrlOverride);
+        Assert.Equal("https://example.com/edit", merged.Contributor.EditUrlOverride);
+        Assert.Equal(
+            new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero),
+            merged.Contributor.LastUpdatedOverride);
     }
 
     [Fact]

@@ -25,6 +25,13 @@
                        || trustArchive is not null
                        || trustMigrationHref is not null
                        || trustSources.Count > 0;
+    var provenance = Model.ContributorProvenance;
+    var sourceHref = string.IsNullOrWhiteSpace(provenance?.SourceHref) ? null : provenance!.SourceHref!.Trim();
+    var editHref = string.IsNullOrWhiteSpace(provenance?.EditHref) ? null : provenance!.EditHref!.Trim();
+    var lastUpdatedUtc = provenance?.LastUpdatedUtc?.ToUniversalTime();
+    var sourceUsesTurbo = sourceHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
+    var editUsesTurbo = editHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
+    var showContributorProvenance = sourceHref is not null || editHref is not null || lastUpdatedUtc is not null;
 }
 
 <header class="@(Model.IsCSharpApiDoc ? "mb-5" : "mb-8")">
@@ -94,6 +101,46 @@
         {
             <p class="mt-3 max-w-3xl text-base text-slate-400">@Model.Summary</p>
         }
+    }
+
+    @if (showContributorProvenance)
+    {
+        <section class="docs-provenance-strip" aria-label="Source of truth">
+            <p class="docs-provenance-label">Source of truth</p>
+            <div class="docs-provenance-items">
+                @if (sourceHref is not null)
+                {
+                    <a href="@sourceHref"
+                       class="docs-provenance-link docs-provenance-link--primary"
+                       @if (sourceUsesTurbo)
+                       {
+                           <text>data-turbo-frame="doc-content" data-turbo-action="advance"</text>
+                       }>View source</a>
+                }
+                @if (editHref is not null)
+                {
+                    <a href="@editHref"
+                       class="docs-provenance-link docs-provenance-link--secondary"
+                       @if (editUsesTurbo)
+                       {
+                           <text>data-turbo-frame="doc-content" data-turbo-action="advance"</text>
+                       }>
+                        <span class="docs-provenance-pencil" aria-hidden="true">✎</span>
+                        <span>Edit this page</span>
+                    </a>
+                }
+                @if (lastUpdatedUtc is not null)
+                {
+                    <p class="docs-provenance-item">
+                        <span class="docs-provenance-key">Last updated</span>
+                        <time class="docs-provenance-time"
+                              rw-type="local"
+                              datetime="@lastUpdatedUtc.Value"
+                              rw-display="relative"></time>
+                    </p>
+                }
+            </div>
+        </section>
     }
 
     @if (showTrustBar)

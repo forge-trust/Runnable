@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using ForgeTrust.Runnable.Caching;
@@ -16,12 +17,16 @@ public class DocAggregator
     private const int SearchSnippetMaxLength = 220;
     internal static readonly TimeSpan SnapshotCacheDuration = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan HarvesterTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ContributorFreshnessTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IEnumerable<IDocHarvester> _harvesters;
     private readonly string _repositoryRoot;
     private readonly IMemo _memo;
     private readonly IRazorDocsHtmlSanitizer _sanitizer;
     private readonly ILogger<DocAggregator> _logger;
+    private readonly RazorDocsContributorOptions _contributorOptions;
+    private readonly Func<string, CancellationToken, Task<DateTimeOffset?>> _resolveGitLastUpdatedUtcAsync;
+    private readonly TimeSpan _contributorFreshnessTimeout;
     private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(SnapshotCacheDuration);
     private readonly Guid _cacheScope = Guid.NewGuid();
     private long _cacheGeneration;
@@ -42,7 +47,8 @@ public class DocAggregator
         Dictionary<string, DocNode> DocsByPath,
         Dictionary<string, DocLookupBucket> Lookup,
         IReadOnlyList<DocSectionSnapshot> PublicSections,
-        object SearchIndexPayload);
+        object SearchIndexPayload,
+        Dictionary<string, DocContributorProvenanceViewModel> ContributorProvenanceByPath);
 
     private sealed class DocLookupBucket
     {
@@ -67,6 +73,26 @@ public class DocAggregator
         IMemo memo,
         IRazorDocsHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger)
+        : this(
+            harvesters,
+            options,
+            environment,
+            memo,
+            sanitizer,
+            logger,
+            resolveGitLastUpdatedUtcAsync: null)
+    {
+    }
+
+    internal DocAggregator(
+        IEnumerable<IDocHarvester> harvesters,
+        RazorDocsOptions options,
+        IWebHostEnvironment environment,
+        IMemo memo,
+        IRazorDocsHtmlSanitizer sanitizer,
+        ILogger<DocAggregator> logger,
+        Func<string, CancellationToken, Task<DateTimeOffset?>>? resolveGitLastUpdatedUtcAsync,
+        TimeSpan? contributorFreshnessTimeout = null)
     {
         ArgumentNullException.ThrowIfNull(harvesters);
         ArgumentNullException.ThrowIfNull(options);
@@ -79,6 +105,8 @@ public class DocAggregator
         _memo = memo;
         _sanitizer = sanitizer;
         _logger = logger;
+        _contributorOptions = options.Contributor ?? throw new ArgumentNullException(nameof(options.Contributor));
+        _contributorFreshnessTimeout = contributorFreshnessTimeout ?? ContributorFreshnessTimeout;
         _repositoryRoot = options.Mode switch
         {
             RazorDocsMode.Source => ResolveRepositoryRoot(
@@ -88,6 +116,12 @@ public class DocAggregator
                 "RazorDocs bundle mode is not implemented yet. Use RazorDocs:Mode=Source for Slice 1."),
             _ => throw new NotSupportedException($"Unsupported RazorDocs mode '{options.Mode}'.")
         };
+        _resolveGitLastUpdatedUtcAsync = resolveGitLastUpdatedUtcAsync ?? DefaultResolveGitLastUpdatedUtcAsync;
+
+        Task<DateTimeOffset?> DefaultResolveGitLastUpdatedUtcAsync(string sourcePath, CancellationToken cancellationToken)
+        {
+            return ResolveGitLastUpdatedUtcAsync(_repositoryRoot, sourcePath, _logger, cancellationToken);
+        }
     }
 
     private static string ResolveRepositoryRoot(RazorDocsSourceOptions sourceOptions, string contentRootPath)
@@ -162,6 +196,7 @@ public class DocAggregator
         var previousPage = ResolveSequenceNeighbor(doc, orderedDocs, direction: -1);
         var nextPage = ResolveSequenceNeighbor(doc, orderedDocs, direction: 1);
         var relatedPages = ResolveRelatedPages(doc, orderedDocs, snapshot.Lookup, snapshot.DocsByPath, previousPage, nextPage);
+        snapshot.ContributorProvenanceByPath.TryGetValue(doc.Path, out var contributorProvenance);
 
         return new DocDetailsViewModel
         {
@@ -169,7 +204,8 @@ public class DocAggregator
             Outline = doc.Outline ?? [],
             PreviousPage = previousPage,
             NextPage = nextPage,
-            RelatedPages = relatedPages
+            RelatedPages = relatedPages,
+            ContributorProvenance = contributorProvenance
         };
     }
 
@@ -355,6 +391,9 @@ public class DocAggregator
                        var lookup = BuildDocLookup(docsByPath.Values);
 
                        var publicSections = BuildPublicSections(docsByPath.Values, logger);
+                       var contributorProvenanceByPath = await BuildContributorProvenanceByPathAsync(
+                           docsByPath.Values,
+                           CancellationToken.None);
                        var (searchIndexPayload, searchRecordCount) = BuildSearchIndexPayload(docsByPath.Values, publicSections);
 
                        sw.Stop();
@@ -365,10 +404,219 @@ public class DocAggregator
                            searchRecordCount,
                            snapshotCacheDuration.TotalMinutes);
 
-                       return new CachedDocsSnapshot(docsByPath, lookup, publicSections, searchIndexPayload);
+                       return new CachedDocsSnapshot(
+                           docsByPath,
+                           lookup,
+                           publicSections,
+                           searchIndexPayload,
+                           contributorProvenanceByPath);
                    },
                    DocsCachePolicy,
                    cancellationToken: CancellationToken.None);
+    }
+
+    private async Task<Dictionary<string, DocContributorProvenanceViewModel>> BuildContributorProvenanceByPathAsync(
+        IEnumerable<DocNode> docs,
+        CancellationToken cancellationToken)
+    {
+        var contributorProvenanceByPath = new Dictionary<string, DocContributorProvenanceViewModel>(StringComparer.OrdinalIgnoreCase);
+        if (!_contributorOptions.Enabled)
+        {
+            return contributorProvenanceByPath;
+        }
+
+        var gitFreshnessBySourcePath = new Dictionary<string, DateTimeOffset?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var doc in docs)
+        {
+            var contributorProvenance = await ResolveContributorProvenanceAsync(
+                doc,
+                gitFreshnessBySourcePath,
+                cancellationToken);
+            if (contributorProvenance is not null)
+            {
+                contributorProvenanceByPath[doc.Path] = contributorProvenance;
+            }
+        }
+
+        return contributorProvenanceByPath;
+    }
+
+    private async Task<DocContributorProvenanceViewModel?> ResolveContributorProvenanceAsync(
+        DocNode doc,
+        IDictionary<string, DateTimeOffset?> gitFreshnessBySourcePath,
+        CancellationToken cancellationToken)
+    {
+        var contributor = doc.Metadata?.Contributor;
+        if (contributor?.HideContributorInfo == true)
+        {
+            return null;
+        }
+
+        var sourcePath = ResolveTrustworthyContributorSourcePath(doc, contributor);
+        var sourceHref = NormalizeMetadataText(contributor?.SourceUrlOverride)
+                         ?? ExpandContributorUrlTemplate(
+                             _contributorOptions.SourceUrlTemplate,
+                             _contributorOptions.DefaultBranch,
+                             sourcePath);
+        var editHref = NormalizeMetadataText(contributor?.EditUrlOverride)
+                       ?? ExpandContributorUrlTemplate(
+                           _contributorOptions.EditUrlTemplate,
+                           _contributorOptions.DefaultBranch,
+                           sourcePath);
+
+        DateTimeOffset? lastUpdatedUtc = contributor?.LastUpdatedOverride?.ToUniversalTime();
+        if (lastUpdatedUtc is null
+            && _contributorOptions.LastUpdatedMode == RazorDocsLastUpdatedMode.Git
+            && sourcePath is not null)
+        {
+            using var freshnessTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            freshnessTimeoutCts.CancelAfter(_contributorFreshnessTimeout);
+
+            try
+            {
+                if (!gitFreshnessBySourcePath.TryGetValue(sourcePath, out lastUpdatedUtc))
+                {
+                    lastUpdatedUtc = await _resolveGitLastUpdatedUtcAsync(sourcePath, freshnessTimeoutCts.Token);
+                    gitFreshnessBySourcePath[sourcePath] = lastUpdatedUtc?.ToUniversalTime();
+                }
+            }
+            catch (OperationCanceledException) when (freshnessTimeoutCts.IsCancellationRequested
+                                                     && !cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "Contributor freshness lookup timed out after {TimeoutSeconds}s for {SourcePath}. Omitting Last updated.",
+                    _contributorFreshnessTimeout.TotalSeconds,
+                    sourcePath);
+            }
+        }
+
+        if (sourceHref is null && editHref is null && lastUpdatedUtc is null)
+        {
+            return null;
+        }
+
+        return new DocContributorProvenanceViewModel
+        {
+            SourceHref = sourceHref,
+            EditHref = editHref,
+            LastUpdatedUtc = lastUpdatedUtc?.ToUniversalTime()
+        };
+    }
+
+    private static string? ResolveTrustworthyContributorSourcePath(DocNode doc, DocContributorMetadata? contributor)
+    {
+        var explicitSourcePath = NormalizeContributorSourcePath(contributor?.SourcePathOverride);
+        if (explicitSourcePath is not null)
+        {
+            return explicitSourcePath;
+        }
+
+        return CanAutoResolveContributorSourcePath(doc)
+            ? NormalizeContributorSourcePath(doc.Path)
+            : null;
+    }
+
+    private static bool CanAutoResolveContributorSourcePath(DocNode doc)
+    {
+        var pageType = NormalizeMetadataText(doc.Metadata?.PageType);
+        if (string.Equals(pageType, "api-reference", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return doc.Path.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? NormalizeContributorSourcePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        var normalized = NormalizeLookupPath(path);
+        return normalized.Length == 0 ? null : normalized;
+    }
+
+    private static string? ExpandContributorUrlTemplate(string? template, string? branch, string? sourcePath)
+    {
+        var normalizedTemplate = NormalizeMetadataText(template);
+        var normalizedBranch = NormalizeMetadataText(branch);
+        var normalizedSourcePath = NormalizeContributorSourcePath(sourcePath);
+        if (normalizedTemplate is null || normalizedBranch is null || normalizedSourcePath is null)
+        {
+            return null;
+        }
+
+        return normalizedTemplate
+            .Replace("{branch}", Uri.EscapeDataString(normalizedBranch), StringComparison.Ordinal)
+            .Replace("{path}", EncodeContributorPath(normalizedSourcePath), StringComparison.Ordinal);
+    }
+
+    private static string EncodeContributorPath(string path)
+    {
+        return string.Join(
+            "/",
+            path.Split('/', StringSplitOptions.RemoveEmptyEntries)
+                .Select(Uri.EscapeDataString));
+    }
+
+    private static async Task<DateTimeOffset?> ResolveGitLastUpdatedUtcAsync(
+        string repositoryRoot,
+        string sourcePath,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await ProcessUtils.ExecuteProcessAsync(
+                "git",
+                ["log", "-1", "--format=%cI", "--", sourcePath],
+                repositoryRoot,
+                logger,
+                cancellationToken,
+                streamOutput: false);
+            if (result.ExitCode != 0)
+            {
+                logger.LogDebug(
+                    "Git freshness lookup returned exit code {ExitCode} for {SourcePath}. Stderr: {Stderr}",
+                    result.ExitCode,
+                    sourcePath,
+                    NormalizeMetadataText(result.Stderr) ?? "(empty)");
+                return null;
+            }
+
+            var timestampText = NormalizeMetadataText(result.Stdout);
+            if (timestampText is null)
+            {
+                return null;
+            }
+
+            if (!DateTimeOffset.TryParse(
+                    timestampText,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind,
+                    out var lastUpdatedUtc))
+            {
+                logger.LogDebug(
+                    "Git freshness lookup returned an unparseable timestamp for {SourcePath}: {TimestampText}",
+                    sourcePath,
+                    timestampText);
+                return null;
+            }
+
+            return lastUpdatedUtc.ToUniversalTime();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Git freshness lookup failed for {SourcePath}. Omitting contributor freshness.", sourcePath);
+            return null;
+        }
     }
 
     /// <summary>

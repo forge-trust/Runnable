@@ -31,6 +31,11 @@ public sealed class RazorDocsOptions
     /// Gets sidebar rendering settings.
     /// </summary>
     public RazorDocsSidebarOptions Sidebar { get; set; } = new();
+
+    /// <summary>
+    /// Gets contributor provenance settings used to render source, edit, and freshness evidence on details pages.
+    /// </summary>
+    public RazorDocsContributorOptions Contributor { get; set; } = new();
 }
 
 /// <summary>
@@ -84,6 +89,53 @@ public sealed class RazorDocsSidebarOptions
 }
 
 /// <summary>
+/// Contributor-provenance configuration for RazorDocs details pages.
+/// </summary>
+public sealed class RazorDocsContributorOptions
+{
+    /// <summary>
+    /// Gets or sets a value indicating whether contributor provenance rendering is enabled for RazorDocs details pages.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the stable branch name used when expanding configured source and edit URL templates.
+    /// </summary>
+    public string? DefaultBranch { get; set; }
+
+    /// <summary>
+    /// Gets or sets the source-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
+    /// </summary>
+    public string? SourceUrlTemplate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the edit-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
+    /// </summary>
+    public string? EditUrlTemplate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the mode used to resolve contributor freshness.
+    /// </summary>
+    public RazorDocsLastUpdatedMode LastUpdatedMode { get; set; } = RazorDocsLastUpdatedMode.Git;
+}
+
+/// <summary>
+/// Enumerates the supported contributor freshness modes for RazorDocs details pages.
+/// </summary>
+public enum RazorDocsLastUpdatedMode
+{
+    /// <summary>
+    /// Do not render automatic contributor freshness.
+    /// </summary>
+    None,
+
+    /// <summary>
+    /// Resolve contributor freshness from local git history when a trustworthy source path exists.
+    /// </summary>
+    Git
+}
+
+/// <summary>
 /// Validates <see cref="RazorDocsOptions"/> and rejects unsupported or ambiguous startup configurations.
 /// </summary>
 public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOptions>
@@ -97,6 +149,7 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         var source = options.Source;
         var bundle = options.Bundle;
         var sidebar = options.Sidebar;
+        var contributor = options.Contributor;
 
         if (!Enum.IsDefined(options.Mode))
         {
@@ -122,6 +175,15 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             failures.Add("RazorDocs:Sidebar:NamespacePrefixes must not be null.");
         }
 
+        if (contributor is null)
+        {
+            failures.Add("RazorDocs:Contributor must not be null.");
+        }
+        else if (!Enum.IsDefined(contributor.LastUpdatedMode))
+        {
+            failures.Add($"Unsupported RazorDocs contributor last-updated mode '{contributor.LastUpdatedMode}'.");
+        }
+
         if (options.Mode == RazorDocsMode.Bundle)
         {
             if (bundle is null || string.IsNullOrWhiteSpace(bundle.Path))
@@ -137,6 +199,14 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             && string.IsNullOrWhiteSpace(source.RepositoryRoot))
         {
             failures.Add("RazorDocs:Source:RepositoryRoot cannot be whitespace.");
+        }
+
+        if (contributor is not null
+            && (!string.IsNullOrWhiteSpace(contributor.SourceUrlTemplate)
+                || !string.IsNullOrWhiteSpace(contributor.EditUrlTemplate))
+            && string.IsNullOrWhiteSpace(contributor.DefaultBranch))
+        {
+            failures.Add("RazorDocs:Contributor:DefaultBranch is required when SourceUrlTemplate or EditUrlTemplate is configured.");
         }
 
         return failures.Count == 0

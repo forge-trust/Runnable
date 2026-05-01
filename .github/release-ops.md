@@ -19,5 +19,10 @@ The current workflow establishes the contracts that future release automation wi
 - Conventional Commits PR titles
 - one public unreleased proof artifact
 - tagged release notes plus a compact changelog
+- packageable CLI artifacts such as `ForgeTrust.Runnable.Web.RazorWire.Cli`
+
+Until that automation lands, package docs that show `dnx`, `dotnet tool execute`,
+or `dotnet tool install` assume either a manually published package source or an
+explicit local package source.
 
 Tracked follow-up: #161, "Automate coordinated monorepo releases from the public release contract".

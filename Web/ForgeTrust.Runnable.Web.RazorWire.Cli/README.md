@@ -6,11 +6,50 @@ The CLI uses Runnable's command-first console mode. That means help and validati
 
 ## Installation
 
-You can run the CLI directly using the `dotnet run` command from the project directory, or build it as a global tool.
+The RazorWire CLI is packaged as a .NET tool with the command name `razorwire`.
+Use an exact package version when running release builds so exports are reproducible.
+The commands in this section require `ForgeTrust.Runnable.Web.RazorWire.Cli` to
+exist on one of your configured NuGet sources, or for you to pass an explicit
+local package source. Public package publishing is still manual until the
+coordinated release automation tracked in #161 lands.
+
+Run a published package without permanently installing it:
+
+```bash
+dnx ForgeTrust.Runnable.Web.RazorWire.Cli@<version> --yes -- export -o ./dist -p ./examples/razorwire-mvc/RazorWireWebExample.csproj
+```
+
+The equivalent SDK spelling is:
+
+```bash
+dotnet tool execute ForgeTrust.Runnable.Web.RazorWire.Cli@<version> --yes -- export -o ./dist -p ./examples/razorwire-mvc/RazorWireWebExample.csproj
+```
+
+Install the tool when you want a stable `razorwire` command on your PATH:
+
+```bash
+dotnet tool install --global ForgeTrust.Runnable.Web.RazorWire.Cli --version <version>
+razorwire export -o ./dist -p ./examples/razorwire-mvc/RazorWireWebExample.csproj
+```
+
+During repository development, run the CLI directly from source:
 
 ```bash
 dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- [command] [options]
 ```
+
+When testing an unpublished package from a local folder, pack it first, pass that
+folder as the package source, and keep the version exact:
+
+```bash
+dotnet pack Web/ForgeTrust.Runnable.Web.RazorWire.Cli -c Release -o ./artifacts/packages /p:PackageVersion=0.0.0-local.1
+```
+
+```bash
+dnx ForgeTrust.Runnable.Web.RazorWire.Cli@0.0.0-local.1 --yes --source ./artifacts/packages -- --help
+```
+
+Do not combine `--version` and `--prerelease` for exact tool installs on recent SDKs; exact prerelease versions install without the extra flag.
 
 ## Commands
 
@@ -39,6 +78,7 @@ When launched app processes are started by the CLI (`--project` or `--dll`), the
 
 When `--project` is used:
 - Project mode publishes a release build by default.
+- The publish probe disables persistent build servers so command output capture cannot be held open by reused MSBuild nodes.
 - Project mode resolves the published app DLL and launches that DLL for crawling.
 - Add `--no-build` to skip publishing and reuse existing published output.
 

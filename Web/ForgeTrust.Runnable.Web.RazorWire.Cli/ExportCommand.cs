@@ -22,7 +22,7 @@ public class ExportCommand : ICommand
     /// <summary>
     /// Gets or sets an optional path to a file containing initial seed routes for the exporter.
     /// </summary>
-    [CommandOption("routes", 'r', Description = "Path to a file containing seed routes.")]
+    [CommandOption("seeds", 'r', Description = "Path to a file containing seed routes.")]
     public string? SeedRoutesPath { get; init; }
 
     /// <summary>

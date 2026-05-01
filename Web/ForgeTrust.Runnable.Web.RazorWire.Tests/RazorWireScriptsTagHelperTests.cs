@@ -2,8 +2,8 @@ using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Razor.TagHelpers;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Tests;
 

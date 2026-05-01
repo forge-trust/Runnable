@@ -628,7 +628,7 @@ public class ExportSourceResolverTests
     public void ResolveBuiltDllPath_Should_Honor_Requested_Framework_When_Provided()
     {
         using var tempDir = new TempDirectory();
-        
+
         var net9Dir = Path.Combine(tempDir.FullPath, "bin", "Release", "net9.0", "publish");
         Directory.CreateDirectory(net9Dir);
         File.WriteAllBytes(Path.Combine(net9Dir, "MySite.dll"), [1, 2, 3]);

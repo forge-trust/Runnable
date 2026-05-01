@@ -2,10 +2,10 @@
 using DependencyInjectionControllers;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
+using ManyDependencyInjectionControllers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using ManyDependencyInjectionControllers;
 
 namespace RunnableBenchmarks.Web.RunnableWeb;
 

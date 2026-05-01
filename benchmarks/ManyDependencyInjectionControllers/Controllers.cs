@@ -9,7 +9,10 @@ namespace ManyDependencyInjectionControllers;
 public abstract class BaseInjectedController : ControllerBase
 {
     protected readonly IMyDependencyService Service;
-    protected BaseInjectedController(IMyDependencyService service) => Service = service;
+    protected BaseInjectedController(IMyDependencyService service)
+    {
+        Service = service;
+    }
 }
 
 // Group 1: 1-5 (Singleton + Transient)

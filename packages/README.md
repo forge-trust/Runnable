@@ -4,7 +4,7 @@
 
 Runnable v0.1 is a coordinated .NET 10 package family. Start with the package that matches the app you're building, then add optional modules only when your app needs them.
 
-All direct-install packages currently target `net10.0`. Install commands below use `dotnet package add`; if you are on an older SDK, use `dotnet add package` instead.
+All direct-install packages currently target `net10.0`. In .NET 10, `dotnet package add` and `dotnet add package` are equivalent. This chooser uses `dotnet package add`, while `dotnet add package` remains the familiar cross-version form on older SDKs.
 
 ## Web app
 

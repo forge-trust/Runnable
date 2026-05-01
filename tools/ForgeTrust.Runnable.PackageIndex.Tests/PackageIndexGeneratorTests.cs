@@ -429,6 +429,7 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task DotNetProjectMetadataProvider_ParsesRealMsbuildOutput()
     {
         await WriteFileAsync(
@@ -465,6 +466,7 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task DotNetProjectMetadataProvider_ThrowsWhenProjectCannotBeEvaluated()
     {
         var provider = new DotNetProjectMetadataProvider();

@@ -664,6 +664,9 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
         startInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
         startInfo.Environment["RazorDocs__Mode"] = "Source";
         startInfo.Environment["RazorDocs__Source__RepositoryRoot"] = repoRoot;
+        // The standalone host intentionally does not ship checked-in source/edit defaults because
+        // those would point feature branches and forks at the wrong GitHub revision. Launch this
+        // runtime seam with explicit contributor config so the integration suite exercises honest links.
         startInfo.Environment["RazorDocs__Contributor__Enabled"] = "true";
         startInfo.Environment["RazorDocs__Contributor__DefaultBranch"] = "main";
         startInfo.Environment["RazorDocs__Contributor__SourceUrlTemplate"] = "https://github.com/forge-trust/Runnable/blob/{branch}/{path}";

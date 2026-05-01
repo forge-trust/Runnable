@@ -29,6 +29,15 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             Timeout = 30_000,
             State = WaitForSelectorState.Visible
         });
+        await page.WaitForSelectorAsync(".docs-content table tbody tr", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('.docs-content table tbody tr').length >= 11",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
 
         Assert.Equal("Runnable v0.1 package chooser", (await page.TextContentAsync("h1"))?.Trim());
         Assert.Contains("v0.1 chooser", await page.InnerTextAsync(".docs-trust-bar"), StringComparison.OrdinalIgnoreCase);
@@ -37,7 +46,16 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             "/docs/examples/web-app/README.md.html",
             await page.GetAttributeAsync(".docs-content a[href='/docs/examples/web-app/README.md.html']", "href"));
         Assert.NotNull(await page.GetAttributeAsync(".docs-content a[href='/docs/releases/README.md.html']", "href"));
-        Assert.NotNull(await page.GetAttributeAsync(".docs-content a[href='/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html']", "href"));
+        Assert.Equal(
+            "/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html",
+            await page.EvaluateAsync<string?>(
+                """
+                () => {
+                  const packageRows = Array.from(document.querySelectorAll('.docs-content table tbody tr'));
+                  const openApiRow = packageRows.find(row => row.textContent?.includes('ForgeTrust.Runnable.Web.OpenApi'));
+                  return openApiRow?.querySelector('a')?.getAttribute('href') ?? null;
+                }
+                """));
     }
 
     [Fact]

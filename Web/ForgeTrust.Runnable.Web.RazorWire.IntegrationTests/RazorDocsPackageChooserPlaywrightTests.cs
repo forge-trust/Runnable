@@ -46,17 +46,28 @@ public sealed class RazorDocsPackageChooserPlaywrightTests
             "/docs/examples/web-app/README.md.html",
             await page.GetAttributeAsync(".docs-content a[href='/docs/examples/web-app/README.md.html']", "href"));
         Assert.NotNull(await page.GetAttributeAsync(".docs-content a[href='/docs/releases/README.md.html']", "href"));
-        Assert.Equal(
-            "/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html",
-            await page.EvaluateAsync<string?>(
-                """
-                () => {
-                  const packageRows = Array.from(document.querySelectorAll('.docs-content table tbody tr'));
-                  const openApiRow = packageRows.find(row => row.textContent?.includes('ForgeTrust.Runnable.Web.OpenApi'));
-                  const rawHref = openApiRow?.querySelector('a')?.getAttribute('href');
-                  return rawHref ? new URL(rawHref, window.location.href).pathname : null;
-                }
-                """));
+
+        var clickedOpenApiLink = await page.EvaluateAsync<bool>(
+            """
+            () => {
+              const packageRows = Array.from(document.querySelectorAll('.docs-content table tbody tr'));
+              const openApiRow = packageRows.find(row => row.textContent?.includes('ForgeTrust.Runnable.Web.OpenApi'));
+              const link = openApiRow?.querySelector('a');
+              if (!(link instanceof HTMLAnchorElement)) {
+                return false;
+              }
+
+              link.click();
+              return true;
+            }
+            """);
+
+        Assert.True(clickedOpenApiLink);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelector('h1')?.textContent?.trim() === 'ForgeTrust.Runnable.Web.OpenApi'",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+        Assert.Equal("ForgeTrust.Runnable.Web.OpenApi", (await page.TextContentAsync("h1"))?.Trim());
     }
 
     [Fact]

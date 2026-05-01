@@ -22,6 +22,8 @@ public class ConsoleAppTests
         Assert.Equal(1, TrackingStartup.InstancesCreated);
         Assert.True(TrackingStartup.HostStarted);
         Assert.Equal(1, TrackingModule.ConfigureServicesCalls);
+        Assert.Equal(ConsoleOutputMode.Default, TrackingStartup.ContextOutputMode);
+        Assert.Equal(ConsoleOutputMode.Default, TrackingModule.LastContextOutputMode);
     }
 
     [Fact]
@@ -34,12 +36,99 @@ public class ConsoleAppTests
 
         Assert.Equal(0, Environment.ExitCode);
         Assert.Equal(1, TrackingModule.ConfigureServicesCalls);
+        Assert.Equal(ConsoleOutputMode.Default, TrackingModule.LastContextOutputMode);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithModuleOnly_OptionsConfigureStartupContext()
+    {
+        TrackingModule.Reset();
+
+        Environment.ExitCode = 0;
+        await ConsoleApp<TrackingModule>.RunAsync(
+            [],
+            options => { options.OutputMode = ConsoleOutputMode.CommandFirst; });
+
+        Assert.Equal(0, Environment.ExitCode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingModule.LastContextOutputMode);
+    }
+
+    [Fact]
+    public async Task RunAsync_WithCustomStartup_OptionsConfigureStartupContext()
+    {
+        TrackingStartup.Reset();
+        TrackingModule.Reset();
+
+        Environment.ExitCode = 0;
+        await ConsoleApp<TrackingStartup, TrackingModule>.RunAsync(
+            [],
+            options => { options.OutputMode = ConsoleOutputMode.CommandFirst; });
+
+        Assert.Equal(0, Environment.ExitCode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingStartup.ContextOutputMode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingModule.LastContextOutputMode);
+    }
+
+    [Fact]
+    public async Task WithOptions_CanReconfigureExistingStartupInstance()
+    {
+        TrackingStartup.Reset();
+        TrackingModule.Reset();
+
+        var startup = new TrackingStartup();
+
+        Environment.ExitCode = 0;
+        await startup.WithOptions(options => { options.OutputMode = ConsoleOutputMode.Default; }).RunAsync([]);
+
+        Assert.Equal(0, Environment.ExitCode);
+        Assert.Equal(ConsoleOutputMode.Default, TrackingStartup.ContextOutputMode);
+        Assert.Equal(ConsoleOutputMode.Default, TrackingModule.LastContextOutputMode);
+
+        Environment.ExitCode = 0;
+        await startup.WithOptions(options => { options.OutputMode = ConsoleOutputMode.CommandFirst; }).RunAsync([]);
+
+        Assert.Equal(0, Environment.ExitCode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingStartup.ContextOutputMode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingModule.LastContextOutputMode);
+    }
+
+    [Fact]
+    public async Task RunAsync_ReusesBuiltOptions_OnSubsequentRuns_WithoutRebuilding()
+    {
+        TrackingStartup.Reset();
+        TrackingModule.Reset();
+
+        var startup = new TrackingStartup();
+        var configureCalls = 0;
+
+        startup.WithOptions(options =>
+        {
+            configureCalls++;
+            options.OutputMode = ConsoleOutputMode.CommandFirst;
+        });
+
+        Environment.ExitCode = 0;
+        await startup.RunAsync([]);
+
+        Assert.Equal(0, Environment.ExitCode);
+        Assert.Equal(1, configureCalls);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingStartup.ContextOutputMode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingModule.LastContextOutputMode);
+
+        Environment.ExitCode = 0;
+        await startup.RunAsync([]);
+
+        Assert.Equal(0, Environment.ExitCode);
+        Assert.Equal(1, configureCalls);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingStartup.ContextOutputMode);
+        Assert.Equal(ConsoleOutputMode.CommandFirst, TrackingModule.LastContextOutputMode);
     }
 
     private class TrackingStartup : ConsoleStartup<TrackingModule>
     {
         public static int InstancesCreated { get; private set; }
         public static bool HostStarted { get; private set; }
+        public static ConsoleOutputMode? ContextOutputMode { get; private set; }
 
         public TrackingStartup()
         {
@@ -48,6 +137,7 @@ public class ConsoleAppTests
 
         protected override void ConfigureAdditionalServices(StartupContext context, IServiceCollection services)
         {
+            ContextOutputMode = context.ConsoleOutputMode;
             services.AddSingleton<IHostedService>(sp =>
                 new CallbackHostedService(() => HostStarted = true, sp.GetRequiredService<IHostApplicationLifetime>()));
         }
@@ -56,16 +146,19 @@ public class ConsoleAppTests
         {
             InstancesCreated = 0;
             HostStarted = false;
+            ContextOutputMode = null;
         }
     }
 
     private class TrackingModule : IRunnableHostModule
     {
         public static int ConfigureServicesCalls { get; private set; }
+        public static ConsoleOutputMode? LastContextOutputMode { get; private set; }
 
         public void ConfigureServices(StartupContext context, IServiceCollection services)
         {
             ConfigureServicesCalls++;
+            LastContextOutputMode = context.ConsoleOutputMode;
             services.AddSingleton<IHostedService>(sp =>
                 new CallbackHostedService(() => { }, sp.GetRequiredService<IHostApplicationLifetime>()));
         }
@@ -83,7 +176,11 @@ public class ConsoleAppTests
         {
         }
 
-        public static void Reset() => ConfigureServicesCalls = 0;
+        public static void Reset()
+        {
+            ConfigureServicesCalls = 0;
+            LastContextOutputMode = null;
+        }
     }
 
     private class CallbackHostedService : IHostedService

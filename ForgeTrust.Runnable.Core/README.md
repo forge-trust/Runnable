@@ -12,7 +12,8 @@ The Core library is designed to be lightweight and implementation-agnostic. it p
 ## Key Concepts
 
 - **`IRunnableModule`**: The base interface for any unit of functionality that needs to register services or configure the application.
-- **`StartupContext`**: Provides metadata about the running application (e.g., environment, entry point assembly).
+- **`StartupContext`**: Provides metadata about the running application (e.g., environment, entry point assembly, and startup-level console output mode).
+- **`ConsoleOutputMode`**: Shared core enum that lets console-oriented packages describe whether command output should remain host-centric or command-first.
 - **`RunnableStartup`**: The base class that orchestrates the host building and service registration process.
 
 ## Usage

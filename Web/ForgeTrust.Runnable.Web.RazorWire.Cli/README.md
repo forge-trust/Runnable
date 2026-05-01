@@ -2,6 +2,8 @@
 
 The **RazorWire CLI** is a command-line tool for managing RazorWire projects. Its primary feature is the ability to export a reactive RazorWire site into a static or hybrid directory for hosting on services like S3 or traditional web servers.
 
+The CLI uses Runnable's command-first console mode. That means help and validation output are intentionally quiet, without Generic Host lifecycle banners, while real export runs still emit useful progress logs.
+
 ## Installation
 
 You can run the CLI directly using the `dotnet run` command from the project directory, or build it as a global tool.
@@ -12,6 +14,11 @@ dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli -- [command] [opt
 
 ## Commands
 
+### Help and validation behavior
+
+- Root help (`--help`) and command help (`export --help`) are command-first by design.
+- Validation failures, such as invalid flags or missing source options, should surface actionable CLI output without host startup and shutdown chatter.
+- Successful export runs still keep command-owned progress output so long-running work remains understandable.
 
 ### `export`
 

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -46,7 +47,7 @@ internal sealed class PackageIndexGenerator
         var candidateProjects = _scanner.DiscoverProjects(request.RepositoryRoot);
         var metadata = await LoadMetadataAsync(request.RepositoryRoot, candidateProjects, cancellationToken);
         var entries = ResolveEntries(request.RepositoryRoot, manifest, candidateProjects, metadata);
-        return RenderMarkdown(request.RepositoryRoot, entries);
+        return RenderMarkdown(request, entries);
     }
 
     internal async Task VerifyAsync(PackageIndexRequest request, CancellationToken cancellationToken = default)
@@ -202,8 +203,9 @@ internal sealed class PackageIndexGenerator
         }
     }
 
-    private static string RenderMarkdown(string repositoryRoot, IReadOnlyList<ResolvedPackageEntry> entries)
+    private static string RenderMarkdown(PackageIndexRequest request, IReadOnlyList<ResolvedPackageEntry> entries)
     {
+        var repositoryRoot = request.RepositoryRoot;
         var publicEntries = entries.Where(entry => entry.Manifest.Classification == PackageClassification.Public).ToArray();
         var supportEntries = entries.Where(entry => entry.Manifest.Classification == PackageClassification.Support).ToArray();
         var proofHostEntries = entries.Where(entry => entry.Manifest.Classification == PackageClassification.ProofHost).ToArray();
@@ -239,21 +241,21 @@ internal sealed class PackageIndexGenerator
         builder.AppendLine();
         builder.AppendLine($"Not included: {webEntry.Manifest.DoesNotInclude}");
         builder.AppendLine();
-        builder.AppendLine($"Read next: {FormatMarkdownLink("examples/web-app/README.md", GetRelativeDocPath(WebExamplePath))}");
+        builder.AppendLine($"Read next: {FormatMarkdownLink("examples/web-app/README.md", GetRelativeDocPath(request, WebExamplePath))}");
         builder.AppendLine();
         builder.AppendLine("Release and readiness:");
-        builder.AppendLine($"- {FormatMarkdownLink("Release hub", GetRelativeDocPath(ReleaseHubPath))} keeps the public release story, adoption risk, and policy links in one place.");
+        builder.AppendLine($"- {FormatMarkdownLink("Release hub", GetRelativeDocPath(request, ReleaseHubPath))} keeps the public release story, adoption risk, and policy links in one place.");
         if (File.Exists(Path.Combine(repositoryRoot, UnreleasedPath.Replace('/', Path.DirectorySeparatorChar))))
         {
-            builder.AppendLine($"- {FormatMarkdownLink("Unreleased proof artifact", GetRelativeDocPath(UnreleasedPath))} shows what is queued for the next coordinated version.");
+            builder.AppendLine($"- {FormatMarkdownLink("Unreleased proof artifact", GetRelativeDocPath(request, UnreleasedPath))} shows what is queued for the next coordinated version.");
         }
         else
         {
             builder.AppendLine("- Unreleased proof artifact: Not published yet. This row stays visible so the chooser does not quietly hide missing release-state evidence.");
         }
 
-        builder.AppendLine($"- {FormatMarkdownLink("CHANGELOG.md", GetRelativeDocPath(ChangelogPath))} is the compact ledger for tagged and in-flight package changes.");
-        builder.AppendLine($"- {FormatMarkdownLink("Pre-1.0 upgrade policy", GetRelativeDocPath(UpgradePolicyPath))} explains the current stability contract before `v1.0.0`.");
+        builder.AppendLine($"- {FormatMarkdownLink("CHANGELOG.md", GetRelativeDocPath(request, ChangelogPath))} is the compact ledger for tagged and in-flight package changes.");
+        builder.AppendLine($"- {FormatMarkdownLink("Pre-1.0 upgrade policy", GetRelativeDocPath(request, UpgradePolicyPath))} explains the current stability contract before `v1.0.0`.");
         builder.AppendLine();
         builder.AppendLine("## Also building...");
         builder.AppendLine();
@@ -283,7 +285,7 @@ internal sealed class PackageIndexGenerator
             builder.Append(" | ");
             builder.Append(EscapeTableCell(entry.Manifest.DoesNotInclude!));
             builder.Append(" | ");
-            builder.Append(EscapeTableCell(FormatMarkdownLink(entry.Manifest.StartHereLabel ?? "Package README", GetRelativeDocPath(entry.Manifest.StartHerePath!))));
+            builder.Append(EscapeTableCell(FormatMarkdownLink(entry.Manifest.StartHereLabel ?? "Package README", GetRelativeDocPath(request, entry.Manifest.StartHerePath!))));
             builder.AppendLine(" |");
         }
 
@@ -304,7 +306,7 @@ internal sealed class PackageIndexGenerator
                 if (!string.IsNullOrWhiteSpace(entry.Manifest.StartHerePath))
                 {
                     builder.Append(" Start here: ");
-                    builder.Append(FormatMarkdownLink(entry.Manifest.StartHereLabel ?? "README", GetRelativeDocPath(entry.Manifest.StartHerePath!)));
+                    builder.Append(FormatMarkdownLink(entry.Manifest.StartHereLabel ?? "README", GetRelativeDocPath(request, entry.Manifest.StartHerePath!)));
                 }
 
                 builder.AppendLine();
@@ -326,7 +328,7 @@ internal sealed class PackageIndexGenerator
                 if (!string.IsNullOrWhiteSpace(entry.Manifest.StartHerePath))
                 {
                     builder.Append(" Start here: ");
-                    builder.Append(FormatMarkdownLink(entry.Manifest.StartHereLabel ?? "README", GetRelativeDocPath(entry.Manifest.StartHerePath!)));
+                    builder.Append(FormatMarkdownLink(entry.Manifest.StartHereLabel ?? "README", GetRelativeDocPath(request, entry.Manifest.StartHerePath!)));
                 }
 
                 builder.AppendLine();
@@ -360,11 +362,15 @@ internal sealed class PackageIndexGenerator
         return builder.ToString().TrimEnd() + Environment.NewLine;
     }
 
-    private static string GetRelativeDocPath(string repositoryRelativePath)
+    private static string GetRelativeDocPath(PackageIndexRequest request, string repositoryRelativePath)
     {
-        var relativePath = Path.GetRelativePath("packages", repositoryRelativePath)
+        var outputDirectory = Path.GetDirectoryName(request.OutputPath)
+            ?? throw new PackageIndexException($"Output path '{request.OutputPath}' does not have a parent directory.");
+        var targetPath = Path.Combine(
+            request.RepositoryRoot,
+            repositoryRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        return Path.GetRelativePath(outputDirectory, targetPath)
             .Replace('\\', '/');
-        return relativePath;
     }
 
     private static string EscapeTableCell(string value)
@@ -465,6 +471,7 @@ internal sealed class PackageProjectScanner
 internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
 {
     internal const string TargetFrameworksPropertyName = "TargetFrameworks";
+    internal const int DefaultProcessTimeoutMilliseconds = 120_000;
 
     public async Task<PackageProjectMetadata> GetMetadataAsync(
         string repositoryRoot,
@@ -485,18 +492,11 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
         startInfo.ArgumentList.Add("-getProperty:PackageId,TargetFramework,TargetFrameworks,IsPackable,OutputType");
         startInfo.ArgumentList.Add("-getItem:ProjectReference");
 
-        using var process = new Process { StartInfo = startInfo };
-        process.Start();
-
-        var standardOutput = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardError = await process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-
-        if (process.ExitCode != 0)
-        {
-            throw new PackageIndexException(
-                $"Failed to evaluate '{projectPath}' with dotnet msbuild.{Environment.NewLine}{standardError}");
-        }
+        var (standardOutput, standardError) = await RunProcessAsync(
+            startInfo,
+            projectPath,
+            DefaultProcessTimeoutMilliseconds,
+            cancellationToken);
 
         try
         {
@@ -536,6 +536,85 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
         }
     }
 
+    internal static async Task<(string StandardOutput, string StandardError)> RunProcessAsync(
+        ProcessStartInfo startInfo,
+        string projectPath,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(startInfo);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(timeoutMilliseconds);
+
+        using var process = new Process { StartInfo = startInfo };
+        try
+        {
+            if (!process.Start())
+            {
+                throw new PackageIndexException($"Failed to start dotnet msbuild for '{projectPath}'.");
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+        {
+            throw new PackageIndexException(
+                $"Failed to start dotnet msbuild for '{projectPath}': {ex.Message}");
+        }
+
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        try
+        {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(timeoutMilliseconds);
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            await TerminateProcessAsync(process);
+            var timeoutError = await standardErrorTask;
+            var message = $"dotnet msbuild timed out after {timeoutMilliseconds} ms while evaluating '{projectPath}'.";
+            if (!string.IsNullOrWhiteSpace(timeoutError))
+            {
+                message = $"{message}{Environment.NewLine}{timeoutError.TrimEnd()}";
+            }
+
+            throw new PackageIndexException(message);
+        }
+        catch
+        {
+            await TerminateProcessAsync(process);
+            throw;
+        }
+
+        var standardOutput = await standardOutputTask;
+        var standardError = await standardErrorTask;
+        if (process.ExitCode != 0)
+        {
+            throw new PackageIndexException(
+                $"Failed to evaluate '{projectPath}' with dotnet msbuild.{Environment.NewLine}{standardError}");
+        }
+
+        return (standardOutput, standardError);
+    }
+
+    private static async Task TerminateProcessAsync(Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+            {
+                return;
+            }
+
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(CancellationToken.None);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
     private static IReadOnlyList<string> ReadProjectReferences(JsonElement root)
     {
         if (!root.TryGetProperty("Items", out var itemsElement)
@@ -560,7 +639,6 @@ internal sealed class PackageManifestLoader
     private readonly IDeserializer _deserializer = new DeserializerBuilder()
         .WithNamingConvention(UnderscoredNamingConvention.Instance)
         .WithEnumNamingConvention(UnderscoredNamingConvention.Instance)
-        .IgnoreUnmatchedProperties()
         .Build();
 
     internal async Task<PackageManifest> LoadAsync(string manifestPath, CancellationToken cancellationToken)

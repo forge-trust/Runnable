@@ -237,6 +237,7 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal(["Start Here", "Packages"], doc.Metadata?.Breadcrumbs);
         Assert.Equal("v0.1 chooser", doc.Metadata?.Trust?.Status);
         Assert.Equal("Generated from package metadata.", doc.Metadata?.Trust?.Summary);
+        Assert.Equal("Regenerated on main.", doc.Metadata?.Trust?.Freshness);
         Assert.Equal("Repository-wide.", doc.Metadata?.Trust?.ChangeScope);
         Assert.Equal("Read the policy", doc.Metadata?.Trust?.Migration?.Label);
         Assert.Equal("/docs/releases/upgrade-policy.md.html", doc.Metadata?.Trust?.Migration?.Href);

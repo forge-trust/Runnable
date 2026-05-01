@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace ForgeTrust.Runnable.PackageIndex.Tests;
@@ -76,6 +78,38 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
 
         Assert.Contains("UseWhen", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ThrowsWhenManifestContainsUnknownProperty()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable");
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: public
+                order: 10
+                use_when: Install this first for a normal ASP.NET Core app with Runnable modules.
+                includes: Base startup
+                does_not_include: OpenAPI
+                start_here_path: Web/ForgeTrust.Runnable.Web/README.md
+                recipe_summmary: Typo should fail loudly.
+            """);
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj", "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/README.md", "# Web");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web")
+        });
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("could not be parsed", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -216,6 +250,39 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         Assert.Contains("### Support and runtime packages", markdown, StringComparison.Ordinal);
         Assert.Contains("### Docs and proof hosts", markdown, StringComparison.Ordinal);
         Assert.Contains("### Not in the direct-install matrix", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ResolvesLinksRelativeToOutputDirectory()
+    {
+        await WriteCommonChooserFilesAsync(includeUnreleased: true);
+        await WriteFileAsync("docs/guides/README.md.yml", "title: Runnable chooser mirror");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web"),
+            ["Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj",
+                "ForgeTrust.Runnable.Web.OpenApi"),
+            ["Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj",
+                "ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64"),
+            ["Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj",
+                "ForgeTrust.Runnable.Web.RazorDocs"),
+            ["Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj",
+                "ForgeTrust.Runnable.Web.RazorWire.Cli",
+                outputType: "Exe")
+        });
+
+        var markdown = await generator.GenerateAsync(CreateRequest("docs/guides/README.md"));
+
+        Assert.Contains("[examples/web-app/README.md](../../examples/web-app/README.md)", markdown, StringComparison.Ordinal);
+        Assert.Contains("[Package README](../../Web/ForgeTrust.Runnable.Web/README.md)", markdown, StringComparison.Ordinal);
+        Assert.Contains("[Release hub](../../releases/README.md)", markdown, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -477,6 +544,45 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         Assert.Contains("Failed to evaluate", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task RunProcessAsync_ThrowsWhenProcessCannotStart()
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.Combine(_repositoryRoot, "missing-dotnet"),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(
+            () => DotNetProjectMetadataProvider.RunProcessAsync(
+                startInfo,
+                "missing/Nope.csproj",
+                timeoutMilliseconds: 100,
+                CancellationToken.None));
+
+        Assert.Contains("Failed to start dotnet msbuild", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task RunProcessAsync_ThrowsWhenProcessTimesOut()
+    {
+        using var process = CreateSleepProcess(durationSeconds: 5);
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(
+            () => DotNetProjectMetadataProvider.RunProcessAsync(
+                process.StartInfo,
+                "slow/Project.csproj",
+                timeoutMilliseconds: 100,
+                CancellationToken.None));
+
+        Assert.Contains("timed out", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("slow/Project.csproj", error.Message, StringComparison.Ordinal);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_repositoryRoot))
@@ -493,12 +599,12 @@ public sealed class PackageIndexGeneratorTests : IDisposable
             new PackageManifestLoader());
     }
 
-    private PackageIndexRequest CreateRequest()
+    private PackageIndexRequest CreateRequest(string outputRelativePath = "packages/README.md")
     {
         return new PackageIndexRequest(
             _repositoryRoot,
             Path.Combine(_repositoryRoot, "packages", "package-index.yml"),
-            Path.Combine(_repositoryRoot, "packages", "README.md"));
+            Path.Combine(_repositoryRoot, outputRelativePath.Replace('/', Path.DirectorySeparatorChar)));
     }
 
     private async Task WriteCommonChooserFilesAsync(bool includeUnreleased)
@@ -575,6 +681,33 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         string targetFramework = "net10.0")
     {
         return new PackageProjectMetadata(projectPath, packageId, targetFramework, true, outputType, []);
+    }
+
+    private static Process CreateSleepProcess(int durationSeconds)
+    {
+        return OperatingSystem.IsWindows()
+            ? new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c timeout /t {durationSeconds} /nobreak > nul",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false
+                }
+            }
+            : new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "/bin/sh",
+                    Arguments = $"-lc \"sleep {durationSeconds}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false
+                }
+            };
     }
 
     private sealed class FakeMetadataProvider : IProjectMetadataProvider

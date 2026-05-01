@@ -1,5 +1,5 @@
-using Microsoft.AspNetCore.Razor.TagHelpers;
 using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Razor.TagHelpers;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
 

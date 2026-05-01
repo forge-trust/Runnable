@@ -1,8 +1,8 @@
+using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
-using System.Text.Encodings.Web;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 

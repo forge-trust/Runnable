@@ -13,7 +13,7 @@ public class CustomJsonExporter : JsonExporter
     {
         var baseData = base.GetDataToSerialize(report);
 
-        if(baseData.TryGetValue("FullName", out var  fullNameObj) && fullNameObj is string fullName)
+        if (baseData.TryGetValue("FullName", out var fullNameObj) && fullNameObj is string fullName)
         {
             var job = report.BenchmarkCase.Job.ResolvedId;
             var updatedFullName = string.IsNullOrWhiteSpace(job) switch

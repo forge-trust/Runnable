@@ -1,7 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using CliFx;
 using CliFx.Attributes;
 using CliFx.Infrastructure;
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli;

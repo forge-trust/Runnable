@@ -51,6 +51,33 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateAsync_ThrowsWhenRepositoryRootDoesNotExist()
+    {
+        var missingRoot = Path.Combine(_repositoryRoot, "missing-root");
+        var request = new PackageIndexRequest(
+            missingRoot,
+            Path.Combine(missingRoot, "packages", "package-index.yml"),
+            Path.Combine(missingRoot, "packages", "README.md"));
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase));
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(request));
+
+        Assert.Contains("does not exist", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ThrowsWhenManifestIsMissing()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase));
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("does not exist", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("package-index.yml", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GenerateAsync_ThrowsWhenPublicPackageGuidanceIsMissing()
     {
         await WriteFileAsync("packages/README.md.yml", "title: Runnable");
@@ -78,6 +105,44 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
 
         Assert.Contains("UseWhen", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ThrowsWhenManifestDeclaresProjectMoreThanOnce()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable");
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: public
+                order: 10
+                use_when: Install this first for a normal ASP.NET Core app with Runnable modules.
+                includes: Base web startup.
+                does_not_include: OpenAPI.
+                start_here_path: Web/ForgeTrust.Runnable.Web/README.md
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: public
+                order: 20
+                use_when: Duplicate entry.
+                includes: Base web startup.
+                does_not_include: OpenAPI.
+                start_here_path: Web/ForgeTrust.Runnable.Web/README.md
+            """);
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj", "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/README.md", "# Web");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web")
+        });
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("more than once", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -110,6 +175,41 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
 
         Assert.Contains("could not be parsed", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ThrowsWhenManifestReferencesProjectThatWasNotDiscovered()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable");
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: public
+                order: 10
+                use_when: Install this first for a normal ASP.NET Core app with Runnable modules.
+                includes: Base web startup.
+                does_not_include: OpenAPI.
+                start_here_path: Web/ForgeTrust.Runnable.Web/README.md
+              - project: Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj
+                classification: support
+                order: 20
+                note: This project should not be discovered.
+            """);
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj", "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/README.md", "# Web");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web")
+        });
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("was not discovered", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -173,6 +273,37 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
 
         Assert.Contains("unknown package id", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ThrowsWhenManifestOmitsRunnableWebPackage()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable");
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj
+                classification: public
+                order: 10
+                use_when: Start here for CLI apps.
+                includes: Command hosting.
+                does_not_include: Web hosting.
+                start_here_path: Console/ForgeTrust.Runnable.Console/README.md
+            """);
+        await WriteFileAsync("Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj", "<Project />");
+        await WriteFileAsync("Console/ForgeTrust.Runnable.Console/README.md", "# Console");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj"] = CreateMetadata(
+                "Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj",
+                "ForgeTrust.Runnable.Console")
+        });
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("ForgeTrust.Runnable.Web", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -250,6 +381,69 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         Assert.Contains("### Support and runtime packages", markdown, StringComparison.Ordinal);
         Assert.Contains("### Docs and proof hosts", markdown, StringComparison.Ordinal);
         Assert.Contains("### Not in the direct-install matrix", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_RendersAlsoBuildingListAndSupportStartHereLinks()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable v0.1 package chooser");
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: public
+                order: 10
+                use_when: Install this first for a normal ASP.NET Core app with Runnable modules.
+                includes: Base web startup.
+                does_not_include: OpenAPI.
+                start_here_path: Web/ForgeTrust.Runnable.Web/README.md
+              - project: Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj
+                classification: public
+                order: 20
+                use_when: Add this after the base web package when you want an OpenAPI document.
+                includes: OpenAPI generation.
+                does_not_include: A hosted API reference UI.
+                start_here_path: Web/ForgeTrust.Runnable.Web.OpenApi/README.md
+                recipe_summary: Add `ForgeTrust.Runnable.Web.OpenApi` when you want an OpenAPI document.
+              - project: Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj
+                classification: support
+                order: 30
+                note: Restored transitively on matching build hosts.
+                start_here_path: Web/ForgeTrust.Runnable.Web.Tailwind/README.md
+                start_here_label: Runtime README
+            """);
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj", "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/README.md", "# Web");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj", "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web.OpenApi/README.md", "# OpenApi");
+        await WriteFileAsync(
+            "Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj",
+            "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web.Tailwind/README.md", "# Tailwind");
+        await WriteFileAsync("examples/web-app/README.md", "# Example");
+        await WriteFileAsync("releases/README.md", "# Releases");
+        await WriteFileAsync("releases/upgrade-policy.md", "# Policy");
+        await WriteFileAsync("CHANGELOG.md", "# Changelog");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web"),
+            ["Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj",
+                "ForgeTrust.Runnable.Web.OpenApi"),
+            ["Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj",
+                "ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64")
+        });
+
+        var markdown = await generator.GenerateAsync(CreateRequest());
+
+        Assert.Contains("## Also building...", markdown, StringComparison.Ordinal);
+        Assert.Contains("- Add `ForgeTrust.Runnable.Web.OpenApi` when you want an OpenAPI document.", markdown, StringComparison.Ordinal);
+        Assert.Contains("Start here: [Runtime README](../Web/ForgeTrust.Runnable.Web.Tailwind/README.md)", markdown, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -365,6 +559,40 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateToFileAsync_CreatesOutputDirectoryAndWritesChooser()
+    {
+        await WriteCommonChooserFilesAsync(includeUnreleased: true);
+        await WriteFileAsync("docs/guides/README.md.yml", "title: Runnable chooser mirror");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web"),
+            ["Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj",
+                "ForgeTrust.Runnable.Web.OpenApi"),
+            ["Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.Tailwind/runtimes/ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64.csproj",
+                "ForgeTrust.Runnable.Web.Tailwind.Runtime.osx-arm64"),
+            ["Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj",
+                "ForgeTrust.Runnable.Web.RazorDocs"),
+            ["Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj",
+                "ForgeTrust.Runnable.Web.RazorWire.Cli",
+                outputType: "Exe")
+        });
+
+        var request = CreateRequest("docs/guides/README.md");
+        await generator.GenerateToFileAsync(request);
+
+        Assert.True(File.Exists(request.OutputPath));
+        var markdown = await File.ReadAllTextAsync(request.OutputPath);
+        Assert.Contains("# Runnable v0.1 package chooser", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task VerifyAsync_ThrowsWhenGeneratedReadmeIsStale()
     {
         await WriteCommonChooserFilesAsync(includeUnreleased: true);
@@ -451,6 +679,15 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         Assert.Equal(Path.GetFullPath(Path.Combine(_repositoryRoot, "src")), parsed.Request.RepositoryRoot);
         Assert.Equal(Path.GetFullPath(Path.Combine(_repositoryRoot, "src", "manifest.yml")), parsed.Request.ManifestPath);
         Assert.Equal(Path.GetFullPath(Path.Combine(_repositoryRoot, "src", "chooser.md")), parsed.Request.OutputPath);
+
+        var absoluteManifest = Path.Combine(_repositoryRoot, "abs", "manifest.yml");
+        var absoluteOutput = Path.Combine(_repositoryRoot, "abs", "chooser.md");
+        var absolute = CommandLineOptions.Parse(
+            ["--manifest", absoluteManifest, "--output", absoluteOutput],
+            _repositoryRoot);
+
+        Assert.Equal(absoluteManifest, absolute.Request.ManifestPath);
+        Assert.Equal(absoluteOutput, absolute.Request.OutputPath);
     }
 
     [Fact]
@@ -483,6 +720,46 @@ public sealed class PackageIndexGeneratorTests : IDisposable
 
         Assert.Equal(1, exitCode);
         Assert.Contains("Usage:", stderr.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Main_DelegatesToRunAsync()
+    {
+        var exitCode = await Program.Main([]);
+
+        Assert.Equal(1, exitCode);
+    }
+
+    [Fact]
+    public async Task RunAsync_GenerateAndVerify_Succeed()
+    {
+        await WriteProgramRepoAsync();
+
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var generateExitCode = await Program.RunAsync(["generate"], stdout, stderr, _repositoryRoot);
+        var verifyExitCode = await Program.RunAsync(["verify"], stdout, stderr, _repositoryRoot);
+
+        Assert.Equal(0, generateExitCode);
+        Assert.Equal(0, verifyExitCode);
+        Assert.Contains("Generated packages/README.md.", stdout.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Package chooser is up to date.", stdout.ToString(), StringComparison.Ordinal);
+        Assert.Equal(string.Empty, stderr.ToString());
+        Assert.True(File.Exists(Path.Combine(_repositoryRoot, "packages", "README.md")));
+    }
+
+    [Fact]
+    public async Task RunAsync_WritesGeneratorErrors()
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exitCode = await Program.RunAsync(["generate", "--bogus"], stdout, stderr, _repositoryRoot);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Unknown option", stderr.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(string.Empty, stdout.ToString());
     }
 
     [Fact]
@@ -583,6 +860,18 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         Assert.Contains("slow/Project.csproj", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task PackageManifestLoader_ThrowsWhenManifestHasNoPackages()
+    {
+        await WriteFileAsync("packages/package-index.yml", "packages: []");
+
+        var loader = new PackageManifestLoader();
+        var error = await Assert.ThrowsAsync<PackageIndexException>(
+            () => loader.LoadAsync(Path.Combine(_repositoryRoot, "packages", "package-index.yml"), CancellationToken.None));
+
+        Assert.Contains("does not define any packages", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_repositoryRoot))
@@ -665,6 +954,43 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         {
             await WriteFileAsync("releases/unreleased.md", "# Unreleased");
         }
+    }
+
+    private async Task WriteProgramRepoAsync()
+    {
+        await WriteFileAsync(
+            "packages/README.md.yml",
+            """
+            title: Runnable v0.1 package chooser
+            """);
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: public
+                order: 10
+                use_when: Install this first for a normal ASP.NET Core app with Runnable modules.
+                includes: Base web startup.
+                does_not_include: OpenAPI.
+                start_here_path: Web/ForgeTrust.Runnable.Web/README.md
+            """);
+        await WriteFileAsync(
+            "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+            """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <PackageId>ForgeTrust.Runnable.Web</PackageId>
+              </PropertyGroup>
+            </Project>
+            """);
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/README.md", "# Web");
+        await WriteFileAsync("examples/web-app/README.md", "# Example");
+        await WriteFileAsync("releases/README.md", "# Releases");
+        await WriteFileAsync("releases/unreleased.md", "# Unreleased");
+        await WriteFileAsync("releases/upgrade-policy.md", "# Policy");
+        await WriteFileAsync("CHANGELOG.md", "# Changelog");
     }
 
     private async Task WriteFileAsync(string relativePath, string content)

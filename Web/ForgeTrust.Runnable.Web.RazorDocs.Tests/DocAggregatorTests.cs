@@ -2,6 +2,7 @@ using AngleSharp;
 using AngleSharp.Html.Parser;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
+using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using Ganss.Xss;
@@ -890,6 +891,40 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldSkipContributorResolution_WhenContributorRenderingIsDisabled()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide</p>")
+            ]);
+
+        var resolverCalls = 0;
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = false,
+                DefaultBranch = "main",
+                SourceUrlTemplate = "https://example.com/blob/{branch}/{path}",
+                EditUrlTemplate = "https://example.com/edit/{branch}/{path}",
+                LastUpdatedMode = RazorDocsLastUpdatedMode.Git
+            },
+            (_, _) =>
+            {
+                resolverCalls++;
+                return Task.FromResult<DateTimeOffset?>(DateTimeOffset.UtcNow);
+            });
+
+        var details = await aggregator.GetDocDetailsAsync("guides/quickstart.md");
+
+        Assert.NotNull(details);
+        Assert.Null(details!.ContributorProvenance);
+        Assert.Equal(0, resolverCalls);
+    }
+
+    [Fact]
     public async Task GetDocDetailsAsync_ShouldCacheGitFreshnessPerSnapshotGeneration()
     {
         var harvester = A.Fake<IDocHarvester>();
@@ -1150,6 +1185,47 @@ public class DocAggregatorTests : IDisposable
         Assert.NotNull(details?.ContributorProvenance);
         Assert.Equal("https://example.com/blob/main/guides/quickstart.md", details!.ContributorProvenance!.SourceHref);
         Assert.Null(details.ContributorProvenance.LastUpdatedUtc);
+    }
+
+    [Fact]
+    public async Task ResolveGitLastUpdatedUtcAsync_ShouldReturnNull_WhenGitTimestampIsUnparseable()
+    {
+        var result = await DocAggregator.ResolveGitLastUpdatedUtcAsync(
+            Path.GetTempPath(),
+            "guides/quickstart.md",
+            _loggerFake,
+            CancellationToken.None,
+            (_, _, _, _, _) => Task.FromResult(new CommandResult(0, "not-a-timestamp", string.Empty)));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ResolveGitLastUpdatedUtcAsync_ShouldPropagateOperationCanceledException()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => DocAggregator.ResolveGitLastUpdatedUtcAsync(
+                Path.GetTempPath(),
+                "guides/quickstart.md",
+                _loggerFake,
+                cts.Token,
+                (_, _, _, _, cancellationToken) => Task.FromCanceled<CommandResult>(cancellationToken)));
+    }
+
+    [Fact]
+    public async Task ResolveGitLastUpdatedUtcAsync_ShouldReturnNull_WhenGitProcessThrows()
+    {
+        var result = await DocAggregator.ResolveGitLastUpdatedUtcAsync(
+            Path.GetTempPath(),
+            "guides/quickstart.md",
+            _loggerFake,
+            CancellationToken.None,
+            (_, _, _, _, _) => throw new InvalidOperationException("boom"));
+
+        Assert.Null(result);
     }
 
     [Fact]

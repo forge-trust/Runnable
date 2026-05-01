@@ -1545,6 +1545,36 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldUseTurboNavigation_ForLocalContributorProvenanceLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                SourceHref = "/docs/guides/quickstart.md.html",
+                EditHref = "/docs/guides/quickstart.edit.md.html"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var sourceLink = document.QuerySelector("a.docs-provenance-link--primary[href='/docs/guides/quickstart.md.html']");
+        var editLink = document.QuerySelector("a.docs-provenance-link--secondary[href='/docs/guides/quickstart.edit.md.html']");
+
+        Assert.NotNull(sourceLink);
+        Assert.NotNull(editLink);
+        Assert.Equal("doc-content", sourceLink!.GetAttribute("data-turbo-frame"));
+        Assert.Equal("advance", sourceLink.GetAttribute("data-turbo-action"));
+        Assert.Equal("doc-content", editLink!.GetAttribute("data-turbo-frame"));
+        Assert.Equal("advance", editLink.GetAttribute("data-turbo-action"));
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldNotRenderContributorProvenance_WhenNoEvidenceExists()
     {
         using var services = CreateServiceProvider(CreateDocs());

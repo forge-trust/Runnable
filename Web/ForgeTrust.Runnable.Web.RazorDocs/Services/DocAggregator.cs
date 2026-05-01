@@ -562,21 +562,44 @@ public class DocAggregator
                 .Select(Uri.EscapeDataString));
     }
 
-    private static async Task<DateTimeOffset?> ResolveGitLastUpdatedUtcAsync(
+    /// <summary>
+    /// Resolves the last committed UTC timestamp for a source path from local git history.
+    /// </summary>
+    /// <param name="repositoryRoot">The repository root used as the git working directory.</param>
+    /// <param name="sourcePath">The repository-relative source path to inspect.</param>
+    /// <param name="logger">Logger used for diagnostic output when git is unavailable or returns unusable data.</param>
+    /// <param name="cancellationToken">Cancellation used to abort the lookup when snapshot generation times out.</param>
+    /// <param name="executeProcessAsync">
+    /// Optional process-execution seam used by tests to simulate git output and failure modes without mutating
+    /// machine-level PATH state.
+    /// </param>
+    /// <returns>
+    /// The exact last-updated UTC timestamp when git returns a parseable ISO 8601 commit date; otherwise <see langword="null" />.
+    /// </returns>
+    internal static async Task<DateTimeOffset?> ResolveGitLastUpdatedUtcAsync(
         string repositoryRoot,
         string sourcePath,
         ILogger logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string, IReadOnlyList<string>, string, ILogger, CancellationToken, Task<CommandResult>>? executeProcessAsync = null)
     {
+        executeProcessAsync ??= static (fileName, args, workingDirectory, processLogger, processCancellationToken) =>
+            ProcessUtils.ExecuteProcessAsync(
+                fileName,
+                args,
+                workingDirectory,
+                processLogger,
+                processCancellationToken,
+                streamOutput: false);
+
         try
         {
-            var result = await ProcessUtils.ExecuteProcessAsync(
+            var result = await executeProcessAsync(
                 "git",
                 ["log", "-1", "--format=%cI", "--", sourcePath],
                 repositoryRoot,
                 logger,
-                cancellationToken,
-                streamOutput: false);
+                cancellationToken);
             if (result.ExitCode != 0)
             {
                 logger.LogDebug(

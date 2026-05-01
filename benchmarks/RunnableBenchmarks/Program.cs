@@ -41,9 +41,11 @@ public class Program
     public sealed class JobCategoryMatrixFilter : IFilter
     {
         private readonly Dictionary<string, HashSet<string>> allow;
-        public JobCategoryMatrixFilter(IDictionary<string, IEnumerable<string>> map) =>
+        public JobCategoryMatrixFilter(IDictionary<string, IEnumerable<string>> map)
+        {
             allow = map.ToDictionary(kv => kv.Key,
                 kv => kv.Value.ToHashSet(StringComparer.OrdinalIgnoreCase));
+        }
 
         public bool Predicate(BenchmarkCase b)
         {

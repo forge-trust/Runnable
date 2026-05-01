@@ -72,17 +72,17 @@ public class WebColdStartBenchmarks
         await _server.StopAsync();
     }
 
-// #if ABP_WEB
-//     [Benchmark(Description = "Abp_Controller", Baseline = _isBaseLine)]
-//     [BenchmarkCategory("Controllers")]
-//     public async Task AbpControllerBase()
-//     {
-//         var server = new AbpServer();
-//         await server.StartAbpControllersAsync();
-//         await TestEndpoint("api/hello");
-//         await server.StopAsync();
-//     }
-// #endif
+    // #if ABP_WEB
+    //     [Benchmark(Description = "Abp_Controller", Baseline = _isBaseLine)]
+    //     [BenchmarkCategory("Controllers")]
+    //     public async Task AbpControllerBase()
+    //     {
+    //         var server = new AbpServer();
+    //         await server.StartAbpControllersAsync();
+    //         await TestEndpoint("api/hello");
+    //         await server.StopAsync();
+    //     }
+    // #endif
 
     private async Task TestEndpoint(string endpoint)
     {

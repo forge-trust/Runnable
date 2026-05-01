@@ -55,7 +55,7 @@ public class ExportEngineTests
         Assert.True(result);
         Assert.Equal(expectedPath, normalized);
     }
-    
+
     [Theory]
     [InlineData("mailto:user@example.com")]
     [InlineData("tel:1234567890")]
@@ -75,7 +75,7 @@ public class ExportEngineTests
         // Arrange
         var html = @"<html><head><style>body { background-image: url('bg.png'); }</style></head><body><div style=""background: url('../foo.jpg')""></div></body></html>";
         var context = new ExportContext("dist", null, "http://localhost:5000");
-        
+
         // Act
         _sut.ExtractAssets(html, "/page", context);
 

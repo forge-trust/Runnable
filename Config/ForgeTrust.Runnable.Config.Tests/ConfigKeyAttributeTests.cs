@@ -1,5 +1,5 @@
-using Xunit;
 using ForgeTrust.Runnable.Config;
+using Xunit;
 
 namespace ForgeTrust.Runnable.Config.Tests;
 

@@ -31,6 +31,8 @@ public class ProgramEntryPointTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("Export a RazorWire site to a static directory.", result.AllText, StringComparison.Ordinal);
+        Assert.Contains("--seeds", result.AllText, StringComparison.Ordinal);
+        Assert.DoesNotContain("--routes", result.AllText, StringComparison.Ordinal);
         Assert.DoesNotContain("Initializing Critical Service", result.AllText, StringComparison.Ordinal);
         Assert.DoesNotContain("Stopping Critical Service", result.AllText, StringComparison.Ordinal);
         Assert.DoesNotContain("Application started", result.AllText, StringComparison.Ordinal);
@@ -52,6 +54,37 @@ public class ProgramEntryPointTests
         Assert.DoesNotContain("Application is shutting down", result.AllText, StringComparison.Ordinal);
         Assert.DoesNotContain("Hosting environment", result.AllText, StringComparison.Ordinal);
         Assert.DoesNotContain("Run Exited - Shutting down", result.AllText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EntryPoint_Should_Reject_Routes_Option()
+    {
+        var result = await InvokeEntryPointAsync(["export", "--routes", "seeds.txt", "--url", "http://localhost:5001"]);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("--routes", result.AllText, StringComparison.Ordinal);
+        Assert.Contains("Unrecognized option", result.AllText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task EntryPoint_Should_Accept_Seeds_Option()
+    {
+        var missingSeedFile = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName(), "missing-file.txt");
+
+        var result = await InvokeEntryPointAsync(
+            ["export", "--seeds", missingSeedFile, "--url", "http://localhost:5001"],
+            options =>
+            {
+                options.CustomRegistrations.Add(services =>
+                {
+                    services.AddSingleton<IHttpClientFactory>(
+                        new TestHttpHelpers.Factory(TestHttpHelpers.UrlAwareHtmlRoot("http://localhost:5001")));
+                });
+            });
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains(missingSeedFile, result.AllText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unrecognized option", result.AllText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

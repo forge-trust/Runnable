@@ -24,6 +24,7 @@ public sealed class ToolPackageContractTests
         var toolDirectory = workspace.CreateSubdirectory("tool-path");
         var exportDirectory = workspace.CreateSubdirectory("export-output");
         var version = "0.0.0-toolverifier." + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+        var nugetPackagesDirectory = GetDefaultNuGetPackagesPath();
         var repositoryRunner = new ToolProcessRunner(
             repositoryRoot,
             new Dictionary<string, string?>
@@ -38,6 +39,8 @@ public sealed class ToolPackageContractTests
             new Dictionary<string, string?>
             {
                 ["DOTNET_CLI_HOME"] = cliHomeDirectory.Path,
+                // Keep package assets pointed at a stable cache while isolating .NET CLI first-run state.
+                ["NUGET_PACKAGES"] = nugetPackagesDirectory,
                 ["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1",
                 ["DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE"] = "1",
                 ["DOTNET_NOLOGO"] = "1",
@@ -114,7 +117,7 @@ public sealed class ToolPackageContractTests
             "examples",
             "razorwire-mvc",
             "RazorWireWebExample.csproj");
-        var exportResult = await repositoryRunner.RunAsync(
+        var exportResult = await isolatedToolRunner.RunAsync(
             installedToolPath,
             TimeSpan.FromMinutes(4),
             "export",
@@ -146,6 +149,18 @@ public sealed class ToolPackageContractTests
         throw new InvalidOperationException("Unable to find repository root from the current test assembly path.");
     }
 
+    private static string GetDefaultNuGetPackagesPath()
+    {
+        var configuredPath = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return configuredPath;
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(userProfile, ".nuget", "packages");
+    }
+
     private static void AssertToolPackageContract(string packagePath, string expectedVersion)
     {
         using var archive = ZipFile.OpenRead(packagePath);
@@ -166,9 +181,12 @@ public sealed class ToolPackageContractTests
         Assert.Equal("DotnetTool", packageType.Attribute("name")?.Value);
         Assert.Empty(nuspec.Descendants(ns + "dependencies"));
 
-        var settingsEntry = archive.GetEntry("tools/net10.0/any/DotnetToolSettings.xml");
-        Assert.NotNull(settingsEntry);
-        using var settingsStream = settingsEntry!.Open();
+        var settingsEntry = Assert.Single(
+            archive.Entries,
+            entry =>
+                entry.FullName.StartsWith("tools/", StringComparison.Ordinal)
+                && entry.FullName.EndsWith("/any/DotnetToolSettings.xml", StringComparison.Ordinal));
+        using var settingsStream = settingsEntry.Open();
         var settings = XDocument.Load(settingsStream);
         var command = Assert.Single(settings.Descendants("Command"));
         Assert.Equal(ToolCommandName, command.Attribute("Name")?.Value);

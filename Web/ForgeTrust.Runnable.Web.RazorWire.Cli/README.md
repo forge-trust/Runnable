@@ -69,6 +69,7 @@ Exports a RazorWire application to a static directory.
 - **`-u|--url <url>`**: Base URL of a running application used for crawling.
 - **`-p|--project <path.csproj>`**: Path to a .NET project to run automatically and export.
 - **`-d|--dll <path.dll>`**: Path to a .NET DLL to run automatically and export.
+- **`-f|--framework <TFM>`**: Target framework for project exports. Required when `--project` points at a multi-targeted project.
 - **`--app-args <token>`**: Repeatable app-argument token to pass through when launching `--project` or `--dll`.
 - **`--no-build`**: Project mode only. Skips the release publish step and reuses existing published output.
 
@@ -79,6 +80,7 @@ When launched app processes are started by the CLI (`--project` or `--dll`), the
 When `--project` is used:
 - Project mode publishes a release build by default.
 - The publish probe disables persistent build servers so command output capture cannot be held open by reused MSBuild nodes.
+- Multi-targeted projects must pass `-f|--framework <TFM>` to select the target framework, for example `-f net6.0` or `--framework net7.0`; omitting it causes a CLI error before publish. `-f|--framework` can be combined with `--project` and `--no-build` when reusing existing published output.
 - Project mode resolves the published app DLL and launches that DLL for crawling.
 - Add `--no-build` to skip publishing and reuse existing published output.
 

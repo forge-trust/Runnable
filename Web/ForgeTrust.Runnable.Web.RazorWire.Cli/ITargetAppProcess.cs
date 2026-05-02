@@ -130,32 +130,48 @@ internal sealed class TargetAppProcess : ITargetAppProcess
         {
             if (_started)
             {
-                var hasExited = false;
+                var exitObserved = false;
                 try
                 {
-                    hasExited = _process.HasExited;
+                    exitObserved = _process.HasExited;
                 }
                 catch (InvalidOperationException)
                 {
                     // The process is no longer associated with a running process.
-                    hasExited = true;
+                    exitObserved = true;
                 }
 
-                if (!hasExited)
+                if (!exitObserved)
                 {
                     try
                     {
                         _process.Kill(entireProcessTree: true);
                         using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                         await _process.WaitForExitAsync(waitCts.Token);
+                        exitObserved = true;
                     }
                     catch (InvalidOperationException)
                     {
                         // The process exited between the HasExited check and Kill/Wait calls.
+                        exitObserved = true;
                     }
                     catch (OperationCanceledException)
                     {
                         // Kill was issued but process did not exit within timeout; continue disposal.
+                    }
+                }
+
+                if (exitObserved)
+                {
+                    try
+                    {
+                        // WaitForExit flushes redirected stdout/stderr callbacks for short-lived processes
+                        // before the underlying Process is disposed.
+                        _process.WaitForExit();
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // The process is no longer associated with an underlying OS process.
                     }
                 }
             }

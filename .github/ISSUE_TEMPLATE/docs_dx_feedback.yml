@@ -1,0 +1,76 @@
+name: Docs or developer experience feedback
+description: Report onboarding friction, confusing documentation, broken examples, or missing guidance.
+title: "dx: "
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when the product may be working, but the path to understanding or adopting it was confusing. Specific moments of friction are the most useful signal. Do not use this public form for suspected vulnerabilities; use the private security path in SECURITY.md instead.
+  - type: textarea
+    id: goal
+    attributes:
+      label: What were you trying to do?
+      description: Describe the task, decision, or question that brought you to the docs or example.
+      placeholder: "I was trying to ..."
+    validations:
+      required: true
+  - type: textarea
+    id: friction
+    attributes:
+      label: Where did you get stuck?
+      description: Include the exact page, section, command, example, or API that caused friction.
+      placeholder: "The confusing part was ..."
+    validations:
+      required: true
+  - type: input
+    id: entry-point
+    attributes:
+      label: Entry point
+      description: Link the README, docs page, package page, example, or search result where you started.
+      placeholder: "README.md, Web/.../README.md, /docs/..., NuGet, search result, etc."
+    validations:
+      required: true
+  - type: dropdown
+    id: feedback-type
+    attributes:
+      label: Feedback type
+      options:
+        - Onboarding or first run
+        - Missing concept explanation
+        - Broken command or example
+        - Link, anchor, or navigation issue
+        - API usage guidance
+        - Release or migration guidance
+        - Accessibility or readability
+        - Other docs friction
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What would have helped?
+      description: Name the explanation, example, command output, warning, or page you expected.
+      placeholder: "It would have helped if ..."
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Include package versions, .NET SDK version, browser, host app shape, or prior framework experience when relevant.
+      placeholder: |
+        - dotnet --version:
+        - Package/example:
+        - App type:
+        - Prior context:
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Impact
+      options:
+        - label: This blocked me from completing the task.
+        - label: This made me uncertain whether I was using the supported path.
+        - label: This affected an example, quickstart, or first-run flow.
+        - label: This is a smaller docs or DX improvement that did not block a task.
+    validations:
+      required: true

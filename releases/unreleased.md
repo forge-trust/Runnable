@@ -19,6 +19,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - The `/docs` landing now promotes a Releases entry point alongside product proof paths.
 - Runnable now ships a public release hub, a changelog, an unreleased page, and a tagged release template inside the repository.
 - Release-note pages can show status, freshness, scope, migration guidance, and provenance in a shared trust bar instead of bespoke page chrome.
+- Runnable now ships a generated package chooser that tells first-time adopters which package to install first, which optional modules to add next, and which proof paths to follow for release risk and working examples.
 
 ### Contribution contract
 
@@ -30,7 +31,10 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 
 - Runnable console apps can now opt into a command-first output contract so public CLI help and validation flows stay quiet instead of printing Generic Host lifecycle chatter.
 - RazorWire CLI now uses that contract for `--help`, `export --help`, invalid option output, and missing-source validation while still preserving command-owned export progress logs.
+- RazorWire CLI now names export seed-route files with `-r|--seeds`, matching the seed terminology used throughout the exporter and docs.
 - The shared console startup seam now exposes `ConsoleOptions` and `ConsoleOutputMode`, so future public Runnable CLIs can adopt the same behavior without forking startup logic.
+- RazorWire CLI now has a first-class .NET tool package contract with the `razorwire` command, supports exact-version `dnx` execution from published or explicit local package sources, and verifies the installed tool path through help and sample export smoke tests. Public package publishing remains manual until the coordinated release automation tracked in #161 lands.
+- Project exports now disable persistent MSBuild build servers during CLI-controlled publish and assembly-name probes so captured tool output cannot hang on reused build nodes.
 
 ### Web host development defaults
 

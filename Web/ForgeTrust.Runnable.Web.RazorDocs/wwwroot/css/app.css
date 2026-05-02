@@ -282,6 +282,65 @@ body {
     margin: 0 0 0.75rem;
 }
 
+.docs-content table {
+    width: 100%;
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    border: 1px solid #334155;
+    border-radius: 0.85rem;
+    background: rgba(15, 23, 42, 0.45);
+    margin: 1.1rem 0 1.35rem;
+}
+
+.docs-content thead {
+    background: rgba(15, 23, 42, 0.82);
+}
+
+.docs-content th,
+.docs-content td {
+    min-width: 12rem;
+    padding: 0.85rem 0.95rem;
+    vertical-align: top;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+    border-right: 1px solid #1e293b;
+}
+
+.docs-content th:last-child,
+.docs-content td:last-child {
+    border-right: 0;
+}
+
+.docs-content tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.docs-content th {
+    font-size: 0.78rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #93c5fd;
+    font-weight: 700;
+}
+
+.docs-content td {
+    color: #dbe4f0;
+}
+
+.docs-content td code,
+.docs-content th code {
+    white-space: nowrap;
+}
+
+.docs-content td a {
+    color: #7dd3fc;
+}
+
+.docs-content td a:hover {
+    color: #22d3ee;
+}
+
 .docs-content pre {
     background-color: #1e293b;
     border-radius: 0.5rem;
@@ -317,5 +376,11 @@ body {
     .docs-content .doc-exceptions li {
         grid-template-columns: 1fr;
         gap: 0.3rem;
+    }
+
+    .docs-content th,
+    .docs-content td {
+        min-width: 10.5rem;
+        padding: 0.75rem 0.8rem;
     }
 }

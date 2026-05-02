@@ -1,13 +1,13 @@
 name: Docs or developer experience feedback
 description: Report onboarding friction, confusing documentation, broken examples, or missing guidance.
-title: "docs: "
+title: "dx: "
 labels:
   - documentation
 body:
   - type: markdown
     attributes:
       value: |
-        Use this when the product may be working, but the path to understanding or adopting it was confusing. Specific moments of friction are the most useful signal.
+        Use this when the product may be working, but the path to understanding or adopting it was confusing. Specific moments of friction are the most useful signal. Do not use this public form for suspected vulnerabilities; use the private security path in SECURITY.md instead.
   - type: textarea
     id: goal
     attributes:
@@ -71,5 +71,6 @@ body:
         - label: This blocked me from completing the task.
         - label: This made me uncertain whether I was using the supported path.
         - label: This affected an example, quickstart, or first-run flow.
+        - label: This is a smaller docs or DX improvement that did not block a task.
     validations:
       required: true

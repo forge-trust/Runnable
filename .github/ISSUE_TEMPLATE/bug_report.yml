@@ -1,13 +1,13 @@
 name: Bug report
 description: Report a reproducible problem in Runnable packages, examples, docs, or tooling.
-title: "fix: "
+title: "bug: "
 labels:
   - bug
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a problem. Concrete reproduction steps help us decide whether the fix belongs in a package, an example, the docs, or a release note.
+        Thanks for reporting a problem. Concrete reproduction steps help us decide whether the fix belongs in a package, an example, the docs, or a release note. Do not use this public form for suspected vulnerabilities; use the private security path in SECURITY.md instead.
   - type: textarea
     id: problem
     attributes:

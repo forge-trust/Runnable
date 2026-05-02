@@ -26,6 +26,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Pull requests are expected to update this page unless maintainers explicitly mark the change as outside the public release story.
 - Markdown-only changes on `main` now republish the docs surface, so release-note and policy edits are treated as first-class product updates.
 - Runnable now exposes focused GitHub issue forms for bug reports and docs/developer-experience feedback, with the root README and contribution guide pointing developers to that feedback path.
+- Public contribution surfaces now steer suspected vulnerabilities away from issue forms and into a private security reporting path.
 
 ### Console and CLI polish
 

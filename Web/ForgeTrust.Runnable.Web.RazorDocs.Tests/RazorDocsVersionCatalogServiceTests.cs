@@ -423,6 +423,65 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         Assert.Contains("missing", unavailableVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void GetCatalog_ShouldValidateHiddenVersionsWithoutPromotingThemToPublicVersions()
+    {
+        var hiddenBrokenTree = Path.Combine(_tempDirectory, "hidden-broken");
+        Directory.CreateDirectory(hiddenBrokenTree);
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "2.0.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, hiddenBrokenTree),
+                        SupportState = RazorDocsVersionSupportState.Archived,
+                        Visibility = RazorDocsVersionVisibility.Hidden
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Empty(catalog.PublicVersions);
+        var hiddenVersion = Assert.Single(catalog.Versions);
+        Assert.False(hiddenVersion.IsAvailable);
+        Assert.Contains("index.html", hiddenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldTrimExactTreePathBeforeResolvingRelativePath()
+    {
+        var stableTree = CreateExactTree("trimmed-tree");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "1.2.0",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = $"  {Path.GetRelativePath(_tempDirectory, stableTree)}  ",
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        var version = Assert.Single(catalog.PublicVersions);
+        Assert.True(version.IsAvailable);
+        Assert.Equal(stableTree, version.ExactTreePath);
+        Assert.NotNull(catalog.RecommendedVersion);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))

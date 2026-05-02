@@ -481,6 +481,8 @@ public sealed class RazorDocsOptionsTests
     [Theory]
     [InlineData("   ")]
     [InlineData("guides")]
+    [InlineData("/docsx")]
+    [InlineData("/docs-preview")]
     [InlineData("/docs/")]
     public void Validator_ShouldRejectInvalidDocsRootPaths(string docsRootPath)
     {

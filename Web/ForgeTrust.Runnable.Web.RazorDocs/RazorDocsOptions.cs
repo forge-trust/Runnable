@@ -271,7 +271,8 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             return false;
         }
 
-        if (!docsRootPath.StartsWith("/docs", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(docsRootPath, "/docs", StringComparison.OrdinalIgnoreCase)
+            && !docsRootPath.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

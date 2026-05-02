@@ -144,17 +144,13 @@ public sealed class RazorDocsVersionCatalogService
         var exactRootUrl = DocsUrlBuilder.DocsVersionPrefix + "/" + Uri.EscapeDataString(normalizedVersion);
         var isPublic = version.Visibility == RazorDocsVersionVisibility.Public;
 
-        string? availabilityIssue = null;
-        if (isPublic)
+        var availabilityIssue = ValidateExactTree(exactTreePath);
+        if (availabilityIssue is not null && isPublic)
         {
-            availabilityIssue = ValidateExactTree(exactTreePath);
-            if (availabilityIssue is not null)
-            {
-                _logger.LogWarning(
-                    "RazorDocs version {Version} is unavailable: {AvailabilityIssue}",
-                    normalizedVersion,
-                    availabilityIssue);
-            }
+            _logger.LogWarning(
+                "RazorDocs version {Version} is unavailable: {AvailabilityIssue}",
+                normalizedVersion,
+                availabilityIssue);
         }
 
         return new RazorDocsResolvedVersion(
@@ -222,6 +218,7 @@ public sealed class RazorDocsVersionCatalogService
 
     private static string? ResolveCatalogRelativePath(string catalogDirectory, string? configuredPath)
     {
+        configuredPath = configuredPath?.Trim();
         if (string.IsNullOrWhiteSpace(configuredPath))
         {
             return null;

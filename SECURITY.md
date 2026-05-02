@@ -8,7 +8,7 @@ Do not open a public GitHub issue for suspected vulnerabilities, leaked secrets,
 
 Use GitHub's private security advisory flow instead: [report a vulnerability privately](https://github.com/forge-trust/Runnable/security/advisories/new).
 
-If GitHub does not show the private reporting form for your account, contact a maintainer through an existing trusted channel and ask for a private disclosure path before sharing technical details.
+If GitHub does not show the private reporting form for your account, open a public issue titled `security contact request` with no vulnerability details and ask a maintainer for a private disclosure channel. Include only non-sensitive routing context, such as the affected package name, when that information is safe to share publicly.
 
 ## What to include
 

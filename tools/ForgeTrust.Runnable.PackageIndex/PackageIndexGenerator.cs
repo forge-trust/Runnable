@@ -685,18 +685,39 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
             DefaultProcessTimeoutMilliseconds,
             cancellationToken);
 
+        return ParseMetadataJson(projectPath, standardOutput);
+    }
+
+    /// <summary>
+    /// Parses one <c>dotnet msbuild</c> JSON payload into package metadata.
+    /// </summary>
+    /// <param name="projectPath">Repository-relative project path used for error reporting.</param>
+    /// <param name="standardOutput">Raw JSON payload captured from <c>dotnet msbuild</c>.</param>
+    /// <returns>The normalized package metadata derived from the JSON payload.</returns>
+    /// <exception cref="PackageIndexException">
+    /// Thrown when the JSON payload is malformed, missing required properties, or reports incomplete metadata.
+    /// </exception>
+    /// <remarks>
+    /// This parsing seam is intentionally internal so tests can verify malformed and incomplete metadata handling
+    /// without depending on a real SDK invocation or using reflection against private helpers.
+    /// </remarks>
+    internal static PackageProjectMetadata ParseMetadataJson(string projectPath, string standardOutput)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
+        ArgumentNullException.ThrowIfNull(standardOutput);
+
         try
         {
             using var document = JsonDocument.Parse(standardOutput);
-            var properties = document.RootElement.GetProperty("Properties");
+            var properties = GetRequiredObjectProperty(document.RootElement, "Properties");
 
-            var packageId = properties.GetProperty("PackageId").GetString();
-            var targetFramework = properties.GetProperty("TargetFramework").GetString();
+            var packageId = GetRequiredStringProperty(properties, "PackageId");
+            var targetFramework = GetRequiredStringProperty(properties, "TargetFramework");
             var targetFrameworks = properties.TryGetProperty(TargetFrameworksPropertyName, out var tfmsElement)
                 ? tfmsElement.GetString()
                 : null;
-            var isPackable = properties.GetProperty("IsPackable").GetString();
-            var outputType = properties.GetProperty("OutputType").GetString();
+            var isPackable = GetRequiredStringProperty(properties, "IsPackable");
+            var outputType = GetRequiredStringProperty(properties, "OutputType");
             var projectReferences = ReadProjectReferences(document.RootElement);
 
             var resolvedTargetFramework = !string.IsNullOrWhiteSpace(targetFramework)
@@ -716,7 +737,7 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
                 outputType,
                 projectReferences);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
         {
             throw new PackageIndexException(
                 $"dotnet msbuild returned malformed JSON for '{projectPath}': {ex.Message}");
@@ -863,6 +884,31 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Select(path => path!)
             .ToArray();
+    }
+
+    private static JsonElement GetRequiredObjectProperty(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var property))
+        {
+            throw new KeyNotFoundException($"Required property '{propertyName}' was not present.");
+        }
+
+        if (property.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException($"Required property '{propertyName}' must be a JSON object.");
+        }
+
+        return property;
+    }
+
+    private static string? GetRequiredStringProperty(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var property))
+        {
+            throw new KeyNotFoundException($"Required property '{propertyName}' was not present.");
+        }
+
+        return property.GetString();
     }
 }
 

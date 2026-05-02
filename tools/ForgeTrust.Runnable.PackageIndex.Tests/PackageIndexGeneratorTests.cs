@@ -954,6 +954,151 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    public void ParseMetadataJson_ThrowsWhenRequiredPropertyIsMissing()
+    {
+        const string standardOutput = """
+            {
+              "Properties": {
+                "TargetFramework": "net10.0",
+                "IsPackable": "true",
+                "OutputType": "Library"
+              }
+            }
+            """;
+
+        var error = Assert.Throws<PackageIndexException>(
+            () => DotNetProjectMetadataProvider.ParseMetadataJson(
+                "src/App/App.csproj",
+                standardOutput));
+
+        Assert.Contains("malformed JSON", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PackageId", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseMetadataJson_ThrowsWhenPropertiesObjectIsMissing()
+    {
+        const string standardOutput = """
+            {
+              "Items": {
+                "ProjectReference": []
+              }
+            }
+            """;
+
+        var error = Assert.Throws<PackageIndexException>(
+            () => DotNetProjectMetadataProvider.ParseMetadataJson(
+                "src/App/App.csproj",
+                standardOutput));
+
+        Assert.Contains("malformed JSON", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Properties", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseMetadataJson_ThrowsWhenPropertiesNodeHasWrongShape()
+    {
+        const string standardOutput = """
+            {
+              "Properties": []
+            }
+            """;
+
+        var error = Assert.Throws<PackageIndexException>(
+            () => DotNetProjectMetadataProvider.ParseMetadataJson(
+                "src/App/App.csproj",
+                standardOutput));
+
+        Assert.Contains("malformed JSON", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("must be a JSON object", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseMetadataJson_UsesTargetFrameworkFallbackAndFiltersProjectReferences()
+    {
+        const string standardOutput = """
+            {
+              "Properties": {
+                "PackageId": "ForgeTrust.Runnable.Web",
+                "TargetFramework": "",
+                "TargetFrameworks": "net10.0",
+                "IsPackable": "true",
+                "OutputType": "Library"
+              },
+              "Items": {
+                "ProjectReference": [
+                  {
+                    "Identity": "../Ignored/Ignored.csproj"
+                  },
+                  {
+                    "FullPath": "/repo/src/Dependency/Dependency.csproj"
+                  }
+                ]
+              }
+            }
+            """;
+
+        var metadata = DotNetProjectMetadataProvider.ParseMetadataJson(
+            "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+            standardOutput);
+
+        Assert.Equal("ForgeTrust.Runnable.Web", metadata.PackageId);
+        Assert.Equal("net10.0", metadata.TargetFramework);
+        Assert.True(metadata.IsPackable);
+        Assert.Equal("Library", metadata.OutputType);
+        Assert.Single(metadata.ProjectReferences);
+        Assert.Equal("/repo/src/Dependency/Dependency.csproj", metadata.ProjectReferences[0]);
+    }
+
+    [Fact]
+    public void ParseMetadataJson_ReturnsEmptyProjectReferencesWhenItemsSectionIsMissing()
+    {
+        const string standardOutput = """
+            {
+              "Properties": {
+                "PackageId": "ForgeTrust.Runnable.Console",
+                "TargetFramework": "net10.0",
+                "IsPackable": "false",
+                "OutputType": "Exe"
+              }
+            }
+            """;
+
+        var metadata = DotNetProjectMetadataProvider.ParseMetadataJson(
+            "Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj",
+            standardOutput);
+
+        Assert.Equal("ForgeTrust.Runnable.Console", metadata.PackageId);
+        Assert.Equal("net10.0", metadata.TargetFramework);
+        Assert.False(metadata.IsPackable);
+        Assert.Equal("Exe", metadata.OutputType);
+        Assert.Empty(metadata.ProjectReferences);
+    }
+
+    [Fact]
+    public void ParseMetadataJson_ThrowsWhenMetadataIsIncomplete()
+    {
+        const string standardOutput = """
+            {
+              "Properties": {
+                "PackageId": "ForgeTrust.Runnable.Console",
+                "TargetFramework": "",
+                "TargetFrameworks": "",
+                "IsPackable": "true",
+                "OutputType": ""
+              }
+            }
+            """;
+
+        var error = Assert.Throws<PackageIndexException>(
+            () => DotNetProjectMetadataProvider.ParseMetadataJson(
+                "Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj",
+                standardOutput));
+
+        Assert.Contains("incomplete metadata", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     [Trait("Category", "Integration")]
     public async Task DotNetProjectMetadataProvider_ThrowsWhenProjectCannotBeEvaluated()
     {

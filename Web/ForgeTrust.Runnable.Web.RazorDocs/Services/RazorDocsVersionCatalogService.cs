@@ -284,6 +284,20 @@ public sealed class RazorDocsVersionCatalogService
             {
                 return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json payload without a documents array.";
             }
+
+            foreach (var item in documents.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object
+                    || !item.TryGetProperty("path", out var path)
+                    || path.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(path.GetString())
+                    || !item.TryGetProperty("title", out var title)
+                    || title.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(title.GetString()))
+                {
+                    return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json document entry without the required path/title fields.";
+                }
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

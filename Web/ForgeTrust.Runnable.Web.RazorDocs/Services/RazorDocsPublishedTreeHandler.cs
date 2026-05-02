@@ -110,6 +110,19 @@ internal sealed class RazorDocsPublishedTreeHandler
         var relativeRequestPath = requestPath.Length == mount.MountRootPath.Length
             ? string.Empty
             : requestPath[mount.MountRootPath.Length..];
+        var trimmed = relativeRequestPath.TrimStart('/');
+        if (!string.IsNullOrEmpty(trimmed)
+            && !relativeRequestPath.EndsWith("/", StringComparison.Ordinal))
+        {
+            var exactFile = mount.FileProvider.GetFileInfo(trimmed);
+            if (exactFile.Exists)
+            {
+                fileInfo = exactFile;
+                relativeFilePath = trimmed;
+                return true;
+            }
+        }
+
         foreach (var candidate in BuildCandidatePaths(relativeRequestPath))
         {
             var candidateFile = mount.FileProvider.GetFileInfo(candidate);
@@ -141,14 +154,42 @@ internal sealed class RazorDocsPublishedTreeHandler
             yield break;
         }
 
-        if (Path.HasExtension(Path.GetFileName(trimmed)))
+        if (ShouldTreatAsExactAssetRequest(trimmed))
         {
-            yield return trimmed;
             yield break;
         }
 
         yield return trimmed + ".html";
         yield return trimmed + "/index.html";
+    }
+
+    private static bool ShouldTreatAsExactAssetRequest(string path)
+    {
+        var extension = Path.GetExtension(path);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            return false;
+        }
+
+        return extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".css", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".js", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".map", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".svg", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".webp", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".ico", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".woff", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".woff2", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".ttf", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".eot", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".xml", StringComparison.OrdinalIgnoreCase)
+               || extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task WriteResponseAsync(

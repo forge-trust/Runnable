@@ -207,6 +207,36 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetCatalog_ShouldMarkVersionUnavailable_WhenSearchIndexDocumentOmitsRequiredPathOrTitle()
+    {
+        var brokenTree = CreateExactTree("broken-search-document");
+        File.WriteAllText(Path.Combine(brokenTree, "search-index.json"), "{\"documents\":[{\"title\":\"Guide\"}]}");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "1.2.0",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, brokenTree),
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Null(catalog.RecommendedVersion);
+        var brokenVersion = Assert.Single(catalog.PublicVersions);
+        Assert.False(brokenVersion.IsAvailable);
+        Assert.Contains("required path/title fields", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void GetCatalog_ShouldParseDocumentedStringEnumValues()
     {
         var stableTree = CreateExactTree("stable");

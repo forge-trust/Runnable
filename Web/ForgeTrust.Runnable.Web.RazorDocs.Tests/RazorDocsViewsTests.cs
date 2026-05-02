@@ -38,6 +38,7 @@ public class RazorDocsViewsTests
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", layout);
         Assert.Contains("window.__razorDocsConfig", layout);
         Assert.Contains("PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"search-client.js\"))", layout);
+        Assert.Contains("PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"minisearch.min.js\"))", layout);
     }
 
     [Fact]
@@ -69,11 +70,12 @@ public class RazorDocsViewsTests
 
         var html = await RenderDocsViewAsync(
             services,
-            "Index",
-            c => c.Index(),
+            "Search",
+            c => c.Search(),
             pathBase: "/some-base");
 
         Assert.Contains("href=\"/some-base/docs/search.css\"", html);
+        Assert.Contains("src=\"/some-base/docs/minisearch.min.js\"", html);
         Assert.Contains("src=\"/some-base/docs/search-client.js\"", html);
         Assert.Contains("\"docsRootPath\":\"/some-base/docs\"", html);
         Assert.Contains("\"docsSearchUrl\":\"/some-base/docs/search\"", html);

@@ -74,11 +74,13 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
     public async Task TryHandleAsync_ShouldResolveRootDirectoryAndFallbackDirectoryCandidates()
     {
         var tree = CreatePublishedTree("release");
+        File.WriteAllText(Path.Combine(tree, "System.Text.html"), "<!DOCTYPE html><html><body>dotted-slug</body></html>");
         var handler = CreateHandler(tree, "/docs/v/1.2.3");
 
         var rootRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3");
         var trailingSlashRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/guide/");
         var folderFallbackRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/folder-only");
+        var dottedSlugRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/System.Text");
 
         Assert.True(await handler.TryHandleAsync(rootRequest));
         Assert.Contains("/docs/v/1.2.3/guide.html", ReadBody(rootRequest));
@@ -88,6 +90,9 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
 
         Assert.True(await handler.TryHandleAsync(folderFallbackRequest));
         Assert.Contains("folder-only", ReadBody(folderFallbackRequest));
+
+        Assert.True(await handler.TryHandleAsync(dottedSlugRequest));
+        Assert.Contains("dotted-slug", ReadBody(dottedSlugRequest));
     }
 
     [Fact]
@@ -179,6 +184,33 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
         Assert.True(await handler.TryHandleAsync(request));
         Assert.Contains("href=\"/docs/preview/search?tab=preview#input\"", ReadBody(request));
         Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", ReadBody(request));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldHonorHeadRequests_WhenRewritingMountedHtml()
+    {
+        var tree = CreatePublishedTree("head-rewritten-html");
+        File.WriteAllText(
+            Path.Combine(tree, "index.html"),
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+            </head>
+            <body>
+              <a href="/docs/preview/search?tab=preview#input">Preview</a>
+              <a href="/docs/guide.html">Guide</a>
+            </body>
+            </html>
+            """);
+        var handler = CreateHandler(tree, "/docs/v/1.2.3", previewRootPath: "/docs/preview");
+        var request = CreateContext(HttpMethods.Head, "/docs/v/1.2.3");
+
+        Assert.True(await handler.TryHandleAsync(request));
+        Assert.Equal("text/html", request.Response.ContentType);
+        Assert.NotNull(request.Response.ContentLength);
+        Assert.Equal(string.Empty, ReadBody(request));
     }
 
     [Fact]

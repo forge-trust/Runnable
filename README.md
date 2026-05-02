@@ -101,6 +101,12 @@ Runnable is preparing to release the entire monorepo in unison. The public relea
 - [Pre-1.0 upgrade policy](./releases/upgrade-policy.md) - the stability and migration contract before `v1.0.0`.
 - [Contribution and release entry rules](./CONTRIBUTING.md) - how PR titles and unreleased entries feed the release surface.
 
+## Feedback and contributing
+
+Runnable uses GitHub issue forms to keep bug reports and docs/developer-experience feedback concrete enough to reproduce. If an example, README, quickstart, or package API leaves you stuck, start with the [contribution guide](./CONTRIBUTING.md) and file the issue form that matches the problem.
+
+Use docs/DX feedback for confusing guidance, missing concepts, broken links, snippet drift, or first-run friction. Use bug reports when runtime behavior, generated output, or package APIs do something unexpected.
+
 ## Examples
 
 The [examples](examples) directory contains sample applications that demonstrate

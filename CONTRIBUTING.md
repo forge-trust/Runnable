@@ -2,6 +2,28 @@
 
 Runnable is putting its release contract in place before the first tagged version. This file explains the contribution rules that feed the public release surface.
 
+## Feedback path
+
+Runnable treats docs and onboarding feedback as product input, not as a second-class support queue. File issues when a package, example, README, or release note leaves you unable to reproduce the intended path.
+
+- Use the **Bug report** issue form when behavior is broken or surprising.
+- Use the **Docs or developer experience feedback** issue form when the code may work, but the route to understanding it is unclear.
+- Include the command, page, example, package, or API where the confusion started. The sharpest reports name the exact step that failed and the next thing you expected to see.
+- If you are unsure whether something is a bug or a docs gap, file the docs/DX form and explain the behavior you expected.
+
+Avoid broad requests such as "improve the docs" without a concrete page, task, or decision point. Narrow feedback is easier to verify and much more likely to turn into a useful change.
+
+## Working on docs
+
+Documentation changes should explain both how to use an API and why a reader would choose it. When a docs change touches public behavior, update the package-level README, repository-level entry point, or release note surface that helps someone discover the change.
+
+Good docs pull requests usually include:
+
+- Reference content for API shape, defaults, constraints, and examples.
+- Decision guidance that explains when to use the API and when another approach fits better.
+- Pitfalls that call out ordering requirements, generated output, hosting assumptions, or common mistakes.
+- Verification notes for commands, links, snippets, or examples that were checked.
+
 ## Release contract
 
 - Runnable releases the monorepo in unison. Packages, CLI tooling, examples, and docs-facing behavior all roll into the same next version.

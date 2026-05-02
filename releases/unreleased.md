@@ -25,6 +25,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Pull request titles are now expected to follow Conventional Commits so the merge history is machine-readable for future automation.
 - Pull requests are expected to update this page unless maintainers explicitly mark the change as outside the public release story.
 - Markdown-only changes on `main` now republish the docs surface, so release-note and policy edits are treated as first-class product updates.
+- Runnable now exposes focused GitHub issue forms for bug reports and docs/developer-experience feedback, with the root README and contribution guide pointing developers to that feedback path.
 
 ### Console and CLI polish
 

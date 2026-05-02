@@ -477,6 +477,8 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         Assert.Contains("dotnet package add ForgeTrust.Runnable.Web", markdown, StringComparison.Ordinal);
         Assert.Contains("[examples/web-app/README.md](../examples/web-app/README.md)", markdown, StringComparison.Ordinal);
         Assert.Contains("| `ForgeTrust.Runnable.Web` |", markdown, StringComparison.Ordinal);
+        Assert.DoesNotContain('\r', markdown);
+        Assert.EndsWith("\n", markdown, StringComparison.Ordinal);
         Assert.Contains("### Support and runtime packages", markdown, StringComparison.Ordinal);
         Assert.Contains("### Docs and proof hosts", markdown, StringComparison.Ordinal);
         Assert.Contains("### Not in the direct-install matrix", markdown, StringComparison.Ordinal);
@@ -885,6 +887,7 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         Assert.Equal(0, generateExitCode);
         Assert.Equal(0, verifyExitCode);
         Assert.Contains("Generated packages/README.md.", stdout.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain('\\', stdout.ToString());
         Assert.Contains("Package chooser is up to date.", stdout.ToString(), StringComparison.Ordinal);
         Assert.Equal(string.Empty, stderr.ToString());
         Assert.True(File.Exists(Path.Combine(_repositoryRoot, "packages", "README.md")));

@@ -428,7 +428,7 @@ internal sealed class PackageIndexGenerator
         builder.AppendLine($"- Run `dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- generate` after changing package classifications or package READMEs.");
         builder.AppendLine("- Keep `packages/README.md.yml` hand-authored so RazorDocs metadata, trust-bar copy, and section placement stay intentional.");
 
-        return builder.ToString().TrimEnd() + Environment.NewLine;
+        return NormalizeMarkdownNewlines(builder.ToString()).TrimEnd('\n') + "\n";
     }
 
     private static string GetRelativeDocPath(PackageIndexRequest request, string repositoryRelativePath)
@@ -483,6 +483,13 @@ internal sealed class PackageIndexGenerator
     /// </remarks>
     internal static StringComparison RepositoryPathComparison =>
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    private static string NormalizeMarkdownNewlines(string content)
+    {
+        return content
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal);
+    }
 
     private static string EscapeTableCell(string value)
     {
@@ -763,7 +770,10 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             await TerminateProcessAsync(process);
-            var timeoutError = await standardErrorTask;
+            var (_, timeoutError) = await AwaitProcessOutputAsync(
+                standardOutputTask,
+                standardErrorTask,
+                swallowReadFailures: true);
             var message = $"dotnet msbuild timed out after {timeoutMilliseconds} ms while evaluating '{projectPath}'.";
             if (!string.IsNullOrWhiteSpace(timeoutError))
             {
@@ -775,11 +785,17 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
         catch
         {
             await TerminateProcessAsync(process);
+            _ = await AwaitProcessOutputAsync(
+                standardOutputTask,
+                standardErrorTask,
+                swallowReadFailures: true);
             throw;
         }
 
-        var standardOutput = await standardOutputTask;
-        var standardError = await standardErrorTask;
+        var (standardOutput, standardError) = await AwaitProcessOutputAsync(
+            standardOutputTask,
+            standardErrorTask,
+            swallowReadFailures: false);
         if (process.ExitCode != 0)
         {
             throw new PackageIndexException(
@@ -787,6 +803,31 @@ internal sealed class DotNetProjectMetadataProvider : IProjectMetadataProvider
         }
 
         return (standardOutput, standardError);
+    }
+
+    private static async Task<(string StandardOutput, string StandardError)> AwaitProcessOutputAsync(
+        Task<string> standardOutputTask,
+        Task<string> standardErrorTask,
+        bool swallowReadFailures)
+    {
+        if (swallowReadFailures)
+        {
+            try
+            {
+                await Task.WhenAll(standardOutputTask, standardErrorTask);
+            }
+            catch
+            {
+                // Best-effort cleanup after process termination should not hide the original failure path.
+            }
+
+            return (
+                standardOutputTask.Status == TaskStatus.RanToCompletion ? standardOutputTask.Result : string.Empty,
+                standardErrorTask.Status == TaskStatus.RanToCompletion ? standardErrorTask.Result : string.Empty);
+        }
+
+        await Task.WhenAll(standardOutputTask, standardErrorTask);
+        return (await standardOutputTask, await standardErrorTask);
     }
 
     private static async Task TerminateProcessAsync(Process process)

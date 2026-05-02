@@ -65,7 +65,9 @@ internal static class Program
                 case GenerateCommand:
                     {
                         await generator.GenerateToFileAsync(options.Request, cancellationToken);
-                        await standardOut.WriteLineAsync($"Generated {Path.GetRelativePath(options.Request.RepositoryRoot, options.Request.OutputPath)}.");
+                        var outputPath = Path.GetRelativePath(options.Request.RepositoryRoot, options.Request.OutputPath)
+                            .Replace('\\', '/');
+                        await standardOut.WriteLineAsync($"Generated {outputPath}.");
                         return 0;
                     }
 

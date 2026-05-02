@@ -105,8 +105,16 @@ public sealed class RazorDocsVersionCatalogService
         var seenVersions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var versions = new List<RazorDocsResolvedVersion>();
 
-        foreach (var version in rawCatalog.Versions)
+        foreach (var version in rawCatalog.Versions ?? [])
         {
+            if (version is null)
+            {
+                _logger.LogWarning(
+                    "Skipping one RazorDocs catalog version entry from {CatalogPath} because the entry itself is null.",
+                    catalogPath);
+                continue;
+            }
+
             var normalizedVersion = version.Version?.Trim();
             if (string.IsNullOrWhiteSpace(normalizedVersion))
             {
@@ -211,6 +219,7 @@ public sealed class RazorDocsVersionCatalogService
 
     private string ResolveAbsolutePath(string path)
     {
+        path = path.Trim();
         return Path.IsPathRooted(path)
             ? path
             : Path.GetFullPath(Path.Combine(_environment.ContentRootPath, path));

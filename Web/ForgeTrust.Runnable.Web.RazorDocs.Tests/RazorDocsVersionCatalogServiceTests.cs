@@ -252,6 +252,54 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetCatalog_ShouldTreatNullVersionsPayloadAsEmptyCatalog()
+    {
+        var catalogPath = WriteRawCatalogJson(
+            """
+            {
+              "recommendedVersion": "1.2.3",
+              "versions": null
+            }
+            """);
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Equal(catalogPath, catalog.CatalogPath);
+        Assert.Empty(catalog.Versions);
+        Assert.Empty(catalog.PublicVersions);
+        Assert.Null(catalog.RecommendedVersion);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldSkipNullVersionEntries_AndContinueResolvingHealthyVersions()
+    {
+        var stableTree = CreateExactTree("null-entry-stable");
+        var catalogPath = WriteRawCatalogJson(
+            $$"""
+            {
+              "recommendedVersion": "1.2.3",
+              "versions": [
+                null,
+                {
+                  "version": "1.2.3",
+                  "exactTreePath": "{{EscapeJson(Path.GetRelativePath(_tempDirectory, stableTree))}}",
+                  "supportState": "Current"
+                }
+              ]
+            }
+            """);
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        var version = Assert.Single(catalog.PublicVersions);
+        Assert.Equal("1.2.3", version.Version);
+        Assert.True(version.IsAvailable);
+        Assert.NotNull(catalog.RecommendedVersion);
+    }
+
+    [Fact]
     public void GetCatalog_ShouldReturnDisabled_WhenVersioningIsOff()
     {
         var service = CreateCatalogService(catalogPath: null, versioningEnabled: false);
@@ -479,6 +527,35 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var version = Assert.Single(catalog.PublicVersions);
         Assert.True(version.IsAvailable);
         Assert.Equal(stableTree, version.ExactTreePath);
+        Assert.NotNull(catalog.RecommendedVersion);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldTrimCatalogPathBeforeResolvingRelativePath()
+    {
+        var stableTree = CreateExactTree("trimmed-catalog-path-tree");
+        _ = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "1.2.0",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, stableTree),
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService("  catalog.json  ");
+
+        var catalog = service.GetCatalog();
+
+        Assert.Equal(Path.Combine(_tempDirectory, "catalog.json"), catalog.CatalogPath);
+        var version = Assert.Single(catalog.PublicVersions);
+        Assert.True(version.IsAvailable);
         Assert.NotNull(catalog.RecommendedVersion);
     }
 

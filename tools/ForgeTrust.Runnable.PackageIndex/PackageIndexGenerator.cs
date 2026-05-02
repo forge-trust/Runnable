@@ -201,10 +201,7 @@ internal sealed class PackageIndexGenerator
             resolvedEntries.Add(new ResolvedPackageEntry(manifestEntry, metadata));
         }
 
-        if (!resolvedEntries.Any(entry => string.Equals(entry.Metadata.PackageId, WebPackageId, StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new PackageIndexException($"Manifest must include the '{WebPackageId}' package.");
-        }
+        _ = RequireSinglePublicWebEntry(resolvedEntries);
 
         return resolvedEntries;
     }
@@ -260,6 +257,21 @@ internal sealed class PackageIndexGenerator
         }
     }
 
+    private static ResolvedPackageEntry RequireSinglePublicWebEntry(IEnumerable<ResolvedPackageEntry> entries)
+    {
+        var webEntries = entries
+            .Where(entry => entry.Manifest.Classification == PackageClassification.Public)
+            .Where(entry => string.Equals(entry.Metadata.PackageId, WebPackageId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (webEntries.Length != 1)
+        {
+            throw new PackageIndexException($"Manifest must include exactly one public '{WebPackageId}' entry.");
+        }
+
+        return webEntries[0];
+    }
+
     private static string RenderMarkdown(PackageIndexRequest request, IReadOnlyList<ResolvedPackageEntry> entries)
     {
         var repositoryRoot = request.RepositoryRoot;
@@ -267,7 +279,7 @@ internal sealed class PackageIndexGenerator
         var supportEntries = entries.Where(entry => entry.Manifest.Classification == PackageClassification.Support).ToArray();
         var proofHostEntries = entries.Where(entry => entry.Manifest.Classification == PackageClassification.ProofHost).ToArray();
         var excludedEntries = entries.Where(entry => entry.Manifest.Classification == PackageClassification.Excluded).ToArray();
-        var webEntry = publicEntries.Single(entry => string.Equals(entry.Metadata.PackageId, WebPackageId, StringComparison.OrdinalIgnoreCase));
+        var webEntry = RequireSinglePublicWebEntry(entries);
         var publicTargetFrameworks = publicEntries
             .Select(entry => entry.Metadata.TargetFramework)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -444,9 +456,10 @@ internal sealed class PackageIndexGenerator
         var rootPrefix = normalizedRoot.EndsWith(Path.DirectorySeparatorChar)
             ? normalizedRoot
             : normalizedRoot + Path.DirectorySeparatorChar;
+        var pathComparison = RepositoryPathComparison;
 
-        if (!string.Equals(resolvedPath, normalizedRoot, StringComparison.OrdinalIgnoreCase)
-            && !resolvedPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(resolvedPath, normalizedRoot, pathComparison)
+            && !resolvedPath.StartsWith(rootPrefix, pathComparison))
         {
             throw new PackageIndexException(
                 $"{description} points outside the repository root: '{repositoryRelativePath}'.");
@@ -460,6 +473,16 @@ internal sealed class PackageIndexGenerator
 
         return resolvedPath;
     }
+
+    /// <summary>
+    /// Gets the path-comparison rule used when enforcing repository-boundary checks for chooser links.
+    /// </summary>
+    /// <remarks>
+    /// Windows paths are treated case-insensitively. Other platforms stay ordinal so chooser validation does not
+    /// assume a case-insensitive filesystem on Linux or macOS.
+    /// </remarks>
+    internal static StringComparison RepositoryPathComparison =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
     private static string EscapeTableCell(string value)
     {

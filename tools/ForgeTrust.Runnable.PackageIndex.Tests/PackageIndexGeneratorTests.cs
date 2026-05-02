@@ -377,6 +377,35 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateAsync_ThrowsWhenRunnableWebPackageIsNotPublic()
+    {
+        await WriteFileAsync("packages/README.md.yml", "title: Runnable");
+        await WriteFileAsync(
+            "packages/package-index.yml",
+            """
+            packages:
+              - project: Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj
+                classification: support
+                order: 10
+                note: This row should stay out of direct-install guidance.
+            """);
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj", "<Project />");
+        await WriteFileAsync("Web/ForgeTrust.Runnable.Web/README.md", "# Web");
+
+        var generator = CreateGenerator(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj"] = CreateMetadata(
+                "Web/ForgeTrust.Runnable.Web/ForgeTrust.Runnable.Web.csproj",
+                "ForgeTrust.Runnable.Web")
+        });
+
+        var error = await Assert.ThrowsAsync<PackageIndexException>(() => generator.GenerateAsync(CreateRequest()));
+
+        Assert.Contains("exactly one public", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ForgeTrust.Runnable.Web", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GenerateAsync_ThrowsWhenRazorWireCliIsNotExcluded()
     {
         await WriteFileAsync("packages/README.md.yml", "title: Runnable");
@@ -790,6 +819,16 @@ public sealed class PackageIndexGeneratorTests : IDisposable
 
         Assert.Equal(absoluteManifest, absolute.Request.ManifestPath);
         Assert.Equal(absoluteOutput, absolute.Request.OutputPath);
+    }
+
+    [Fact]
+    public void RepositoryPathComparison_MatchesHostFilesystemExpectation()
+    {
+        var expected = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        Assert.Equal(expected, PackageIndexGenerator.RepositoryPathComparison);
     }
 
     [Fact]

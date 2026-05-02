@@ -200,6 +200,40 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldRewritePackageChooserTableLinks_FromRealRepoDocs()
+    {
+        var repositoryRoot = ForgeTrust.Runnable.Core.PathUtils.FindRepositoryRoot(AppContext.BaseDirectory);
+        var markdownLogger = A.Fake<ILogger<MarkdownHarvester>>();
+        var csharpLogger = A.Fake<ILogger<CSharpDocHarvester>>();
+        var localEnv = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => localEnv.ContentRootPath).Returns(repositoryRoot);
+
+        var aggregator = new DocAggregator(
+            [
+                new MarkdownHarvester(markdownLogger),
+                new CSharpDocHarvester(csharpLogger)
+            ],
+            new RazorDocsOptions
+            {
+                Source = new RazorDocsSourceOptions
+                {
+                    RepositoryRoot = repositoryRoot
+                }
+            },
+            localEnv,
+            _memo,
+            new RazorDocsHtmlSanitizer(),
+            _loggerFake);
+
+        var chooser = await aggregator.GetDocByPathAsync("packages/README.md");
+
+        Assert.NotNull(chooser);
+        Assert.Contains(
+            "href=\"/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html\"",
+            chooser!.Content);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldFallbackToEmptyContent_WhenSanitizerReturnsNull()
     {
         var harvestedDocs = new List<DocNode>
@@ -1626,6 +1660,32 @@ public class DocAggregatorTests : IDisposable
         var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
         Assert.Contains("doc-namespace-intro", namespaceDoc.Content);
         Assert.DoesNotContain(docs, d => d.Path == "docs/ForgeTrust.Web/README.md");
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldKeepPackageReadmes_WhenNamespacePagesShareTheSameName()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new("OpenApi namespace", "Namespaces/ForgeTrust.Runnable.Web.OpenApi", namespaceContent),
+            new(
+                "Packages",
+                "packages/README.md",
+                "<table><tbody><tr><td><a href=\"../Web/ForgeTrust.Runnable.Web.OpenApi/README.md\">Package README</a></td></tr></tbody></table>"),
+            new("OpenApi package", "Web/ForgeTrust.Runnable.Web.OpenApi/README.md", "<p>Package guide</p>")
+        };
+
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = await _aggregator.GetDocsAsync();
+
+        Assert.Contains(docs, d => d.Path == "Web/ForgeTrust.Runnable.Web.OpenApi/README.md");
+
+        var chooser = docs.Single(d => d.Path == "packages/README.md");
+        Assert.Contains(
+            "href=\"/docs/Web/ForgeTrust.Runnable.Web.OpenApi/README.md.html\"",
+            chooser.Content);
     }
 
     public void Dispose()

@@ -1126,12 +1126,33 @@ public class DocAggregator
                 var candidate = string.Join(".", parts.Skip(start));
                 if (knownNamesSet.Contains(candidate))
                 {
+                    if (!HasNamespaceReadmePrefix(parts, start))
+                    {
+                        continue;
+                    }
+
                     return candidate;
                 }
             }
+
+            return null;
         }
 
         return parts.LastOrDefault();
+    }
+
+    private static bool HasNamespaceReadmePrefix(IReadOnlyList<string> parts, int namespaceStartIndex)
+    {
+        if (namespaceStartIndex <= 0)
+        {
+            return false;
+        }
+
+        return parts
+            .Take(namespaceStartIndex)
+            .Any(
+                segment => segment.Equals("docs", StringComparison.OrdinalIgnoreCase)
+                           || segment.Equals("Namespaces", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

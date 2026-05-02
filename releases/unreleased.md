@@ -19,6 +19,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - The `/docs` landing now promotes a Releases entry point alongside product proof paths.
 - Runnable now ships a public release hub, a changelog, an unreleased page, and a tagged release template inside the repository.
 - Release-note pages can show status, freshness, scope, migration guidance, and provenance in a shared trust bar instead of bespoke page chrome.
+- Runnable now ships a generated package chooser that tells first-time adopters which package to install first, which optional modules to add next, and which proof paths to follow for release risk and working examples.
 
 ### Contribution contract
 

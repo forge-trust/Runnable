@@ -5,6 +5,8 @@
 
 ForgeTrust.Runnable is a collection of .NET libraries designed to provide a lightweight, modular startup pipeline for both console and web applications.
 
+If you are deciding which package to install first, start with the [Runnable v0.1 package chooser](./packages/README.md).
+
 ## Vision
 
 The primary vision of Runnable is to simplify application bootstrapping by encouraging **composition through small, focused modules**. Instead of monolithic startup classes or scattered configuration logic, Runnable allows developers to encapsulate features into reusable modules that handle:
@@ -37,6 +39,10 @@ This approach aims to:
 
 
 ## Project Structure
+
+### [Packages](./packages/README.md)
+
+- [**Runnable v0.1 package chooser**](./packages/README.md) - the generated install map for direct-install packages, support/runtime packages, and proof-host surfaces.
 
 ### [Core](./ForgeTrust.Runnable.Core/README.md)
 - [**ForgeTrust.Runnable.Core**](./ForgeTrust.Runnable.Core/README.md) – Core abstractions for defining modules and starting an application via `RunnableStartup` and `StartupContext`.
@@ -95,6 +101,7 @@ dotnet run --project examples/web-app
 
 Runnable is preparing to release the entire monorepo in unison. The public release contract now lives in the repository so teams can see what is queued for the next version, how pre-1.0 changes are handled, and where future migration notes will live.
 
+- [Package chooser](./packages/README.md) - the generated first-install map for web, console, Aspire, and optional package add-ons.
 - [Release hub](./releases/README.md) - start here for the narrative release surface.
 - [Unreleased proof artifact](./releases/unreleased.md) - the living notes for the next coordinated version.
 - [Changelog](./CHANGELOG.md) - the compact ledger for tagged and in-flight changes.

@@ -259,7 +259,7 @@ public class RazorDocsWebModuleRegressionTests
                     Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", exactVersionHtml);
                     Assert.Contains("\"docsSearchUrl\":\"/docs/v/1.2.3/search\"", exactVersionHtml);
                     Assert.Contains("\"docsSearchIndexUrl\":\"/docs/v/1.2.3/search-index.json\"", exactVersionHtml);
-                    Assert.Contains("\"docsVersionsUrl\":\"/docs/versions\"", exactVersionHtml);
+                    Assert.DoesNotContain("docsVersionsUrl", exactVersionHtml);
 
                     using var exactSearchResponse = await client.GetAsync("/docs/v/1.2.3/search");
                     var exactSearchHtml = await exactSearchResponse.Content.ReadAsStringAsync();
@@ -825,7 +825,7 @@ public class RazorDocsWebModuleRegressionTests
             <head>
               <link rel="stylesheet" href="/docs/search.css" />
               <link rel="preload" href="/docs/search-index.json" as="fetch" crossorigin="use-credentials" />
-              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json"};</script>
               <script src="/docs/search-client.js"></script>
             </head>
             <body data-tree="release-1.2.3">
@@ -843,7 +843,7 @@ public class RazorDocsWebModuleRegressionTests
             <html>
             <head>
               <script src="/docs/minisearch.min.js"></script>
-              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json"};</script>
             </head>
             <body data-tree="release-search">
               <a href="/docs/guide.html">Guide</a>

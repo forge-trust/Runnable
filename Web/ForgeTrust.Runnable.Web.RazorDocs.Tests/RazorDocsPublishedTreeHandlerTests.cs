@@ -181,6 +181,41 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
         Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", ReadBody(request));
     }
 
+    [Fact]
+    public async Task TryHandleAsync_ShouldPrefixRequestPathBase_WhenRewritingMountedHtmlAndSearchIndex()
+    {
+        var tree = CreatePublishedTree("path-base");
+        File.WriteAllText(
+            Path.Combine(tree, "index.html"),
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+            </head>
+            <body>
+              <a href="/docs/preview/search?tab=preview#input">Preview</a>
+              <a href="/docs/guide.html">Guide</a>
+            </body>
+            </html>
+            """);
+        var handler = CreateHandler(tree, "/docs/v/1.2.3", previewRootPath: "/docs/preview");
+        var htmlRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3", pathBase: "/some-base");
+        var searchIndexRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/search-index.json", pathBase: "/some-base");
+
+        Assert.True(await handler.TryHandleAsync(htmlRequest));
+        var html = ReadBody(htmlRequest);
+        Assert.Contains("href=\"/some-base/docs/preview/search?tab=preview#input\"", html);
+        Assert.Contains("href=\"/some-base/docs/v/1.2.3/guide.html\"", html);
+        Assert.Contains("\"docsRootPath\":\"/some-base/docs/v/1.2.3\"", html);
+        Assert.Contains("\"docsSearchUrl\":\"/some-base/docs/v/1.2.3/search\"", html);
+        Assert.Contains("\"docsSearchIndexUrl\":\"/some-base/docs/v/1.2.3/search-index.json\"", html);
+        Assert.DoesNotContain("docsVersionsUrl", html);
+
+        Assert.True(await handler.TryHandleAsync(searchIndexRequest));
+        Assert.Contains("\"path\":\"/some-base/docs/v/1.2.3/guide.html\"", ReadBody(searchIndexRequest));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))
@@ -224,10 +259,15 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
         return root;
     }
 
-    private static DefaultHttpContext CreateContext(string method, string requestPath)
+    private static DefaultHttpContext CreateContext(string method, string requestPath, string? pathBase = null)
     {
         var context = new DefaultHttpContext();
         context.Request.Method = method;
+        if (!string.IsNullOrWhiteSpace(pathBase))
+        {
+            context.Request.PathBase = new PathString(pathBase);
+        }
+
         context.Request.Path = requestPath;
         context.Response.Body = new MemoryStream();
         return context;

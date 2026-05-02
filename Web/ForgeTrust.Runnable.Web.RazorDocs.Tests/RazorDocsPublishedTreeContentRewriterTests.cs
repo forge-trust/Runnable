@@ -33,7 +33,7 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
         Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", rewritten);
         Assert.Contains("\"docsSearchUrl\":\"/docs/v/1.2.3/search\"", rewritten);
         Assert.Contains("\"docsSearchIndexUrl\":\"/docs/v/1.2.3/search-index.json\"", rewritten);
-        Assert.Contains("\"docsVersionsUrl\":\"/docs/versions\"", rewritten);
+        Assert.DoesNotContain("docsVersionsUrl", rewritten);
         Assert.Contains("href=\"/docs/versions\"", rewritten);
     }
 
@@ -47,6 +47,54 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
 
         Assert.Contains("\"path\":\"/docs/v/1.2.3/guide.html\"", rewritten);
         Assert.Equal(json, unchanged);
+    }
+
+    [Fact]
+    public void RewriteHtml_ShouldPrefixPathBaseForMountedDocsLinksAndClientConfig()
+    {
+        const string html =
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <link rel="stylesheet" href="/docs/search.css" />
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+            </head>
+            <body>
+              <a href="/docs/guide.html">Guide</a>
+              <a href="/docs/versions">Archive</a>
+              <a href="/docs/preview/search">Preview</a>
+            </body>
+            </html>
+            """;
+
+        var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteHtml(
+            html,
+            "/docs/v/1.2.3",
+            previewRootPath: "/docs/preview",
+            requestPathBase: "/some-base");
+
+        Assert.Contains("href=\"/some-base/docs/v/1.2.3/guide.html\"", rewritten);
+        Assert.Contains("href=\"/some-base/docs/versions\"", rewritten);
+        Assert.Contains("href=\"/some-base/docs/preview/search\"", rewritten);
+        Assert.Contains("href=\"/some-base/docs/v/1.2.3/search.css\"", rewritten);
+        Assert.Contains("\"docsRootPath\":\"/some-base/docs/v/1.2.3\"", rewritten);
+        Assert.Contains("\"docsSearchUrl\":\"/some-base/docs/v/1.2.3/search\"", rewritten);
+        Assert.Contains("\"docsSearchIndexUrl\":\"/some-base/docs/v/1.2.3/search-index.json\"", rewritten);
+        Assert.DoesNotContain("docsVersionsUrl", rewritten);
+    }
+
+    [Fact]
+    public void RewriteSearchIndexJson_ShouldPrefixPathBaseForRewrittenDocumentPaths()
+    {
+        const string json = "{\"documents\":[{\"path\":\"/docs/guide.html\",\"title\":\"Guide\"}]}";
+
+        var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteSearchIndexJson(
+            json,
+            "/docs/v/1.2.3",
+            requestPathBase: "/some-base");
+
+        Assert.Contains("\"path\":\"/some-base/docs/v/1.2.3/guide.html\"", rewritten);
     }
 
     [Fact]

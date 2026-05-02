@@ -31,13 +31,13 @@ public class RazorDocsViewsTests
         var layout = ReadLayoutMarkup();
         Assert.Contains("id=\"docs-search-input\"", layout);
         Assert.Contains("id=\"docs-search-results\"", layout);
-        Assert.Contains("BuildAssetUrl(\"search.css\")", layout);
+        Assert.Contains("PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"search.css\"))", layout);
         Assert.Contains("docsSearchIndexUrl", layout);
         Assert.Contains("var isSearchPage = string.Equals(", layout);
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", layout);
         Assert.Contains("window.__razorDocsConfig", layout);
-        Assert.Contains("BuildAssetUrl(\"search-client.js\")", layout);
+        Assert.Contains("PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"search-client.js\"))", layout);
     }
 
     [Fact]
@@ -60,6 +60,24 @@ public class RazorDocsViewsTests
         var html = await RenderDocsViewAsync(services, "Index", c => c.Index());
 
         Assert.Contains("href=\"/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css", html);
+    }
+
+    [Fact]
+    public async Task Layout_ShouldRenderPathBaseAwareDocsChromeUrls()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Index",
+            c => c.Index(),
+            pathBase: "/some-base");
+
+        Assert.Contains("href=\"/some-base/docs/search.css\"", html);
+        Assert.Contains("src=\"/some-base/docs/search-client.js\"", html);
+        Assert.Contains("\"docsRootPath\":\"/some-base/docs\"", html);
+        Assert.Contains("\"docsSearchUrl\":\"/some-base/docs/search\"", html);
+        Assert.Contains("\"docsSearchIndexUrl\":\"/some-base/docs/search-index.json\"", html);
     }
 
     [Fact]
@@ -2045,7 +2063,8 @@ public class RazorDocsViewsTests
     private static async Task<string> RenderDocsViewAsync(
         ServiceProvider services,
         string actionName,
-        Func<DocsController, Task<IActionResult>> action)
+        Func<DocsController, Task<IActionResult>> action,
+        string? pathBase = null)
     {
         using var scope = services.CreateScope();
         var scopedServices = scope.ServiceProvider;
@@ -2054,6 +2073,11 @@ public class RazorDocsViewsTests
         {
             RequestServices = scopedServices
         };
+        if (!string.IsNullOrWhiteSpace(pathBase))
+        {
+            httpContext.Request.PathBase = new PathString(pathBase);
+        }
+
         httpContext.Response.Body = new MemoryStream();
 
         var controller = ActivatorUtilities.CreateInstance<DocsController>(scopedServices);

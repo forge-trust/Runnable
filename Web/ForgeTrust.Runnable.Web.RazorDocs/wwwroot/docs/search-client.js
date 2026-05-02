@@ -2,7 +2,6 @@
   const rawConfig = window.__razorDocsConfig || {};
   const docsRootPath = normalizeDocsRootPath(rawConfig.docsRootPath || '/docs');
   const docsSearchUrl = rawConfig.docsSearchUrl || `${docsRootPath}/search`;
-  const docsVersionsUrl = rawConfig.docsVersionsUrl || '/docs/versions';
   const indexUrl = rawConfig.docsSearchIndexUrl || `${docsRootPath}/search-index.json`;
   const miniSearchUrl = rawConfig.miniSearchUrl || `${docsRootPath}/minisearch.min.js`;
   const maxQueryLength = 500;

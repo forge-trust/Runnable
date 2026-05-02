@@ -2,6 +2,7 @@ using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileProviders;
 
@@ -12,10 +13,10 @@ namespace ForgeTrust.Runnable.Web.RazorDocs;
 /// </summary>
 public class RazorDocsWebModule : IRunnableWebModule
 {
+    private static readonly FileExtensionContentTypeProvider ContentTypeProvider = new();
     private const string RazorDocsStaticAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";
     private const string RazorDocsPackagedStylesheetPath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css";
     private const string RazorDocsRootStylesheetPath = "/css/site.gen.css";
-    private const string RazorDocsRootHostedDocsAssetBasePath = "/docs";
 
     /// <inheritdoc />
     public bool IncludeAsApplicationPart => true;
@@ -149,15 +150,23 @@ public class RazorDocsWebModule : IRunnableWebModule
             MapLegacyAssetRedirect(endpoints, RazorDocsRootStylesheetPath, RazorDocsPackagedStylesheetPath);
         }
 
-        var searchAssetBasePath = ResolveLegacySearchAssetBasePath(context);
+        if (ShouldServePreviewAssetsDirectlyFromWebRoot(context, docsOptions, docsUrlBuilder))
+        {
+            // Versioned root-module hosts mount published release trees at /docs. Serve preview-root assets directly
+            // from the live web root so /docs/next or other preview surfaces do not inherit release-exported JS/CSS.
+            MapWebRootAsset(endpoints, docsUrlBuilder.BuildAssetUrl("search.css"), "docs/search.css");
+            MapWebRootAsset(endpoints, docsUrlBuilder.BuildAssetUrl("minisearch.min.js"), "docs/minisearch.min.js");
+            MapWebRootAsset(endpoints, docsUrlBuilder.BuildAssetUrl("search-client.js"), "docs/search-client.js");
+        }
+        else
+        {
+            var searchAssetBasePath = ResolveLegacySearchAssetBasePath(context);
 
-        // Preserve the historical docs asset URLs even though the assets now live in the RazorDocs RCL package.
-        // Root-module hosts expose those runtime assets from the app's own /docs static-file path even when /docs
-        // itself falls back to the archive recovery surface, so preview roots such as /docs/next or /docs/preview
-        // can safely canonicalize their shared search runtime back to /docs.
-        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search.css"), $"{searchAssetBasePath}/search.css");
-        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("minisearch.min.js"), $"{searchAssetBasePath}/minisearch.min.js");
-        MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search-client.js"), $"{searchAssetBasePath}/search-client.js");
+            // Preserve the historical docs asset URLs even though the assets now live in the RazorDocs RCL package.
+            MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search.css"), $"{searchAssetBasePath}/search.css");
+            MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("minisearch.min.js"), $"{searchAssetBasePath}/minisearch.min.js");
+            MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search-client.js"), $"{searchAssetBasePath}/search-client.js");
+        }
 
         if (docsOptions.Versioning?.Enabled == true)
         {
@@ -252,16 +261,69 @@ public class RazorDocsWebModule : IRunnableWebModule
             });
     }
 
+    private static void MapWebRootAsset(IEndpointRouteBuilder endpoints, string route, string webRootSubPath)
+    {
+        endpoints.MapMethods(
+            route,
+            [HttpMethods.Get, HttpMethods.Head],
+            async context =>
+            {
+                var environment = context.RequestServices.GetService(typeof(IWebHostEnvironment)) as IWebHostEnvironment;
+                var fileProvider = environment?.WebRootFileProvider;
+                if (fileProvider is null)
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return;
+                }
+
+                var fileInfo = fileProvider.GetFileInfo(webRootSubPath);
+                if (!fileInfo.Exists)
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return;
+                }
+
+                context.Response.StatusCode = StatusCodes.Status200OK;
+                context.Response.ContentType = ResolveContentType(webRootSubPath);
+                context.Response.ContentLength = fileInfo.Length;
+                context.Response.Headers.LastModified = fileInfo.LastModified.ToUniversalTime().ToString("R");
+                if (HttpMethods.IsHead(context.Request.Method))
+                {
+                    return;
+                }
+
+                await context.Response.SendFileAsync(fileInfo, context.RequestAborted);
+            });
+    }
+
     private static bool ShouldPreserveRootStylesheetPath(StartupContext context)
     {
         return RazorDocsAssetPathResolver.IsRootModuleAssembly(context.RootModuleAssembly);
     }
 
-    private static string ResolveLegacySearchAssetBasePath(StartupContext context)
+    private static bool ShouldServePreviewAssetsDirectlyFromWebRoot(
+        StartupContext context,
+        RazorDocsOptions options,
+        DocsUrlBuilder docsUrlBuilder)
     {
         return ShouldPreserveRootStylesheetPath(context)
-            ? RazorDocsRootHostedDocsAssetBasePath
-            : RazorDocsStaticAssetBasePath;
+               && options.Versioning?.Enabled == true
+               && !string.Equals(
+                   docsUrlBuilder.CurrentDocsRootPath,
+                   DocsUrlBuilder.DocsEntryPath,
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveLegacySearchAssetBasePath(StartupContext context)
+    {
+        return RazorDocsStaticAssetBasePath;
+    }
+
+    private static string ResolveContentType(string relativePath)
+    {
+        return ContentTypeProvider.TryGetContentType(relativePath, out var contentType)
+            ? contentType
+            : "application/octet-stream";
     }
 
     private static string TrimLeadingSlash(string route)

@@ -7,8 +7,8 @@ Runnable is putting its release contract in place before the first tagged versio
 Runnable treats docs and onboarding feedback as product input, not as a second-class support queue. File issues when a package, example, README, or release note leaves you unable to reproduce the intended path.
 For quick access, use GitHub's issue template chooser: [choose an issue template](https://github.com/forge-trust/Runnable/issues/new/choose).
 
-- Use the **Bug report** issue form when behavior is broken or surprising.
-- Use the **Docs or developer experience feedback** issue form when the code may work, but the route to understanding it is unclear.
+- Use the [**Bug report** issue form](https://github.com/forge-trust/Runnable/issues/new?template=bug_report.yml) when behavior is broken or surprising.
+- Use the [**Docs or developer experience feedback** issue form](https://github.com/forge-trust/Runnable/issues/new?template=docs_dx_feedback.yml) when the code may work, but the route to understanding it is unclear.
 - Include the command, page, example, package, or API where the confusion started. The sharpest reports name the exact step that failed and the next thing you expected to see.
 - If you are unsure whether something is a bug or a docs gap, file the docs/DX form and explain the behavior you expected.
 

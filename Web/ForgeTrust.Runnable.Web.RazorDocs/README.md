@@ -109,14 +109,16 @@ Field behavior:
 
 - `Enabled` defaults to `true`. Set it to `false` to disable all contributor provenance rendering.
 - `DefaultBranch` is the stable branch or ref used when expanding configured source and edit templates.
-- `SourceUrlTemplate` and `EditUrlTemplate` support only `{branch}` and `{path}` tokens.
+- `SourceUrlTemplate` and `EditUrlTemplate` support only `{branch}` and `{path}` tokens, and configured templates must include `{path}` so each page expands to its own source or edit target.
 - `LastUpdatedMode` supports `None` and `Git`. `Git` is the default and resolves freshness from local repository history when a trustworthy source path exists.
 
 Host contract:
 
 - If `SourceUrlTemplate` or `EditUrlTemplate` is configured, `DefaultBranch` is required and RazorDocs fails options validation on startup when it is missing.
+- If `SourceUrlTemplate` or `EditUrlTemplate` is configured, that template must contain `{path}`. RazorDocs rejects startup when a template would collapse every page to one shared URL.
 - Templates expand both the branch and normalized source path segment-by-segment, so slash-separated refs stay readable while spaces and other special characters are still URL-escaped safely.
 - Git-backed freshness runs during docs snapshot generation, not during view rendering. If git is unavailable, shallow, or missing history for a page, RazorDocs omits only `Last updated`.
+- Hosts that want `LastUpdatedMode: Git` in CI or export jobs must provide real history for the docs checkout. For GitHub Actions, use `actions/checkout` with `fetch-depth: 0` or another checkout shape that preserves commit history for the rendered files.
 
 ### Page-level overrides
 
@@ -151,8 +153,9 @@ This keeps RazorDocs from inventing fake precision for pages that do not have on
 ### Pitfalls
 
 - Do not configure source or edit templates without `DefaultBranch`. RazorDocs rejects that startup shape because local git state is too brittle to guess from.
+- Do not configure source or edit templates without `{path}`. That shape cannot identify one source file per page, so RazorDocs rejects it at startup.
 - Do not author free-text freshness copy in the provenance strip. Use `last_updated_override` for an exact timestamp, and use `trust.freshness` for broader lifecycle guidance.
-- Do not expect shallow CI clones to populate `Last updated`. RazorDocs degrades safely by omitting freshness when history is unavailable.
+- Do not expect shallow CI clones to populate `Last updated`. RazorDocs degrades safely by omitting freshness when history is unavailable. In GitHub Actions, prefer `actions/checkout` with `fetch-depth: 0` for pages that should surface git-backed freshness.
 - Do not expect automatic edit links on namespace-synthetic API pages yet. That richer symbol-to-source mapping remains future work.
 
 ## Usage

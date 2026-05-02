@@ -382,6 +382,48 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void Validator_ShouldRequirePathToken_WhenSourceTemplateIsConfigured()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                DefaultBranch = "main",
+                SourceUrlTemplate = "https://example.com/blob/{branch}/docs-index"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("SourceUrlTemplate must contain the {path} token", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRequirePathToken_WhenEditTemplateIsConfigured()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                DefaultBranch = "main",
+                EditUrlTemplate = "https://example.com/edit/{branch}/docs-index"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("EditUrlTemplate must contain the {path} token", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validator_ShouldRejectUnsupportedContributorLastUpdatedMode()
     {
         var validator = new RazorDocsOptionsValidator();

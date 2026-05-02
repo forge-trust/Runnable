@@ -113,13 +113,13 @@ public sealed class RazorDocsContributorOptions
 
     /// <summary>
     /// Gets or sets the source-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
-    /// Pitfall: if the template omits one of the supported tokens, links can silently point at the wrong revision or file.
+    /// Configured templates must include <c>{path}</c> so each page expands to its own source location.
     /// </summary>
     public string? SourceUrlTemplate { get; set; }
 
     /// <summary>
     /// Gets or sets the edit-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
-    /// Prefer this when maintainers should land directly in an edit workflow rather than in repository browsing.
+    /// Configured templates must include <c>{path}</c>. Prefer this when maintainers should land directly in an edit workflow rather than in repository browsing.
     /// </summary>
     public string? EditUrlTemplate { get; set; }
 
@@ -220,6 +220,20 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             && string.IsNullOrWhiteSpace(contributor.DefaultBranch))
         {
             failures.Add("RazorDocs:Contributor:DefaultBranch is required when SourceUrlTemplate or EditUrlTemplate is configured.");
+        }
+
+        if (contributor is not null
+            && !string.IsNullOrWhiteSpace(contributor.SourceUrlTemplate)
+            && contributor.SourceUrlTemplate.Contains("{path}", StringComparison.Ordinal) is false)
+        {
+            failures.Add("RazorDocs:Contributor:SourceUrlTemplate must contain the {path} token.");
+        }
+
+        if (contributor is not null
+            && !string.IsNullOrWhiteSpace(contributor.EditUrlTemplate)
+            && contributor.EditUrlTemplate.Contains("{path}", StringComparison.Ordinal) is false)
+        {
+            failures.Add("RazorDocs:Contributor:EditUrlTemplate must contain the {path} token.");
         }
 
         return failures.Count == 0

@@ -424,6 +424,26 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void Validator_ShouldSkipContributorTemplateValidation_WhenContributorRenderingIsDisabled()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                Enabled = false,
+                DefaultBranch = "   ",
+                SourceUrlTemplate = "https://example.com/blob/{branch}/docs-index",
+                EditUrlTemplate = "https://example.com/edit/{branch}/docs-index"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Fact]
     public void Validator_ShouldRejectUnsupportedContributorLastUpdatedMode()
     {
         var validator = new RazorDocsOptionsValidator();

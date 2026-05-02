@@ -1283,6 +1283,47 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldCapContributorFreshnessBudget_AcrossUniqueSourcePaths()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode("First", "guides/first.md", "<p>First</p>"),
+                new DocNode("Second", "guides/second.md", "<p>Second</p>")
+            ]);
+
+        var resolverCalls = 0;
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                DefaultBranch = "main",
+                SourceUrlTemplate = "https://example.com/blob/{branch}/{path}",
+                LastUpdatedMode = RazorDocsLastUpdatedMode.Git
+            },
+            async (_, cancellationToken) =>
+            {
+                resolverCalls++;
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return DateTimeOffset.UtcNow;
+            },
+            contributorFreshnessTimeout: TimeSpan.FromMilliseconds(25));
+
+        var firstDetails = await aggregator.GetDocDetailsAsync("guides/first.md");
+        var secondDetails = await aggregator.GetDocDetailsAsync("guides/second.md");
+
+        Assert.NotNull(firstDetails?.ContributorProvenance);
+        Assert.NotNull(secondDetails?.ContributorProvenance);
+        Assert.Equal("https://example.com/blob/main/guides/first.md", firstDetails!.ContributorProvenance!.SourceHref);
+        Assert.Equal("https://example.com/blob/main/guides/second.md", secondDetails!.ContributorProvenance!.SourceHref);
+        Assert.Null(firstDetails.ContributorProvenance.LastUpdatedUtc);
+        Assert.Null(secondDetails.ContributorProvenance.LastUpdatedUtc);
+        Assert.Equal(1, resolverCalls);
+    }
+
+    [Fact]
     public async Task GetDocDetailsAsync_ShouldPreserveContributorBranchSegments_WhenExpandingLinks()
     {
         var harvester = A.Fake<IDocHarvester>();

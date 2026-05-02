@@ -101,25 +101,29 @@ public sealed class RazorDocsContributorOptions
     /// <summary>
     /// Gets or sets a value indicating whether contributor provenance rendering is enabled for RazorDocs details pages.
     /// Disable this when the host should suppress all contributor affordances, even if page-level overrides or
-    /// trustworthy source paths exist.
+    /// trustworthy source paths exist. When <see langword="false" />, RazorDocs also skips contributor-template startup
+    /// validation because the feature is globally inactive.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
     /// Gets or sets the stable branch name used when expanding configured source and edit URL templates.
-    /// Required when either <see cref="SourceUrlTemplate"/> or <see cref="EditUrlTemplate"/> is configured.
+    /// Required when <see cref="Enabled"/> is <see langword="true" /> and either
+    /// <see cref="SourceUrlTemplate"/> or <see cref="EditUrlTemplate"/> is configured.
     /// </summary>
     public string? DefaultBranch { get; set; }
 
     /// <summary>
     /// Gets or sets the source-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
-    /// Configured templates must include <c>{path}</c> so each page expands to its own source location.
+    /// Configured templates must include <c>{path}</c> so each page expands to its own source location when
+    /// <see cref="Enabled"/> is <see langword="true" />.
     /// </summary>
     public string? SourceUrlTemplate { get; set; }
 
     /// <summary>
     /// Gets or sets the edit-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
-    /// Configured templates must include <c>{path}</c>. Prefer this when maintainers should land directly in an edit workflow rather than in repository browsing.
+    /// Configured templates must include <c>{path}</c> when <see cref="Enabled"/> is <see langword="true" />.
+    /// Prefer this when maintainers should land directly in an edit workflow rather than in repository browsing.
     /// </summary>
     public string? EditUrlTemplate { get; set; }
 
@@ -215,6 +219,7 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         }
 
         if (contributor is not null
+            && contributor.Enabled
             && (!string.IsNullOrWhiteSpace(contributor.SourceUrlTemplate)
                 || !string.IsNullOrWhiteSpace(contributor.EditUrlTemplate))
             && string.IsNullOrWhiteSpace(contributor.DefaultBranch))
@@ -223,6 +228,7 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         }
 
         if (contributor is not null
+            && contributor.Enabled
             && !string.IsNullOrWhiteSpace(contributor.SourceUrlTemplate)
             && contributor.SourceUrlTemplate.Contains("{path}", StringComparison.Ordinal) is false)
         {
@@ -230,6 +236,7 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         }
 
         if (contributor is not null
+            && contributor.Enabled
             && !string.IsNullOrWhiteSpace(contributor.EditUrlTemplate)
             && contributor.EditUrlTemplate.Contains("{path}", StringComparison.Ordinal) is false)
         {

@@ -99,13 +99,16 @@ public class DocAggregator
     /// is used against the resolved repository root.
     /// </param>
     /// <param name="contributorFreshnessTimeout">
-    /// Optional timeout override for a single contributor-freshness lookup. When <see langword="null" />, the aggregator
-    /// uses the default 30 second freshness timeout for each source path during snapshot generation.
+    /// Optional timeout override for snapshot-time contributor freshness resolution. When <see langword="null" />, the
+    /// aggregator uses the default 30 second freshness budget for the entire freshness phase of one snapshot build, and
+    /// each individual source-path lookup gets at most the remaining portion of that budget.
     /// </param>
     /// <remarks>
     /// Contributor freshness is resolved during snapshot generation, not during Razor view rendering. Callers that inject
     /// <paramref name="resolveGitLastUpdatedUtcAsync"/> should respect the supplied <see cref="CancellationToken"/>, because
-    /// timeout cancellation is treated as "omit Last updated" rather than as a fatal snapshot failure.
+    /// timeout cancellation is treated as "omit Last updated" rather than as a fatal snapshot failure. The timeout budget
+    /// is shared across one snapshot generation so slow or wedged git lookups degrade to missing freshness evidence instead
+    /// of multiplying the stall across the whole docs corpus.
     /// </remarks>
     internal DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
@@ -449,12 +452,16 @@ public class DocAggregator
         }
 
         var gitFreshnessBySourcePath = new Dictionary<string, DateTimeOffset?>(StringComparer.OrdinalIgnoreCase);
+        var contributorFreshnessDeadlineUtc = _contributorOptions.LastUpdatedMode == RazorDocsLastUpdatedMode.Git
+            ? DateTimeOffset.UtcNow.Add(_contributorFreshnessTimeout)
+            : (DateTimeOffset?)null;
 
         foreach (var doc in docs)
         {
             var contributorProvenance = await ResolveContributorProvenanceAsync(
                 doc,
                 gitFreshnessBySourcePath,
+                contributorFreshnessDeadlineUtc,
                 cancellationToken);
             if (contributorProvenance is not null)
             {
@@ -468,6 +475,7 @@ public class DocAggregator
     private async Task<DocContributorProvenanceViewModel?> ResolveContributorProvenanceAsync(
         DocNode doc,
         IDictionary<string, DateTimeOffset?> gitFreshnessBySourcePath,
+        DateTimeOffset? contributorFreshnessDeadlineUtc,
         CancellationToken cancellationToken)
     {
         var contributor = doc.Metadata?.Contributor;
@@ -493,8 +501,20 @@ public class DocAggregator
             && _contributorOptions.LastUpdatedMode == RazorDocsLastUpdatedMode.Git
             && sourcePath is not null)
         {
+            if (!TryGetContributorFreshnessTimeout(contributorFreshnessDeadlineUtc, out var freshnessTimeout))
+            {
+                return sourceHref is null && editHref is null
+                    ? null
+                    : new DocContributorProvenanceViewModel
+                    {
+                        SourceHref = sourceHref,
+                        EditHref = editHref,
+                        LastUpdatedUtc = null
+                    };
+            }
+
             using var freshnessTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            freshnessTimeoutCts.CancelAfter(_contributorFreshnessTimeout);
+            freshnessTimeoutCts.CancelAfter(freshnessTimeout);
 
             try
             {
@@ -510,7 +530,7 @@ public class DocAggregator
                 gitFreshnessBySourcePath[sourcePath] = null;
                 _logger.LogWarning(
                     "Contributor freshness lookup timed out after {TimeoutSeconds}s for {SourcePath}. Omitting Last updated.",
-                    _contributorFreshnessTimeout.TotalSeconds,
+                    freshnessTimeout.TotalSeconds,
                     sourcePath);
             }
         }
@@ -526,6 +546,28 @@ public class DocAggregator
             EditHref = editHref,
             LastUpdatedUtc = lastUpdatedUtc?.ToUniversalTime()
         };
+    }
+
+    private bool TryGetContributorFreshnessTimeout(DateTimeOffset? contributorFreshnessDeadlineUtc, out TimeSpan freshnessTimeout)
+    {
+        freshnessTimeout = _contributorFreshnessTimeout;
+        if (contributorFreshnessDeadlineUtc is null)
+        {
+            return true;
+        }
+
+        var remainingBudget = contributorFreshnessDeadlineUtc.Value - DateTimeOffset.UtcNow;
+        if (remainingBudget <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        if (remainingBudget < freshnessTimeout)
+        {
+            freshnessTimeout = remainingBudget;
+        }
+
+        return true;
     }
 
     private static string? ResolveTrustworthyContributorSourcePath(DocNode doc, DocContributorMetadata? contributor)

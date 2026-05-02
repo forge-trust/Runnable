@@ -114,10 +114,11 @@ Field behavior:
 
 Host contract:
 
-- If `SourceUrlTemplate` or `EditUrlTemplate` is configured, `DefaultBranch` is required and RazorDocs fails options validation on startup when it is missing.
-- If `SourceUrlTemplate` or `EditUrlTemplate` is configured, that template must contain `{path}`. RazorDocs rejects startup when a template would collapse every page to one shared URL.
+- If `Enabled` is `false`, RazorDocs skips contributor rendering and does not enforce `DefaultBranch` or `{path}` template requirements at startup.
+- If `Enabled` is `true` and `SourceUrlTemplate` or `EditUrlTemplate` is configured, `DefaultBranch` is required and RazorDocs fails options validation on startup when it is missing.
+- If `Enabled` is `true` and `SourceUrlTemplate` or `EditUrlTemplate` is configured, that template must contain `{path}`. RazorDocs rejects startup when a template would collapse every page to one shared URL.
 - Templates expand both the branch and normalized source path segment-by-segment, so slash-separated refs stay readable while spaces and other special characters are still URL-escaped safely.
-- Git-backed freshness runs during docs snapshot generation, not during view rendering. If git is unavailable, shallow, or missing history for a page, RazorDocs omits only `Last updated`.
+- Git-backed freshness runs during docs snapshot generation, not during view rendering. RazorDocs uses a bounded snapshot-time freshness budget so slow or wedged git lookups degrade to omitted timestamps instead of stretching one timeout across the whole docs corpus. If git is unavailable, shallow, or missing history for a page, RazorDocs omits only `Last updated`.
 - Hosts that want `LastUpdatedMode: Git` in CI or export jobs must provide real history for the docs checkout. For GitHub Actions, use `actions/checkout` with `fetch-depth: 0` or another checkout shape that preserves commit history for the rendered files.
 
 ### Page-level overrides

@@ -201,79 +201,81 @@ public class RazorDocsWebModuleRegressionTests
                 });
             builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
 
-            using var host = builder.Build();
-            await host.StartAsync();
-
-            try
+            using (var host = builder.Build())
             {
-                var server = host.Services.GetRequiredService<IServer>();
-                var addresses = server.Features.Get<IServerAddressesFeature>();
-                var baseAddress = Assert.Single(addresses!.Addresses);
+                await host.StartAsync();
 
-                using var client = new HttpClient
+                try
                 {
-                    BaseAddress = new Uri(baseAddress)
-                };
+                    var server = host.Services.GetRequiredService<IServer>();
+                    var addresses = server.Features.Get<IServerAddressesFeature>();
+                    var baseAddress = Assert.Single(addresses!.Addresses);
 
-                using var docsResponse = await client.GetAsync("/docs");
-                var docsHtml = await docsResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, docsResponse.StatusCode);
-                Assert.Contains("data-tree=\"release-1.2.3\"", docsHtml);
-                Assert.Contains("href=\"/docs/search.css\"", docsHtml);
-                Assert.Contains("\"docsRootPath\":\"/docs\"", docsHtml);
+                    using var client = new HttpClient
+                    {
+                        BaseAddress = new Uri(baseAddress)
+                    };
 
-                using var docsSearchResponse = await client.GetAsync("/docs/search");
-                var docsSearchHtml = await docsSearchResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, docsSearchResponse.StatusCode);
-                Assert.Contains("data-tree=\"release-search\"", docsSearchHtml);
+                    using var docsResponse = await client.GetAsync("/docs");
+                    var docsHtml = await docsResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, docsResponse.StatusCode);
+                    Assert.Contains("data-tree=\"release-1.2.3\"", docsHtml);
+                    Assert.Contains("href=\"/docs/search.css\"", docsHtml);
+                    Assert.Contains("\"docsRootPath\":\"/docs\"", docsHtml);
 
-                using var recommendedAssetResponse = await client.GetAsync("/docs/search-client.js");
-                var recommendedAssetBody = await recommendedAssetResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, recommendedAssetResponse.StatusCode);
-                Assert.Contains("window.__releaseTree = true;", recommendedAssetBody);
+                    using var docsSearchResponse = await client.GetAsync("/docs/search");
+                    var docsSearchHtml = await docsSearchResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, docsSearchResponse.StatusCode);
+                    Assert.Contains("data-tree=\"release-search\"", docsSearchHtml);
 
-                using var archiveResponse = await client.GetAsync("/docs/versions");
-                var archiveHtml = await archiveResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, archiveResponse.StatusCode);
-                Assert.Contains("Documentation versions", archiveHtml);
-                Assert.DoesNotContain("data-tree=\"release-1.2.3\"", archiveHtml);
+                    using var recommendedAssetResponse = await client.GetAsync("/docs/search-client.js");
+                    var recommendedAssetBody = await recommendedAssetResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, recommendedAssetResponse.StatusCode);
+                    Assert.Contains("window.__releaseTree = true;", recommendedAssetBody);
 
-                using var previewResponse = await client.GetAsync("/docs/next");
-                var previewHtml = await previewResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
-                Assert.DoesNotContain("data-tree=\"release-1.2.3\"", previewHtml);
+                    using var archiveResponse = await client.GetAsync("/docs/versions");
+                    var archiveHtml = await archiveResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, archiveResponse.StatusCode);
+                    Assert.Contains("Documentation versions", archiveHtml);
+                    Assert.DoesNotContain("data-tree=\"release-1.2.3\"", archiveHtml);
 
-                using var previewAssetResponse = await client.GetAsync("/docs/next/search-client.js");
-                var previewAssetBody = await previewAssetResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, previewAssetResponse.StatusCode);
-                Assert.DoesNotContain("window.__releaseTree = true;", previewAssetBody);
-                Assert.Contains("const rawConfig = window.__razorDocsConfig || {};", previewAssetBody);
+                    using var previewResponse = await client.GetAsync("/docs/next");
+                    var previewHtml = await previewResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+                    Assert.DoesNotContain("data-tree=\"release-1.2.3\"", previewHtml);
 
-                using var exactVersionResponse = await client.GetAsync("/docs/v/1.2.3");
-                var exactVersionHtml = await exactVersionResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, exactVersionResponse.StatusCode);
-                Assert.Contains("href=\"/docs/v/1.2.3/search.css\"", exactVersionHtml);
-                Assert.Contains("href=\"/docs/v/1.2.3/guide.html\"", exactVersionHtml);
-                Assert.Contains("href=\"/docs/versions\"", exactVersionHtml);
-                Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", exactVersionHtml);
-                Assert.Contains("\"docsSearchUrl\":\"/docs/v/1.2.3/search\"", exactVersionHtml);
-                Assert.Contains("\"docsSearchIndexUrl\":\"/docs/v/1.2.3/search-index.json\"", exactVersionHtml);
-                Assert.Contains("\"docsVersionsUrl\":\"/docs/versions\"", exactVersionHtml);
+                    using var previewAssetResponse = await client.GetAsync("/docs/next/search-client.js");
+                    var previewAssetBody = await previewAssetResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, previewAssetResponse.StatusCode);
+                    Assert.DoesNotContain("window.__releaseTree = true;", previewAssetBody);
+                    Assert.Contains("const rawConfig = window.__razorDocsConfig || {};", previewAssetBody);
 
-                using var exactSearchResponse = await client.GetAsync("/docs/v/1.2.3/search");
-                var exactSearchHtml = await exactSearchResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, exactSearchResponse.StatusCode);
-                Assert.Contains("data-tree=\"release-search\"", exactSearchHtml);
-                Assert.Contains("href=\"/docs/v/1.2.3/guide.html\"", exactSearchHtml);
+                    using var exactVersionResponse = await client.GetAsync("/docs/v/1.2.3");
+                    var exactVersionHtml = await exactVersionResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, exactVersionResponse.StatusCode);
+                    Assert.Contains("href=\"/docs/v/1.2.3/search.css\"", exactVersionHtml);
+                    Assert.Contains("href=\"/docs/v/1.2.3/guide.html\"", exactVersionHtml);
+                    Assert.Contains("href=\"/docs/versions\"", exactVersionHtml);
+                    Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", exactVersionHtml);
+                    Assert.Contains("\"docsSearchUrl\":\"/docs/v/1.2.3/search\"", exactVersionHtml);
+                    Assert.Contains("\"docsSearchIndexUrl\":\"/docs/v/1.2.3/search-index.json\"", exactVersionHtml);
+                    Assert.Contains("\"docsVersionsUrl\":\"/docs/versions\"", exactVersionHtml);
 
-                using var searchIndexResponse = await client.GetAsync("/docs/v/1.2.3/search-index.json");
-                var searchIndexJson = await searchIndexResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, searchIndexResponse.StatusCode);
-                Assert.Contains("\"path\":\"/docs/v/1.2.3/guide.html\"", searchIndexJson);
-            }
-            finally
-            {
-                await host.StopAsync();
+                    using var exactSearchResponse = await client.GetAsync("/docs/v/1.2.3/search");
+                    var exactSearchHtml = await exactSearchResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, exactSearchResponse.StatusCode);
+                    Assert.Contains("data-tree=\"release-search\"", exactSearchHtml);
+                    Assert.Contains("href=\"/docs/v/1.2.3/guide.html\"", exactSearchHtml);
+
+                    using var searchIndexResponse = await client.GetAsync("/docs/v/1.2.3/search-index.json");
+                    var searchIndexJson = await searchIndexResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, searchIndexResponse.StatusCode);
+                    Assert.Contains("\"path\":\"/docs/v/1.2.3/guide.html\"", searchIndexJson);
+                }
+                finally
+                {
+                    await host.StopAsync();
+                }
             }
         }
         finally
@@ -414,41 +416,43 @@ public class RazorDocsWebModuleRegressionTests
                 });
             builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
 
-            using var app = builder.Build();
-            module.ConfigureEndpoints(context, app);
-
-            await app.StartAsync();
-
-            try
+            using (var app = builder.Build())
             {
-                var server = app.Services.GetRequiredService<IServer>();
-                var addresses = server.Features.Get<IServerAddressesFeature>();
-                var baseAddress = Assert.Single(addresses!.Addresses);
+                module.ConfigureEndpoints(context, app);
 
-                using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                await app.StartAsync();
+
+                try
                 {
-                    BaseAddress = new Uri(baseAddress)
-                };
+                    var server = app.Services.GetRequiredService<IServer>();
+                    var addresses = server.Features.Get<IServerAddressesFeature>();
+                    var baseAddress = Assert.Single(addresses!.Addresses);
 
-                using var cssResponse = await client.GetAsync("/docs/next/search.css");
-                var cssBody = await cssResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, cssResponse.StatusCode);
-                Assert.Contains("background: #111827", cssBody);
-                Assert.Equal("/docs/next/search.css", cssResponse.RequestMessage?.RequestUri?.AbsolutePath);
+                    using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                    {
+                        BaseAddress = new Uri(baseAddress)
+                    };
 
-                using var jsResponse = await client.GetAsync("/docs/next/search-client.js");
-                var jsBody = await jsResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, jsResponse.StatusCode);
-                Assert.Contains("window.__previewAsset = true;", jsBody);
+                    using var cssResponse = await client.GetAsync("/docs/next/search.css");
+                    var cssBody = await cssResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, cssResponse.StatusCode);
+                    Assert.Contains("background: #111827", cssBody);
+                    Assert.Equal("/docs/next/search.css", cssResponse.RequestMessage?.RequestUri?.AbsolutePath);
 
-                using var headResponse = await client.SendAsync(
-                    new HttpRequestMessage(HttpMethod.Head, "/docs/next/minisearch.min.js?cache=abc"));
-                Assert.Equal(HttpStatusCode.OK, headResponse.StatusCode);
-                Assert.Equal("text/javascript", headResponse.Content.Headers.ContentType?.MediaType);
-            }
-            finally
-            {
-                await app.StopAsync();
+                    using var jsResponse = await client.GetAsync("/docs/next/search-client.js");
+                    var jsBody = await jsResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, jsResponse.StatusCode);
+                    Assert.Contains("window.__previewAsset = true;", jsBody);
+
+                    using var headResponse = await client.SendAsync(
+                        new HttpRequestMessage(HttpMethod.Head, "/docs/next/minisearch.min.js?cache=abc"));
+                    Assert.Equal(HttpStatusCode.OK, headResponse.StatusCode);
+                    Assert.Equal("text/javascript", headResponse.Content.Headers.ContentType?.MediaType);
+                }
+                finally
+                {
+                    await app.StopAsync();
+                }
             }
         }
         finally
@@ -511,45 +515,47 @@ public class RazorDocsWebModuleRegressionTests
                 });
             builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
 
-            using var host = builder.Build();
-            await host.StartAsync();
-
-            try
+            using (var host = builder.Build())
             {
-                var server = host.Services.GetRequiredService<IServer>();
-                var addresses = server.Features.Get<IServerAddressesFeature>();
-                var baseAddress = Assert.Single(addresses!.Addresses);
+                await host.StartAsync();
 
-                using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                try
                 {
-                    BaseAddress = new Uri(baseAddress)
-                };
+                    var server = host.Services.GetRequiredService<IServer>();
+                    var addresses = server.Features.Get<IServerAddressesFeature>();
+                    var baseAddress = Assert.Single(addresses!.Addresses);
 
-                using var entryResponse = await client.GetAsync("/docs");
-                var entryHtml = await entryResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, entryResponse.StatusCode);
-                Assert.Contains("No healthy recommended release tree", entryHtml, StringComparison.OrdinalIgnoreCase);
+                    using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                    {
+                        BaseAddress = new Uri(baseAddress)
+                    };
 
-                using var rootAssetResponse = await client.GetAsync("/docs/search.css");
-                var rootAssetBody = await rootAssetResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, rootAssetResponse.StatusCode);
-                Assert.Equal("/docs/search.css", rootAssetResponse.RequestMessage?.RequestUri?.AbsolutePath);
-                Assert.Contains(".docs-search-page-results", rootAssetBody);
+                    using var entryResponse = await client.GetAsync("/docs");
+                    var entryHtml = await entryResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, entryResponse.StatusCode);
+                    Assert.Contains("No healthy recommended release tree", entryHtml, StringComparison.OrdinalIgnoreCase);
 
-                using var previewAssetResponse = await client.GetAsync("/docs/preview/search-client.js");
-                var previewAssetBody = await previewAssetResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, previewAssetResponse.StatusCode);
-                Assert.DoesNotContain("window.__releaseTree = true;", previewAssetBody);
-                Assert.Contains("const rawConfig = window.__razorDocsConfig || {};", previewAssetBody);
+                    using var rootAssetResponse = await client.GetAsync("/docs/search.css");
+                    var rootAssetBody = await rootAssetResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, rootAssetResponse.StatusCode);
+                    Assert.Equal("/docs/search.css", rootAssetResponse.RequestMessage?.RequestUri?.AbsolutePath);
+                    Assert.Contains(".docs-search-page-results", rootAssetBody);
 
-                using var previewCssResponse = await client.GetAsync("/docs/preview/search.css");
-                var previewCssBody = await previewCssResponse.Content.ReadAsStringAsync();
-                Assert.Equal(HttpStatusCode.OK, previewCssResponse.StatusCode);
-                Assert.Contains(".docs-search-page-results", previewCssBody);
-            }
-            finally
-            {
-                await host.StopAsync();
+                    using var previewAssetResponse = await client.GetAsync("/docs/preview/search-client.js");
+                    var previewAssetBody = await previewAssetResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, previewAssetResponse.StatusCode);
+                    Assert.DoesNotContain("window.__releaseTree = true;", previewAssetBody);
+                    Assert.Contains("const rawConfig = window.__razorDocsConfig || {};", previewAssetBody);
+
+                    using var previewCssResponse = await client.GetAsync("/docs/preview/search.css");
+                    var previewCssBody = await previewCssResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, previewCssResponse.StatusCode);
+                    Assert.Contains(".docs-search-page-results", previewCssBody);
+                }
+                finally
+                {
+                    await host.StopAsync();
+                }
             }
         }
         finally

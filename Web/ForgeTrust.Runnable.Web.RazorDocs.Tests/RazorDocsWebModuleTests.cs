@@ -8,6 +8,8 @@ using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.Tailwind;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -259,41 +261,84 @@ public class RazorDocsWebModuleTests
                     CatalogPath = "catalog.json"
                 }
             });
-        var appBuilder = new ApplicationBuilder(services.BuildServiceProvider());
+        var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
 
-        _module.ConfigureWebApplication(context, appBuilder);
+        _module.ConfigureWebApplication(context, recordingBuilder);
 
-        Assert.True(true);
+        Assert.Equal(0, recordingBuilder.UseCallCount);
     }
 
     [Fact]
     public void ConfigureWebApplication_ShouldFallbackToConstructedDocsUrlBuilder_WhenServiceIsMissing()
     {
-        var context = CreateStartupContext();
-        var services = new ServiceCollection();
-        var options = new RazorDocsOptions
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-web-module-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
         {
-            Routing = new RazorDocsRoutingOptions
+            var treePath = Path.Combine(tempDirectory, "1.2.3");
+            Directory.CreateDirectory(treePath);
+            File.WriteAllText(Path.Combine(treePath, "index.html"), "<html>ok</html>");
+            File.WriteAllText(Path.Combine(treePath, "search.html"), "<html>search</html>");
+            File.WriteAllText(Path.Combine(treePath, "search-index.json"), "{\"documents\":[]}");
+            File.WriteAllText(Path.Combine(treePath, "search.css"), "body { color: #fff; }");
+            File.WriteAllText(Path.Combine(treePath, "search-client.js"), "window.__searchClientLoaded = true;");
+            File.WriteAllText(Path.Combine(treePath, "minisearch.min.js"), "window.MiniSearch = window.MiniSearch || {};");
+
+            var catalogPath = Path.Combine(tempDirectory, "catalog.json");
+            File.WriteAllText(
+                catalogPath,
+                """
+                {
+                  "recommendedVersion": "1.2.3",
+                  "versions": [
+                    {
+                      "version": "1.2.3",
+                      "exactTreePath": "1.2.3",
+                      "supportState": "Current",
+                      "visibility": "Public",
+                      "advisoryState": "None"
+                    }
+                  ]
+                }
+                """);
+
+            var context = CreateStartupContext();
+            var services = new ServiceCollection();
+            var options = new RazorDocsOptions
             {
-                DocsRootPath = "/docs/next"
-            },
-            Versioning = new RazorDocsVersioningOptions
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/next"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true,
+                    CatalogPath = catalogPath
+                }
+            };
+            services.AddSingleton(options);
+            services.AddSingleton(
+                new RazorDocsVersionCatalogService(
+                    options,
+                    new TestWebHostEnvironment { ContentRootPath = tempDirectory, WebRootPath = tempDirectory },
+                    NullLogger<RazorDocsVersionCatalogService>.Instance));
+            var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
+
+            _module.ConfigureWebApplication(context, recordingBuilder);
+
+            Assert.Equal(1, recordingBuilder.UseCallCount);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
             {
-                Enabled = true,
-                CatalogPath = "missing/catalog.json"
+                Directory.Delete(tempDirectory, recursive: true);
             }
-        };
-        services.AddSingleton(options);
-        services.AddSingleton(
-            new RazorDocsVersionCatalogService(
-                options,
-                new TestWebHostEnvironment { ContentRootPath = Path.GetTempPath(), WebRootPath = Path.GetTempPath() },
-                NullLogger<RazorDocsVersionCatalogService>.Instance));
-        var appBuilder = new ApplicationBuilder(services.BuildServiceProvider());
-
-        _module.ConfigureWebApplication(context, appBuilder);
-
-        Assert.True(true);
+        }
     }
 
     [Fact]
@@ -310,11 +355,11 @@ public class RazorDocsWebModuleTests
                 },
                 Versioning = null!
             });
-        var appBuilder = new ApplicationBuilder(services.BuildServiceProvider());
+        var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
 
-        _module.ConfigureWebApplication(context, appBuilder);
+        _module.ConfigureWebApplication(context, recordingBuilder);
 
-        Assert.True(true);
+        Assert.Equal(0, recordingBuilder.UseCallCount);
     }
 
     [Fact]
@@ -382,5 +427,46 @@ public class RazorDocsWebModuleTests
         public string ContentRootPath { get; set; } = string.Empty;
 
         public IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+
+    private sealed class RecordingApplicationBuilder : IApplicationBuilder
+    {
+        private readonly IList<Func<RequestDelegate, RequestDelegate>> _components = [];
+
+        public RecordingApplicationBuilder(IServiceProvider applicationServices)
+        {
+            ApplicationServices = applicationServices;
+        }
+
+        public int UseCallCount => _components.Count;
+
+        public IServiceProvider ApplicationServices { get; set; }
+
+        public IFeatureCollection ServerFeatures { get; } = new FeatureCollection();
+
+        public IDictionary<string, object?> Properties { get; } = new Dictionary<string, object?>();
+
+        public RequestDelegate Build()
+        {
+            RequestDelegate app = _ => Task.CompletedTask;
+            foreach (var component in _components.Reverse())
+            {
+                app = component(app);
+            }
+
+            return app;
+        }
+
+        public IApplicationBuilder New()
+        {
+            return new RecordingApplicationBuilder(ApplicationServices);
+        }
+
+        public IApplicationBuilder Use(Func<RequestDelegate, RequestDelegate> middleware)
+        {
+            ArgumentNullException.ThrowIfNull(middleware);
+            _components.Add(middleware);
+            return this;
+        }
     }
 }

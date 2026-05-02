@@ -3,6 +3,10 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Models;
 /// <summary>
 /// View model for the public RazorDocs version archive and degraded entry surface.
 /// </summary>
+/// <remarks>
+/// The same model drives both the dedicated <c>/docs/versions</c> archive page and the degraded <c>/docs</c>
+/// recovery surface when no healthy recommended release can be mounted at the stable entry alias.
+/// </remarks>
 public sealed record RazorDocsVersionArchiveViewModel
 {
     /// <summary>
@@ -23,6 +27,10 @@ public sealed record RazorDocsVersionArchiveViewModel
     /// <summary>
     /// Gets the live preview docs URL.
     /// </summary>
+    /// <remarks>
+    /// This points at the source-backed preview surface such as <c>/docs/next</c> or another configured
+    /// <c>/docs/*</c> preview root.
+    /// </remarks>
     public string PreviewHref { get; init; } = string.Empty;
 
     /// <summary>
@@ -39,6 +47,10 @@ public sealed record RazorDocsVersionArchiveViewModel
 /// <summary>
 /// Represents one release entry in the public RazorDocs version archive.
 /// </summary>
+/// <remarks>
+/// Entries may describe either a healthy exact-version tree with an <see cref="Href"/> target or an unavailable
+/// release that should remain visible in the archive with an explanatory availability message.
+/// </remarks>
 public sealed record RazorDocsVersionArchiveEntryViewModel
 {
     /// <summary>

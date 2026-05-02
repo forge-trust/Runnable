@@ -205,7 +205,13 @@ public sealed class DocsUrlBuilder
                || path.StartsWith(docsRootPath + "/", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string NormalizeDocsRootPath(string? docsRootPath, bool versioningEnabled)
+    /// <summary>
+    /// Normalizes a configured docs root into the app-relative route contract RazorDocs uses at runtime.
+    /// </summary>
+    /// <param name="docsRootPath">The configured docs root, which may be null, relative-looking, or already normalized.</param>
+    /// <param name="versioningEnabled">Whether versioning is enabled and the default should therefore become <c>/docs/next</c>.</param>
+    /// <returns>The normalized app-relative docs root path.</returns>
+    internal static string NormalizeDocsRootPath(string? docsRootPath, bool versioningEnabled)
     {
         if (string.IsNullOrWhiteSpace(docsRootPath))
         {
@@ -213,11 +219,12 @@ public sealed class DocsUrlBuilder
         }
 
         var normalized = docsRootPath.Trim();
-        if (normalized.Length > 1 && normalized.EndsWith('/'))
+        if (!normalized.StartsWith('/'))
         {
-            normalized = normalized[..^1];
+            normalized = "/" + normalized;
         }
 
-        return normalized;
+        normalized = normalized.TrimEnd('/');
+        return string.IsNullOrEmpty(normalized) ? "/" : normalized;
     }
 }

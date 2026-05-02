@@ -40,7 +40,7 @@ public static class RazorDocsServiceCollectionExtensions
                     }
 
                     options.Bundle.Path = NormalizeOrNull(options.Bundle.Path);
-                    options.Routing.DocsRootPath = NormalizeDocsRootPath(
+                    options.Routing.DocsRootPath = DocsUrlBuilder.NormalizeDocsRootPath(
                         options.Routing.DocsRootPath,
                         options.Versioning.Enabled);
                     options.Versioning.CatalogPath = NormalizeOrNull(options.Versioning.CatalogPath);
@@ -76,17 +76,5 @@ public static class RazorDocsServiceCollectionExtensions
         }
 
         return value.Trim();
-    }
-
-    private static string NormalizeDocsRootPath(string? value, bool versioningEnabled)
-    {
-        var normalized = NormalizeOrNull(value);
-        if (normalized is null)
-        {
-            return versioningEnabled ? "/docs/next" : "/docs";
-        }
-
-        var trimmed = normalized.TrimEnd('/');
-        return string.IsNullOrEmpty(trimmed) ? "/" : trimmed;
     }
 }

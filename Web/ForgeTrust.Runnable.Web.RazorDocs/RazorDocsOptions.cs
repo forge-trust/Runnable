@@ -96,15 +96,27 @@ public sealed class RazorDocsSidebarOptions
 /// <summary>
 /// Routing settings for the live RazorDocs source surface.
 /// </summary>
+/// <remarks>
+/// The live source-backed surface always stays under the <c>/docs</c> URL family. RazorDocs normalizes configured
+/// values into app-relative paths before validation, so hosts may provide <c>docs/preview</c> and still get the
+/// canonical <c>/docs/preview</c> route contract. When versioning is off the live surface defaults to <c>/docs</c>.
+/// When versioning is on the live surface defaults to <c>/docs/next</c> so the stable <c>/docs</c> alias can point
+/// at the recommended published release instead.
+/// </remarks>
 public sealed class RazorDocsRoutingOptions
 {
     /// <summary>
     /// Gets or sets the app-relative root path for the live source-backed docs surface.
     /// </summary>
     /// <remarks>
+    /// Relative-looking values are normalized into app-relative paths. For example, <c>docs/live</c> becomes
+    /// <c>/docs/live</c> during options binding. The normalized path must start with <c>/docs</c>, must not end with
+    /// <c>/</c>, and cannot include query or fragment segments.
     /// When versioning is disabled the default path is <c>/docs</c>. When versioning is enabled the default path
     /// becomes <c>/docs/next</c> so the current unreleased snapshot does not collide with the recommended released
     /// docs alias at <c>/docs</c>.
+    /// Avoid reserved versioning paths such as <c>/docs</c>, <c>/docs/versions</c>, <c>/docs/v</c>, and any
+    /// <c>/docs/v/{version}</c> route when versioning is enabled.
     /// </remarks>
     public string? DocsRootPath { get; set; }
 }
@@ -112,6 +124,13 @@ public sealed class RazorDocsRoutingOptions
 /// <summary>
 /// Versioning settings for published RazorDocs release trees.
 /// </summary>
+/// <remarks>
+/// Enabling versioning turns on the published-release route contract:
+/// <c>/docs</c> for the recommended release alias, <c>/docs/v/{version}</c> for immutable exact trees,
+/// <c>/docs/versions</c> for the archive, and a live preview surface rooted at <see cref="RazorDocsRoutingOptions.DocsRootPath"/>.
+/// The catalog stays file-based in this slice: runtime consumes a JSON manifest plus prebuilt exact release trees and
+/// does not perform Git or bundle resolution at request time.
+/// </remarks>
 public sealed class RazorDocsVersioningOptions
 {
     /// <summary>
@@ -123,8 +142,11 @@ public sealed class RazorDocsVersioningOptions
     /// Gets or sets the path to the version catalog JSON file.
     /// </summary>
     /// <remarks>
+    /// This property is required when <see cref="Enabled"/> is <see langword="true"/>.
     /// The catalog describes available exact-version trees, the recommended version alias, and release-level status
     /// metadata such as support and advisory state. Relative paths resolve from the app content root.
+    /// A missing, unreadable, or malformed catalog does not crash RazorDocs, but it leaves all published releases
+    /// unavailable until the catalog can be loaded successfully.
     /// </remarks>
     public string? CatalogPath { get; set; }
 }
@@ -224,7 +246,7 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
                 && IsReservedVersioningPath(routing.DocsRootPath))
             {
                 failures.Add(
-                    "RazorDocs:Routing:DocsRootPath cannot use a reserved versioning path such as '/docs/versions' or '/docs/v/...'.");
+                    "RazorDocs:Routing:DocsRootPath cannot use a reserved versioning path such as '/docs/versions', '/docs/v', or '/docs/v/...'.");
             }
         }
 
@@ -255,7 +277,8 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
 
     private static bool IsReservedVersioningPath(string docsRootPath)
     {
-        return docsRootPath.StartsWith("/docs/v/", StringComparison.OrdinalIgnoreCase)
+        return string.Equals(docsRootPath, "/docs/v", StringComparison.OrdinalIgnoreCase)
+               || docsRootPath.StartsWith("/docs/v/", StringComparison.OrdinalIgnoreCase)
                || string.Equals(docsRootPath, "/docs/versions", StringComparison.OrdinalIgnoreCase);
     }
 }

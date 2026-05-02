@@ -155,6 +155,32 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
         Assert.False(await handler.TryHandleAsync(archiveRequest));
     }
 
+    [Fact]
+    public async Task TryHandleAsync_ShouldPreserveConfiguredPreviewRoot_WhenRewritingMountedHtml()
+    {
+        var tree = CreatePublishedTree("custom-preview-root");
+        File.WriteAllText(
+            Path.Combine(tree, "index.html"),
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+            </head>
+            <body>
+              <a href="/docs/preview/search?tab=preview#input">Preview</a>
+              <a href="/docs/guide.html">Guide</a>
+            </body>
+            </html>
+            """);
+        var handler = CreateHandler(tree, "/docs/v/1.2.3", previewRootPath: "/docs/preview");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3");
+
+        Assert.True(await handler.TryHandleAsync(request));
+        Assert.Contains("href=\"/docs/preview/search?tab=preview#input\"", ReadBody(request));
+        Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", ReadBody(request));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))

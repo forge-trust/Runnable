@@ -120,8 +120,9 @@ Enable versioning when you want the host to keep serving the live unreleased sna
   - Controls the live source-backed docs root.
   - Defaults to `/docs` when versioning is off.
   - Defaults to `/docs/next` when versioning is on.
+  - Relative-looking values such as `docs/preview` are normalized to app-relative paths like `/docs/preview`.
   - Must start with `/docs`, must not end with `/`, and cannot contain query or fragment segments.
-  - When versioning is on, this path cannot be `/docs`, `/docs/versions`, or any `/docs/v/...` path.
+  - When versioning is on, this path cannot be `/docs`, `/docs/versions`, `/docs/v`, or any `/docs/v/...` path.
 - `RazorDocs:Versioning:Enabled`
   - Turns on the published-version route contract and archive surface.
   - Does not switch the runtime into bundle mode.
@@ -187,6 +188,7 @@ Each `exactTreePath` directory is treated as a prebuilt static subtree for one e
 - `index.html` at the tree root
 - `search.html` at the tree root
 - `search-index.json` at the tree root
+  - The payload must remain valid JSON with a top-level `documents` array so version-local search can load safely.
 - `search.css` at the tree root
 - `search-client.js` at the tree root
 - `minisearch.min.js` at the tree root

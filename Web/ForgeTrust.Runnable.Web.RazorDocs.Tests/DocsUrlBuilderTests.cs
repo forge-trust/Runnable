@@ -60,6 +60,26 @@ public sealed class DocsUrlBuilderTests
     }
 
     [Fact]
+    public void Constructor_ShouldNormalizeRelativeConfiguredDocsRootPathToAppRelativePath()
+    {
+        var builder = new DocsUrlBuilder(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "docs/custom-preview"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true,
+                    CatalogPath = "catalog.json"
+                }
+            });
+
+        Assert.Equal("/docs/custom-preview", builder.CurrentDocsRootPath);
+    }
+
+    [Fact]
     public void Constructor_ShouldTreatMissingVersioningAsDisabled_AndPreserveAlreadyNormalizedRoot()
     {
         var builder = new DocsUrlBuilder(

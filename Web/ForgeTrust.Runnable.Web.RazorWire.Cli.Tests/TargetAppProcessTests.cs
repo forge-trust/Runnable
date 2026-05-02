@@ -24,11 +24,10 @@ public class TargetAppProcessTests
     [Fact]
     public async Task Start_And_DisposeAsync_Should_Work_For_Real_Process()
     {
-        var outputLines = new List<string>();
-        var errorLines = new List<string>();
+        var outputLines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var errorLines = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var outputReceived = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var exitedSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var exited = false;
 
         await using var process = new TargetAppProcess(new ProcessLaunchSpec
         {
@@ -39,13 +38,12 @@ public class TargetAppProcessTests
 
         process.OutputLineReceived += line =>
         {
-            outputLines.Add(line);
+            outputLines.Enqueue(line);
             outputReceived.TrySetResult(line);
         };
-        process.ErrorLineReceived += line => errorLines.Add(line);
+        process.ErrorLineReceived += line => errorLines.Enqueue(line);
         process.Exited += () =>
         {
-            exited = true;
             exitedSignal.TrySetResult();
         };
 
@@ -62,7 +60,7 @@ public class TargetAppProcessTests
 
         await process.DisposeAsync();
 
-        Assert.True(exited);
+        Assert.True(exitedSignal.Task.IsCompleted);
         Assert.Empty(errorLines);
         Assert.True(outputReceived.Task.IsCompleted, "Expected at least one stdout line from 'dotnet --version'.");
         Assert.NotEmpty(outputLines);

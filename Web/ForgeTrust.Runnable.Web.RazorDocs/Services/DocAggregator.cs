@@ -62,7 +62,6 @@ public class DocAggregator
     /// <param name="memo">Memoized cache used to store harvested documentation.</param>
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
     /// <param name="logger">Logger used for recording aggregation events and errors.</param>
-    [ActivatorUtilitiesConstructor]
     public DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
         RazorDocsOptions options,
@@ -91,6 +90,7 @@ public class DocAggregator
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
     /// <param name="docsUrlBuilder">Shared URL builder for the live source-backed docs surface.</param>
     /// <param name="logger">Logger used for recording aggregation events and errors.</param>
+    [ActivatorUtilitiesConstructor]
     public DocAggregator(
         IEnumerable<IDocHarvester> harvesters,
         RazorDocsOptions options,

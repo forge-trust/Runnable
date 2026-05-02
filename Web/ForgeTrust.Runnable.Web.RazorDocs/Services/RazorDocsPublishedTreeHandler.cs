@@ -74,7 +74,7 @@ internal sealed class RazorDocsPublishedTreeHandler
                 return false;
             }
 
-            await WriteResponseAsync(httpContext, mount, relativeFilePath, fileInfo);
+            await WriteResponseAsync(httpContext, mount, _previewRootPath, relativeFilePath, fileInfo);
             return true;
         }
 
@@ -154,6 +154,7 @@ internal sealed class RazorDocsPublishedTreeHandler
     private static async Task WriteResponseAsync(
         HttpContext httpContext,
         RazorDocsPublishedTreeMount mount,
+        string previewRootPath,
         string relativeFilePath,
         IFileInfo fileInfo)
     {
@@ -168,7 +169,10 @@ internal sealed class RazorDocsPublishedTreeHandler
         if (ShouldRewriteHtml(relativeFilePath))
         {
             var html = await ReadUtf8TextAsync(fileInfo, httpContext.RequestAborted);
-            var rewrittenHtml = RazorDocsPublishedTreeContentRewriter.RewriteHtml(html, mount.MountRootPath);
+            var rewrittenHtml = RazorDocsPublishedTreeContentRewriter.RewriteHtml(
+                html,
+                mount.MountRootPath,
+                previewRootPath);
             await WriteUtf8TextAsync(httpContext, rewrittenHtml, contentType);
             return;
         }
@@ -176,7 +180,10 @@ internal sealed class RazorDocsPublishedTreeHandler
         if (ShouldRewriteSearchIndex(relativeFilePath))
         {
             var json = await ReadUtf8TextAsync(fileInfo, httpContext.RequestAborted);
-            var rewrittenJson = RazorDocsPublishedTreeContentRewriter.RewriteSearchIndexJson(json, mount.MountRootPath);
+            var rewrittenJson = RazorDocsPublishedTreeContentRewriter.RewriteSearchIndexJson(
+                json,
+                mount.MountRootPath,
+                previewRootPath);
             await WriteUtf8TextAsync(httpContext, rewrittenJson, "application/json; charset=utf-8");
             return;
         }
@@ -252,11 +259,13 @@ internal static class RazorDocsPublishedTreeContentRewriter
     /// </summary>
     /// <param name="html">The exported HTML document.</param>
     /// <param name="mountRootPath">The request-path root where the tree is being served.</param>
+    /// <param name="previewRootPath">The live preview docs root that should stay untouched when encountered.</param>
     /// <returns>The rewritten HTML document.</returns>
-    internal static string RewriteHtml(string html, string mountRootPath)
+    internal static string RewriteHtml(string html, string mountRootPath, string previewRootPath = "/docs/next")
     {
         ArgumentNullException.ThrowIfNull(html);
         ArgumentException.ThrowIfNullOrWhiteSpace(mountRootPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(previewRootPath);
 
         if (string.Equals(mountRootPath, DocsUrlBuilder.DocsEntryPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -266,12 +275,12 @@ internal static class RazorDocsPublishedTreeContentRewriter
         var document = HtmlParser.ParseDocument(html);
         foreach (var element in document.QuerySelectorAll("[href]"))
         {
-            RewriteAttributeValue(element, "href", mountRootPath);
+            RewriteAttributeValue(element, "href", mountRootPath, previewRootPath);
         }
 
         foreach (var element in document.QuerySelectorAll("[src]"))
         {
-            RewriteAttributeValue(element, "src", mountRootPath);
+            RewriteAttributeValue(element, "src", mountRootPath, previewRootPath);
         }
 
         foreach (var element in document.QuerySelectorAll("[srcset]"))
@@ -282,7 +291,7 @@ internal static class RazorDocsPublishedTreeContentRewriter
                 continue;
             }
 
-            var rewrittenValue = RewriteSrcSetValue(value, mountRootPath);
+            var rewrittenValue = RewriteSrcSetValue(value, mountRootPath, previewRootPath);
             if (!string.Equals(value, rewrittenValue, StringComparison.Ordinal))
             {
                 element.SetAttribute("srcset", rewrittenValue);
@@ -316,11 +325,16 @@ internal static class RazorDocsPublishedTreeContentRewriter
     /// </summary>
     /// <param name="json">The exported search-index payload.</param>
     /// <param name="mountRootPath">The request-path root where the tree is being served.</param>
+    /// <param name="previewRootPath">The live preview docs root that should stay untouched when encountered.</param>
     /// <returns>The rewritten JSON payload.</returns>
-    internal static string RewriteSearchIndexJson(string json, string mountRootPath)
+    internal static string RewriteSearchIndexJson(
+        string json,
+        string mountRootPath,
+        string previewRootPath = "/docs/next")
     {
         ArgumentNullException.ThrowIfNull(json);
         ArgumentException.ThrowIfNullOrWhiteSpace(mountRootPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(previewRootPath);
 
         if (string.Equals(mountRootPath, DocsUrlBuilder.DocsEntryPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -342,13 +356,17 @@ internal static class RazorDocsPublishedTreeContentRewriter
                 continue;
             }
 
-            document["path"] = RewriteMountedDocsUrl(path, mountRootPath);
+            document["path"] = RewriteMountedDocsUrl(path, mountRootPath, previewRootPath);
         }
 
         return node.ToJsonString();
     }
 
-    private static void RewriteAttributeValue(AngleSharp.Dom.IElement element, string attributeName, string mountRootPath)
+    private static void RewriteAttributeValue(
+        AngleSharp.Dom.IElement element,
+        string attributeName,
+        string mountRootPath,
+        string previewRootPath)
     {
         var value = element.GetAttribute(attributeName);
         if (string.IsNullOrWhiteSpace(value))
@@ -356,7 +374,7 @@ internal static class RazorDocsPublishedTreeContentRewriter
             return;
         }
 
-        var rewrittenValue = RewriteMountedDocsUrl(value, mountRootPath);
+        var rewrittenValue = RewriteMountedDocsUrl(value, mountRootPath, previewRootPath);
         if (!string.Equals(value, rewrittenValue, StringComparison.Ordinal))
         {
             element.SetAttribute(attributeName, rewrittenValue);
@@ -369,7 +387,21 @@ internal static class RazorDocsPublishedTreeContentRewriter
             scriptContent,
             match =>
             {
-                var configNode = (JsonObject)JsonNode.Parse(match.Groups[1].Value)!;
+                JsonObject? configNode;
+                try
+                {
+                    configNode = JsonNode.Parse(match.Groups[1].Value) as JsonObject;
+                }
+                catch (JsonException)
+                {
+                    return match.Value;
+                }
+
+                if (configNode is null)
+                {
+                    return match.Value;
+                }
+
                 configNode["docsRootPath"] = mountRootPath;
                 configNode["docsSearchUrl"] = mountRootPath + "/search";
                 configNode["docsSearchIndexUrl"] = mountRootPath + "/search-index.json";
@@ -379,7 +411,7 @@ internal static class RazorDocsPublishedTreeContentRewriter
             });
     }
 
-    private static string RewriteSrcSetValue(string srcSetValue, string mountRootPath)
+    private static string RewriteSrcSetValue(string srcSetValue, string mountRootPath, string previewRootPath)
     {
         var rewrittenEntries = srcSetValue
             .Split(',', StringSplitOptions.TrimEntries)
@@ -394,24 +426,24 @@ internal static class RazorDocsPublishedTreeContentRewriter
                     var separatorIndex = entry.IndexOf(' ');
                     if (separatorIndex < 0)
                     {
-                        return RewriteMountedDocsUrl(entry, mountRootPath);
+                        return RewriteMountedDocsUrl(entry, mountRootPath, previewRootPath);
                     }
 
                     var url = entry[..separatorIndex];
                     var descriptor = entry[separatorIndex..];
-                    return RewriteMountedDocsUrl(url, mountRootPath) + descriptor;
+                    return RewriteMountedDocsUrl(url, mountRootPath, previewRootPath) + descriptor;
                 });
 
         return string.Join(", ", rewrittenEntries);
     }
 
-    private static string RewriteMountedDocsUrl(string value, string mountRootPath)
+    private static string RewriteMountedDocsUrl(string value, string mountRootPath, string previewRootPath)
     {
         if (!value.StartsWith("/", StringComparison.Ordinal))
         {
             if (Uri.TryCreate(value, UriKind.Absolute, out var absoluteUri))
             {
-                var rewrittenPath = RewriteMountedDocsPath(absoluteUri.AbsolutePath, mountRootPath);
+                var rewrittenPath = RewriteMountedDocsPath(absoluteUri.AbsolutePath, mountRootPath, previewRootPath);
                 if (rewrittenPath is null)
                 {
                     return value;
@@ -426,15 +458,15 @@ internal static class RazorDocsPublishedTreeContentRewriter
         var suffixIndex = value.IndexOfAny(['?', '#']);
         var path = suffixIndex >= 0 ? value[..suffixIndex] : value;
         var suffix = suffixIndex >= 0 ? value[suffixIndex..] : string.Empty;
-        var rewrittenRelativePath = RewriteMountedDocsPath(path, mountRootPath);
+        var rewrittenRelativePath = RewriteMountedDocsPath(path, mountRootPath, previewRootPath);
         return rewrittenRelativePath is null ? value : rewrittenRelativePath + suffix;
     }
 
-    private static string? RewriteMountedDocsPath(string path, string mountRootPath)
+    private static string? RewriteMountedDocsPath(string path, string mountRootPath, string previewRootPath)
     {
         if (DocsUrlBuilder.IsUnderRoot(path, mountRootPath)
             || DocsUrlBuilder.IsUnderRoot(path, DocsUrlBuilder.DocsVersionsPath)
-            || DocsUrlBuilder.IsUnderRoot(path, "/docs/next")
+            || DocsUrlBuilder.IsUnderRoot(path, previewRootPath)
             || path.StartsWith(DocsUrlBuilder.DocsVersionPrefix + "/", StringComparison.OrdinalIgnoreCase))
         {
             return null;

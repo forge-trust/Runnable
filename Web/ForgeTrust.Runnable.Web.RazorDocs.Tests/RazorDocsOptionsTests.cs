@@ -109,6 +109,27 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldNormalizeRelativeDocsRootToAppRelativePath()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Routing:DocsRootPath"] = "docs/preview"
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("/docs/preview", options.Routing.DocsRootPath);
+    }
+
+    [Fact]
     public void AddRazorDocs_ShouldRejectExplicitWhitespaceSourceRepositoryRoot()
     {
         var services = new ServiceCollection();
@@ -433,23 +454,28 @@ public sealed class RazorDocsOptionsTests
     public void Validator_ShouldRejectReservedVersioningPreviewPath()
     {
         var validator = new RazorDocsOptionsValidator();
-        var options = new RazorDocsOptions
+        foreach (var docsRootPath in new[] { "/docs/v", "/docs/v/1.0.0" })
         {
-            Routing = new RazorDocsRoutingOptions
+            var options = new RazorDocsOptions
             {
-                DocsRootPath = "/docs/v/1.0.0"
-            },
-            Versioning = new RazorDocsVersioningOptions
-            {
-                Enabled = true,
-                CatalogPath = "catalog.json"
-            }
-        };
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = docsRootPath
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true,
+                    CatalogPath = "catalog.json"
+                }
+            };
 
-        var result = validator.Validate(Options.DefaultName, options);
+            var result = validator.Validate(Options.DefaultName, options);
 
-        Assert.True(result.Failed);
-        Assert.Contains(result.Failures, failure => failure.Contains("reserved versioning path", StringComparison.OrdinalIgnoreCase));
+            Assert.True(result.Failed);
+            Assert.Contains(
+                result.Failures,
+                failure => failure.Contains("reserved versioning path", StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     [Theory]

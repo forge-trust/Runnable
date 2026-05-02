@@ -146,6 +146,67 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetCatalog_ShouldMarkVersionUnavailable_WhenSearchIndexPayloadIsMalformed()
+    {
+        var brokenTree = CreateExactTree("broken-search-index");
+        File.WriteAllText(Path.Combine(brokenTree, "search-index.json"), "{");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "1.2.0",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, brokenTree),
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Null(catalog.RecommendedVersion);
+        var brokenVersion = Assert.Single(catalog.PublicVersions);
+        Assert.False(brokenVersion.IsAvailable);
+        Assert.Contains("search-index.json", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("unreadable", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldMarkVersionUnavailable_WhenSearchIndexPayloadOmitsDocumentsArray()
+    {
+        var brokenTree = CreateExactTree("broken-search-shape");
+        File.WriteAllText(Path.Combine(brokenTree, "search-index.json"), "{\"items\":[]}");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "1.2.0",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.2.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, brokenTree),
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Null(catalog.RecommendedVersion);
+        var brokenVersion = Assert.Single(catalog.PublicVersions);
+        Assert.False(brokenVersion.IsAvailable);
+        Assert.Contains("documents array", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void GetCatalog_ShouldParseDocumentedStringEnumValues()
     {
         var stableTree = CreateExactTree("stable");

@@ -87,6 +87,7 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
             <html>
             <body>
               <script>window.__razorDocsConfig = "oops";</script>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":};</script>
               <script>window.otherConfig = true;</script>
             </body>
             </html>
@@ -95,6 +96,7 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
         var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteHtml(html, "/docs/v/1.2.3");
 
         Assert.Contains("window.__razorDocsConfig = \"oops\";", rewritten);
+        Assert.Contains("window.__razorDocsConfig = {\"docsRootPath\":\"/docs\",\"docsSearchUrl\":};", rewritten);
         Assert.Contains("window.otherConfig = true;", rewritten);
     }
 
@@ -138,6 +140,29 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
         Assert.Contains("href=\"/docs/versions?view=full#archive\"", rewritten);
         Assert.Contains("href=\"/docs/next/search?tab=preview#input\"", rewritten);
         Assert.Contains("href=\"/docs/v/9.9.9/guide.html?view=full#top\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteHtml_ShouldPreserveConfiguredPreviewRootInsteadOfHardcodedDocsNext()
+    {
+        const string html =
+            """
+            <!DOCTYPE html>
+            <html>
+            <body>
+              <a href="/docs/preview/search?tab=preview#input">Preview</a>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+            </body>
+            </html>
+            """;
+
+        var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteHtml(
+            html,
+            "/docs/v/1.2.3",
+            previewRootPath: "/docs/preview");
+
+        Assert.Contains("href=\"/docs/preview/search?tab=preview#input\"", rewritten);
+        Assert.Contains("\"docsRootPath\":\"/docs/v/1.2.3\"", rewritten);
     }
 
     [Fact]

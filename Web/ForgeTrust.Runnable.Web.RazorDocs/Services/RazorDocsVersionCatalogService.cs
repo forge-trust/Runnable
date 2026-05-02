@@ -253,6 +253,37 @@ public sealed class RazorDocsVersionCatalogService
             }
         }
 
+        var searchIndexValidationIssue = ValidateSearchIndexPayload(Path.Combine(exactTreePath, "search-index.json"));
+        if (searchIndexValidationIssue is not null)
+        {
+            return searchIndexValidationIssue;
+        }
+
+        return null;
+    }
+
+    private static string? ValidateSearchIndexPayload(string searchIndexPath)
+    {
+        try
+        {
+            using var stream = File.OpenRead(searchIndexPath);
+            using var document = JsonDocument.Parse(stream);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json payload that is not a JSON object.";
+            }
+
+            if (!document.RootElement.TryGetProperty("documents", out var documents)
+                || documents.ValueKind != JsonValueKind.Array)
+            {
+                return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json payload without a documents array.";
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has an unreadable search-index.json payload: {ex.Message}";
+        }
+
         return null;
     }
 }

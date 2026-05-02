@@ -395,17 +395,20 @@ public sealed record DocContributorMetadata
     public bool? HideContributorInfo { get; init; }
 
     /// <summary>
-    /// Gets an optional source-path override used for source links, edit links, and git freshness resolution.
+    /// Gets an optional repository-relative source-path override used for source links, edit links, and git freshness resolution.
+    /// Rooted paths and traversal segments are rejected.
     /// </summary>
     public string? SourcePathOverride { get; init; }
 
     /// <summary>
     /// Gets an optional explicit source URL override.
+    /// Only absolute HTTP(S) URLs and root-relative paths are accepted.
     /// </summary>
     public string? SourceUrlOverride { get; init; }
 
     /// <summary>
     /// Gets an optional explicit edit URL override.
+    /// Only absolute HTTP(S) URLs and root-relative paths are accepted.
     /// </summary>
     public string? EditUrlOverride { get; init; }
 

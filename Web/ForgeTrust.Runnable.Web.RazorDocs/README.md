@@ -137,8 +137,8 @@ contributor:
 Field behavior:
 
 - `hide_contributor_info: true` suppresses the strip entirely for that page.
-- `source_path_override` feeds template expansion and git freshness when the rendered page does not map cleanly to `DocNode.Path`.
-- `source_url_override` and `edit_url_override` bypass template generation entirely.
+- `source_path_override` feeds template expansion and git freshness when the rendered page does not map cleanly to `DocNode.Path`. It must stay repository-relative; rooted paths and traversal segments are ignored.
+- `source_url_override` and `edit_url_override` bypass template generation entirely. RazorDocs accepts only absolute `http`/`https` URLs or root-relative paths for these overrides.
 - `last_updated_override` must stay a real timestamp. RazorDocs renders it through the same relative-time treatment as git-backed freshness.
 
 ### Automatic versus explicit provenance

@@ -27,6 +27,7 @@ public class DocAggregator
     private readonly RazorDocsContributorOptions _contributorOptions;
     private readonly Func<string, CancellationToken, Task<DateTimeOffset?>> _resolveGitLastUpdatedUtcAsync;
     private readonly TimeSpan _contributorFreshnessTimeout;
+    private readonly Func<DateTimeOffset> _utcNow;
     private static readonly CachePolicy DocsCachePolicy = CachePolicy.Absolute(SnapshotCacheDuration);
     private readonly Guid _cacheScope = Guid.NewGuid();
     private long _cacheGeneration;
@@ -103,6 +104,10 @@ public class DocAggregator
     /// aggregator uses the default 30 second freshness budget for the entire freshness phase of one snapshot build, and
     /// each individual source-path lookup gets at most the remaining portion of that budget.
     /// </param>
+    /// <param name="utcNow">
+    /// Optional clock seam used by tests that need deterministic contributor-freshness budgeting. When
+    /// <see langword="null" />, the aggregator uses <see cref="DateTimeOffset.UtcNow"/>.
+    /// </param>
     /// <remarks>
     /// Contributor freshness is resolved during snapshot generation, not during Razor view rendering. Callers that inject
     /// <paramref name="resolveGitLastUpdatedUtcAsync"/> should respect the supplied <see cref="CancellationToken"/>, because
@@ -118,7 +123,8 @@ public class DocAggregator
         IRazorDocsHtmlSanitizer sanitizer,
         ILogger<DocAggregator> logger,
         Func<string, CancellationToken, Task<DateTimeOffset?>>? resolveGitLastUpdatedUtcAsync,
-        TimeSpan? contributorFreshnessTimeout = null)
+        TimeSpan? contributorFreshnessTimeout = null,
+        Func<DateTimeOffset>? utcNow = null)
     {
         ArgumentNullException.ThrowIfNull(harvesters);
         ArgumentNullException.ThrowIfNull(options);
@@ -133,6 +139,7 @@ public class DocAggregator
         _logger = logger;
         _contributorOptions = options.Contributor ?? throw new ArgumentNullException(nameof(options.Contributor));
         _contributorFreshnessTimeout = contributorFreshnessTimeout ?? ContributorFreshnessTimeout;
+        _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
         _repositoryRoot = options.Mode switch
         {
             RazorDocsMode.Source => ResolveRepositoryRoot(
@@ -453,7 +460,7 @@ public class DocAggregator
 
         var gitFreshnessBySourcePath = new Dictionary<string, DateTimeOffset?>(StringComparer.OrdinalIgnoreCase);
         var contributorFreshnessDeadlineUtc = _contributorOptions.LastUpdatedMode == RazorDocsLastUpdatedMode.Git
-            ? DateTimeOffset.UtcNow.Add(_contributorFreshnessTimeout)
+            ? _utcNow().Add(_contributorFreshnessTimeout)
             : (DateTimeOffset?)null;
 
         foreach (var doc in docs)
@@ -485,16 +492,18 @@ public class DocAggregator
         }
 
         var sourcePath = ResolveTrustworthyContributorSourcePath(doc, contributor);
-        var sourceHref = NormalizeMetadataText(contributor?.SourceUrlOverride)
-                         ?? ExpandContributorUrlTemplate(
-                             _contributorOptions.SourceUrlTemplate,
-                             _contributorOptions.DefaultBranch,
-                             sourcePath);
-        var editHref = NormalizeMetadataText(contributor?.EditUrlOverride)
-                       ?? ExpandContributorUrlTemplate(
-                           _contributorOptions.EditUrlTemplate,
-                           _contributorOptions.DefaultBranch,
-                           sourcePath);
+        var sourceHref = NormalizeContributorHref(
+            NormalizeMetadataText(contributor?.SourceUrlOverride)
+            ?? ExpandContributorUrlTemplate(
+                _contributorOptions.SourceUrlTemplate,
+                _contributorOptions.DefaultBranch,
+                sourcePath));
+        var editHref = NormalizeContributorHref(
+            NormalizeMetadataText(contributor?.EditUrlOverride)
+            ?? ExpandContributorUrlTemplate(
+                _contributorOptions.EditUrlTemplate,
+                _contributorOptions.DefaultBranch,
+                sourcePath));
 
         DateTimeOffset? lastUpdatedUtc = contributor?.LastUpdatedOverride?.ToUniversalTime();
         if (lastUpdatedUtc is null
@@ -556,7 +565,7 @@ public class DocAggregator
             return true;
         }
 
-        var remainingBudget = contributorFreshnessDeadlineUtc.Value - DateTimeOffset.UtcNow;
+        var remainingBudget = contributorFreshnessDeadlineUtc.Value - _utcNow();
         if (remainingBudget <= TimeSpan.Zero)
         {
             return false;
@@ -601,8 +610,56 @@ public class DocAggregator
             return null;
         }
 
+        if (Path.IsPathRooted(path)
+            || path.StartsWith("/", StringComparison.Ordinal)
+            || path.StartsWith("\\", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
         var normalized = NormalizeLookupPath(path);
+        if (Path.IsPathRooted(normalized)
+            || normalized.StartsWith("/", StringComparison.Ordinal)
+            || normalized.StartsWith("\\", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Any(segment =>
+            string.Equals(segment, ".", StringComparison.Ordinal)
+            || string.Equals(segment, "..", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
         return normalized.Length == 0 ? null : normalized;
+    }
+
+    private static string? NormalizeContributorHref(string? href)
+    {
+        var normalized = NormalizeMetadataText(href);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (normalized.StartsWith("/", StringComparison.Ordinal))
+        {
+            return normalized.StartsWith("//", StringComparison.Ordinal)
+                ? null
+                : normalized;
+        }
+
+        if (Uri.TryCreate(normalized, UriKind.Absolute, out var absolute))
+        {
+            return string.Equals(absolute.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(absolute.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                ? absolute.AbsoluteUri
+                : null;
+        }
+
+        return null;
     }
 
     private static string? ExpandContributorUrlTemplate(string? template, string? branch, string? sourcePath)

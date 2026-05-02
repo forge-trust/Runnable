@@ -1293,6 +1293,7 @@ public class DocAggregatorTests : IDisposable
                 new DocNode("Second", "guides/second.md", "<p>Second</p>")
             ]);
 
+        var now = new DateTimeOffset(2026, 5, 2, 20, 30, 0, TimeSpan.Zero);
         var resolverCalls = 0;
         var aggregator = CreateContributorAggregator(
             harvester,
@@ -1306,10 +1307,12 @@ public class DocAggregatorTests : IDisposable
             async (_, cancellationToken) =>
             {
                 resolverCalls++;
+                now = now.AddMilliseconds(30);
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                 return DateTimeOffset.UtcNow;
             },
-            contributorFreshnessTimeout: TimeSpan.FromMilliseconds(25));
+            contributorFreshnessTimeout: TimeSpan.FromMilliseconds(25),
+            utcNow: () => now);
 
         var firstDetails = await aggregator.GetDocDetailsAsync("guides/first.md");
         var secondDetails = await aggregator.GetDocDetailsAsync("guides/second.md");
@@ -1321,6 +1324,88 @@ public class DocAggregatorTests : IDisposable
         Assert.Null(firstDetails.ContributorProvenance.LastUpdatedUtc);
         Assert.Null(secondDetails.ContributorProvenance.LastUpdatedUtc);
         Assert.Equal(1, resolverCalls);
+    }
+
+    [Fact]
+    public async Task GetDocDetailsAsync_ShouldDropContributorOverrides_WithUnsafeHrefSchemes()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Web",
+                    "Namespaces/ForgeTrust.Runnable.Web",
+                    "<p>Namespace page</p>",
+                    Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web") with
+                    {
+                        Contributor = new DocContributorMetadata
+                        {
+                            SourceUrlOverride = "javascript:alert('xss')",
+                            EditUrlOverride = "/docs/contribute/edit.md"
+                        }
+                    })
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                LastUpdatedMode = RazorDocsLastUpdatedMode.None
+            },
+            resolveGitLastUpdatedUtcAsync: null);
+
+        var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Null(details!.ContributorProvenance!.SourceHref);
+        Assert.Equal("/docs/contribute/edit.md", details.ContributorProvenance.EditHref);
+        Assert.Null(details.ContributorProvenance.LastUpdatedUtc);
+    }
+
+    [Fact]
+    public async Task GetDocDetailsAsync_ShouldRejectContributorSourcePathOverrides_ThatEscapeRepoScope()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Web",
+                    "Namespaces/ForgeTrust.Runnable.Web",
+                    "<p>Namespace page</p>",
+                    Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web") with
+                    {
+                        Contributor = new DocContributorMetadata
+                        {
+                            SourcePathOverride = "../../README.md"
+                        }
+                    })
+            ]);
+
+        var resolverCalls = 0;
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                DefaultBranch = "main",
+                SourceUrlTemplate = "https://example.com/blob/{branch}/{path}",
+                EditUrlTemplate = "https://example.com/edit/{branch}/{path}",
+                LastUpdatedMode = RazorDocsLastUpdatedMode.Git
+            },
+            (_, _) =>
+            {
+                resolverCalls++;
+                return Task.FromResult<DateTimeOffset?>(DateTimeOffset.UtcNow);
+            });
+
+        var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.NotNull(details);
+        Assert.Null(details!.ContributorProvenance);
+        Assert.Equal(0, resolverCalls);
     }
 
     [Fact]
@@ -2179,7 +2264,8 @@ public class DocAggregatorTests : IDisposable
         IDocHarvester harvester,
         RazorDocsContributorOptions contributorOptions,
         Func<string, CancellationToken, Task<DateTimeOffset?>>? resolveGitLastUpdatedUtcAsync,
-        TimeSpan? contributorFreshnessTimeout = null)
+        TimeSpan? contributorFreshnessTimeout = null,
+        Func<DateTimeOffset>? utcNow = null)
     {
         return new DocAggregator(
             [harvester],
@@ -2196,7 +2282,8 @@ public class DocAggregatorTests : IDisposable
             _sanitizerFake,
             _loggerFake,
             resolveGitLastUpdatedUtcAsync,
-            contributorFreshnessTimeout);
+            contributorFreshnessTimeout,
+            utcNow);
     }
 
     [Fact]

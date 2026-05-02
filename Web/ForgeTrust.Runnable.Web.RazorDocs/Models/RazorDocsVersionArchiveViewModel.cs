@@ -6,6 +6,9 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Models;
 /// <remarks>
 /// The same model drives both the dedicated <c>/docs/versions</c> archive page and the degraded <c>/docs</c>
 /// recovery surface when no healthy recommended release can be mounted at the stable entry alias.
+/// <see cref="PreviewHref"/> always points at the current source-backed preview surface, while
+/// <see cref="VersionsHref"/> stays on the stable archive URL. <see cref="Versions"/> preserves the authored
+/// catalog order and should be treated as a read-only projection of the resolved catalog state.
 /// </remarks>
 public sealed record RazorDocsVersionArchiveViewModel
 {
@@ -22,6 +25,10 @@ public sealed record RazorDocsVersionArchiveViewModel
     /// <summary>
     /// Gets optional explanatory copy shown when the stable docs alias cannot mount a recommended released tree.
     /// </summary>
+    /// <remarks>
+    /// This is typically <see langword="null"/> on the dedicated archive page and populated only for the degraded
+    /// <c>/docs</c> recovery experience.
+    /// </remarks>
     public string? AvailabilityMessage { get; init; }
 
     /// <summary>
@@ -50,6 +57,10 @@ public sealed record RazorDocsVersionArchiveViewModel
 /// <remarks>
 /// Entries may describe either a healthy exact-version tree with an <see cref="Href"/> target or an unavailable
 /// release that should remain visible in the archive with an explanatory availability message.
+/// <see cref="IsRecommended"/> identifies the exact release currently mirrored at the stable <c>/docs</c> alias,
+/// while <see cref="IsAvailable"/> controls whether the entry can link directly to that exact version.
+/// Advisory and support labels are independent: an unavailable or deprecated release may still surface an advisory,
+/// and a recommended release may still carry a warning label when the catalog says readers should see one.
 /// </remarks>
 public sealed record RazorDocsVersionArchiveEntryViewModel
 {
@@ -71,6 +82,10 @@ public sealed record RazorDocsVersionArchiveEntryViewModel
     /// <summary>
     /// Gets the exact-version URL when the release is available.
     /// </summary>
+    /// <remarks>
+    /// This is <see langword="null"/> when <see cref="IsAvailable"/> is <see langword="false"/> and the archive
+    /// should render the release as informational-only.
+    /// </remarks>
     public string? Href { get; init; }
 
     /// <summary>
@@ -91,10 +106,17 @@ public sealed record RazorDocsVersionArchiveEntryViewModel
     /// <summary>
     /// Gets the human-readable advisory label when a release warning should be surfaced.
     /// </summary>
+    /// <remarks>
+    /// This is <see langword="null"/> when no release-level warning badge should be rendered.
+    /// </remarks>
     public string? AdvisoryLabel { get; init; }
 
     /// <summary>
     /// Gets the availability explanation when the release tree is unavailable.
     /// </summary>
+    /// <remarks>
+    /// This is usually populated only when <see cref="IsAvailable"/> is <see langword="false"/> and explains why
+    /// the exact-version tree could not be mounted or linked.
+    /// </remarks>
     public string? AvailabilityMessage { get; init; }
 }

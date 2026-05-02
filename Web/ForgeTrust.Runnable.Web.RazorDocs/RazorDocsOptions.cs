@@ -101,7 +101,9 @@ public sealed class RazorDocsSidebarOptions
 /// values into app-relative paths before validation, so hosts may provide <c>docs/preview</c> and still get the
 /// canonical <c>/docs/preview</c> route contract. When versioning is off the live surface defaults to <c>/docs</c>.
 /// When versioning is on the live surface defaults to <c>/docs/next</c> so the stable <c>/docs</c> alias can point
-/// at the recommended published release instead.
+/// at the recommended published release instead. These defaults are applied by <c>AddRazorDocs()</c> during
+/// options binding, so callers can omit <see cref="RazorDocsRoutingOptions.DocsRootPath"/> when the standard route
+/// contract is acceptable.
 /// </remarks>
 public sealed class RazorDocsRoutingOptions
 {
@@ -116,7 +118,9 @@ public sealed class RazorDocsRoutingOptions
     /// becomes <c>/docs/next</c> so the current unreleased snapshot does not collide with the recommended released
     /// docs alias at <c>/docs</c>.
     /// Avoid reserved versioning paths such as <c>/docs</c>, <c>/docs/versions</c>, <c>/docs/v</c>, and any
-    /// <c>/docs/v/{version}</c> route when versioning is enabled.
+    /// <c>/docs/v/{version}</c> route when versioning is enabled. Hosts that customize this root should configure it
+    /// before any generated links or exported trees are produced so server-rendered pages, search assets, and static
+    /// export output all agree on the same live preview root.
     /// </remarks>
     public string? DocsRootPath { get; set; }
 }
@@ -129,7 +133,9 @@ public sealed class RazorDocsRoutingOptions
 /// <c>/docs</c> for the recommended release alias, <c>/docs/v/{version}</c> for immutable exact trees,
 /// <c>/docs/versions</c> for the archive, and a live preview surface rooted at <see cref="RazorDocsRoutingOptions.DocsRootPath"/>.
 /// The catalog stays file-based in this slice: runtime consumes a JSON manifest plus prebuilt exact release trees and
-/// does not perform Git or bundle resolution at request time.
+/// does not perform Git or bundle resolution at request time. The catalog must describe the recommended version
+/// alias plus one or more exact release trees whose exported contents satisfy the exact-tree contract documented in
+/// the package README.
 /// </remarks>
 public sealed class RazorDocsVersioningOptions
 {
@@ -145,8 +151,11 @@ public sealed class RazorDocsVersioningOptions
     /// This property is required when <see cref="Enabled"/> is <see langword="true"/>.
     /// The catalog describes available exact-version trees, the recommended version alias, and release-level status
     /// metadata such as support and advisory state. Relative paths resolve from the app content root.
+    /// The JSON payload is expected to contain a top-level recommended version plus a <c>versions</c> array whose
+    /// entries point at exported exact-version trees.
     /// A missing, unreadable, or malformed catalog does not crash RazorDocs, but it leaves all published releases
-    /// unavailable until the catalog can be loaded successfully.
+    /// unavailable until the catalog can be loaded successfully. When <see cref="Enabled"/> is <see langword="true"/>
+    /// and this property is blank, startup validation fails before the app begins serving requests.
     /// </remarks>
     public string? CatalogPath { get; set; }
 }

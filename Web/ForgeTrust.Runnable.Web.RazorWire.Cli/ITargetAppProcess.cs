@@ -32,6 +32,26 @@ public interface ITargetAppProcess : IAsyncDisposable
     /// Starts the process and begins asynchronous output capture.
     /// </summary>
     void Start();
+
+    /// <summary>
+    /// Performs best-effort asynchronous cleanup of the started target process.
+    /// </summary>
+    /// <remarks>
+    /// Cleanup order is:
+    /// <list type="number">
+    /// <item><description>Check <see cref="HasExited"/> against the underlying process when startup completed.</description></item>
+    /// <item><description>If the process is still running, issue a best-effort <c>Kill(entireProcessTree: true)</c> and wait up to 5 seconds for exit.</description></item>
+    /// <item><description>After exit is observed, call <c>WaitForExit()</c> to flush redirected stdout and stderr callbacks before returning.</description></item>
+    /// </list>
+    /// Pitfalls:
+    /// <list type="bullet">
+    /// <item><description>Short-lived processes can exit before their output callbacks are delivered, so disposal performs the final flush step to improve callback delivery timing.</description></item>
+    /// <item><description>Cleanup swallows <see cref="InvalidOperationException"/> and timeout-driven <see cref="OperationCanceledException"/> as part of best-effort disposal.</description></item>
+    /// <item><description>Callers must not rely on guaranteed process termination; disposal can return after the 5-second timeout even if the operating system process has not fully exited.</description></item>
+    /// </list>
+    /// </remarks>
+    /// <returns>A task that completes after cleanup work finishes.</returns>
+    new ValueTask DisposeAsync();
 }
 
 /// <summary>
@@ -119,6 +139,7 @@ internal sealed class TargetAppProcess : ITargetAppProcess
         _process.BeginErrorReadLine();
     }
 
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         if (_disposed)

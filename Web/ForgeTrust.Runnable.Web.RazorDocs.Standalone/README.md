@@ -35,7 +35,8 @@ If you want the live standalone host to exercise the full `Source of truth` stri
       "Enabled": true,
       "DefaultBranch": "feature/issue-143",
       "SourceUrlTemplate": "https://github.com/owner/repo/blob/{branch}/{path}",
-      "EditUrlTemplate": "https://github.com/owner/repo/edit/{branch}/{path}"
+      "EditUrlTemplate": "https://github.com/owner/repo/edit/{branch}/{path}",
+      "LastUpdatedMode": "Git"
     }
   }
 }
@@ -44,7 +45,8 @@ If you want the live standalone host to exercise the full `Source of truth` stri
 - Set `DefaultBranch` and the repository templates to the exact repo and ref you want readers to reach.
 - Slash-separated refs such as `feature/issue-143` are preserved in the generated GitHub-style URLs while still escaping special characters inside each segment.
 - For local forks or branch previews, do not reuse upstream `main` unless that is truly the page's source of truth.
-- If you cannot provide a trustworthy source or edit destination, leave the templates unset. RazorDocs will still render `Last updated` when git freshness is available, and it will omit unsafe links instead of guessing.
+- Set `LastUpdatedMode` to `Git` when you want the standalone host to exercise relative freshness too. The package default is `None`, so git-backed timestamps stay opt-in.
+- If you cannot provide a trustworthy source or edit destination, leave the templates unset. RazorDocs will still omit unsafe links instead of guessing, and it will omit `Last updated` unless you explicitly opt into git freshness.
 - The Playwright integration suite launches the standalone host with explicit contributor settings so this runtime configuration seam stays covered.
 
 ## Related Projects

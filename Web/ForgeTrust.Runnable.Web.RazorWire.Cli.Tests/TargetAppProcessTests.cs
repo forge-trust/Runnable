@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using System.Diagnostics;
+
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli.Tests;
 
 public class TargetAppProcessTests
@@ -65,6 +68,29 @@ public class TargetAppProcessTests
         });
 
         await process.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Should_Swallow_Kill_Failures_During_BestEffort_Cleanup()
+    {
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--version"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            new TargetAppProcessHooks
+            {
+                HasExitedOverride = _ => false,
+                KillProcessOverride = _ => throw new Win32Exception("simulated kill failure")
+            },
+            process: new Process(),
+            started: true);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
     }
 
     [Fact]

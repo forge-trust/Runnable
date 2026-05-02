@@ -110,7 +110,7 @@ Field behavior:
 - `Enabled` defaults to `true`. Set it to `false` to disable all contributor provenance rendering.
 - `DefaultBranch` is the stable branch or ref used when expanding configured source and edit templates.
 - `SourceUrlTemplate` and `EditUrlTemplate` support only `{branch}` and `{path}` tokens, and configured templates must include `{path}` so each page expands to its own source or edit target.
-- `LastUpdatedMode` supports `None` and `Git`. `Git` is the default and resolves freshness from local repository history when a trustworthy source path exists.
+- `LastUpdatedMode` supports `None` and `Git`. `None` is the default so hosts opt into git-backed freshness explicitly; `Git` resolves freshness from local repository history when a trustworthy source path exists.
 
 Host contract:
 

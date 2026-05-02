@@ -129,10 +129,12 @@ public sealed class RazorDocsContributorOptions
 
     /// <summary>
     /// Gets or sets the mode used to resolve contributor freshness.
+    /// The default is <see cref="RazorDocsLastUpdatedMode.None"/> so hosts opt into git-backed freshness explicitly
+    /// instead of paying unexpected snapshot-time git costs.
     /// <see cref="RazorDocsLastUpdatedMode.Git"/> uses local repository history when a trustworthy source path exists and
     /// omits only freshness when git data is unavailable or untrustworthy.
     /// </summary>
-    public RazorDocsLastUpdatedMode LastUpdatedMode { get; set; } = RazorDocsLastUpdatedMode.Git;
+    public RazorDocsLastUpdatedMode LastUpdatedMode { get; set; } = RazorDocsLastUpdatedMode.None;
 }
 
 /// <summary>

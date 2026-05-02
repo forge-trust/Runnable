@@ -668,6 +668,7 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
         startInfo.Environment["RazorDocs__Contributor__DefaultBranch"] = "main";
         startInfo.Environment["RazorDocs__Contributor__SourceUrlTemplate"] = "https://github.com/forge-trust/Runnable/blob/{branch}/{path}";
         startInfo.Environment["RazorDocs__Contributor__EditUrlTemplate"] = "https://github.com/forge-trust/Runnable/edit/{branch}/{path}";
+        startInfo.Environment["RazorDocs__Contributor__LastUpdatedMode"] = "Git";
 
         var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         process.OutputDataReceived += (_, args) => CaptureAppLog(args.Data);

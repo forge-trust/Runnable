@@ -505,7 +505,7 @@ public class DocAggregator
                 _contributorOptions.DefaultBranch,
                 sourcePath));
 
-        DateTimeOffset? lastUpdatedUtc = contributor?.LastUpdatedOverride?.ToUniversalTime();
+        DateTimeOffset? lastUpdatedUtc = NormalizeContributorLastUpdatedUtc(contributor?.LastUpdatedOverride);
         if (lastUpdatedUtc is null
             && _contributorOptions.LastUpdatedMode == RazorDocsLastUpdatedMode.Git
             && sourcePath is not null)
@@ -529,8 +529,9 @@ public class DocAggregator
             {
                 if (!gitFreshnessBySourcePath.TryGetValue(sourcePath, out lastUpdatedUtc))
                 {
-                    lastUpdatedUtc = await _resolveGitLastUpdatedUtcAsync(sourcePath, freshnessTimeoutCts.Token);
-                    gitFreshnessBySourcePath[sourcePath] = lastUpdatedUtc?.ToUniversalTime();
+                    lastUpdatedUtc = NormalizeContributorLastUpdatedUtc(
+                        await _resolveGitLastUpdatedUtcAsync(sourcePath, freshnessTimeoutCts.Token));
+                    gitFreshnessBySourcePath[sourcePath] = lastUpdatedUtc;
                 }
             }
             catch (OperationCanceledException) when (freshnessTimeoutCts.IsCancellationRequested
@@ -553,7 +554,7 @@ public class DocAggregator
         {
             SourceHref = sourceHref,
             EditHref = editHref,
-            LastUpdatedUtc = lastUpdatedUtc?.ToUniversalTime()
+            LastUpdatedUtc = NormalizeContributorLastUpdatedUtc(lastUpdatedUtc)
         };
     }
 
@@ -691,6 +692,17 @@ public class DocAggregator
             "/",
             path.Split('/', StringSplitOptions.RemoveEmptyEntries)
                 .Select(Uri.EscapeDataString));
+    }
+
+    private static DateTimeOffset? NormalizeContributorLastUpdatedUtc(DateTimeOffset? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var utc = value.Value.ToUniversalTime();
+        return utc == default ? null : utc;
     }
 
     /// <summary>

@@ -98,6 +98,15 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void ContributorOptions_ShouldDefaultLastUpdatedModeToNone()
+    {
+        var options = new RazorDocsContributorOptions();
+
+        Assert.True(options.Enabled);
+        Assert.Equal(RazorDocsLastUpdatedMode.None, options.LastUpdatedMode);
+    }
+
+    [Fact]
     public void AddRazorDocs_ShouldRejectExplicitWhitespaceSourceRepositoryRoot()
     {
         var services = new ServiceCollection();

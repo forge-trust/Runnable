@@ -1,4 +1,4 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Runnable contribution guide
     url: https://github.com/forge-trust/Runnable/blob/main/CONTRIBUTING.md

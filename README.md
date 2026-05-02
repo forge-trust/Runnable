@@ -103,7 +103,7 @@ Runnable is preparing to release the entire monorepo in unison. The public relea
 
 ## Feedback and contributing
 
-Runnable uses GitHub issue forms to keep bug reports and docs/developer-experience feedback concrete enough to reproduce. If an example, README, quickstart, or package API leaves you stuck, start with the [contribution guide](./CONTRIBUTING.md) and file the issue form that matches the problem.
+Runnable uses GitHub issue forms to keep bug reports and docs/developer-experience feedback concrete enough to reproduce. If an example, README, quickstart, or package API leaves you stuck, start with the [contribution guide](./CONTRIBUTING.md), [choose an issue template](https://github.com/forge-trust/Runnable/issues/new/choose), and file the form that matches the problem.
 
 Use docs/DX feedback for confusing guidance, missing concepts, broken links, snippet drift, or first-run friction. Use bug reports when runtime behavior, generated output, or package APIs do something unexpected.
 

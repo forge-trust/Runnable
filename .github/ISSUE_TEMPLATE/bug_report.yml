@@ -68,8 +68,10 @@ body:
     id: logs
     attributes:
       label: Logs or screenshots
-      description: Paste relevant output, stack traces, screenshots, or links to failing runs.
+      description: Paste relevant output, stack traces, screenshots, or links to failing runs. If none are available, say so.
       render: shell
+    validations:
+      required: true
   - type: checkboxes
     id: checks
     attributes:

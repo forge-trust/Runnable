@@ -71,3 +71,5 @@ body:
         - label: This blocked me from completing the task.
         - label: This made me uncertain whether I was using the supported path.
         - label: This affected an example, quickstart, or first-run flow.
+    validations:
+      required: true

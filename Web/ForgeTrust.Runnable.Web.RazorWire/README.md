@@ -143,7 +143,7 @@ RazorWire can push Turbo Stream updates to one or more clients over Server-Sent 
 
 Standard HTML forms can return targeted stream updates instead of full reloads or redirect-first flows. The counter example above is the smallest version of that story: submit a normal MVC form, return RazorWire updates, and change only the DOM you care about.
 
-`form[rw-active]` also marks enhanced form posts with `X-RazorWire-Form: true` and `__RazorWireForm=1`. That gives the runtime and server adapters enough context to render useful failed-submission UX without every controller hand-rolling client glue.
+When `EnableFailureUx` is enabled, `form[rw-active]` also marks enhanced form posts with `X-RazorWire-Form: true` and `__RazorWireForm=1`. That gives the runtime and server adapters enough context to render useful failed-submission UX without every controller hand-rolling client glue.
 
 ## Security & Anti-Forgery
 

@@ -8,6 +8,15 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 public sealed class RazorDocsOptionsTests
 {
     [Fact]
+    public void PublicEnums_ShouldPreserveNumericContracts()
+    {
+        Assert.Equal(0, (int)RazorDocsMode.Source);
+        Assert.Equal(1, (int)RazorDocsMode.Bundle);
+        Assert.Equal(0, (int)RazorDocsLastUpdatedMode.None);
+        Assert.Equal(1, (int)RazorDocsLastUpdatedMode.Git);
+    }
+
+    [Fact]
     public void AddRazorDocs_ShouldFallbackToLegacyRepositoryRootSetting()
     {
         var services = new ServiceCollection();

@@ -494,42 +494,52 @@ public record DocNode(
 /// <summary>
 /// Enumerates the built-in public documentation sections used by RazorDocs.
 /// </summary>
+/// <remarks>
+/// Numeric values are a stable public compatibility contract for persisted and serialized representations. Do not
+/// remove, reorder, or renumber existing members. Presentation order is defined by
+/// <c>DocPublicSectionCatalog.OrderedSections</c>, so renderers should not infer UI ordering from enum ordinals.
+/// </remarks>
 public enum DocPublicSection
 {
     /// <summary>
     /// A first-read routing surface for evaluators who need to understand what the product is for before going deeper.
     /// </summary>
-    StartHere,
+    StartHere = 0,
 
     /// <summary>
     /// Explanatory material that builds conceptual understanding before implementation details.
     /// </summary>
-    Concepts,
+    Concepts = 1,
 
     /// <summary>
     /// Task-oriented guides that show a reader how to accomplish something concrete.
     /// </summary>
-    HowToGuides,
+    HowToGuides = 2,
 
     /// <summary>
     /// Concrete examples and proof artifacts that demonstrate the system working in practice.
     /// </summary>
-    Examples,
+    Examples = 3,
 
     /// <summary>
     /// API and namespace reference material intended for readers who already know what they are looking for.
     /// </summary>
-    ApiReference,
+    ApiReference = 4,
 
     /// <summary>
     /// Recovery-oriented material for failures, debugging, and operational honesty.
     /// </summary>
-    Troubleshooting,
+    Troubleshooting = 5,
 
     /// <summary>
     /// Contributor-oriented or otherwise internal material that should only appear when explicitly made public.
     /// </summary>
-    Internals
+    Internals = 6,
+
+    /// <summary>
+    /// Release notes, changelogs, upgrade policies, and other version-facing project history.
+    /// </summary>
+    Releases = 7
 }
 
 /// <summary>

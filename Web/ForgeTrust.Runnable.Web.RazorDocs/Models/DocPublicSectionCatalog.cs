@@ -61,6 +61,17 @@ internal static class DocPublicSectionCatalog
             "api",
             "reference"),
         new(
+            DocPublicSection.Releases,
+            "Releases",
+            "releases",
+            "Review changelogs, upgrade guidance, and release-facing project history.",
+            "release",
+            "changelog",
+            "change-log",
+            "release-notes",
+            "releasenotes",
+            "upgrades"),
+        new(
             DocPublicSection.Troubleshooting,
             "Troubleshooting",
             "troubleshooting",

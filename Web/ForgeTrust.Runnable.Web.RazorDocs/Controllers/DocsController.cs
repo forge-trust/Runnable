@@ -94,7 +94,7 @@ public class DocsController : Controller
     {
         if (!_docsUrlBuilder.VersioningEnabled)
         {
-            return Redirect(_docsUrlBuilder.BuildHomeUrl());
+            return Redirect(PathBaseAware(_docsUrlBuilder.BuildHomeUrl()));
         }
 
         return View("Versions", BuildVersionArchiveViewModel(entryFallback: true));
@@ -125,7 +125,7 @@ public class DocsController : Controller
         {
             if (DocPublicSectionCatalog.TryResolve(sectionSlug, out var aliasSection))
             {
-                return Redirect(_docsUrlBuilder.BuildSectionUrl(aliasSection));
+                return Redirect(PathBaseAware(_docsUrlBuilder.BuildSectionUrl(aliasSection)));
             }
 
             return View("Section", BuildUnavailableSectionViewModel(null, startHereHref));
@@ -139,7 +139,7 @@ public class DocsController : Controller
 
         if (snapshot.LandingDoc is not null)
         {
-            return Redirect(_docsUrlBuilder.BuildDocUrl(GetSnapshotCanonicalPath(snapshot.LandingDoc)));
+            return Redirect(PathBaseAware(_docsUrlBuilder.BuildDocUrl(GetSnapshotCanonicalPath(snapshot.LandingDoc))));
         }
 
         return View("Section", BuildSectionPageViewModel(snapshot, startHereHref));
@@ -260,7 +260,16 @@ public class DocsController : Controller
     /// <returns>
     /// A JSON result containing searchable document metadata, including normalized page-type badge fields that keep search
     /// result rendering consistent with the built-in landing and details experiences.
+    /// When <see cref="HttpRequest.PathBase" /> is non-empty, rooted <c>documents[*].path</c> values are rebased onto
+    /// that path base before serialization so a mounted app returns links like <c>/some-base/docs/guide.html</c> instead
+    /// of <c>/docs/guide.html</c>.
     /// </returns>
+    /// <remarks>
+    /// The path-base rewrite is intentionally narrow. Only rooted <c>documents[*].path</c> strings are prefixed; missing,
+    /// blank, or non-rooted values remain unchanged, and payloads that do not contain a top-level <c>documents</c> array
+    /// pass through untouched. When <see cref="HttpRequest.PathBase" /> is null, empty, or <c>/</c>, the rewrite is
+    /// idempotent and the cached payload is returned unchanged.
+    /// </remarks>
     [HttpGet]
     public async Task<IActionResult> SearchIndex()
     {
@@ -313,8 +322,26 @@ public class DocsController : Controller
         return User?.Identity?.IsAuthenticated == true;
     }
 
-    internal static object PrefixSearchIndexPathsForPathBase(object payload, string? requestPathBase)
+    /// <summary>
+    /// Prefixes rooted <c>documents[*].path</c> values in a cached search-index payload for the active request path base.
+    /// </summary>
+    /// <param name="payload">The cached search-index payload whose top-level <c>documents</c> array may need rebased paths.</param>
+    /// <param name="requestPathBase">The current request path base that should be prepended when it is non-empty and not <c>/</c>.</param>
+    /// <returns>
+    /// The original payload when no rewrite is needed or the payload shape is unsupported; otherwise a cloned payload whose
+    /// rooted document paths are prefixed with the normalized path base.
+    /// </returns>
+    /// <remarks>
+    /// Only entries shaped like <c>{ "documents": [ { "path": "/docs/guide.html" } ] }</c> are rewritten, and only when
+    /// each <c>path</c> value starts with <c>/</c>. Non-rooted values such as <c>guide.html</c>, missing <c>path</c>
+    /// values, or payloads without a top-level <see cref="JsonArray" /> named <c>documents</c> are returned unchanged.
+    /// The supplied path base is trimmed of trailing slashes before concatenation, and the method is idempotent when
+    /// <paramref name="requestPathBase" /> is null, empty, or <c>/</c>.
+    /// </remarks>
+    internal static JsonObject PrefixSearchIndexPathsForPathBase(JsonObject payload, string? requestPathBase)
     {
+        ArgumentNullException.ThrowIfNull(payload);
+
         if (string.IsNullOrWhiteSpace(requestPathBase)
             || string.Equals(requestPathBase, "/", StringComparison.Ordinal))
         {
@@ -322,8 +349,13 @@ public class DocsController : Controller
         }
 
         var normalizedPathBase = requestPathBase.TrimEnd('/');
-        var root = JsonSerializer.SerializeToNode(payload) as JsonObject;
-        if (root is null || root["documents"] is not JsonArray documents)
+        if (payload["documents"] is not JsonArray)
+        {
+            return payload;
+        }
+
+        var root = payload.DeepClone().AsObject();
+        if (root["documents"] is not JsonArray documents)
         {
             return payload;
         }
@@ -536,7 +568,15 @@ public class DocsController : Controller
         IReadOnlyList<DocNode> docs,
         IReadOnlyList<DocSectionSnapshot> sections)
     {
+        var lookup = BuildDocLookup(docs);
         var doc = details.Document;
+        var pathBaseAwareDoc = doc with
+        {
+            Content = DocContentLinkRewriter.PrefixPathBaseForDocsUrls(
+                doc.Content,
+                _docsUrlBuilder.CurrentDocsRootPath,
+                HttpContext.Request.PathBase.Value)
+        };
         var metadata = doc.Metadata;
         var resolvedTitle = ResolveDisplayTitle(doc);
         var summary = metadata?.Summary;
@@ -579,7 +619,7 @@ public class DocsController : Controller
 
         return details with
         {
-            Document = doc,
+            Document = pathBaseAwareDoc,
             Title = resolvedTitle,
             Summary = summary,
             ShowSummary = showSummary,
@@ -592,10 +632,31 @@ public class DocsController : Controller
             PublicSectionLabel = currentSectionSnapshot?.Label,
             PublicSectionHref = currentSectionSnapshot is null ? null : _docsUrlBuilder.BuildSectionUrl(currentSectionSnapshot.Section),
             PublicSectionPurpose = currentSectionSnapshot is null ? null : DocPublicSectionCatalog.GetPurpose(currentSectionSnapshot.Section),
+            TrustMigrationUsesTurbo = ShouldUseDocsFrame(metadata?.Trust?.Migration?.Href, lookup),
             IsSectionLanding = isSectionLanding,
             FeaturedPages = featuredPages,
             SectionGroups = sectionGroups
         };
+    }
+
+    private string PathBaseAware(string appRelativeUrl)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appRelativeUrl);
+        var pathBase = HttpContext?.Request.PathBase.Value;
+        if (string.IsNullOrWhiteSpace(pathBase) || string.Equals(pathBase, "/", StringComparison.Ordinal))
+        {
+            return appRelativeUrl;
+        }
+
+        var normalizedPathBase = pathBase.TrimEnd('/');
+        if (!normalizedPathBase.StartsWith("/", StringComparison.Ordinal))
+        {
+            normalizedPathBase = "/" + normalizedPathBase;
+        }
+
+        return string.Equals(appRelativeUrl, "/", StringComparison.Ordinal)
+            ? normalizedPathBase + "/"
+            : normalizedPathBase + appRelativeUrl;
     }
 
     private List<DocLandingFeaturedPageViewModel> ResolveFeaturedPages(DocNode? landingDoc, IReadOnlyList<DocNode> docs)
@@ -955,10 +1016,12 @@ public class DocsController : Controller
 
     private IReadOnlyList<SearchPageFallbackLink> BuildSearchFallbackLinks(IReadOnlyList<DocNode> docs)
     {
+        var lookup = BuildDocLookup(docs);
         var links = new List<SearchPageFallbackLink>();
 
         TryAddFallbackLink(
             links,
+            lookup,
             SelectFallbackDoc(
                 docs,
                 doc => HasPageType(doc, "guide", "concept", "tutorial", "troubleshooting")
@@ -968,6 +1031,7 @@ public class DocsController : Controller
 
         TryAddFallbackLink(
             links,
+            lookup,
             SelectFallbackDoc(
                 docs,
                 doc => HasPageType(doc, "example")
@@ -977,6 +1041,7 @@ public class DocsController : Controller
 
         TryAddFallbackLink(
             links,
+            lookup,
             SelectFallbackDoc(
                 docs,
                 doc => HasPageType(doc, "api-reference", "api")
@@ -991,6 +1056,7 @@ public class DocsController : Controller
                 doc => string.Equals(doc.Path, "Namespaces", StringComparison.OrdinalIgnoreCase));
             TryAddFallbackLink(
                 links,
+                lookup,
                 namespacesRoot,
                 "Browse namespaces",
                 "Use the namespace index when you need the reference map.");
@@ -1002,7 +1068,8 @@ public class DocsController : Controller
                 new SearchPageFallbackLink(
                     "Documentation index",
                     _docsUrlBuilder.BuildHomeUrl(),
-                    "Return to the docs index and keep exploring from there."));
+                    "Return to the docs index and keep exploring from there.",
+                    UsesDocsFrame: false));
         }
 
         return links;
@@ -1010,6 +1077,7 @@ public class DocsController : Controller
 
     private void TryAddFallbackLink(
         ICollection<SearchPageFallbackLink> links,
+        IReadOnlyDictionary<string, DocLookupBucket> lookup,
         DocNode? doc,
         string title,
         string description)
@@ -1025,7 +1093,40 @@ public class DocsController : Controller
             return;
         }
 
-        links.Add(new SearchPageFallbackLink(title, href, description));
+        links.Add(
+            new SearchPageFallbackLink(
+                title,
+                href,
+                description,
+                UsesDocsFrame: ShouldUseDocsFrame(href, lookup)));
+    }
+
+    private bool ShouldUseDocsFrame(string? href, IReadOnlyDictionary<string, DocLookupBucket> lookup)
+    {
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return false;
+        }
+
+        var trimmedHref = href.Trim();
+        var hrefPath = ExtractHrefPath(trimmedHref);
+        if (string.Equals(hrefPath, _docsUrlBuilder.BuildHomeUrl(), StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (_docsUrlBuilder.IsCurrentDocsPath(hrefPath))
+        {
+            return true;
+        }
+
+        if (!string.Equals(_docsUrlBuilder.CurrentDocsRootPath, "/", StringComparison.Ordinal)
+            || !hrefPath.StartsWith("/", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return ResolveDocByPath(hrefPath.TrimStart('/'), lookup) is not null;
     }
 
     private static DocNode? SelectFallbackDoc(
@@ -1101,6 +1202,14 @@ public class DocsController : Controller
         }
 
         return canonical[(hashIndex + 1)..];
+    }
+
+    private static string ExtractHrefPath(string href)
+    {
+        var fragmentIndex = href.IndexOf('#');
+        var withoutFragment = fragmentIndex >= 0 ? href[..fragmentIndex] : href;
+        var queryIndex = withoutFragment.IndexOf('?');
+        return queryIndex >= 0 ? withoutFragment[..queryIndex] : withoutFragment;
     }
 
     private static string? GetSupportingText(DocFeaturedPageDefinition definition, DocNode destination)

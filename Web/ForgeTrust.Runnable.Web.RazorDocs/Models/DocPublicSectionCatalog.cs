@@ -141,7 +141,9 @@ internal static class DocPublicSectionCatalog
     internal static string GetHref(DocPublicSection section, string docsRootPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(docsRootPath);
-        return $"{docsRootPath}/sections/{GetSlug(section)}";
+        return string.Equals(docsRootPath, "/", StringComparison.Ordinal)
+            ? $"/sections/{GetSlug(section)}"
+            : $"{docsRootPath}/sections/{GetSlug(section)}";
     }
 
     /// <summary>

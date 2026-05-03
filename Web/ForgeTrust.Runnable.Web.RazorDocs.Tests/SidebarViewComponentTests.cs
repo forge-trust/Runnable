@@ -368,6 +368,103 @@ public sealed class SidebarViewComponentTests
     }
 
     [Fact]
+    public async Task InvokeAsync_ShouldMarkSectionActive_ForRootMountedSectionRoutes()
+    {
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            }
+        };
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ],
+            options);
+        SetRequestPath(component, "/sections/concepts");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            Assert.Equal("/sections/concepts", section.Href);
+            Assert.True(section.IsActive);
+            Assert.True(section.IsExpanded);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldMarkDocSectionActive_ForRootMountedDocRoutes()
+    {
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            }
+        };
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ],
+            options);
+        SetRequestPath(component, "/concepts/overview.md.html");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            var link = Assert.Single(Assert.Single(section.Groups).Links);
+            Assert.Equal("/sections/concepts", section.Href);
+            Assert.Equal("/concepts/overview.md.html", link.Href);
+            Assert.True(section.IsActive);
+            Assert.True(section.IsExpanded);
+            Assert.True(link.IsCurrent);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldMarkRootMountedPlainHtmlDocRoutes_AsCurrent()
+    {
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            }
+        };
+        var (component, cache, memo) = CreateComponent(
+            [
+                new DocNode(
+                    "Guides",
+                    "guides",
+                    "<p>Guides</p>",
+                    CanonicalPath: "guides.html",
+                    Metadata: new DocMetadata
+                    {
+                        NavGroup = "How-to Guides"
+                    })
+            ],
+            options);
+        SetRequestPath(component, "/guides.html");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var section = Assert.Single(model.Sections);
+            var link = Assert.Single(Assert.Single(section.Groups).Links);
+            Assert.True(section.IsActive);
+            Assert.True(section.IsExpanded);
+            Assert.True(link.IsCurrent);
+            Assert.Equal("/guides.html", link.Href);
+        }
+    }
+
+    [Fact]
     public async Task InvokeAsync_ShouldKeepSectionsInactive_WhenDocsPathDoesNotResolve()
     {
         var (component, cache, memo) = CreateComponent(

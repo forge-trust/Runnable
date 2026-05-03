@@ -281,6 +281,11 @@ internal sealed class RazorDocsPublishedTreeHandler
 /// <summary>
 /// Describes one published exact-version tree that should be mounted into the active host.
 /// </summary>
+/// <remarks>
+/// When multiple <see cref="RazorDocsPublishedTreeMount" /> instances overlap, callers should treat the longest
+/// <see cref="MountRootPath" /> as the winning mount because the request handler resolves mounts from most-specific to
+/// least-specific roots before serving content.
+/// </remarks>
 /// <param name="MountRootPath">The request-path root where the tree should appear.</param>
 /// <param name="FileProvider">The static file provider for the tree contents.</param>
 internal sealed record RazorDocsPublishedTreeMount(
@@ -290,6 +295,13 @@ internal sealed record RazorDocsPublishedTreeMount(
 /// <summary>
 /// Rewrites stable-root published-tree content so the same artifact can be served from different mount roots.
 /// </summary>
+/// <remarks>
+/// Rewrites are mount-aware rather than file-aware. The active <see cref="RazorDocsPublishedTreeMount" /> decides which
+/// root wins, and then the rewriter adjusts exported stable-root URLs so they point at that mounted surface. The
+/// stable <c>/docs</c> surface only needs HTML rewrites when the host adds a non-empty request <c>PathBase</c>; when
+/// the mount root is still <c>/docs</c> and no <c>PathBase</c> applies, the exported HTML is already correct and is
+/// returned unchanged.
+/// </remarks>
 internal static class RazorDocsPublishedTreeContentRewriter
 {
     private static readonly HtmlParser HtmlParser = new();
@@ -305,6 +317,14 @@ internal static class RazorDocsPublishedTreeContentRewriter
     /// <param name="previewRootPath">The live preview docs root that should stay untouched when encountered.</param>
     /// <param name="requestPathBase">The current host path base that should prefix rewritten app-relative docs URLs.</param>
     /// <returns>The rewritten HTML document.</returns>
+    /// <remarks>
+    /// This method rewrites exported stable-root docs links, assets, and the inline
+    /// <c>window.__razorDocsConfig</c> payload matched by <see cref="DocsClientConfigRegex" /> so the document behaves
+    /// like it was originally emitted for <paramref name="mountRootPath" />. As part of that rewrite, the legacy
+    /// <c>docsVersionsUrl</c> client field is removed because version archive navigation is rendered server-side. When
+    /// <paramref name="mountRootPath" /> is <c>/docs</c>, rewrites only occur if <paramref name="requestPathBase" /> is
+    /// non-empty so sub-path-hosted apps still emit <c>/some-base/docs/...</c> links.
+    /// </remarks>
     internal static string RewriteHtml(
         string html,
         string mountRootPath,

@@ -35,6 +35,23 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void RewriteInternalDocLinks_ShouldRewriteRootMountedFragmentOnlyLinks_AndMarkAnchorNavigation()
+    {
+        var html = "<p><a href=\"#migration\">Migration</a></p>";
+        var manifest = DocLinkTargetManifest.FromPaths(["guides/quickstart.md"]);
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks(
+            "guides/quickstart.md",
+            html,
+            "/",
+            manifest);
+
+        Assert.Contains("href=\"/guides/quickstart.md.html#migration\"", rewritten);
+        Assert.DoesNotContain("href=\"//guides/quickstart.md.html#migration\"", rewritten);
+        Assert.Contains("data-doc-anchor-link=\"true\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldLeaveFragmentOnlyLinksUnchanged_WhenSourceIsNotPublished()
     {
         var html = "<p><a href=\"#migration\">Migration</a></p>";
@@ -243,6 +260,96 @@ public sealed class DocContentLinkRewriterTests
         Assert.DoesNotContain("href=\"/docs/releases/missing.md.html\"", rewritten);
         Assert.DoesNotContain("data-turbo-frame=\"doc-content\"", rewritten);
         Assert.DoesNotContain("data-turbo-action=\"advance\"", rewritten);
+    }
+
+    [Fact]
+    public void PrefixPathBaseForDocsUrls_ShouldPrefixDocsLocalRootedLinks_AndLeaveOtherLinksUnchanged()
+    {
+        var html = """
+            <p>
+              <a href="/docs/next/guides/quickstart">Preview guide</a>
+              <a href="/docs">Docs home</a>
+              <a href="/docs/versions">Archive</a>
+              <a href="/docs/v/1.2.3/guides/quickstart">Exact release</a>
+              <a href="/privacy.html">Privacy</a>
+              <a href="https://example.com/docs/guides/quickstart">External</a>
+            </p>
+            """;
+
+        var rewritten = DocContentLinkRewriter.PrefixPathBaseForDocsUrls(html, "/docs/next", "/some-base");
+
+        Assert.Contains("href=\"/some-base/docs/next/guides/quickstart\"", rewritten);
+        Assert.Contains("href=\"/some-base/docs\"", rewritten);
+        Assert.Contains("href=\"/some-base/docs/versions\"", rewritten);
+        Assert.Contains("href=\"/some-base/docs/v/1.2.3/guides/quickstart\"", rewritten);
+        Assert.Contains("href=\"/privacy.html\"", rewritten);
+        Assert.Contains("href=\"https://example.com/docs/guides/quickstart\"", rewritten);
+    }
+
+    [Fact]
+    public void PrefixPathBaseForDocsUrls_ShouldLeaveHtmlUnchanged_WhenPathBaseIsMissing()
+    {
+        var html = "<p><a href=\"/docs/guides/quickstart\">Quickstart</a></p>";
+
+        var rewritten = DocContentLinkRewriter.PrefixPathBaseForDocsUrls(html, "/docs", requestPathBase: null);
+
+        Assert.Equal(html, rewritten);
+    }
+
+    [Fact]
+    public void PrefixPathBaseForDocsUrls_ShouldHandleRootMountedDocsSurface()
+    {
+        var html = """
+            <p>
+              <a href="/guides/quickstart.md.html">Quickstart</a>
+              <a href="/guides.html" data-turbo-frame="doc-content" data-turbo-action="advance">Guides</a>
+              <a href="/search">Search</a>
+              <a href="/privacy.html">Privacy</a>
+              <a href="https://example.com/guides/quickstart">External</a>
+            </p>
+            """;
+
+        var rewritten = DocContentLinkRewriter.PrefixPathBaseForDocsUrls(html, "/", "/some-base");
+
+        Assert.Contains("href=\"/some-base/guides/quickstart.md.html\"", rewritten);
+        Assert.Contains("href=\"/some-base/guides.html\"", rewritten);
+        Assert.Contains("href=\"/some-base/search\"", rewritten);
+        Assert.Contains("href=\"/privacy.html\"", rewritten);
+        Assert.Contains("href=\"https://example.com/guides/quickstart\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteInternalDocLinks_ShouldHandleRootMountedDocsSurface()
+    {
+        var html = "<p><a href=\"/guides/quickstart.md\">Quickstart</a></p>";
+        var manifest = DocLinkTargetManifest.FromPaths(["guides/quickstart.md"]);
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks(
+            "README.md",
+            html,
+            "/",
+            manifest);
+
+        Assert.Contains("href=\"/guides/quickstart.md.html\"", rewritten);
+        Assert.DoesNotContain("href=\"//guides/quickstart.md.html\"", rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+    }
+
+    [Fact]
+    public void RewriteInternalDocLinks_ShouldDecorateRootMountedCanonicalPlainHtmlDocsLinks()
+    {
+        var html = "<p><a href=\"/guides.html\">Guides</a></p>";
+        var manifest = DocLinkTargetManifest.FromPaths(["guides"]);
+
+        var rewritten = DocContentLinkRewriter.RewriteInternalDocLinks(
+            "README.md",
+            html,
+            "/",
+            manifest);
+
+        Assert.Contains("href=\"/guides.html\"", rewritten);
+        Assert.Contains("data-turbo-frame=\"doc-content\"", rewritten);
+        Assert.Contains("data-turbo-action=\"advance\"", rewritten);
     }
 
     [Fact]

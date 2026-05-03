@@ -551,6 +551,12 @@ public class RazorDocsWebModuleRegressionTests
                     var previewCssBody = await previewCssResponse.Content.ReadAsStringAsync();
                     Assert.Equal(HttpStatusCode.OK, previewCssResponse.StatusCode);
                     Assert.Contains(".docs-search-page-results", previewCssBody);
+
+                    using var previewMiniSearchResponse = await client.GetAsync("/docs/preview/minisearch.min.js");
+                    var previewMiniSearchBody = await previewMiniSearchResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, previewMiniSearchResponse.StatusCode);
+                    Assert.DoesNotContain("window.__releaseTree = true;", previewMiniSearchBody);
+                    Assert.Contains("MiniSearch", previewMiniSearchBody, StringComparison.OrdinalIgnoreCase);
                 }
                 finally
                 {

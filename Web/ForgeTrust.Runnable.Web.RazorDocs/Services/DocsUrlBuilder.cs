@@ -76,7 +76,7 @@ public sealed class DocsUrlBuilder
     /// <returns>The app-relative search workspace URL for the current docs surface.</returns>
     public string BuildSearchUrl()
     {
-        return $"{_currentDocsRootPath}/search";
+        return JoinPath(_currentDocsRootPath, "search");
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ public sealed class DocsUrlBuilder
     /// <returns>The app-relative search-index URL for the current docs surface.</returns>
     public string BuildSearchIndexUrl()
     {
-        return $"{_currentDocsRootPath}/search-index.json";
+        return JoinPath(_currentDocsRootPath, "search-index.json");
     }
 
     /// <summary>
@@ -116,7 +116,7 @@ public sealed class DocsUrlBuilder
     public string BuildAssetUrl(string assetName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
-        return $"{_currentDocsRootPath}/{assetName.TrimStart('/')}";
+        return JoinPath(_currentDocsRootPath, assetName);
     }
 
     /// <summary>
@@ -185,7 +185,7 @@ public sealed class DocsUrlBuilder
                 .Split('/', StringSplitOptions.RemoveEmptyEntries)
                 .Select(Uri.EscapeDataString));
 
-        var url = string.IsNullOrEmpty(encodedPath) ? docsRootPath : $"{docsRootPath}/{encodedPath}";
+        var url = string.IsNullOrEmpty(encodedPath) ? docsRootPath : JoinPath(docsRootPath, encodedPath);
         if (!string.IsNullOrWhiteSpace(fragmentPart))
         {
             url += $"#{Uri.EscapeDataString(fragmentPart)}";
@@ -201,8 +201,49 @@ public sealed class DocsUrlBuilder
             return false;
         }
 
+        if (string.Equals(docsRootPath, "/", StringComparison.Ordinal))
+        {
+            return IsLikelyRootMountedDocsPath(path);
+        }
+
         return string.Equals(path, docsRootPath, StringComparison.OrdinalIgnoreCase)
                || path.StartsWith(docsRootPath + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static string JoinPath(string docsRootPath, string relativePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(docsRootPath);
+        ArgumentNullException.ThrowIfNull(relativePath);
+
+        var trimmedRelativePath = relativePath.TrimStart('/');
+        if (trimmedRelativePath.Length == 0)
+        {
+            return docsRootPath;
+        }
+
+        return string.Equals(docsRootPath, "/", StringComparison.Ordinal)
+            ? "/" + trimmedRelativePath
+            : $"{docsRootPath}/{trimmedRelativePath}";
+    }
+
+    private static bool IsLikelyRootMountedDocsPath(string path)
+    {
+        if (!path.StartsWith("/", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return string.Equals(path, "/", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(path, "/search", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(path, "/search-index.json", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(path, "/search.css", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(path, "/search-client.js", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(path, "/minisearch.min.js", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(path, "/Namespaces.html", StringComparison.OrdinalIgnoreCase)
+               || path.StartsWith("/sections/", StringComparison.OrdinalIgnoreCase)
+               || path.StartsWith("/Namespaces/", StringComparison.OrdinalIgnoreCase)
+               || path.EndsWith(".md.html", StringComparison.OrdinalIgnoreCase)
+               || path.EndsWith(".partial.html", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

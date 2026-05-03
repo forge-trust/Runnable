@@ -50,6 +50,7 @@
     index: null,
     docs: [],
     docsById: new Map(),
+    docsByPath: new Set(),
     facetValues: createEmptyFacetValues(),
     loadPromise: null,
     runtimePromise: null
@@ -133,10 +134,27 @@
     }
   }
 
+  function normalizeComparablePath(path) {
+    const value = String(path ?? '').trim();
+    if (!value || value === '/') {
+      return '/';
+    }
+
+    return value.endsWith('/') ? value.slice(0, -1) : value;
+  }
+
   function isDocsPath(path) {
     return docsRootPath === '/'
       ? path.startsWith('/')
       : path === docsRootPath || path.startsWith(`${docsRootPath}/`);
+  }
+
+  function isKnownRootMountedDocsNavigationPath(path) {
+    const normalizedPath = normalizeComparablePath(path);
+    const searchUrl = toUrl(docsSearchUrl);
+
+    return searchData.docsByPath.has(normalizedPath)
+      || normalizedPath === normalizeComparablePath(searchUrl?.pathname);
   }
 
   function getHeader(headers, name) {
@@ -680,7 +698,20 @@
 
   function shouldTargetDocsFrame(href) {
     const url = toUrl(href);
-    return Boolean(url && url.origin === window.location.origin && isDocsPath(url.pathname) && url.pathname !== docsRootPath);
+    if (!url || url.origin !== window.location.origin) {
+      return false;
+    }
+
+    const normalizedPath = normalizeComparablePath(url.pathname);
+    if (normalizedPath === docsRootPath) {
+      return false;
+    }
+
+    if (docsRootPath !== '/') {
+      return isDocsPath(normalizedPath);
+    }
+
+    return isKnownRootMountedDocsNavigationPath(normalizedPath);
   }
 
   function applyDocsNavigationTarget(anchor, href) {
@@ -1269,6 +1300,7 @@
     searchData.index = index;
     searchData.docs = docs;
     searchData.docsById = new Map(docs.map((doc) => [doc.id, doc]));
+    searchData.docsByPath = new Set(docs.map((doc) => normalizeComparablePath(doc.path)));
     searchData.facetValues = deriveFacetValues(docs);
   }
 

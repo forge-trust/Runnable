@@ -50,6 +50,27 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
     }
 
     [Fact]
+    public void RewriteHtml_ShouldBeNoOp_ForDocsBase()
+    {
+        const string html =
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json","docsVersionsUrl":"/docs/versions"};</script>
+            </head>
+            <body>
+              <a href="/docs/guide.html">Guide</a>
+            </body>
+            </html>
+            """;
+
+        var unchanged = RazorDocsPublishedTreeContentRewriter.RewriteHtml(html, "/docs");
+
+        Assert.Equal(html, unchanged);
+    }
+
+    [Fact]
     public void RewriteHtml_ShouldPrefixPathBaseForMountedDocsLinksAndClientConfig()
     {
         const string html =

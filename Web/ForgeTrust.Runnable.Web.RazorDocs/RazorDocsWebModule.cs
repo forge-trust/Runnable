@@ -162,7 +162,7 @@ public class RazorDocsWebModule : IRunnableWebModule
         {
             var searchAssetBasePath = ResolveLegacySearchAssetBasePath(context);
 
-            // Preserve the historical docs asset URLs even though the assets now live in the RazorDocs RCL package.
+            // Preserve the active live-surface asset URLs even though the assets now live in the RazorDocs RCL package.
             MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search.css"), $"{searchAssetBasePath}/search.css");
             MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("minisearch.min.js"), $"{searchAssetBasePath}/minisearch.min.js");
             MapLegacyAssetRedirect(endpoints, docsUrlBuilder.BuildAssetUrl("search-client.js"), $"{searchAssetBasePath}/search-client.js");

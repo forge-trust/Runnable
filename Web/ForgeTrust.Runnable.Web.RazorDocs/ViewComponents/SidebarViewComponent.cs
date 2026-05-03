@@ -84,12 +84,16 @@ public class SidebarViewComponent : ViewComponent
             return (null, null);
         }
 
+        var isRootMounted = string.Equals(_docsUrlBuilder.CurrentDocsRootPath, "/", StringComparison.Ordinal);
+
         if (string.Equals(requestPath, _docsUrlBuilder.CurrentDocsRootPath, StringComparison.OrdinalIgnoreCase))
         {
             return (DocPublicSection.StartHere, requestPath);
         }
 
-        var sectionPrefix = _docsUrlBuilder.CurrentDocsRootPath + "/sections/";
+        var sectionPrefix = isRootMounted
+            ? "/sections/"
+            : _docsUrlBuilder.CurrentDocsRootPath + "/sections/";
         if (requestPath.StartsWith(sectionPrefix, StringComparison.OrdinalIgnoreCase))
         {
             var slug = requestPath[sectionPrefix.Length..].Trim('/');
@@ -103,10 +107,18 @@ public class SidebarViewComponent : ViewComponent
             || string.Equals(requestPath, _docsUrlBuilder.BuildSearchUrl(), StringComparison.OrdinalIgnoreCase)
             || string.Equals(requestPath, _docsUrlBuilder.BuildSearchIndexUrl(), StringComparison.OrdinalIgnoreCase))
         {
-            return (null, null);
+            if (!isRootMounted
+                || string.Equals(requestPath, _docsUrlBuilder.BuildSearchUrl(), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(requestPath, _docsUrlBuilder.BuildSearchIndexUrl(), StringComparison.OrdinalIgnoreCase)
+                || !requestPath.StartsWith("/", StringComparison.Ordinal))
+            {
+                return (null, null);
+            }
         }
 
-        var docPath = requestPath[(_docsUrlBuilder.CurrentDocsRootPath.Length + 1)..];
+        var docPath = isRootMounted
+            ? requestPath.TrimStart('/')
+            : requestPath[(_docsUrlBuilder.CurrentDocsRootPath.Length + 1)..];
         var doc = await _aggregator.GetDocByPathAsync(docPath);
         if (doc is not null && DocPublicSectionCatalog.TryResolve(doc.Metadata?.NavGroup, out var sectionForDoc))
         {

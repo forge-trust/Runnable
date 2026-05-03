@@ -1,3 +1,4 @@
+using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -106,5 +107,30 @@ public sealed class DocsUrlBuilderTests
 
         Assert.Equal("/docs/v/release%2F1", versionRoot);
         Assert.Equal("/docs/v/release%2F1/guides/Getting%20Started#install%20now", versionDoc);
+    }
+
+    [Fact]
+    public void Builder_ShouldHandleRootMountedDocsSurfaceWithoutDoubleSlashes()
+    {
+        var builder = new DocsUrlBuilder(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/"
+                }
+            });
+
+        Assert.Equal("/", builder.BuildHomeUrl());
+        Assert.Equal("/search", builder.BuildSearchUrl());
+        Assert.Equal("/search-index.json", builder.BuildSearchIndexUrl());
+        Assert.Equal("/search.css", builder.BuildAssetUrl("search.css"));
+        Assert.Equal("/guides/start.md", builder.BuildDocUrl("guides/start.md"));
+        Assert.Equal("/sections/concepts", builder.BuildSectionUrl(DocPublicSection.Concepts));
+        Assert.True(builder.IsCurrentDocsPath("/guides/start.md.html"));
+        Assert.True(builder.IsCurrentDocsPath("/search"));
+        Assert.True(builder.IsCurrentDocsPath("/Namespaces/ForgeTrust.Runnable.Web.html"));
+        Assert.False(builder.IsCurrentDocsPath("/privacy.html"));
+        Assert.False(builder.IsCurrentDocsPath("guides/start.md.html"));
     }
 }

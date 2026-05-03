@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AngleSharp;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
@@ -11,6 +12,10 @@ using Ganss.Xss;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -56,8 +61,9 @@ public class DocsControllerTests : IDisposable
 
         _controller = new DocsController(_aggregator, _controllerLoggerFake)
         {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+            ControllerContext = CreateControllerContext(new DefaultHttpContext())
         };
+        _controller.Url = new UrlHelper(_controller.ControllerContext);
     }
 
     [Fact]
@@ -349,6 +355,17 @@ public class DocsControllerTests : IDisposable
         Assert.Equal("/docs/concepts/landing.md.html", redirect.Url);
     }
 
+    [Fact]
+    public void VersionEntry_ShouldPrefixRequestPathBaseInRedirect_WhenVersioningIsDisabled()
+    {
+        SetControllerHttpContext(pathBase: "/some-base");
+
+        var result = _controller.VersionEntry();
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/some-base/docs", redirect.Url);
+    }
+
     [Theory]
     [InlineData("api")]
     [InlineData("reference")]
@@ -372,6 +389,56 @@ public class DocsControllerTests : IDisposable
 
         var redirect = Assert.IsType<RedirectResult>(result);
         Assert.Equal("/docs/sections/api-reference", redirect.Url);
+    }
+
+    [Theory]
+    [InlineData("api")]
+    [InlineData("reference")]
+    [InlineData("API Reference")]
+    public async Task Section_ShouldPrefixRequestPathBaseInAliasRedirects(string requestedSlug)
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Service API",
+                "api/service.md",
+                "<p>API body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "API Reference"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+        SetControllerHttpContext(pathBase: "/some-base");
+
+        var result = await _controller.Section(requestedSlug);
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/some-base/docs/sections/api-reference", redirect.Url);
+    }
+
+    [Fact]
+    public async Task Section_ShouldPrefixRequestPathBaseInLandingDocRedirects()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Concept Landing",
+                "concepts/landing.md",
+                "<p>Landing body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    SectionLanding = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+        SetControllerHttpContext(pathBase: "/some-base");
+
+        var result = await _controller.Section("concepts");
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/some-base/docs/concepts/landing.md.html", redirect.Url);
     }
 
     [Fact]
@@ -1002,9 +1069,9 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
         Assert.Equal("Search Documentation", model.Title);
         Assert.Equal(3, model.FailureFallbackLinks.Count);
-        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Browse guides");
-        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Open an example");
-        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Explore API reference");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Browse guides" && link.UsesDocsFrame);
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Open an example" && link.UsesDocsFrame);
+        Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Explore API reference" && link.UsesDocsFrame);
     }
 
     [Fact]
@@ -1025,7 +1092,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
         Assert.Equal("Search Documentation", model.Title);
-        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs" && !link.UsesDocsFrame);
         AssertWarningLogged("fallback link generation failed");
     }
 
@@ -1045,7 +1112,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
         Assert.Equal("Search Documentation", model.Title);
-        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs" && !link.UsesDocsFrame);
         AssertWarningLogged("fallback link generation exceeded");
     }
 
@@ -1070,7 +1137,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
         Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Title == "Browse namespaces");
-        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs" && !link.UsesDocsFrame);
     }
 
     [Fact]
@@ -1095,7 +1162,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
         Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Href == "/docs/guides/hidden-guide");
-        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs");
+        Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs" && !link.UsesDocsFrame);
     }
 
     [Fact]
@@ -1123,6 +1190,98 @@ public class DocsControllerTests : IDisposable
         Assert.Equal(1, model.FailureFallbackLinks.Count(link => link.Href == sharedHref));
         Assert.Contains(model.FailureFallbackLinks, link => link.Title == "Browse guides");
         Assert.DoesNotContain(model.FailureFallbackLinks, link => link.Title == "Open an example");
+    }
+
+    [Fact]
+    public async Task Search_ShouldMarkRootMountedPlainHtmlFallbackLinks_AsDocsFrameLinks()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "HTML guide",
+                "docs/page.html",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    PageType = "guide"
+                })
+        };
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+        var (controller, cache, memo) = CreateController(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/"
+                }
+            },
+            harvester);
+
+        using (memo)
+        using (cache)
+        {
+            var result = await controller.Search();
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<SearchPageViewModel>(viewResult.Model);
+            Assert.Contains(model.FailureFallbackLinks, link => link.Href == "/docs/page.html" && link.UsesDocsFrame);
+        }
+    }
+
+    [Theory]
+    [InlineData("/guides.html")]
+    [InlineData("/guides.html?view=compact")]
+    [InlineData("/search?q=foo")]
+    public async Task Details_ShouldMarkRootMountedTrustMigrationLinks_AsDocsFrameLinks(string migrationHref)
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    Trust = new DocTrustMetadata
+                    {
+                        Migration = new DocTrustLink
+                        {
+                            Label = "Open guide index",
+                            Href = migrationHref
+                        }
+                    }
+                }),
+            new(
+                "Guides",
+                "guides",
+                "<p>Guides</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "How-to Guides"
+                })
+        };
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+        var (controller, cache, memo) = CreateController(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/"
+                }
+            },
+            harvester);
+
+        using (memo)
+        using (cache)
+        {
+            var result = await controller.Details("README.md");
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+            Assert.True(model.TrustMigrationUsesTurbo);
+        }
     }
 
     [Fact]
@@ -1474,6 +1633,88 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchIndex_ShouldLeaveDocumentUrlsUnchanged_WhenPathBaseIsEmpty()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>content</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        SetControllerHttpContext();
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var doc = JsonDocument.Parse(payload);
+
+        var firstPath = doc.RootElement
+            .GetProperty("documents")
+            .EnumerateArray()
+            .First()
+            .GetProperty("path")
+            .GetString();
+
+        Assert.Equal("/docs/guides/start", firstPath);
+    }
+
+    [Fact]
+    public async Task SearchIndex_ShouldLeaveDocumentUrlsUnchanged_WhenPathBaseIsRoot()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>content</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        SetControllerHttpContext(pathBase: "/");
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var doc = JsonDocument.Parse(payload);
+
+        var firstPath = doc.RootElement
+            .GetProperty("documents")
+            .EnumerateArray()
+            .First()
+            .GetProperty("path")
+            .GetString();
+
+        Assert.Equal("/docs/guides/start", firstPath);
+    }
+
+    [Fact]
+    public void PrefixSearchIndexPathsForPathBase_ShouldLeaveUnsupportedPayloadsAndNonRootedPathsUnchanged()
+    {
+        var unsupportedPayload = new JsonObject
+        {
+            ["metadata"] = new JsonObject
+            {
+                ["version"] = "1"
+            }
+        };
+        var unexpectedDocumentsPayload = JsonNode.Parse(
+            """
+            {
+              "documents": [
+                { "path": "guide.html", "title": "Relative" },
+                { "path": "", "title": "Blank" },
+                { "title": "Missing" },
+                { "path": "/docs/already", "title": "Rooted" }
+              ]
+            }
+            """)!.AsObject();
+
+        var unchangedUnsupported = DocsController.PrefixSearchIndexPathsForPathBase(unsupportedPayload, "/some-base");
+        var rewrittenDocuments = DocsController.PrefixSearchIndexPathsForPathBase(unexpectedDocumentsPayload, "/some-base");
+
+        Assert.Same(unsupportedPayload, unchangedUnsupported);
+        Assert.Equal("guide.html", rewrittenDocuments["documents"]![0]!["path"]!.GetValue<string>());
+        Assert.Equal(string.Empty, rewrittenDocuments["documents"]![1]!["path"]!.GetValue<string>());
+        Assert.Null(rewrittenDocuments["documents"]![2]!["path"]);
+        Assert.Equal("/some-base/docs/already", rewrittenDocuments["documents"]![3]!["path"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task SearchIndex_ShouldTruncateSnippetAtWordBoundary()
     {
         var longWordyContent = "<p>" + string.Join(" ", Enumerable.Repeat("word", 80)) + "</p>";
@@ -1629,6 +1870,61 @@ public class DocsControllerTests : IDisposable
     {
         (_memo as IDisposable)?.Dispose();
         _cache.Dispose();
+    }
+
+    private void SetControllerHttpContext(string? pathBase = null)
+    {
+        var httpContext = new DefaultHttpContext();
+        if (!string.IsNullOrWhiteSpace(pathBase))
+        {
+            httpContext.Request.PathBase = new PathString(pathBase);
+        }
+
+        _controller.ControllerContext = CreateControllerContext(httpContext);
+        _controller.Url = new UrlHelper(_controller.ControllerContext);
+    }
+
+    private static ControllerContext CreateControllerContext(HttpContext httpContext)
+    {
+        return new ControllerContext
+        {
+            HttpContext = httpContext,
+            RouteData = new RouteData(),
+            ActionDescriptor = new ControllerActionDescriptor()
+        };
+    }
+
+    private static (DocsController Controller, IMemoryCache Cache, Memo Memo) CreateController(
+        RazorDocsOptions options,
+        IDocHarvester harvester)
+    {
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var memo = new Memo(cache);
+        var environment = A.Fake<IWebHostEnvironment>();
+        var sanitizer = A.Fake<IRazorDocsHtmlSanitizer>();
+        var aggregatorLogger = A.Fake<ILogger<DocAggregator>>();
+        var controllerLogger = A.Fake<ILogger<DocsController>>();
+
+        A.CallTo(() => environment.ContentRootPath).Returns(Path.GetTempPath());
+        A.CallTo(() => sanitizer.Sanitize(A<string>._)).ReturnsLazily((string input) => input);
+
+        var aggregator = new DocAggregator(
+            [harvester],
+            options,
+            environment,
+            memo,
+            sanitizer,
+            aggregatorLogger);
+        var docsUrlBuilder = new DocsUrlBuilder(options);
+        var versionCatalogService = CreateDefaultVersionCatalogService();
+
+        var controller = new DocsController(aggregator, docsUrlBuilder, versionCatalogService, controllerLogger)
+        {
+            ControllerContext = CreateControllerContext(new DefaultHttpContext())
+        };
+        controller.Url = new UrlHelper(controller.ControllerContext);
+
+        return (controller, cache, memo);
     }
 
     private void AssertWarningLogged(string expectedMessageFragment)

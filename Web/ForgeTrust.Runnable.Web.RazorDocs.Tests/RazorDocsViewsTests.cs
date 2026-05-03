@@ -117,8 +117,11 @@ public class RazorDocsViewsTests
         Assert.Contains("const indexUrl = rawConfig.docsSearchIndexUrl || joinDocsPath(docsRootPath, 'search-index.json');", searchClient);
         Assert.Contains("const miniSearchUrl = rawConfig.miniSearchUrl || joinDocsPath(docsRootPath, 'minisearch.min.js');", searchClient);
         Assert.Contains("return root === '/' ? `/${normalizedLeaf}` : `${root}/${normalizedLeaf}`;", searchClient);
-        Assert.Contains("return docsRootPath === '/'", searchClient);
-        Assert.Contains("? path.startsWith('/')", searchClient);
+        Assert.Contains("docsByPath: new Set()", searchClient);
+        Assert.Contains("function isKnownRootMountedDocsNavigationPath(path)", searchClient);
+        Assert.Contains("return searchData.docsByPath.has(normalizedPath)", searchClient);
+        Assert.Contains("normalizeComparablePath(searchUrl?.pathname)", searchClient);
+        Assert.Contains("return isKnownRootMountedDocsNavigationPath(normalizedPath);", searchClient);
     }
 
     [Fact]
@@ -717,6 +720,61 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SidebarView_ShouldRenderPathBaseAwareLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var model = new DocSidebarViewModel
+        {
+            Sections =
+            [
+                new DocSidebarSectionViewModel
+                {
+                    Section = DocPublicSection.HowToGuides,
+                    Label = "How-to Guides",
+                    Slug = "how-to-guides",
+                    Href = "/docs/sections/how-to-guides",
+                    IsActive = true,
+                    IsExpanded = true,
+                    Groups =
+                    [
+                        new DocSectionGroupViewModel
+                        {
+                            Links =
+                            [
+                                new DocSectionLinkViewModel
+                                {
+                                    Title = "Guide",
+                                    Href = "/docs/guides/guide.md.html",
+                                    IsCurrent = true,
+                                    Children =
+                                    [
+                                        new DocSectionLinkViewModel
+                                        {
+                                            Title = "Run",
+                                            Href = "/docs/guides/guide.md.html#run",
+                                            IsCurrent = true
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Shared/Components/Sidebar/Default.cshtml",
+            model,
+            pathBase: "/some-base");
+
+        Assert.Contains("href=\"/some-base/docs/sections/how-to-guides\"", html);
+        Assert.Contains("href=\"/some-base/docs/guides/guide.md.html\"", html);
+        Assert.Contains("href=\"/some-base/docs/guides/guide.md.html#run\"", html);
+    }
+
+    [Fact]
     public void BuildGroups_ShouldSetUseAnchorNavigation_OnTopLevelSectionLinks()
     {
         var snapshot = new DocSectionSnapshot
@@ -838,6 +896,21 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task IndexView_ShouldRenderPathBaseAwareLandingLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Index",
+            c => c.Index(),
+            pathBase: "/some-base");
+
+        Assert.Contains("href=\"/some-base/docs/sections/api-reference\"", html);
+        Assert.Contains("href=\"/some-base/docs/guides/intro.md.html\"", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderSectionLandingChrome_WithFeaturedPagesAndSectionGroups()
     {
         var landingDoc = new DocNode(
@@ -893,6 +966,21 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SectionView_ShouldRenderPathBaseAwareNavigationLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Section",
+            c => c.Section("api-reference"),
+            pathBase: "/some-base");
+
+        Assert.Contains("href=\"/some-base/docs\"", html);
+        Assert.Contains("href=\"/some-base/docs/Namespaces/ForgeTrust.html\"", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderSectionLandingGroupTitles_WhenGroupsHaveTitles()
     {
         var landingDoc = new DocNode(
@@ -928,6 +1016,24 @@ public class RazorDocsViewsTests
 
         Assert.Contains(">Bar<", html);
         Assert.Contains(">Baz<", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderPathBaseAwareStructuredAndBodyLinks()
+    {
+        var doc = new DocNode(
+            "Linked Guide",
+            "guides/linked-guide.md",
+            "<p><a href=\"/docs/guides/intro.md.html\">Intro guide</a></p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "How-to Guides"
+            });
+
+        var html = await RenderDetailsViewWithPathBaseAsync(doc, "/some-base");
+
+        Assert.Contains("href=\"/some-base/docs/sections/how-to-guides\"", html);
+        Assert.Contains("href=\"/some-base/docs/guides/intro.md.html\"", html);
     }
 
     [Fact]
@@ -1678,7 +1784,7 @@ public class RazorDocsViewsTests
                 SuggestedQueries: ["getting started"],
                 FailureFallbackLinks:
                 [
-                    new SearchPageFallbackLink("Open preview guide", "/docs/next/guides/quickstart", "Stay in preview."),
+                    new SearchPageFallbackLink("Open preview guide", "/docs/next/guides/quickstart", "Stay in preview.", UsesDocsFrame: true),
                     new SearchPageFallbackLink("Open exact release", "/docs/v/1.2.3/guides/quickstart", "Leave the live preview surface.")
                 ]));
 
@@ -1713,7 +1819,7 @@ public class RazorDocsViewsTests
                 SuggestedQueries: ["getting started"],
                 FailureFallbackLinks:
                 [
-                    new SearchPageFallbackLink("Open preview guide", "/docs/next/guides/quickstart", "Stay in preview."),
+                    new SearchPageFallbackLink("Open preview guide", "/docs/next/guides/quickstart", "Stay in preview.", UsesDocsFrame: true),
                     new SearchPageFallbackLink("Open exact release", "/docs/v/1.2.3/guides/quickstart", "Leave the live preview surface.")
                 ]),
             pathBase: "/some-base");
@@ -2297,6 +2403,17 @@ public class RazorDocsViewsTests
             services,
             "Details",
             controller => controller.Details(doc.Path));
+    }
+
+    private static async Task<string> RenderDetailsViewWithPathBaseAsync(DocNode doc, string pathBase, params DocNode[] additionalDocs)
+    {
+        using var services = CreateServiceProvider(CreateDocsWithOverrides([doc, .. additionalDocs]));
+
+        return await RenderDocsViewAsync(
+            services,
+            "Details",
+            controller => controller.Details(doc.Path),
+            pathBase: pathBase);
     }
 
     private static object AdaptViewModel(string viewName, object model, ViewDataDictionary viewData)

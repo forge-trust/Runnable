@@ -939,6 +939,16 @@ public sealed record DocDetailsViewModel
     public string? PublicSectionPurpose { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the trust-bar migration link should stay inside the docs content frame.
+    /// </summary>
+    /// <remarks>
+    /// This is resolved from the harvested docs corpus rather than inferred from the raw href alone so root-mounted
+    /// docs surfaces can still treat canonical plain <c>.html</c> docs routes as docs-local without misclassifying
+    /// unrelated site pages.
+    /// </remarks>
+    public bool TrustMigrationUsesTurbo { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the current document is a section landing doc.
     /// </summary>
     public bool IsSectionLanding { get; init; }

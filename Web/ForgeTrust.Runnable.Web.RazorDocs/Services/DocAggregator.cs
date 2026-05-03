@@ -1,4 +1,6 @@
 using System.Net;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
@@ -44,7 +46,7 @@ public class DocAggregator
         Dictionary<string, DocNode> DocsByPath,
         Dictionary<string, DocLookupBucket> Lookup,
         IReadOnlyList<DocSectionSnapshot> PublicSections,
-        object SearchIndexPayload);
+        JsonObject SearchIndexPayload);
 
     private sealed class DocLookupBucket
     {
@@ -211,8 +213,8 @@ public class DocAggregator
     /// Returns the docs search-index payload generated during docs aggregation.
     /// </summary>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
-    /// <returns>A JSON-serializable payload containing index metadata and documents.</returns>
-    public async Task<object> GetSearchIndexPayloadAsync(CancellationToken cancellationToken = default)
+    /// <returns>A JSON object containing index metadata and documents.</returns>
+    public async Task<JsonObject> GetSearchIndexPayloadAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
         return snapshot.SearchIndexPayload;
@@ -504,7 +506,7 @@ public class DocAggregator
     /// <param name="docs">The documentation nodes to index.</param>
     /// <param name="publicSections">The resolved public sections used to derive landing winners.</param>
     /// <returns>A tuple containing the serializable payload and the number of records indexed.</returns>
-    private (object Payload, int RecordCount) BuildSearchIndexPayload(
+    private (JsonObject Payload, int RecordCount) BuildSearchIndexPayload(
         IEnumerable<DocNode> docs,
         IReadOnlyList<DocSectionSnapshot> publicSections)
     {
@@ -569,16 +571,22 @@ public class DocAggregator
             .OrderBy(r => r.path, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var payload = (object)new
-        {
-            metadata = new
+        var payload = JsonSerializer.SerializeToNode(
+            new
             {
-                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
-                version = "1",
-                engine = "minisearch"
-            },
-            documents = records
-        };
+                metadata = new
+                {
+                    generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+                    version = "1",
+                    engine = "minisearch"
+                },
+                documents = records
+            }) as JsonObject;
+
+        if (payload is null)
+        {
+            throw new InvalidOperationException("Failed to materialize the docs search-index payload as a JSON object.");
+        }
 
         return (payload, records.Count);
     }

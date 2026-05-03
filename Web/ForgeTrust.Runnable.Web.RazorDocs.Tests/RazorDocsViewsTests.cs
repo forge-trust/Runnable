@@ -109,6 +109,19 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public void SearchClient_ShouldHandleRootMountedDocsSurface()
+    {
+        var searchClient = ReadSearchClientMarkup();
+
+        Assert.Contains("const docsSearchUrl = rawConfig.docsSearchUrl || joinDocsPath(docsRootPath, 'search');", searchClient);
+        Assert.Contains("const indexUrl = rawConfig.docsSearchIndexUrl || joinDocsPath(docsRootPath, 'search-index.json');", searchClient);
+        Assert.Contains("const miniSearchUrl = rawConfig.miniSearchUrl || joinDocsPath(docsRootPath, 'minisearch.min.js');", searchClient);
+        Assert.Contains("return root === '/' ? `/${normalizedLeaf}` : `${root}/${normalizedLeaf}`;", searchClient);
+        Assert.Contains("return docsRootPath === '/'", searchClient);
+        Assert.Contains("? path.startsWith('/')", searchClient);
+    }
+
+    [Fact]
     public void Layout_ShouldKeepSidebarVisibleByDefault_ForNoScriptFallback()
     {
         var layout = ReadLayoutMarkup();
@@ -1678,6 +1691,42 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SearchView_ShouldRenderPathBaseAwareFallbackLinks()
+    {
+        using var services = CreateServiceProvider(
+            CreateDocs(),
+            new Dictionary<string, string?>
+            {
+                ["RazorDocs:Routing:DocsRootPath"] = "/docs/next",
+                ["RazorDocs:Versioning:Enabled"] = "true",
+                ["RazorDocs:Versioning:CatalogPath"] = "catalog.json"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Search.cshtml",
+            new SearchPageViewModel(
+                Title: "Search Documentation",
+                Orientation: "Search across the docs set.",
+                StarterHint: "Try a starter query.",
+                SearchPlaceholder: "Search docs",
+                SuggestedQueries: ["getting started"],
+                FailureFallbackLinks:
+                [
+                    new SearchPageFallbackLink("Open preview guide", "/docs/next/guides/quickstart", "Stay in preview."),
+                    new SearchPageFallbackLink("Open exact release", "/docs/v/1.2.3/guides/quickstart", "Leave the live preview surface.")
+                ]),
+            pathBase: "/some-base");
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var previewLink = document.QuerySelector("a[href='/some-base/docs/next/guides/quickstart']");
+        var exactVersionLink = document.QuerySelector("a[href='/some-base/docs/v/1.2.3/guides/quickstart']");
+
+        Assert.Equal("doc-content", previewLink?.GetAttribute("data-turbo-frame"));
+        Assert.Equal("_top", exactVersionLink?.GetAttribute("data-turbo-frame"));
+    }
+
+    [Fact]
     public async Task VersionsView_ShouldUseTopLevelNavigation_ForCrossSurfaceLinks()
     {
         using var services = CreateServiceProvider(
@@ -1719,6 +1768,47 @@ public class RazorDocsViewsTests
 
         Assert.Equal("_top", previewLink.GetAttribute("data-turbo-frame"));
         Assert.Equal("_top", exactVersionLink.GetAttribute("data-turbo-frame"));
+    }
+
+    [Fact]
+    public async Task VersionsView_ShouldRenderPathBaseAwareArchiveLinks()
+    {
+        using var services = CreateServiceProvider(
+            CreateDocs(),
+            new Dictionary<string, string?>
+            {
+                ["RazorDocs:Routing:DocsRootPath"] = "/docs/next",
+                ["RazorDocs:Versioning:Enabled"] = "true",
+                ["RazorDocs:Versioning:CatalogPath"] = "catalog.json"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Versions.cshtml",
+            new RazorDocsVersionArchiveViewModel
+            {
+                Heading = "Documentation versions",
+                Description = "Choose the exact release you want to read, or keep using the preview surface.",
+                PreviewHref = "/docs/next",
+                VersionsHref = "/docs/versions",
+                Versions =
+                [
+                    new RazorDocsVersionArchiveEntryViewModel
+                    {
+                        Version = "1.2.3",
+                        Label = "1.2.3",
+                        Href = "/docs/v/1.2.3",
+                        IsAvailable = true,
+                        SupportStateLabel = "Current"
+                    }
+                ]
+            },
+            pathBase: "/some-base");
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        Assert.NotNull(document.QuerySelector("a[href='/some-base/docs/next']"));
+        Assert.NotNull(document.QuerySelector("a[href='/some-base/docs/versions']"));
+        Assert.NotNull(document.QuerySelector("a[href='/some-base/docs/v/1.2.3']"));
     }
 
     [Fact]
@@ -2156,7 +2246,8 @@ public class RazorDocsViewsTests
         ServiceProvider services,
         string viewName,
         object model,
-        Action<ViewDataDictionary>? configureViewData = null)
+        Action<ViewDataDictionary>? configureViewData = null,
+        string? pathBase = null)
     {
         using var scope = services.CreateScope();
         var scopedServices = scope.ServiceProvider;
@@ -2165,6 +2256,11 @@ public class RazorDocsViewsTests
         {
             RequestServices = scopedServices
         };
+        if (!string.IsNullOrWhiteSpace(pathBase))
+        {
+            httpContext.Request.PathBase = new PathString(pathBase);
+        }
+
         httpContext.Response.Body = new MemoryStream();
 
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())

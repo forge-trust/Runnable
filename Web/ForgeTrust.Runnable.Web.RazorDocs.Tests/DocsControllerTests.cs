@@ -1445,6 +1445,35 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task SearchIndex_ShouldPrefixRequestPathBaseInDocumentUrls()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Getting Started", "guides/start", "<p>content</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
+        _controller.ControllerContext.HttpContext.Request.PathBase = new PathString("/some-base");
+
+        var result = Assert.IsType<JsonResult>(await _controller.SearchIndex());
+        var payload = JsonSerializer.Serialize(result.Value);
+        using var doc = JsonDocument.Parse(payload);
+
+        var firstPath = doc.RootElement
+            .GetProperty("documents")
+            .EnumerateArray()
+            .First()
+            .GetProperty("path")
+            .GetString();
+
+        Assert.Equal("/some-base/docs/guides/start", firstPath);
+    }
+
+    [Fact]
     public async Task SearchIndex_ShouldTruncateSnippetAtWordBoundary()
     {
         var longWordyContent = "<p>" + string.Join(" ", Enumerable.Repeat("word", 80)) + "</p>";

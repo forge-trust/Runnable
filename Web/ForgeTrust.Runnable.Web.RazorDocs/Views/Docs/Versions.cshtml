@@ -1,6 +1,17 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.RazorDocsVersionArchiveViewModel
 @{
     ViewData["Title"] = "Documentation versions";
+    string PathBaseAware(string? href)
+    {
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return string.Empty;
+        }
+
+        return href.StartsWith("/", StringComparison.Ordinal)
+            ? Url.Content("~" + href)
+            : href;
+    }
 }
 
 <div class="grid gap-8">
@@ -15,12 +26,12 @@
             </div>
         }
         <div class="flex flex-wrap gap-3">
-            <a href="@Model.PreviewHref"
+            <a href="@PathBaseAware(Model.PreviewHref)"
                data-turbo-frame="_top"
                class="inline-flex items-center gap-2 rounded-full border border-cyan-400/45 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 no-underline transition-colors hover:border-cyan-300 hover:bg-cyan-500/15">
                 Open preview docs
             </a>
-            <a href="@Model.VersionsHref"
+            <a href="@PathBaseAware(Model.VersionsHref)"
                class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-100 no-underline transition-colors hover:border-slate-500 hover:text-white">
                 Refresh archive
             </a>
@@ -66,7 +77,7 @@
                     @if (version.IsAvailable && !string.IsNullOrWhiteSpace(version.Href))
                     {
                         <div>
-                            <a href="@version.Href"
+                            <a href="@PathBaseAware(version.Href)"
                                data-turbo-frame="_top"
                                class="inline-flex items-center gap-2 rounded-full border border-cyan-400/45 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 no-underline transition-colors hover:border-cyan-300 hover:bg-cyan-500/15">
                                 Open @version.Version

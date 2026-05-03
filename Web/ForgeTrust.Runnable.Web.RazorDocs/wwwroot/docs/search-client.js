@@ -1,9 +1,9 @@
 (() => {
   const rawConfig = window.__razorDocsConfig || {};
   const docsRootPath = normalizeDocsRootPath(rawConfig.docsRootPath || '/docs');
-  const docsSearchUrl = rawConfig.docsSearchUrl || `${docsRootPath}/search`;
-  const indexUrl = rawConfig.docsSearchIndexUrl || `${docsRootPath}/search-index.json`;
-  const miniSearchUrl = rawConfig.miniSearchUrl || `${docsRootPath}/minisearch.min.js`;
+  const docsSearchUrl = rawConfig.docsSearchUrl || joinDocsPath(docsRootPath, 'search');
+  const indexUrl = rawConfig.docsSearchIndexUrl || joinDocsPath(docsRootPath, 'search-index.json');
+  const miniSearchUrl = rawConfig.miniSearchUrl || joinDocsPath(docsRootPath, 'minisearch.min.js');
   const maxQueryLength = 500;
   const topResults = 8;
   const fetchTimeoutMs = 10000;
@@ -83,6 +83,11 @@
     return prefixed !== '/' && prefixed.endsWith('/') ? prefixed.slice(0, -1) : prefixed;
   }
 
+  function joinDocsPath(root, leaf) {
+    const normalizedLeaf = String(leaf || '').replace(/^\/+/, '');
+    return root === '/' ? `/${normalizedLeaf}` : `${root}/${normalizedLeaf}`;
+  }
+
   function getSidebarSearchElements() {
     return {
       input: document.getElementById('docs-search-input'),
@@ -129,7 +134,9 @@
   }
 
   function isDocsPath(path) {
-    return path === docsRootPath || path.startsWith(`${docsRootPath}/`);
+    return docsRootPath === '/'
+      ? path.startsWith('/')
+      : path === docsRootPath || path.startsWith(`${docsRootPath}/`);
   }
 
   function getHeader(headers, name) {

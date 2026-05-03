@@ -57,7 +57,13 @@ public sealed class RazorDocsVersionCatalogService
     /// <summary>
     /// Returns the resolved version catalog for the current host.
     /// </summary>
-    /// <returns>The resolved catalog including availability information for each published version.</returns>
+    /// <returns>
+    /// The resolved catalog including availability information for each published version. Returns
+    /// <see cref="RazorDocsResolvedVersionCatalog.Disabled" /> when versioning is off for this host,
+    /// <see cref="RazorDocsResolvedVersionCatalog.EnabledWithoutCatalog" /> when versioning is on but no catalog path
+    /// was configured, and <see cref="RazorDocsResolvedVersionCatalog.CreateUnavailable(string?)" /> semantics when a
+    /// configured catalog could not be loaded into a usable published-release set.
+    /// </returns>
     public RazorDocsResolvedVersionCatalog GetCatalog()
     {
         return _catalog.Value;
@@ -311,27 +317,59 @@ public sealed class RazorDocsVersionCatalogService
 /// <summary>
 /// Represents the resolved version catalog used by the current host.
 /// </summary>
-/// <param name="CatalogPath">The absolute catalog path when a catalog was configured and resolved.</param>
-/// <param name="Versions">The resolved catalog entries.</param>
-/// <param name="RecommendedVersion">The resolved recommended version when one is available.</param>
+/// <param name="CatalogPath">
+/// The absolute catalog path when a catalog was configured and resolved. This stays <see langword="null" /> for the
+/// <see cref="Disabled" /> and <see cref="EnabledWithoutCatalog" /> sentinels.
+/// </param>
+/// <param name="Versions">
+/// The resolved catalog entries in authored catalog order. Entries stay present even when a published tree is
+/// unavailable so archive, diagnostics, and fallback experiences can explain the broken release instead of silently
+/// hiding it.
+/// </param>
+/// <param name="RecommendedVersion">
+/// The resolved recommended version when one is public and available. This can be <see langword="null" /> when
+/// versioning is disabled, no recommendation was configured, the configured identifier did not resolve, or the matching
+/// release was hidden or unavailable after validation.
+/// </param>
+/// <remarks>
+/// <para>
+/// <see cref="Disabled" /> means the host is running with versioning off, so callers should treat the live docs
+/// surface as the only public experience and skip published-release archive UI entirely.
+/// </para>
+/// <para>
+/// <see cref="EnabledWithoutCatalog" /> means versioning was turned on but no catalog path was configured, so callers
+/// can still expose the live preview surface but should not expect any published releases to resolve.
+/// </para>
+/// <para>
+/// <see cref="PublicVersions" /> preserves the ordering from <see cref="Versions" /> after filtering by
+/// <see cref="RazorDocsVersionVisibility.Public" /> only. Public-but-unavailable releases remain in that list so the
+/// archive can surface their degraded status instead of pretending they do not exist.
+/// </para>
+/// </remarks>
 public sealed record RazorDocsResolvedVersionCatalog(
     string? CatalogPath,
     IReadOnlyList<RazorDocsResolvedVersion> Versions,
     RazorDocsResolvedVersion? RecommendedVersion)
 {
     /// <summary>
-    /// Gets a disabled catalog result.
+    /// Gets the sentinel catalog result for hosts where versioning is disabled entirely.
     /// </summary>
     public static RazorDocsResolvedVersionCatalog Disabled { get; } = new(null, [], null);
 
     /// <summary>
-    /// Gets an enabled-but-empty catalog result.
+    /// Gets the sentinel catalog result for hosts where versioning is enabled but no catalog path was configured.
     /// </summary>
     public static RazorDocsResolvedVersionCatalog EnabledWithoutCatalog { get; } = new(null, [], null);
 
     /// <summary>
     /// Gets the public versions that should appear in the archive.
     /// </summary>
+    /// <remarks>
+    /// This list preserves the authored order from <see cref="Versions" /> after filtering only by
+    /// <see cref="RazorDocsVersionVisibility.Public" />. Versions stay in the list even when
+    /// <see cref="RazorDocsResolvedVersion.IsAvailable" /> is <see langword="false" /> so archive consumers can show
+    /// degraded-release messaging instead of silently dropping known public releases.
+    /// </remarks>
     public IReadOnlyList<RazorDocsResolvedVersion> PublicVersions => Versions
         .Where(version => version.Visibility == RazorDocsVersionVisibility.Public)
         .ToList();

@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
@@ -280,8 +282,9 @@ public class DocsController : Controller
         Response.Headers.CacheControl = $"private,max-age={(int)SearchIndexCacheDuration.TotalSeconds}";
 
         var payload = await _aggregator.GetSearchIndexPayloadAsync(HttpContext.RequestAborted);
+        var pathBaseAwarePayload = PrefixSearchIndexPathsForPathBase(payload, Request.PathBase.Value);
 
-        return Json(payload);
+        return Json(pathBaseAwarePayload);
     }
 
     /// <summary>
@@ -308,6 +311,38 @@ public class DocsController : Controller
     internal bool CanRefreshCache()
     {
         return User?.Identity?.IsAuthenticated == true;
+    }
+
+    internal static object PrefixSearchIndexPathsForPathBase(object payload, string? requestPathBase)
+    {
+        if (string.IsNullOrWhiteSpace(requestPathBase)
+            || string.Equals(requestPathBase, "/", StringComparison.Ordinal))
+        {
+            return payload;
+        }
+
+        var normalizedPathBase = requestPathBase.TrimEnd('/');
+        var root = JsonSerializer.SerializeToNode(payload) as JsonObject;
+        if (root is null || root["documents"] is not JsonArray documents)
+        {
+            return payload;
+        }
+
+        foreach (var document in documents)
+        {
+            if (document is not JsonObject docObject
+                || docObject["path"] is not JsonValue pathValue
+                || !pathValue.TryGetValue<string>(out var path)
+                || string.IsNullOrWhiteSpace(path)
+                || !path.StartsWith("/", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            docObject["path"] = normalizedPathBase + path;
+        }
+
+        return root;
     }
 
     private DocLandingViewModel BuildLandingViewModel(

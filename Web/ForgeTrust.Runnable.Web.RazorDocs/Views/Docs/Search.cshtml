@@ -2,6 +2,17 @@
 @inject ForgeTrust.Runnable.Web.RazorDocs.Services.DocsUrlBuilder DocsUrlBuilder
 @{
     const string FailureLinkClass = "grid gap-1 rounded-[0.85rem] border border-slate-800 bg-slate-900/55 px-[0.95rem] py-[0.85rem] no-underline transition-colors hover:border-cyan-400/35 hover:bg-cyan-950/20";
+    string PathBaseAware(string href)
+    {
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return string.Empty;
+        }
+
+        return href.StartsWith("/", StringComparison.Ordinal)
+            ? Url.Content("~" + href)
+            : href;
+    }
 }
 
 <div id="docs-search-page" class="docs-search-page">
@@ -81,10 +92,11 @@
             {
                 var usesDocsFrame = DocsUrlBuilder.IsCurrentDocsPath(link.Href)
                                     && !string.Equals(link.Href, DocsUrlBuilder.BuildHomeUrl(), StringComparison.OrdinalIgnoreCase);
+                var resolvedHref = PathBaseAware(link.Href);
                 if (usesDocsFrame)
                 {
                     <a class="@FailureLinkClass"
-                       href="@link.Href"
+                       href="@resolvedHref"
                        data-turbo-frame="doc-content"
                        data-turbo-action="advance">
                         <span class="text-[0.95rem] font-semibold text-cyan-300">@link.Title</span>
@@ -94,7 +106,7 @@
                 else
                 {
                     <a class="@FailureLinkClass"
-                       href="@link.Href"
+                       href="@resolvedHref"
                        data-turbo-frame="_top">
                         <span class="text-[0.95rem] font-semibold text-cyan-300">@link.Title</span>
                         <span class="text-[0.82rem] leading-[1.45] text-slate-400">@link.Description</span>

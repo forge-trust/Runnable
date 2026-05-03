@@ -116,6 +116,101 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void Extract_ShouldIgnoreNullFeaturedPageGroupEntries()
+    {
+        var markdown = """
+            ---
+            featured_page_groups:
+              - null
+              - label: Start here
+                pages:
+                  - path: guides/intro.md
+            ---
+            # Hello
+            """;
+
+        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        var group = Assert.Single(metadata!.FeaturedPageGroups!);
+        Assert.Equal("Start here", group.Label);
+        Assert.Equal("guides/intro.md", Assert.Single(group.Pages).Path);
+    }
+
+    [Fact]
+    public void Extract_ShouldIgnoreFeaturedPageGroupsWithEmptyPages()
+    {
+        var markdown = """
+            ---
+            featured_page_groups:
+              - label: Empty group
+                pages: []
+            ---
+            # Hello
+            """;
+
+        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Empty(metadata!.FeaturedPageGroups!);
+    }
+
+    [Fact]
+    public void Extract_ShouldIgnoreFeaturedPageGroupsWhenAllPagesAreNull()
+    {
+        var markdown = """
+            ---
+            featured_page_groups:
+              - label: Empty group
+                pages:
+                  - null
+            ---
+            # Hello
+            """;
+
+        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Empty(metadata!.FeaturedPageGroups!);
+    }
+
+    [Theory]
+    [InlineData("!!!", "featured", "!!!")]
+    [InlineData("---", "featured", "---")]
+    [InlineData("x", "x", "X")]
+    [InlineData("agent_workflows", "agent-workflows", "Agent Workflows")]
+    public void Extract_ShouldDeriveStableIntentAndLabel_WhenOnlyOneGroupIdentityIsAuthored(
+        string authoredValue,
+        string expectedIntent,
+        string expectedLabel)
+    {
+        var markdown = $$"""
+            ---
+            featured_page_groups:
+              - label: "{{authoredValue}}"
+                pages:
+                  - path: guides/intro.md
+              - intent: "{{authoredValue}}"
+                pages:
+                  - path: guides/reference.md
+            ---
+            # Hello
+            """;
+
+        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Collection(
+            metadata!.FeaturedPageGroups!,
+            labelOnly =>
+            {
+                Assert.Equal(expectedIntent, labelOnly.Intent);
+                Assert.Equal(authoredValue, labelOnly.Label);
+            },
+            intentOnly =>
+            {
+                Assert.Equal(authoredValue, intentOnly.Intent);
+                Assert.Equal(expectedLabel, intentOnly.Label);
+            });
+    }
+
+    [Fact]
     public void ExtractWithDiagnostics_ShouldIgnoreStaleFeaturedPages_AndWarn()
     {
         var markdown = """

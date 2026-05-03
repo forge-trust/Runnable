@@ -240,6 +240,58 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Index_ShouldUseFeaturedQuestionAsSecondaryEyebrow_WhenGroupLabelIsBlank()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Home", "README.md", "<p>Home</p>"),
+            new(
+                "Concept Landing",
+                "concepts/README.md",
+                "<p>Concepts</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts",
+                    SectionLanding = true,
+                    FeaturedPageGroups =
+                    [
+                        new DocFeaturedPageGroupDefinition
+                        {
+                            Label = " ",
+                            Pages =
+                            [
+                                new DocFeaturedPageDefinition
+                                {
+                                    Question = "Need the model?",
+                                    Path = "concepts/model.md",
+                                    SupportingCopy = "Read the model first."
+                                }
+                            ]
+                        }
+                    ]
+                }),
+            new(
+                "Model",
+                "concepts/model.md",
+                "<p>Model</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Concepts"
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        var concepts = Assert.Single(model.SecondarySections, section => section.Section == DocPublicSection.Concepts);
+        var keyRoute = Assert.Single(concepts.KeyRoutes);
+        Assert.Equal("Need the model?", keyRoute.Eyebrow);
+        Assert.Equal("Read the model first.", keyRoute.Summary);
+    }
+
+    [Fact]
     public async Task Index_ShouldNotUseRootReadmeAsFallbackFeaturedPage()
     {
         var docs = new List<DocNode>

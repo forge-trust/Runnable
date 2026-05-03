@@ -397,6 +397,47 @@ public class MarkdownHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldLogMetadataDiagnostics_FromInlineFrontMatter()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "Guide.md"),
+            """
+            ---
+            featured_page_groups:
+              - label: Start here
+            ---
+            # Guide
+            """);
+
+        var doc = Assert.Single(await _harvester.HarvestAsync(_testRoot));
+
+        Assert.Equal("Guide", doc.Title);
+        AssertWarningLogged("missing-featured-group-pages");
+        AssertWarningLogged("Groups without pages cannot resolve any landing rows.");
+        AssertWarningLogged("Add pages with at least one path, or remove the empty group.");
+    }
+
+    [Fact]
+    public async Task ReadMetadataSidecarAsync_ShouldLogMetadataDiagnostics_FromSidecar()
+    {
+        var markdownPath = Path.Combine(_testRoot, "Guide.md");
+        await File.WriteAllTextAsync(markdownPath, "# Guide");
+        await File.WriteAllTextAsync(
+            markdownPath + ".yml",
+            """
+            featured_pages:
+              - path: old.md
+            """);
+
+        var metadata = await _harvester.ReadMetadataSidecarAsync(markdownPath, "Guide.md", CancellationToken.None);
+
+        Assert.NotNull(metadata);
+        AssertWarningLogged("stale-featured-pages");
+        AssertWarningLogged("The flat featured_pages field is no longer rendered.");
+        AssertWarningLogged("Move each entry under featured_page_groups[].pages");
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldIgnoreUnreadableMetadataSidecar_AndLogWarning()
     {
         await File.WriteAllTextAsync(Path.Combine(_testRoot, "Guide.md"), "# Guide");
@@ -571,6 +612,20 @@ public class MarkdownHarvesterTests : IDisposable
             """);
 
         Assert.Equal("This is the first paragraph.", summary);
+    }
+
+    [Theory]
+    [InlineData("A plain paragraph.", "A plain paragraph.")]
+    [InlineData("1", "1")]
+    [InlineData("1.", "1.")]
+    [InlineData("1) Not a dotted list.", "1) Not a dotted list.")]
+    public void ExtractSummary_ShouldKeepTextThatOnlyLooksAlmostLikeNumberedLists(
+        string markdown,
+        string expectedSummary)
+    {
+        var summary = MarkdownHarvester.ExtractSummary(markdown);
+
+        Assert.Equal(expectedSummary, summary);
     }
 
     [Fact]

@@ -814,13 +814,21 @@ public class RazorDocsViewsTests
                 Summary = "Landing summary.",
                 FeaturedPageGroups =
                 [
-                    FeaturedGroup(
-                        new DocFeaturedPageDefinition
+                    new DocFeaturedPageGroupDefinition
                     {
-                        Question = "Go deeper",
-                        Path = "concepts/deep-dive.md",
-                        SupportingCopy = "Follow the next route."
-                    })
+                        Intent = "test",
+                        Label = "Test",
+                        Summary = "Choose this path when you need section context.",
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Go deeper",
+                                Path = "concepts/deep-dive.md",
+                                SupportingCopy = "Follow the next route."
+                            }
+                        ]
+                    }
                 ]
             });
         var deepDive = new DocNode(
@@ -849,6 +857,7 @@ public class RazorDocsViewsTests
         Assert.Contains("Use this section as the entry point.", html);
         Assert.Contains("href=\"/docs/sections/concepts\"", html);
         Assert.Contains("Next steps", html);
+        Assert.Contains("Choose this path when you need section context.", html);
         Assert.Contains("Go deeper", html);
         Assert.Contains("Follow the next route.", html);
         Assert.Contains("In this section", html);

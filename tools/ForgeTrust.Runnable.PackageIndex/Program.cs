@@ -9,9 +9,22 @@ internal static class Program
     private const string VerifyCommand = "verify";
 
     private static readonly string Usage = """
+        ForgeTrust.Runnable.PackageIndex
+
+        Generates and verifies the public Runnable package chooser.
+
         Usage:
-          dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- generate [--repo-root <path>] [--manifest <path>] [--output <path>]
-          dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- verify [--repo-root <path>] [--manifest <path>] [--output <path>]
+          dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- <command> [options]
+
+        Commands:
+          generate    Rewrite packages/README.md from packages/package-index.yml and project metadata.
+          verify      Check that packages/README.md is already up to date.
+
+        Options:
+          --repo-root <path>    Repository root. Defaults to the current directory.
+          --manifest <path>     Package manifest path. Defaults to packages/package-index.yml.
+          --output <path>       Generated chooser path. Defaults to packages/README.md.
+          -h, --help            Show this help.
         """;
 
     /// <summary>
@@ -51,9 +64,21 @@ internal static class Program
             return 1;
         }
 
+        if (IsHelp(args[0]))
+        {
+            await standardOut.WriteLineAsync(Usage);
+            return 0;
+        }
+
         try
         {
             var command = args[0].Trim();
+            if (args.Skip(1).Any(IsHelp))
+            {
+                await standardOut.WriteLineAsync(Usage);
+                return 0;
+            }
+
             var options = CommandLineOptions.Parse(args.Skip(1).ToArray(), currentDirectory);
             var generator = new PackageIndexGenerator(
                 new PackageProjectScanner(),
@@ -79,6 +104,7 @@ internal static class Program
                     }
 
                 default:
+                    await standardError.WriteLineAsync($"Unknown command '{command}'.");
                     await standardError.WriteLineAsync(Usage);
                     return 1;
             }
@@ -88,6 +114,12 @@ internal static class Program
             await standardError.WriteLineAsync(ex.Message);
             return 1;
         }
+    }
+
+    private static bool IsHelp(string argument)
+    {
+        return string.Equals(argument, "--help", StringComparison.Ordinal)
+            || string.Equals(argument, "-h", StringComparison.Ordinal);
     }
 }
 

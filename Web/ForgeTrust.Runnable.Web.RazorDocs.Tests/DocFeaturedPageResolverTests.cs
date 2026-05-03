@@ -16,6 +16,12 @@ public sealed class DocFeaturedPageResolverTests
     }
 
     [Fact]
+    public void Constructor_ShouldThrow_WhenLoggerIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DocFeaturedPageResolver(null!));
+    }
+
+    [Fact]
     public void ResolveGroups_ShouldOrderGroupsAndPages_ByOrderThenAuthoredPosition()
     {
         var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
@@ -87,5 +93,101 @@ public sealed class DocFeaturedPageResolverTests
                 Assert.Equal("Later", second.Label);
                 Assert.Equal(["First page", "Second page"], second.Pages.Select(page => page.Question).ToArray());
             });
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldFallbackGroupFields_WhenMetadataBypassesParserNormalization()
+    {
+        var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+        var landing = new DocNode(
+            "Home",
+            "README.md",
+            "<p>Home</p>",
+            CanonicalPath: "index.html",
+            Metadata: new DocMetadata
+            {
+                FeaturedPageGroups =
+                [
+                    new DocFeaturedPageGroupDefinition
+                    {
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/intro.md"
+                            }
+                        ]
+                    },
+                    new DocFeaturedPageGroupDefinition
+                    {
+                        Intent = "manual-intent",
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/reference.md"
+                            }
+                        ]
+                    }
+                ]
+            });
+        var docs = new[]
+        {
+            landing,
+            new DocNode("Intro", "guides/intro.md", "<p>Intro</p>", CanonicalPath: "guides/intro.md.html"),
+            new DocNode("Reference", "guides/reference.md", "<p>Reference</p>", CanonicalPath: "guides/reference.md.html")
+        };
+
+        var groups = resolver.ResolveGroups(landing, docs);
+
+        Assert.Collection(
+            groups,
+            first =>
+            {
+                Assert.Equal(string.Empty, first.Intent);
+                Assert.Equal("Featured", first.Label);
+            },
+            second =>
+            {
+                Assert.Equal("manual-intent", second.Intent);
+                Assert.Equal("manual-intent", second.Label);
+            });
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldThrow_WhenDestinationIsMissingCanonicalPath()
+    {
+        var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+        var landing = new DocNode(
+            "Home",
+            "README.md",
+            "<p>Home</p>",
+            CanonicalPath: "index.html",
+            Metadata: new DocMetadata
+            {
+                FeaturedPageGroups =
+                [
+                    new DocFeaturedPageGroupDefinition
+                    {
+                        Label = "Start",
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/intro.md"
+                            }
+                        ]
+                    }
+                ]
+            });
+        var docs = new[]
+        {
+            landing,
+            new DocNode("Intro", "guides/intro.md", "<p>Intro</p>")
+        };
+
+        var error = Assert.Throws<InvalidOperationException>(() => resolver.ResolveGroups(landing, docs));
+
+        Assert.Contains("missing CanonicalPath", error.Message, StringComparison.Ordinal);
     }
 }

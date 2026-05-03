@@ -107,6 +107,26 @@ public sealed class ConventionalNotFoundPageTests
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("Runnable default 404", html);
         Assert.Contains("/missing-framework-route", html);
+        Assert.Contains("The route may have moved", html);
+    }
+
+    [Fact]
+    public async Task HtmlRequests_ToMissingDocsRoutes_IncludeDocsSearchRecovery()
+    {
+        await using var runningApp = await StartHostAsync(
+            new PlainWebModule(),
+            options => { options.Mvc = options.Mvc with { MvcSupportLevel = MvcSupport.ControllersWithViews }; },
+            typeof(WebApplication).Assembly);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/docs/missing-page");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+
+        using var response = await runningApp.Client.SendAsync(request);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("Search documentation", html);
+        Assert.Contains("/docs/search", html);
     }
 
     [Fact]

@@ -70,7 +70,35 @@ approach.
 
 ## Getting started
 
-Clone the repository and build the solution:
+If you want to see value first, run the web hello world:
+
+```bash
+dotnet run --project examples/web-app -- --port 5055
+```
+
+Then, from another terminal, prove the running endpoint:
+
+```bash
+curl http://127.0.0.1:5055
+```
+
+Expected response:
+
+```text
+Hello World from the root!
+```
+
+That example is the smallest concrete path through `ForgeTrust.Runnable.Web`: a root module, one mapped endpoint, and the Runnable startup pipeline doing the hosting work.
+
+If you are evaluating packages from your own app project rather than running this repo, start with the generated package chooser:
+
+```bash
+dotnet package add ForgeTrust.Runnable.Web --project <path-to-your-app.csproj>
+```
+
+Then read [packages/README.md](./packages/README.md) for the package matrix and add optional modules only when your app needs them.
+
+For contributor verification, build the solution:
 
 ```bash
 dotnet build

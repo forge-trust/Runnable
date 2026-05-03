@@ -5,6 +5,7 @@
     var missingPath = string.IsNullOrWhiteSpace(Model.OriginalPath)
         ? "the requested page"
         : Model.OriginalPath;
+    var isDocsPath = missingPath.StartsWith("/docs", StringComparison.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -46,10 +47,28 @@
             line-height: 1.6;
         }
 
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin: 1.25rem 0;
+        }
+
         a.recovery-link {
-            color: #1d4ed8;
-            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            min-height: 2.5rem;
+            padding: 0 1rem;
+            border-radius: 999px;
+            background: #1d4ed8;
+            color: #fff;
+            font-weight: 700;
             text-decoration: none;
+        }
+
+        a.recovery-link.secondary {
+            background: #e2e8f0;
+            color: #1d4ed8;
         }
 
         a.recovery-link:hover,
@@ -63,15 +82,29 @@
             background: #e2e8f0;
             font-size: 0.95rem;
         }
+
+        .developer-note {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #cbd5e1;
+            color: #475569;
+            font-size: 0.95rem;
+        }
     </style>
 </head>
 <body>
 <main>
     <p>Runnable default 404</p>
     <h1>Page not found</h1>
-    <p>We couldn't find <code>@missingPath</code>.</p>
-    <p><a class="recovery-link" href="/">Return to home</a></p>
-    <p>Add <code>@ConventionalNotFoundPageDefaults.AppViewPath</code> in your app or a shared Razor Class Library to replace this fallback page.</p>
+    <p>We couldn't find <code>@missingPath</code>. The route may have moved, the link may be stale, or this app may not expose that page.</p>
+    <div class="actions" aria-label="Recovery actions">
+        <a class="recovery-link" href="/">Return home</a>
+        @if (isDocsPath)
+        {
+            <a class="recovery-link secondary" href="/docs/search">Search documentation</a>
+        }
+    </div>
+    <p class="developer-note">App owners can replace this fallback with <code>@ConventionalNotFoundPageDefaults.AppViewPath</code>. Keep the page useful for users first: show recovery links, explain what happened, and preserve the 404 status.</p>
 </main>
 </body>
 </html>

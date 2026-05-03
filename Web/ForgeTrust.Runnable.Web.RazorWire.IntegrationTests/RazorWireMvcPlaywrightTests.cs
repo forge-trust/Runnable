@@ -353,6 +353,47 @@ public sealed class RazorWireMvcPlaywrightTests
     }
 
     [Fact]
+    public async Task FormFailures_AuthorizationFailure_RendersRuntimeFallbackWithoutRefresh()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[data-rw-form-failure-target='authorization-errors']",
+            "/Reactivity/AuthorizationFailureDemo");
+
+        Assert.Equal(403, response.Status);
+        Assert.Null(await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
+        await WaitForTextAsync(page, "#authorization-errors", "Session may have expired");
+        await WaitForTextAsync(page, "#authorization-errors", "You may need to refresh or sign in again before submitting this form.");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
+    [Fact]
+    public async Task FormFailures_MalformedFailure_RendersRuntimeFallbackWithoutRefresh()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[data-rw-form-failure-target='custom-errors']",
+            "/Reactivity/MalformedFailureDemo");
+
+        Assert.Equal(400, response.Status);
+        Assert.Null(await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
+        await WaitForTextAsync(page, "#custom-errors", "We could not submit this form");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
+    [Fact]
     public async Task FormFailures_UnhandledServerFailure_RendersRuntimeFallbackWithoutHandledHeader()
     {
         await using var context = await _fixture.Browser.NewContextAsync();

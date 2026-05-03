@@ -114,12 +114,7 @@ public class RazorWireFormTagHelper : TagHelper
 
     private static string ToAttributeValue(RazorWireFormFailureMode mode)
     {
-        return mode switch
-        {
-            RazorWireFormFailureMode.Manual => "manual",
-            RazorWireFormFailureMode.Off => "off",
-            _ => "auto"
-        };
+        return mode == RazorWireFormFailureMode.Manual ? "manual" : "auto";
     }
 
     private static TagBuilder CreateHiddenInput(string name, string value)

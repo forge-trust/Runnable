@@ -33,6 +33,18 @@ public class RazorWireFormTagHelperTests
     }
 
     [Fact]
+    public void Process_WhenPerFormAuto_EmitsMarkerAndAutoMode()
+    {
+        var helper = new RazorWireFormTagHelper(new RazorWireOptions());
+        var output = CreateOutput("data-rw-form-failure", "auto");
+
+        helper.Process(CreateContext(), output);
+
+        Assert.Equal("auto", output.Attributes["data-rw-form-failure"].Value);
+        Assert.Contains("__RazorWireForm", output.PostContent.GetContent());
+    }
+
+    [Fact]
     public void Process_WhenFailureTargetIsId_EmitsServerFailureTargetMarker()
     {
         var helper = new RazorWireFormTagHelper(new RazorWireOptions());
@@ -50,6 +62,17 @@ public class RazorWireFormTagHelperTests
     {
         var helper = new RazorWireFormTagHelper(new RazorWireOptions());
         var output = CreateOutput("data-rw-form-failure-target", "[data-rw-form-errors]");
+
+        helper.Process(CreateContext(), output);
+
+        Assert.DoesNotContain("__RazorWireFormFailureTarget", output.PostContent.GetContent());
+    }
+
+    [Fact]
+    public void Process_WhenFailureTargetIsOnlyHash_DoesNotEmitServerFailureTargetMarker()
+    {
+        var helper = new RazorWireFormTagHelper(new RazorWireOptions());
+        var output = CreateOutput("data-rw-form-failure-target", "#");
 
         helper.Process(CreateContext(), output);
 

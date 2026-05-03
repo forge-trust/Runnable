@@ -1,5 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
+using ForgeTrust.Runnable.Web.RazorWire.Forms;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.OutputCaching;
@@ -36,6 +37,7 @@ public class RazorWireWebModuleTests
         // Assert
         Assert.Equal(MvcSupport.ControllersWithViews, options.Mvc.MvcSupportLevel);
         Assert.NotNull(options.Mvc.ConfigureMvc);
+        AssertConfigureMvcAddsAntiforgeryFilter(options.Mvc.ConfigureMvc);
     }
 
     [Fact]
@@ -62,6 +64,30 @@ public class RazorWireWebModuleTests
         Assert.NotNull(options.Mvc.ConfigureMvc);
         Assert.NotSame(configure, options.Mvc.ConfigureMvc);
         Assert.Contains(options.Mvc.ConfigureMvc!.GetInvocationList(), callback => ReferenceEquals(callback, configure));
+        AssertConfigureMvcAddsAntiforgeryFilter(options.Mvc.ConfigureMvc);
+    }
+
+    [Fact]
+    public void ConfigureWebOptions_InProduction_WithSufficientMvcAndNoExistingConfigure_AddsConfigureMvc()
+    {
+        // Arrange
+        var module = new RazorWireWebModule();
+        var context = CreateContext(isDevelopment: false);
+        var options = new WebOptions
+        {
+            Mvc = new MvcOptions
+            {
+                MvcSupportLevel = MvcSupport.Full
+            }
+        };
+
+        // Act
+        module.ConfigureWebOptions(context, options);
+
+        // Assert
+        Assert.Equal(MvcSupport.Full, options.Mvc.MvcSupportLevel);
+        Assert.NotNull(options.Mvc.ConfigureMvc);
+        AssertConfigureMvcAddsAntiforgeryFilter(options.Mvc.ConfigureMvc);
     }
 
     [Fact]
@@ -125,6 +151,22 @@ public class RazorWireWebModuleTests
             [],
             new DummyRootModule(),
             EnvironmentProvider: new TestEnvironmentProvider(isDevelopment));
+    }
+
+    private static void AssertConfigureMvcAddsAntiforgeryFilter(Action<IMvcBuilder>? configureMvc)
+    {
+        Assert.NotNull(configureMvc);
+        var services = new ServiceCollection();
+        var builder = services.AddControllersWithViews();
+
+        configureMvc(builder);
+
+        using var provider = services.BuildServiceProvider();
+        var mvcOptions = provider.GetRequiredService<IOptions<Microsoft.AspNetCore.Mvc.MvcOptions>>().Value;
+        Assert.Contains(
+            mvcOptions.Filters,
+            filter => filter is Microsoft.AspNetCore.Mvc.ServiceFilterAttribute serviceFilter
+                      && serviceFilter.ServiceType == typeof(RazorWireAntiforgeryFailureFilter));
     }
 
     private sealed class DummyRootModule : IRunnableHostModule

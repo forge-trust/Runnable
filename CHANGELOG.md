@@ -18,6 +18,7 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 ### Added
 
 - Runnable now has a repo-level release contract: a public release hub, an unreleased proof artifact, a pre-1.0 upgrade policy, and a tagged-release template for future versioned notes.
+- RazorWire now has a package-level generated UI design contract that defines ownership scope, data-attribute and CSS custom-property styling surfaces, accessibility expectations, override levels, and anti-patterns for package-owned UI.
 - RazorDocs pages can now render a top-of-page trust bar from structured metadata so release notes and upgrade guidance can show status, safety context, and provenance without custom page code.
 - RazorDocs now supports metadata-driven page wayfinding: harvested outlines, explicit proof-path previous/next links, related pages, and sidebar anchor navigation.
 

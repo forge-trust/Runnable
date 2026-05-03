@@ -1,3 +1,4 @@
+using System.Globalization;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
@@ -99,12 +100,12 @@ public class RazorDocsWebModule : IRunnableWebModule
                     version.ExactRootUrl,
                     new PhysicalFileProvider(version.ExactTreePath!)))
             .ToList();
-        if (catalog.RecommendedVersion?.ExactTreePath is not null)
+        if (catalog.RecommendedVersion is { IsAvailable: true, ExactTreePath: not null } recommendedVersion)
         {
             mounts.Add(
                 new RazorDocsPublishedTreeMount(
                     DocsUrlBuilder.DocsEntryPath,
-                    new PhysicalFileProvider(catalog.RecommendedVersion.ExactTreePath)));
+                    new PhysicalFileProvider(recommendedVersion.ExactTreePath)));
         }
 
         if (mounts.Count == 0)
@@ -286,7 +287,9 @@ public class RazorDocsWebModule : IRunnableWebModule
                 context.Response.StatusCode = StatusCodes.Status200OK;
                 context.Response.ContentType = ResolveContentType(webRootSubPath);
                 context.Response.ContentLength = fileInfo.Length;
-                context.Response.Headers.LastModified = fileInfo.LastModified.ToUniversalTime().ToString("R");
+                context.Response.Headers.LastModified = fileInfo.LastModified
+                    .ToUniversalTime()
+                    .ToString("R", CultureInfo.InvariantCulture);
                 if (HttpMethods.IsHead(context.Request.Method))
                 {
                     return;

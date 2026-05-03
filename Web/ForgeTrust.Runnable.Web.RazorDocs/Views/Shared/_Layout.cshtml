@@ -2,14 +2,13 @@
 @inject ForgeTrust.Runnable.Web.RazorDocs.RazorDocsAssetPathResolver AssetPathResolver
 @inject ForgeTrust.Runnable.Web.RazorDocs.Services.DocsUrlBuilder DocsUrlBuilder
 @{
-    string PathBaseAware(string appRelativeUrl) => Url.Content("~" + appRelativeUrl);
     var stylesheetPath = AssetPathResolver.StylesheetPath;
-    var docsHomeUrl = PathBaseAware(DocsUrlBuilder.BuildHomeUrl());
-    var docsSearchUrl = PathBaseAware(DocsUrlBuilder.BuildSearchUrl());
-    var docsSearchIndexUrl = PathBaseAware(DocsUrlBuilder.BuildSearchIndexUrl());
-    var docsSearchStylesheetUrl = PathBaseAware(DocsUrlBuilder.BuildAssetUrl("search.css"));
-    var docsMiniSearchUrl = PathBaseAware(DocsUrlBuilder.BuildAssetUrl("minisearch.min.js"));
-    var docsSearchClientUrl = PathBaseAware(DocsUrlBuilder.BuildAssetUrl("search-client.js"));
+    var docsHomeUrl = Url.PathBaseAware(DocsUrlBuilder.BuildHomeUrl());
+    var docsSearchUrl = Url.PathBaseAware(DocsUrlBuilder.BuildSearchUrl());
+    var docsSearchIndexUrl = Url.PathBaseAware(DocsUrlBuilder.BuildSearchIndexUrl());
+    var docsSearchStylesheetUrl = Url.PathBaseAware(DocsUrlBuilder.BuildAssetUrl("search.css"));
+    var docsMiniSearchUrl = Url.PathBaseAware(DocsUrlBuilder.BuildAssetUrl("minisearch.min.js"));
+    var docsSearchClientUrl = Url.PathBaseAware(DocsUrlBuilder.BuildAssetUrl("search-client.js"));
     var docsClientConfigJson = JsonSerializer.Serialize(
         new
         {

@@ -31,14 +31,14 @@ public class RazorDocsViewsTests
         var layout = ReadLayoutMarkup();
         Assert.Contains("id=\"docs-search-input\"", layout);
         Assert.Contains("id=\"docs-search-results\"", layout);
-        Assert.Contains("PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"search.css\"))", layout);
+        Assert.Contains("Url.PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"search.css\"))", layout);
         Assert.Contains("docsSearchIndexUrl", layout);
         Assert.Contains("var isSearchPage = string.Equals(", layout);
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", layout);
         Assert.Contains("window.__razorDocsConfig", layout);
-        Assert.Contains("PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"search-client.js\"))", layout);
-        Assert.Contains("PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"minisearch.min.js\"))", layout);
+        Assert.Contains("Url.PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"search-client.js\"))", layout);
+        Assert.Contains("Url.PathBaseAware(DocsUrlBuilder.BuildAssetUrl(\"minisearch.min.js\"))", layout);
     }
 
     [Fact]
@@ -122,6 +122,7 @@ public class RazorDocsViewsTests
         Assert.Contains("return searchData.docsByPath.has(normalizedPath)", searchClient);
         Assert.Contains("normalizeComparablePath(searchUrl?.pathname)", searchClient);
         Assert.Contains("return isKnownRootMountedDocsNavigationPath(normalizedPath);", searchClient);
+        Assert.Contains("const namespacesPath = joinDocsPath(docsRootPath, 'Namespaces');", searchClient);
     }
 
     [Fact]

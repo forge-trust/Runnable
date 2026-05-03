@@ -1,17 +1,6 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.SearchPageViewModel
 @{
     const string FailureLinkClass = "grid gap-1 rounded-[0.85rem] border border-slate-800 bg-slate-900/55 px-[0.95rem] py-[0.85rem] no-underline transition-colors hover:border-cyan-400/35 hover:bg-cyan-950/20";
-    string PathBaseAware(string href)
-    {
-        if (string.IsNullOrWhiteSpace(href))
-        {
-            return string.Empty;
-        }
-
-        return href.StartsWith("/", StringComparison.Ordinal)
-            ? Url.Content("~" + href)
-            : href;
-    }
 }
 
 <div id="docs-search-page" class="docs-search-page">
@@ -89,7 +78,7 @@
         <div class="grid gap-3 md:grid-cols-3">
             @foreach (var link in Model.FailureFallbackLinks)
             {
-                var resolvedHref = PathBaseAware(link.Href);
+                var resolvedHref = Url.PathBaseAware(link.Href);
                 if (link.UsesDocsFrame)
                 {
                     <a class="@FailureLinkClass"

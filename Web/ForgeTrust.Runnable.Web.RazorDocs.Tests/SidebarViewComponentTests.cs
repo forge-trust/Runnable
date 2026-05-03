@@ -427,6 +427,63 @@ public sealed class SidebarViewComponentTests
     }
 
     [Fact]
+    public async Task InvokeAsync_ShouldMarkStartHereSectionActive_ForRootMountedHomeRoute()
+    {
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            }
+        };
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Quickstart", "guides/start.md", "Start Here"),
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ],
+            options);
+        SetRequestPath(component, "/");
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            var activeSection = Assert.Single(model.Sections, section => section.IsActive);
+            Assert.Equal(DocPublicSection.StartHere, activeSection.Section);
+            Assert.True(activeSection.IsExpanded);
+        }
+    }
+
+    [Theory]
+    [InlineData("/search")]
+    [InlineData("/search-index.json")]
+    public async Task InvokeAsync_ShouldKeepSectionsInactive_ForRootMountedSearchRoutes(string requestPath)
+    {
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            }
+        };
+        var (component, cache, memo) = CreateComponent(
+            [
+                CreateDoc("Quickstart", "guides/start.md", "Start Here"),
+                CreateDoc("Overview", "concepts/overview.md", "Concepts")
+            ],
+            options);
+        SetRequestPath(component, requestPath);
+        using (memo)
+        using (cache)
+        {
+            var model = await GetModelAsync(component);
+
+            Assert.All(model.Sections, section => Assert.False(section.IsActive));
+            Assert.All(model.Sections, section => Assert.False(section.IsExpanded));
+        }
+    }
+
+    [Fact]
     public async Task InvokeAsync_ShouldMarkRootMountedPlainHtmlDocRoutes_AsCurrent()
     {
         var options = new RazorDocsOptions

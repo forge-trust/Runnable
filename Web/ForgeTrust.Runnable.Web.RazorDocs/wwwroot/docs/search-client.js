@@ -1000,9 +1000,11 @@
     }
 
     if (links.length < 3) {
+      const namespacesPath = joinDocsPath(docsRootPath, 'Namespaces');
       const namespacesDoc = selectRecoveryDoc(
         allDocs,
-        (doc) => doc.path.endsWith('/Namespaces.html') || doc.path === `${docsRootPath}/Namespaces`);
+        (doc) => doc.path.endsWith('/Namespaces.html')
+          || normalizeComparablePath(doc.path) === normalizeComparablePath(namespacesPath));
       pushLink(namespacesDoc, 'Browse namespaces');
     }
 

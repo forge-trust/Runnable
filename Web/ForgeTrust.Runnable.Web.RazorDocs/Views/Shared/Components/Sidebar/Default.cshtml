@@ -1,24 +1,10 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocSidebarViewModel
-@{
-    string PathBaseAware(string? href)
-    {
-        if (string.IsNullOrWhiteSpace(href))
-        {
-            return string.Empty;
-        }
-
-        return href.StartsWith("/", StringComparison.Ordinal)
-            ? Url.Content("~" + href)
-            : href;
-    }
-}
-
 @foreach (var sidebarSection in Model.Sections)
 {
     <details class="group border-b border-slate-900/80 py-2 last:border-b-0" @(sidebarSection.IsExpanded ? "open" : null)>
         <summary class="list-none cursor-pointer">
             <div class="flex items-center justify-between gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-slate-900/70">
-                <a href="@PathBaseAware(sidebarSection.Href)"
+                <a href="@Url.PathBaseAware(sidebarSection.Href)"
                    class="text-xs font-semibold uppercase tracking-[0.18em] @(sidebarSection.IsActive ? "text-cyan-300" : "text-slate-400 hover:text-cyan-300")"
                    aria-current="@(sidebarSection.IsActive ? "location" : null)">
                     @sidebarSection.Label
@@ -40,7 +26,7 @@
                         @foreach (var link in sectionGroup.Links)
                         {
                             <li>
-                                <a href="@PathBaseAware(link.Href)"
+                                <a href="@Url.PathBaseAware(link.Href)"
                                    data-turbo-frame="doc-content"
                                    data-turbo-action="advance"
                                    class="block rounded-lg px-2 py-1.5 text-sm font-medium transition-colors @(link.IsCurrent ? "bg-slate-900 text-cyan-200" : "text-slate-400 hover:bg-slate-900 hover:text-cyan-300")"
@@ -54,7 +40,7 @@
                                         @foreach (var child in link.Children)
                                         {
                                             <li>
-                                                <a href="@PathBaseAware(child.Href)"
+                                                <a href="@Url.PathBaseAware(child.Href)"
                                                    data-doc-anchor-link="true"
                                                    data-turbo-frame="doc-content"
                                                    data-turbo-action="advance"

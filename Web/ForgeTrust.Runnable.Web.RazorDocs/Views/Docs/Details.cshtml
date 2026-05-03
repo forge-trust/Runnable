@@ -1,18 +1,6 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocDetailsViewModel
 @{
     ViewData["Title"] = Model.Title;
-    string PathBaseAware(string? href)
-    {
-        if (string.IsNullOrWhiteSpace(href))
-        {
-            return string.Empty;
-        }
-
-        return href.StartsWith("/", StringComparison.Ordinal)
-            ? Url.Content("~" + href)
-            : href;
-    }
-
     var trust = Model.Document.Metadata?.Trust;
     var trustStatus = string.IsNullOrWhiteSpace(trust?.Status) ? null : trust!.Status!.Trim();
     var trustSummary = string.IsNullOrWhiteSpace(trust?.Summary) ? null : trust!.Summary!.Trim();
@@ -42,7 +30,7 @@
     @if (!string.IsNullOrWhiteSpace(Model.PublicSectionLabel) && !string.IsNullOrWhiteSpace(Model.PublicSectionHref))
     {
         <div class="mb-4 md:hidden">
-            <a href="@PathBaseAware(Model.PublicSectionHref)"
+            <a href="@Url.PathBaseAware(Model.PublicSectionHref)"
                class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors hover:border-cyan-500/40 hover:text-cyan-200">
                 <span class="text-slate-500">Section</span>
                 <span>@Model.PublicSectionLabel</span>
@@ -64,7 +52,7 @@
                 }
                 else
                 {
-                    <a href="@PathBaseAware(crumb.Href)"
+                    <a href="@Url.PathBaseAware(crumb.Href)"
                        data-turbo-frame="doc-content"
                        data-turbo-action="advance"
                        class="px-1 text-slate-400 transition-colors hover:text-cyan-400">
@@ -142,7 +130,7 @@
                     {
                         <p class="docs-trust-bar-value">
                             <span class="docs-trust-bar-key">Migration:</span>
-                            <a href="@PathBaseAware(trustMigrationHref)"
+                            <a href="@Url.PathBaseAware(trustMigrationHref)"
                                class="docs-trust-bar-link"
                                @if (Model.TrustMigrationUsesTurbo)
                                {
@@ -211,7 +199,7 @@
             </div>
             @if (!string.IsNullOrWhiteSpace(Model.PublicSectionHref))
             {
-                <a href="@PathBaseAware(Model.PublicSectionHref)"
+                <a href="@Url.PathBaseAware(Model.PublicSectionHref)"
                    class="inline-flex items-center gap-2 self-start rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-cyan-500/40 hover:text-cyan-200">
                     Section route
                 </a>
@@ -226,7 +214,7 @@
                     @foreach (var featuredPage in Model.FeaturedPages)
                     {
                         <li>
-                            <a href="@PathBaseAware(featuredPage.Href)"
+                            <a href="@Url.PathBaseAware(featuredPage.Href)"
                                data-turbo-frame="doc-content"
                                data-turbo-action="advance"
                                class="group block rounded-xl border border-slate-900 bg-slate-950/60 px-4 py-3 transition-colors hover:border-cyan-500/30 hover:bg-slate-950">
@@ -268,7 +256,7 @@
                                 @foreach (var link in sectionGroup.Links)
                                 {
                                     <li>
-                                        <a href="@PathBaseAware(link.Href)"
+                                        <a href="@Url.PathBaseAware(link.Href)"
                                            data-turbo-frame="doc-content"
                                            data-turbo-action="advance"
                                            class="group block rounded-xl border border-slate-900 bg-slate-950/50 px-4 py-3 transition-colors hover:border-cyan-500/30 hover:bg-slate-950">
@@ -291,7 +279,7 @@
                                                 @foreach (var child in link.Children)
                                                 {
                                                     <li>
-                                                        <a href="@PathBaseAware(child.Href)"
+                                                        <a href="@Url.PathBaseAware(child.Href)"
                                                            data-doc-anchor-link="true"
                                                            data-turbo-frame="doc-content"
                                                            data-turbo-action="advance"
@@ -328,7 +316,7 @@
                 <div class="grid gap-3 md:grid-cols-2">
                     @if (Model.PreviousPage is not null)
                     {
-                        <a href="@PathBaseAware(Model.PreviousPage.Href)"
+                        <a href="@Url.PathBaseAware(Model.PreviousPage.Href)"
                            data-doc-wayfinding="previous"
                            data-turbo-frame="doc-content"
                            data-turbo-action="advance"
@@ -347,7 +335,7 @@
                     }
                     @if (Model.NextPage is not null)
                     {
-                        <a href="@PathBaseAware(Model.NextPage.Href)"
+                        <a href="@Url.PathBaseAware(Model.NextPage.Href)"
                            data-doc-wayfinding="next"
                            data-turbo-frame="doc-content"
                            data-turbo-action="advance"
@@ -375,7 +363,7 @@
                 <div class="grid gap-3 md:grid-cols-2">
                     @foreach (var relatedPage in Model.RelatedPages)
                     {
-                        <a href="@PathBaseAware(relatedPage.Href)"
+                        <a href="@Url.PathBaseAware(relatedPage.Href)"
                            data-doc-related-link="true"
                            data-turbo-frame="doc-content"
                            data-turbo-action="advance"

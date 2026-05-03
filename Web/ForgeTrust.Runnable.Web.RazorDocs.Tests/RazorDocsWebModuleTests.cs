@@ -342,6 +342,74 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
+    public void ConfigureWebApplication_ShouldSkipRecommendedMount_WhenCatalogMarksReleaseUnavailable()
+    {
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-web-module-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var treePath = Path.Combine(tempDirectory, "1.2.3");
+            Directory.CreateDirectory(treePath);
+            File.WriteAllText(Path.Combine(treePath, "index.html"), "<html>broken</html>");
+
+            var catalogPath = Path.Combine(tempDirectory, "catalog.json");
+            File.WriteAllText(
+                catalogPath,
+                """
+                {
+                  "recommendedVersion": "1.2.3",
+                  "versions": [
+                    {
+                      "version": "1.2.3",
+                      "exactTreePath": "1.2.3",
+                      "supportState": "Current",
+                      "visibility": "Public",
+                      "advisoryState": "None"
+                    }
+                  ]
+                }
+                """);
+
+            var context = CreateStartupContext();
+            var services = new ServiceCollection();
+            var options = new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/next"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true,
+                    CatalogPath = catalogPath
+                }
+            };
+            services.AddSingleton(options);
+            services.AddSingleton(
+                new RazorDocsVersionCatalogService(
+                    options,
+                    new TestWebHostEnvironment { ContentRootPath = tempDirectory, WebRootPath = tempDirectory },
+                    NullLogger<RazorDocsVersionCatalogService>.Instance));
+            var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
+
+            _module.ConfigureWebApplication(context, recordingBuilder);
+
+            Assert.Equal(0, recordingBuilder.UseCallCount);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void ConfigureWebApplication_ShouldReturn_WhenVersioningOptionsAreMissing()
     {
         var context = CreateStartupContext();

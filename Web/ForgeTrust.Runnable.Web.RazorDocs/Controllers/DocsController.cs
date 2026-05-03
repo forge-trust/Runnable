@@ -258,15 +258,21 @@ public class DocsController : Controller
     /// </summary>
     /// <returns>
     /// A JSON result containing searchable document metadata, including normalized page-type badge fields that keep search
-    /// result rendering consistent with the built-in landing and details experiences.
-    /// When <see cref="HttpRequest.PathBase" /> is non-empty, rooted search-document paths are rebased onto that path
-    /// base before serialization so a mounted app returns links like <c>/some-base/docs/guide.html</c> instead of
-    /// <c>/docs/guide.html</c>.
+    /// result rendering consistent with the built-in landing and details experiences. When
+    /// <see cref="HttpRequest.PathBase" /> is non-empty, only <c>documents[*].path</c> values that already start with
+    /// <c>/</c> are rebased onto that path base before serialization so a mounted app returns links like
+    /// <c>/some-base/docs/guide.html</c> instead of <c>/docs/guide.html</c>.
     /// </returns>
     /// <remarks>
-    /// The path-base rewrite is intentionally narrow. Only rooted document paths are prefixed; blank or non-rooted values
-    /// remain unchanged. The rewrite trims trailing slashes from the request path base before concatenation, and it is
-    /// idempotent when <see cref="HttpRequest.PathBase" /> is null, empty, or <c>/</c>.
+    /// The path-base rewrite is intentionally narrow. Only rooted <c>documents[*].path</c> values are prefixed; blank,
+    /// missing, or already non-rooted values such as <c>guide.html</c> remain unchanged. The rewrite trims trailing
+    /// slashes from the request path base before concatenation, so <c>/some-base/</c> and <c>/some-base</c> produce the
+    /// same output. For example, a typed payload that contains <c>documents[0].path = "/docs/guide.html"</c> becomes
+    /// <c>/some-base/docs/guide.html</c> when the request path base is <c>/some-base</c>. This action always receives the
+    /// typed <see cref="DocsSearchIndexPayload" /> produced by <see cref="DocAggregator.GetSearchIndexPayloadAsync(System.Threading.CancellationToken)" />;
+    /// raw JSON payloads without a top-level <c>documents</c> array are outside this method's contract and must be
+    /// handled before this action is invoked. The rewrite is idempotent when <see cref="HttpRequest.PathBase" /> is
+    /// null, empty, or <c>/</c>.
     /// </remarks>
     [HttpGet]
     public async Task<IActionResult> SearchIndex()
@@ -326,13 +332,18 @@ public class DocsController : Controller
     /// <param name="payload">The cached search-index payload whose document paths may need rebasing.</param>
     /// <param name="requestPathBase">The current request path base that should be prepended when it is non-empty and not <c>/</c>.</param>
     /// <returns>
-    /// The original payload when no rewrite is needed; otherwise a cloned payload whose rooted document paths are prefixed
-    /// with the normalized path base.
+    /// The original payload when no rewrite is needed; otherwise a cloned payload whose rooted
+    /// <see cref="DocsSearchIndexDocument.Path" /> values are prefixed with the normalized path base.
     /// </returns>
     /// <remarks>
-    /// Only rooted <see cref="DocsSearchIndexDocument.Path" /> values are rewritten. Non-rooted values such as
-    /// <c>guide.html</c> remain unchanged, so callers should provide leading-slash browser paths for docs-local
-    /// navigation. For example, rebasing a payload that contains <c>/docs/guide.html</c> with <c>/some-base</c> produces
+    /// This helper operates on the typed <see cref="DocsSearchIndexPayload" /> contract, which always exposes a top-level
+    /// <see cref="DocsSearchIndexPayload.Documents" /> list. It does not inspect or reshape arbitrary JSON payloads, so
+    /// callers that hold raw JSON without a top-level <c>documents</c> array must deserialize or otherwise handle that
+    /// mismatch before calling this method. Within the typed payload, only rooted
+    /// <see cref="DocsSearchIndexDocument.Path" /> values are rewritten. Non-rooted, blank, or otherwise unchanged values
+    /// such as <c>guide.html</c> are returned as-is, so callers should supply leading-slash browser paths for docs-local
+    /// navigation when rebasing is expected. For example, rebasing a payload that contains
+    /// <c>documents[0].path = "/docs/guide.html"</c> with <c>/some-base/</c> produces
     /// <c>/some-base/docs/guide.html</c>. The supplied path base is trimmed of trailing slashes before concatenation, and
     /// the method is idempotent when <paramref name="requestPathBase" /> is null, empty, or <c>/</c>.
     /// </remarks>

@@ -157,6 +157,29 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void ExtractWithDiagnostics_ShouldIgnoreNullFeaturedPageGroups_AndWarn()
+    {
+        var markdown = """
+            ---
+            featured_page_groups:
+              - null
+              - label: Start here
+                pages:
+                  - path: guides/intro.md
+            ---
+            # Hello
+            """;
+
+        var (_, result) = MarkdownFrontMatterParser.ExtractWithDiagnostics(markdown);
+
+        var group = Assert.Single(result.Metadata!.FeaturedPageGroups!);
+        Assert.Equal("Start here", group.Label);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("null-featured-group", diagnostic.Code);
+        Assert.Equal("featured_page_groups[0]", diagnostic.FieldPath);
+    }
+
+    [Fact]
     public void ExtractWithDiagnostics_ShouldIgnoreFeaturedPageGroupsWhenAllPagesAreNull_AndWarn()
     {
         var markdown = """

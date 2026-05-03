@@ -305,7 +305,7 @@ public class DocsController : Controller
             .Where(doc => !string.Equals(doc.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase))
             .Where(doc => !string.Equals(doc.Path, startHereSection.LandingDoc?.Path, StringComparison.OrdinalIgnoreCase))
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
-            .OrderBy(doc => doc.Metadata!.Order ?? int.MaxValue)
+            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
             .Take(DefaultProofPathStageLabels.Length)
             .ToList();
@@ -314,15 +314,16 @@ public class DocsController : Controller
             .Select(
                 (doc, index) =>
                 {
-                    var metadata = doc.Metadata!;
+                    var metadata = doc.Metadata;
+                    var summary = metadata?.Summary;
                     return new DocLandingFeaturedPageViewModel
                     {
                         Question = DefaultProofPathStageLabels[index],
                         Title = ResolveDisplayTitle(doc),
                         Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
-                        PageType = metadata.PageType,
-                        PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata.PageType),
-                        SupportingText = string.IsNullOrWhiteSpace(metadata.Summary) ? null : metadata.Summary.Trim()
+                        PageType = metadata?.PageType,
+                        PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType),
+                        SupportingText = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim()
                     };
                 })
             .ToList();
@@ -392,7 +393,7 @@ public class DocsController : Controller
         var candidates = snapshot.VisiblePages
             .Where(doc => !string.Equals(doc.Path, snapshot.LandingDoc?.Path, StringComparison.OrdinalIgnoreCase))
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
-            .OrderBy(doc => doc.Metadata!.Order ?? int.MaxValue)
+            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
             .Take(maxRoutes)
             .ToList();
@@ -431,7 +432,7 @@ public class DocsController : Controller
     {
         return snapshot.VisiblePages
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
-            .OrderBy(doc => doc.Metadata!.Order ?? int.MaxValue)
+            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
             .Take(1)
             .Select(CreateSectionLink)
@@ -656,13 +657,14 @@ public class DocsController : Controller
 
     private static DocSectionLinkViewModel CreateSectionLink(DocNode doc)
     {
-        var metadata = doc.Metadata!;
+        var metadata = doc.Metadata;
+        var summary = metadata?.Summary;
         return new DocSectionLinkViewModel
         {
             Title = ResolveDisplayTitle(doc),
             Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
-            Summary = string.IsNullOrWhiteSpace(metadata.Summary) ? null : metadata.Summary.Trim(),
-            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata.PageType)
+            Summary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim(),
+            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType)
         };
     }
 

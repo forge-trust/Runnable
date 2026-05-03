@@ -240,6 +240,13 @@ internal static class MarkdownFrontMatterParser
             var groupPath = $"featured_page_groups[{groupIndex}]";
             if (group is null)
             {
+                diagnostics.Add(
+                    new RazorDocsMetadataDiagnostic(
+                        "null-featured-group",
+                        groupPath,
+                        "A featured page group entry is null.",
+                        "Null list items cannot be normalized into landing curation.",
+                        "Remove the empty list item or replace it with a featured page group object."));
                 continue;
             }
 

@@ -102,6 +102,43 @@ public sealed class DocFeaturedPageResolverTests
     }
 
     [Fact]
+    public void ResolveGroups_ShouldSkipNullGroupsBeforeOrdering_AndLogWarnings()
+    {
+        var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();
+        var resolver = new DocFeaturedPageResolver(logger);
+        var landing = new DocNode(
+            "Home",
+            "README.md",
+            "<p>Home</p>",
+            CanonicalPath: "index.html",
+            Metadata: new DocMetadata
+            {
+                FeaturedPageGroups =
+                [
+                    null!,
+                    new DocFeaturedPageGroupDefinition
+                    {
+                        Label = "Start",
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/intro.md"
+                            }
+                        ]
+                    }
+                ]
+            });
+        var intro = Doc("Intro", "guides/intro.md");
+
+        var groups = resolver.ResolveGroups(landing, [landing, intro]);
+
+        var page = Assert.Single(Assert.Single(groups).Pages);
+        Assert.Equal("Intro", page.Title);
+        AssertWarningLogged(logger, "group on README.md at featured_page_groups[0] because it is null");
+    }
+
+    [Fact]
     public void ResolveGroups_ShouldSkipNullPageEntries_AndKeepValidPages()
     {
         var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();

@@ -57,10 +57,25 @@ public sealed class DocFeaturedPageResolver
         var resolvedGroups = new List<DocLandingFeaturedPageGroupViewModel>();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (group, groupIndex) in featuredGroups
-                     .Select((group, index) => (group, index))
-                     .OrderBy(item => item.group.Order ?? int.MaxValue)
-                     .ThenBy(item => item.index))
+        var authoredGroups = new List<(DocFeaturedPageGroupDefinition Group, int Index)>();
+        for (var groupIndex = 0; groupIndex < featuredGroups.Count; groupIndex++)
+        {
+            var group = featuredGroups[groupIndex];
+            if (group is null)
+            {
+                _logger.LogWarning(
+                    "Skipping featured docs landing group on {LandingPath} at {FieldPath} because it is null.",
+                    landingDoc.Path,
+                    $"featured_page_groups[{groupIndex}]");
+                continue;
+            }
+
+            authoredGroups.Add((group, groupIndex));
+        }
+
+        foreach (var (group, groupIndex) in authoredGroups
+                     .OrderBy(item => item.Group.Order ?? int.MaxValue)
+                     .ThenBy(item => item.Index))
         {
             var groupPath = group.SourceFieldPath ?? $"featured_page_groups[{groupIndex}]";
             var resolvedPages = new List<DocLandingFeaturedPageViewModel>();

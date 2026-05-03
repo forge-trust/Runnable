@@ -46,6 +46,58 @@ Install the package from an application project with:
 dotnet add package ForgeTrust.Runnable.Config --project <path-to-your-app.csproj>
 ```
 
+## Environment Overrides
+
+Environment variables override file-based providers. Runnable supports both the legacy flattened shape and the
+hierarchical double-underscore shape commonly used by .NET configuration:
+
+```text
+PRODUCTION_APP_SETTINGS
+APP_SETTINGS
+PRODUCTION__APP__SETTINGS
+APP__SETTINGS
+```
+
+Use a direct value when one environment variable should replace the whole requested config value. For object-valued
+config, the direct value is parsed as JSON:
+
+```text
+APP__SETTINGS={"Database":{"Host":"db.example","Port":5432}}
+```
+
+Use child variables when deployment needs to override one member without replacing the rest of an options object loaded
+from JSON files, or when the target type can be built from child variables alone:
+
+```text
+APP__SETTINGS__DATABASE__PORT=6543
+```
+
+When `App.Settings` is resolved as an object, Runnable first looks for a direct environment value. If none exists,
+`DefaultConfigManager` asks `EnvironmentConfigProvider.TryPatch` to apply matching child variables. If a lower-priority
+provider supplied an object, child variables patch that object and preserve existing members. If no provider produced a
+value, `EnvironmentConfigProvider` can construct an instantiable target type from child variables alone. That means
+`APP__SETTINGS__DATABASE__PORT` can update only `Database.Port` while preserving `Database.Host` from `appsettings.json`,
+or create `App.Settings` from child variables such as `APP__SETTINGS__MODE=environment` when no provider value exists.
+
+Indexed collection variables are supported for top-level values and object members:
+
+```text
+APP__SETTINGS__ENDPOINTS__0=https://one.example
+APP__SETTINGS__ENDPOINTS__1=https://two.example
+```
+
+### Override Pitfalls
+
+- A direct object environment variable replaces the whole object; use child variables for partial overrides.
+- Child patching targets public settable properties, initialized getter-only mutable collections or nested objects, and
+  public writable fields. Types that cannot be instantiated need a lower-priority provider value or an already-initialized
+  nested member to patch.
+- Invalid child values are ignored instead of wiping out the lower-priority provider value. For example, a non-numeric
+  `APP__SETTINGS__DATABASE__PORT` leaves the existing `Port` unchanged.
+- Child environment variables patch provider-supplied values or construct an instantiable missing value; they do not patch
+  `Config<T>.DefaultValue`. Put deploy-time defaults in a normal provider when they need member-level environment
+  overrides.
+
 ## Validation
 
 `Config<T>` and `ConfigStruct<T>` validate the resolved value during initialization when the value is present. Validation runs after provider/default resolution, so defaults are held to the same rules as provider-supplied values. Optional `ConfigStruct<T>` values resolve through nullable `T?` provider lookups so a missing struct value is not confused with a configured zero-initialized value.

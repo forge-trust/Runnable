@@ -221,6 +221,91 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldEmitSymbolSourceProvenanceAndPlaceholders_ForDocumentedApiSymbols()
+    {
+        var code = """
+            namespace Test;
+
+            /// <summary>Type docs.</summary>
+            public class Calculator
+            {
+                /// <summary>Add docs.</summary>
+                public int Add(int left, int right) => left + right;
+
+                /// <summary>Name docs.</summary>
+                public string Name { get; } = "calc";
+            }
+
+            /// <summary>Mode docs.</summary>
+            public enum Mode
+            {
+                Fast
+            }
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Calculator.cs"), code);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        Assert.NotNull(namespaceNode.SymbolSourceProvenance);
+        Assert.Collection(
+            namespaceNode.SymbolSourceProvenance!,
+            type =>
+            {
+                Assert.Equal("Test-Calculator", type.AnchorId);
+                Assert.Equal("Calculator.cs", type.SourcePath);
+                Assert.Equal(4, type.StartLine);
+            },
+            method =>
+            {
+                Assert.StartsWith("Test-Calculator-Add", method.AnchorId, StringComparison.Ordinal);
+                Assert.Equal("Calculator.cs", method.SourcePath);
+                Assert.Equal(7, method.StartLine);
+            },
+            property =>
+            {
+                Assert.StartsWith("Test-Calculator-string-Name", property.AnchorId, StringComparison.Ordinal);
+                Assert.Equal("Calculator.cs", property.SourcePath);
+                Assert.Equal(10, property.StartLine);
+            },
+            enumProvenance =>
+            {
+                Assert.Equal("Test-Mode", enumProvenance.AnchorId);
+                Assert.Equal("Calculator.cs", enumProvenance.SourcePath);
+                Assert.Equal(14, enumProvenance.StartLine);
+            });
+
+        Assert.Contains("data-razordocs-symbol-source=\"Test-Calculator\"", namespaceNode.Content);
+        Assert.Contains("data-razordocs-symbol-source=\"Test-Mode\"", namespaceNode.Content);
+        Assert.Equal(4, Regex.Matches(namespaceNode.Content, "data-razordocs-symbol-source=").Count);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldEmitTypeSourceProvenance_WhenOnlyMembersHaveDocs()
+    {
+        var code = """
+            namespace Test;
+
+            public class Calculator
+            {
+                /// <summary>Add docs.</summary>
+                public int Add(int left, int right) => left + right;
+            }
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Calculator.cs"), code);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        Assert.Contains("data-razordocs-symbol-source=\"Test-Calculator\"", namespaceNode.Content);
+        Assert.Contains(
+            namespaceNode.SymbolSourceProvenance!,
+            provenance => provenance.AnchorId == "Test-Calculator"
+                          && provenance.SourcePath == "Calculator.cs"
+                          && provenance.StartLine > 0);
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldHandleMalformedXmlGracefully()
     {
         // Arrange

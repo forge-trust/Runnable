@@ -471,6 +471,27 @@ file static class DocTrustMergeHelpers
 }
 
 /// <summary>
+/// Identifies the source declaration that produced one rendered C# API documentation symbol.
+/// </summary>
+public sealed record DocSymbolSourceProvenance
+{
+    /// <summary>
+    /// Gets the rendered HTML anchor ID for the generated API symbol.
+    /// </summary>
+    public string AnchorId { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the repository-relative source file path that contains the documented declaration.
+    /// </summary>
+    public string SourcePath { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the 1-based source declaration line.
+    /// </summary>
+    public int StartLine { get; init; }
+}
+
+/// <summary>
 /// Represents a documentation node within the repository.
 /// </summary>
 /// <param name="Title">The display title of the document.</param>
@@ -481,6 +502,7 @@ file static class DocTrustMergeHelpers
 /// <param name="CanonicalPath">The browser-facing docs route path used for linking and lookup.</param>
 /// <param name="Metadata">Structured metadata associated with the documentation node.</param>
 /// <param name="Outline">Structured in-page outline entries captured during harvesting.</param>
+/// <param name="SymbolSourceProvenance">Optional source declarations keyed by rendered C# API symbol anchor IDs.</param>
 public record DocNode(
     string Title,
     string Path,
@@ -489,47 +511,58 @@ public record DocNode(
     bool IsDirectory = false,
     string? CanonicalPath = null,
     DocMetadata? Metadata = null,
-    IReadOnlyList<DocOutlineItem>? Outline = null);
+    IReadOnlyList<DocOutlineItem>? Outline = null,
+    IReadOnlyList<DocSymbolSourceProvenance>? SymbolSourceProvenance = null);
 
 /// <summary>
 /// Enumerates the built-in public documentation sections used by RazorDocs.
 /// </summary>
+/// <remarks>
+/// Numeric values are a stable public compatibility contract for persisted and serialized representations. Do not
+/// remove, reorder, or renumber existing members. Presentation order is defined by
+/// <c>DocPublicSectionCatalog.OrderedSections</c>, so renderers should not infer UI ordering from enum ordinals.
+/// </remarks>
 public enum DocPublicSection
 {
     /// <summary>
     /// A first-read routing surface for evaluators who need to understand what the product is for before going deeper.
     /// </summary>
-    StartHere,
+    StartHere = 0,
 
     /// <summary>
     /// Explanatory material that builds conceptual understanding before implementation details.
     /// </summary>
-    Concepts,
+    Concepts = 1,
 
     /// <summary>
     /// Task-oriented guides that show a reader how to accomplish something concrete.
     /// </summary>
-    HowToGuides,
+    HowToGuides = 2,
 
     /// <summary>
     /// Concrete examples and proof artifacts that demonstrate the system working in practice.
     /// </summary>
-    Examples,
+    Examples = 3,
 
     /// <summary>
     /// API and namespace reference material intended for readers who already know what they are looking for.
     /// </summary>
-    ApiReference,
+    ApiReference = 4,
 
     /// <summary>
     /// Recovery-oriented material for failures, debugging, and operational honesty.
     /// </summary>
-    Troubleshooting,
+    Troubleshooting = 5,
 
     /// <summary>
     /// Contributor-oriented or otherwise internal material that should only appear when explicitly made public.
     /// </summary>
-    Internals
+    Internals = 6,
+
+    /// <summary>
+    /// Release notes, changelogs, upgrade policies, and other version-facing project history.
+    /// </summary>
+    Releases = 7
 }
 
 /// <summary>
@@ -1155,6 +1188,11 @@ public sealed record DocDetailsViewModel
 /// </summary>
 public sealed record DocContributorProvenanceViewModel
 {
+    /// <summary>
+    /// Gets the reader-facing provenance strip label.
+    /// </summary>
+    public string Label { get; init; } = "Source of truth";
+
     /// <summary>
     /// Gets the browser-facing source URL when one exists.
     /// </summary>

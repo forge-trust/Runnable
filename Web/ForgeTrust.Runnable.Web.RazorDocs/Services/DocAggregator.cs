@@ -44,6 +44,14 @@ public class DocAggregator
         "\\s+",
         RegexOptions.NonBacktracking);
 
+    private static readonly Regex SymbolSourcePlaceholderRegex = new(
+        """<span\s+data-razordocs-symbol-source="(?<anchor>[^"]*)"\s*></span>""",
+        RegexOptions.IgnoreCase | RegexOptions.NonBacktracking);
+
+    private static readonly Regex SymbolSourceLinkRegex = new(
+        """<a\b[^>]*\bclass\s*=\s*"(?:doc-symbol-source-link(?:\s[^"]*)?|[^"]*\sdoc-symbol-source-link(?:\s[^"]*)?)"[^>]*>[\s\S]*?</a>""",
+        RegexOptions.IgnoreCase | RegexOptions.NonBacktracking);
+
     private sealed record CachedDocsSnapshot(
         Dictionary<string, DocNode> DocsByPath,
         Dictionary<string, DocLookupBucket> Lookup,
@@ -63,7 +71,7 @@ public class DocAggregator
     /// </summary>
     /// <param name="harvesters">Collection of <see cref="IDocHarvester"/> instances used to harvest documentation nodes.</param>
     /// <param name="options">Typed RazorDocs options that determine the active source mode and optional repository root override.</param>
-    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when options do not provide it.</param>
+    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot(string, ILogger)"/> when options do not provide it.</param>
     /// <param name="memo">Memoized cache used to store harvested documentation.</param>
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
     /// <param name="logger">Logger used for recording aggregation events and errors.</param>
@@ -144,7 +152,8 @@ public class DocAggregator
         {
             RazorDocsMode.Source => ResolveRepositoryRoot(
                 options.Source ?? throw new ArgumentNullException(nameof(options.Source)),
-                environment.ContentRootPath),
+                environment.ContentRootPath,
+                logger),
             RazorDocsMode.Bundle => throw new NotSupportedException(
                 "RazorDocs bundle mode is not implemented yet. Use RazorDocs:Mode=Source for Slice 1."),
             _ => throw new NotSupportedException($"Unsupported RazorDocs mode '{options.Mode}'.")
@@ -157,14 +166,18 @@ public class DocAggregator
         }
     }
 
-    private static string ResolveRepositoryRoot(RazorDocsSourceOptions sourceOptions, string contentRootPath)
+    private static string ResolveRepositoryRoot(
+        RazorDocsSourceOptions sourceOptions,
+        string contentRootPath,
+        ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(sourceOptions);
         ArgumentNullException.ThrowIfNull(contentRootPath);
+        ArgumentNullException.ThrowIfNull(logger);
 
         if (sourceOptions.RepositoryRoot is null)
         {
-            return PathUtils.FindRepositoryRoot(contentRootPath);
+            return PathUtils.FindRepositoryRoot(contentRootPath, logger);
         }
 
         var normalizedRepositoryRoot = sourceOptions.RepositoryRoot.Trim();
@@ -363,7 +376,11 @@ public class DocAggregator
                            allNodes.AddRange(result);
                        }
 
-                       var sanitizedNodes = allNodes
+                       var nodesWithSymbolSourceLinks = allNodes
+                           .Select(n => n with { Content = ReplaceSymbolSourcePlaceholders(n) })
+                           .ToList();
+
+                       var sanitizedNodes = nodesWithSymbolSourceLinks
                            .Select(
                                n =>
                                {
@@ -379,7 +396,8 @@ public class DocAggregator
                                        n.IsDirectory,
                                        DocRoutePath.BuildCanonicalPath(n.Path),
                                        n.Metadata,
-                                       n.Outline);
+                                       n.Outline,
+                                       n.SymbolSourceProvenance);
                                })
                            .ToList();
 
@@ -401,7 +419,8 @@ public class DocAggregator
                                    n.IsDirectory,
                                    n.CanonicalPath,
                                    n.Metadata,
-                                   n.Outline))
+                                   n.Outline,
+                                   n.SymbolSourceProvenance))
                            .ToList();
 
                        MergeNamespaceReadmes(rewrittenNodes);
@@ -479,6 +498,121 @@ public class DocAggregator
         return contributorProvenanceByPath;
     }
 
+    private string ReplaceSymbolSourcePlaceholders(DocNode doc)
+    {
+        if (string.IsNullOrEmpty(doc.Content)
+            || !SymbolSourcePlaceholderRegex.IsMatch(doc.Content))
+        {
+            return doc.Content;
+        }
+
+        var placeholderMatches = SymbolSourcePlaceholderRegex.Matches(doc.Content);
+        var placeholderCounts = placeholderMatches
+            .Select(match => WebUtility.HtmlDecode(match.Groups["anchor"].Value))
+            .Where(anchor => !string.IsNullOrWhiteSpace(anchor))
+            .GroupBy(anchor => anchor, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+
+        var hrefsByAnchor = BuildSymbolSourceHrefsByAnchor(doc, placeholderCounts);
+        var missingAnchorsLogged = new HashSet<string>(StringComparer.Ordinal);
+        return SymbolSourcePlaceholderRegex.Replace(
+            doc.Content,
+            match =>
+            {
+                var anchorId = WebUtility.HtmlDecode(match.Groups["anchor"].Value);
+                if (string.IsNullOrWhiteSpace(anchorId)
+                    || !hrefsByAnchor.TryGetValue(anchorId, out var href))
+                {
+                    if (!string.IsNullOrWhiteSpace(anchorId) && missingAnchorsLogged.Add(anchorId))
+                    {
+                        _logger.LogDebug(
+                            "Removing RazorDocs symbol source placeholder for {AnchorId} in {DocPath} because no safe source href was available.",
+                            anchorId,
+                            doc.Path);
+                    }
+
+                    return string.Empty;
+                }
+
+                var label = $"View source for {anchorId}";
+                return $@"<a href=""{WebUtility.HtmlEncode(href)}"" class=""doc-symbol-source-link"" aria-label=""{WebUtility.HtmlEncode(label)}"">Source</a>";
+            });
+    }
+
+    private Dictionary<string, string> BuildSymbolSourceHrefsByAnchor(
+        DocNode doc,
+        IReadOnlyDictionary<string, int> placeholderCounts)
+    {
+        var hrefsByAnchor = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!_contributorOptions.Enabled)
+        {
+            return hrefsByAnchor;
+        }
+
+        var seenProvenance = new HashSet<string>(StringComparer.Ordinal);
+        var ambiguousAnchors = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var provenance in doc.SymbolSourceProvenance ?? [])
+        {
+            var anchorId = NormalizeMetadataText(provenance.AnchorId);
+            if (anchorId is null)
+            {
+                continue;
+            }
+
+            if (!seenProvenance.Add(anchorId))
+            {
+                ambiguousAnchors.Add(anchorId);
+                hrefsByAnchor.Remove(anchorId);
+                _logger.LogDebug(
+                    "Omitting RazorDocs symbol source link for {AnchorId} in {DocPath} because multiple provenance entries were rendered.",
+                    anchorId,
+                    doc.Path);
+                continue;
+            }
+
+            if (ambiguousAnchors.Contains(anchorId))
+            {
+                continue;
+            }
+
+            if (!placeholderCounts.TryGetValue(anchorId, out var placeholderCount))
+            {
+                _logger.LogDebug(
+                    "Ignoring RazorDocs symbol source provenance for {AnchorId} in {DocPath} because no placeholder was rendered.",
+                    anchorId,
+                    doc.Path);
+                continue;
+            }
+
+            if (placeholderCount != 1)
+            {
+                _logger.LogDebug(
+                    "Omitting RazorDocs symbol source link for {AnchorId} in {DocPath} because {PlaceholderCount} placeholders were rendered.",
+                    anchorId,
+                    doc.Path,
+                    placeholderCount);
+                continue;
+            }
+
+            var href = NormalizeContributorHref(
+                ExpandSymbolSourceUrlTemplate(
+                    _contributorOptions.SymbolSourceUrlTemplate,
+                    _contributorOptions.DefaultBranch,
+                    _contributorOptions.SourceRef,
+                    provenance.SourcePath,
+                    provenance.StartLine));
+            if (href is null)
+            {
+                continue;
+            }
+
+            hrefsByAnchor[anchorId] = href;
+        }
+
+        return hrefsByAnchor;
+    }
+
     private async Task<DocContributorProvenanceViewModel?> ResolveContributorProvenanceAsync(
         DocNode doc,
         IDictionary<string, DateTimeOffset?> gitFreshnessBySourcePath,
@@ -492,6 +626,7 @@ public class DocAggregator
         }
 
         var sourcePath = ResolveTrustworthyContributorSourcePath(doc, contributor);
+        var label = ResolveContributorProvenanceLabel(doc, contributor);
         var sourceHref = NormalizeContributorHref(
             NormalizeMetadataText(contributor?.SourceUrlOverride)
             ?? ExpandContributorUrlTemplate(
@@ -516,6 +651,7 @@ public class DocAggregator
                     ? null
                     : new DocContributorProvenanceViewModel
                     {
+                        Label = label,
                         SourceHref = sourceHref,
                         EditHref = editHref,
                         LastUpdatedUtc = null
@@ -552,10 +688,19 @@ public class DocAggregator
 
         return new DocContributorProvenanceViewModel
         {
+            Label = label,
             SourceHref = sourceHref,
             EditHref = editHref,
             LastUpdatedUtc = NormalizeContributorLastUpdatedUtc(lastUpdatedUtc)
         };
+    }
+
+    private static string ResolveContributorProvenanceLabel(DocNode doc, DocContributorMetadata? contributor)
+    {
+        var contributorSourcePath = NormalizeContributorSourcePath(contributor?.SourcePathOverride);
+        return IsNamespaceDocPath(doc.Path) && contributorSourcePath is not null && IsReadmePath(contributorSourcePath)
+            ? "Namespace intro source"
+            : "Source of truth";
     }
 
     private bool TryGetContributorFreshnessTimeout(DateTimeOffset contributorFreshnessDeadlineUtc, out TimeSpan freshnessTimeout)
@@ -591,6 +736,13 @@ public class DocAggregator
     private static bool CanAutoResolveContributorSourcePath(DocNode doc)
     {
         return doc.Path.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsNamespaceDocPath(string? path)
+    {
+        return !string.IsNullOrWhiteSpace(path)
+               && !path.Contains('#', StringComparison.Ordinal)
+               && NormalizeLookupPath(path).StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? NormalizeContributorSourcePath(string? path)
@@ -670,6 +822,51 @@ public class DocAggregator
         return normalizedTemplate
             .Replace("{branch}", EncodeContributorBranch(normalizedBranch), StringComparison.Ordinal)
             .Replace("{path}", EncodeContributorPath(normalizedSourcePath), StringComparison.Ordinal);
+    }
+
+    private static string? ExpandSymbolSourceUrlTemplate(
+        string? template,
+        string? branch,
+        string? sourceRef,
+        string? sourcePath,
+        int line)
+    {
+        var normalizedTemplate = NormalizeMetadataText(template);
+        var normalizedSourcePath = NormalizeContributorSourcePath(sourcePath);
+        if (normalizedTemplate is null || normalizedSourcePath is null || line <= 0)
+        {
+            return null;
+        }
+
+        var requiresBranch = normalizedTemplate.Contains("{branch}", StringComparison.Ordinal);
+        var normalizedBranch = NormalizeMetadataText(branch);
+        if (requiresBranch && normalizedBranch is null)
+        {
+            return null;
+        }
+
+        var requiresRef = normalizedTemplate.Contains("{ref}", StringComparison.Ordinal);
+        var normalizedRef = NormalizeMetadataText(sourceRef) ?? normalizedBranch;
+        if (requiresRef && normalizedRef is null)
+        {
+            return null;
+        }
+
+        var expanded = normalizedTemplate
+            .Replace("{path}", EncodeContributorPath(normalizedSourcePath), StringComparison.Ordinal)
+            .Replace("{line}", line.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+
+        if (normalizedBranch is not null)
+        {
+            expanded = expanded.Replace("{branch}", EncodeContributorBranch(normalizedBranch), StringComparison.Ordinal);
+        }
+
+        if (normalizedRef is not null)
+        {
+            expanded = expanded.Replace("{ref}", EncodeContributorBranch(normalizedRef), StringComparison.Ordinal);
+        }
+
+        return expanded;
     }
 
     private static string EncodeContributorBranch(string branch)
@@ -892,7 +1089,8 @@ public class DocAggregator
                 d =>
                 {
                     var content = d.Content;
-                    var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content ?? string.Empty, string.Empty), " "));
+                    var searchableContent = SymbolSourceLinkRegex.Replace(content ?? string.Empty, " ");
+                    var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(searchableContent, string.Empty), " "));
                     var snippet = TruncateSnippetAtWordBoundary(bodyText, SearchSnippetMaxLength);
                     var title = string.IsNullOrWhiteSpace(d.Metadata?.Title)
                         ? d.Title
@@ -1318,7 +1516,9 @@ public class DocAggregator
                     ? namespaceNode.Content
                     : MergeNamespaceIntroIntoContent(namespaceNode.Content, readmeNode.Content);
                 var mergedMetadata = DocMetadata.Merge(
-                    RemoveDerivedNamespaceReadmeOverrides(readmeNode.Metadata),
+                    AddNamespaceReadmeContributorSource(
+                        RemoveDerivedNamespaceReadmeOverrides(readmeNode.Metadata),
+                        readmeNode.Path),
                     namespaceNode.Metadata);
                 var mergedNamespaceNode = new DocNode(
                     mergedMetadata?.Title ?? namespaceNode.Title,
@@ -1328,7 +1528,8 @@ public class DocAggregator
                     namespaceNode.IsDirectory,
                     namespaceNode.CanonicalPath,
                     mergedMetadata,
-                    CombineOutlines(readmeNode.Outline, namespaceNode.Outline));
+                    CombineOutlines(readmeNode.Outline, namespaceNode.Outline),
+                    namespaceNode.SymbolSourceProvenance);
 
                 var namespaceIndex = nodes.FindIndex(n => string.Equals(n.Path, namespaceNode.Path, StringComparison.OrdinalIgnoreCase));
                 if (namespaceIndex >= 0)
@@ -1362,6 +1563,27 @@ public class DocAggregator
             .GroupBy(item => item.Id, StringComparer.Ordinal)
             .Select(group => group.First())
             .ToArray();
+    }
+
+    private static DocMetadata? AddNamespaceReadmeContributorSource(DocMetadata? metadata, string readmePath)
+    {
+        var readmeContributor = new DocContributorMetadata
+        {
+            SourcePathOverride = readmePath
+        };
+
+        if (metadata is null)
+        {
+            return new DocMetadata
+            {
+                Contributor = readmeContributor
+            };
+        }
+
+        return metadata with
+        {
+            Contributor = DocContributorMetadata.Merge(metadata.Contributor, readmeContributor)
+        };
     }
 
     private static DocMetadata? RemoveDerivedNamespaceReadmeOverrides(DocMetadata? metadata)

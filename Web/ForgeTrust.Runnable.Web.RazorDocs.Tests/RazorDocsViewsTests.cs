@@ -1675,6 +1675,31 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderCustomContributorProvenanceLabel()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Web", "Namespaces/ForgeTrust.Web", "<p>Namespace body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                Label = "Namespace intro source",
+                SourceHref = "https://example.com/blob/main/docs/ForgeTrust.Web/README.md"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var provenanceStrip = document.QuerySelector(".docs-provenance-strip");
+        Assert.NotNull(provenanceStrip);
+        Assert.Equal("Namespace intro source", provenanceStrip!.GetAttribute("aria-label"));
+        Assert.Equal("Namespace intro source", provenanceStrip.QuerySelector(".docs-provenance-label")?.TextContent.Trim());
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderPartialContributorProvenance_WhenOnlyOneEvidenceItemExists()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -1791,6 +1816,60 @@ public class RazorDocsViewsTests
         Assert.NotNull(document.QuerySelector("a.docs-provenance-link--primary[href='/tenant/docs/guides/quickstart.md.html']"));
         Assert.NotNull(document.QuerySelector("a.docs-provenance-link--secondary[href='/tenant/docs/guides/quickstart.edit.md.html']"));
         Assert.NotNull(document.QuerySelector("a.docs-trust-bar-link[href='/tenant/docs/releases/unreleased.md.html']"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldPreservePathBase_ForGeneratedLocalSymbolSourceLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Calculator",
+            "Namespaces/Test",
+            """
+            <p>
+                <a aria-label="View source for Test-Calculator" class="chip doc-symbol-source-link" href="/repo/blob/src/Calculator.cs#L12">Source</a>
+            </p>
+            """);
+        var model = CreateDetailsViewModel(doc);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model,
+            configureHttpContext: httpContext => httpContext.Request.PathBase = "/tenant");
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var sourceLink = document.QuerySelector("a.doc-symbol-source-link");
+        Assert.NotNull(sourceLink);
+        Assert.Equal("/tenant/repo/blob/src/Calculator.cs#L12", sourceLink!.GetAttribute("href"));
+        Assert.Equal("View source for Test-Calculator", sourceLink.GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldLeaveProtocolRelativeSymbolSourceLinksUnchanged_WhenPathBaseExists()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Calculator",
+            "Namespaces/Test",
+            """
+            <p>
+                <a aria-label="View source for Test-Calculator" class="chip doc-symbol-source-link" href="//example.com/repo/blob/src/Calculator.cs#L12">Source</a>
+            </p>
+            """);
+        var model = CreateDetailsViewModel(doc);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model,
+            configureHttpContext: httpContext => httpContext.Request.PathBase = "/tenant");
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var sourceLink = document.QuerySelector("a.doc-symbol-source-link");
+        Assert.NotNull(sourceLink);
+        Assert.Equal("//example.com/repo/blob/src/Calculator.cs#L12", sourceLink!.GetAttribute("href"));
+        Assert.Equal("View source for Test-Calculator", sourceLink.GetAttribute("aria-label"));
     }
 
     [Fact]
@@ -1922,6 +2001,7 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-page-starter\"", html);
         Assert.Contains("data-rw-search-suggestion=\"getting started\"", html);
         Assert.Contains("id=\"docs-search-page-failure\"", html);
+        Assert.Contains("id=\"docs-search-page-failure-template\"", html);
         Assert.Contains("id=\"docs-search-page-retry\"", html);
         Assert.Contains("href=\"/docs/search-index.json\"", html);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", html);
@@ -1930,6 +2010,9 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-page-results\"", html);
         Assert.Contains("Search Documentation", html);
         Assert.Contains("id=\"docs-search-input\"", html);
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        Assert.Equal(string.Empty, document.QuerySelector("#docs-search-page-failure")?.TextContent.Trim());
     }
 
     [Fact]
@@ -1943,10 +2026,8 @@ public class RazorDocsViewsTests
             c => c.Search());
 
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
-        var recoveryLink = document.QuerySelector("a[href='/docs'][data-turbo-frame='_top']");
-
-        Assert.NotNull(recoveryLink);
-        Assert.Equal("_top", recoveryLink!.GetAttribute("data-turbo-frame"));
+        Assert.Matches("<a[^>]*href=\"/docs\"[^>]*data-turbo-frame=\"_top\"", html);
+        Assert.Equal(string.Empty, document.QuerySelector("#docs-search-page-failure")?.TextContent.Trim());
     }
 
     [Fact]

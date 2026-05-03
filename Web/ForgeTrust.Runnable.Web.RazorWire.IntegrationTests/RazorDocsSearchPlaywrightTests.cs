@@ -177,6 +177,25 @@ public sealed class RazorDocsSearchPlaywrightTests
     }
 
     [Fact]
+    public async Task SearchPage_KeepsFailureRegionEmpty_WhenSearchIsReady()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/search?q={Uri.EscapeDataString(_fixture.SearchQuery)}");
+        await WaitForSearchPageSettledAsync(page);
+        await page.WaitForFunctionAsync(
+            "() => document.querySelectorAll('#docs-search-page-results .docs-search-result').length > 0",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+
+        var failureText = (await page.TextContentAsync("#docs-search-page-failure"))?.Trim();
+
+        Assert.False(await page.Locator("#docs-search-page-failure").IsVisibleAsync());
+        Assert.Equal(string.Empty, failureText);
+    }
+
+    [Fact]
     public async Task SearchPage_BackAndForward_RestoreQueryFiltersAndResults()
     {
         await using var context = await _fixture.Browser.NewContextAsync();

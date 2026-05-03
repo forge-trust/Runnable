@@ -91,6 +91,12 @@ public class TailwindWatchService : BackgroundService
         {
             // Normal shutdown
         }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Tailwind CSS watch mode is disabled because the Tailwind CLI could not be found. The app will continue serving existing CSS. Install the platform runtime package or set TailwindCliPath to enable watch mode.");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to start Tailwind CSS watch process.");

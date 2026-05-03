@@ -10,6 +10,8 @@ namespace ForgeTrust.Runnable.Web;
 /// Runnable needs to upgrade MVC support to controllers with views during startup. Use
 /// <see cref="Disabled"/> for API-first applications or when another status-code handling strategy should
 /// remain fully in control.
+/// The numeric values are explicit because this public enum may be persisted, serialized, or bound by
+/// applications. New values should be appended without changing the values documented here.
 /// </remarks>
 public enum ConventionalNotFoundPageMode
 {
@@ -21,7 +23,7 @@ public enum ConventionalNotFoundPageMode
     /// turns it on for apps whose MVC support is already <see cref="MvcSupport.ControllersWithViews"/> or
     /// higher.
     /// </remarks>
-    Auto,
+    Auto = 0,
 
     /// <summary>
     /// Always enables the conventional page and allows Runnable to upgrade MVC support when needed.
@@ -31,7 +33,7 @@ public enum ConventionalNotFoundPageMode
     /// from a controller-only configuration. This mode may increase MVC support to
     /// <see cref="MvcSupport.ControllersWithViews"/> so Razor views can render.
     /// </remarks>
-    Enabled,
+    Enabled = 1,
 
     /// <summary>
     /// Always disables Runnable's conventional page.
@@ -40,5 +42,5 @@ public enum ConventionalNotFoundPageMode
     /// Choose this when an app wants blank, JSON, API, or custom middleware-driven status responses without
     /// Runnable injecting the reserved <c>/_runnable/errors/404</c> route or browser-only 404 handling.
     /// </remarks>
-    Disabled
+    Disabled = 2
 }

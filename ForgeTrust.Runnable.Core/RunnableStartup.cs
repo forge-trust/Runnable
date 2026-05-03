@@ -103,8 +103,8 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
     /// <summary>
     /// Create and configure a host builder using values from the provided startup context.
     /// </summary>
-    /// <param name="context">Startup context containing the ApplicationName, RootModule, and Dependencies used to configure the host builder.</param>
-    /// <returns>A host builder configured with the context's application name, registered modules, and service registrations.</returns>
+    /// <param name="context">Startup context containing the application label, host application identity, root module, and dependencies used to configure the host builder.</param>
+    /// <returns>A host builder configured with the context's host application identity, registered modules, and service registrations.</returns>
     private IHostBuilder CreateHostBuilderCore(StartupContext context)
     {
         var builder = Host.CreateDefaultBuilder(context.Args);
@@ -119,11 +119,11 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
             }
             : null;
 
-        // Ensure the host environment correctly reflects the application name from the context.
-        // This is critical for features like Static Web Assets that rely on the application name to find manifests.
+        // Keep Generic Host identity assembly-backed so ASP.NET static web assets can resolve runtime manifests.
+        // The context's ApplicationName remains available as a caller-controlled display label.
         builder.ConfigureAppConfiguration((hostingContext, config) =>
         {
-            hostingContext.HostingEnvironment.ApplicationName = context.ApplicationName;
+            hostingContext.HostingEnvironment.ApplicationName = context.HostApplicationName;
 
             if (portOverlay != null)
             {
@@ -134,7 +134,7 @@ public abstract class RunnableStartup<TRootModule> : RunnableStartup, IRunnableS
         builder.ConfigureHostConfiguration(config =>
         {
             config.AddInMemoryCollection(
-                new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.ApplicationName });
+                new Dictionary<string, string?> { [HostDefaults.ApplicationKey] = context.HostApplicationName });
 
             if (portOverlay != null)
             {

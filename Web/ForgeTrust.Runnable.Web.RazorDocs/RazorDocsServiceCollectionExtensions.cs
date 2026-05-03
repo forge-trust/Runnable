@@ -42,6 +42,8 @@ public static class RazorDocsServiceCollectionExtensions
                     options.Contributor.DefaultBranch = NormalizeOrNull(options.Contributor.DefaultBranch);
                     options.Contributor.SourceUrlTemplate = NormalizeOrNull(options.Contributor.SourceUrlTemplate);
                     options.Contributor.EditUrlTemplate = NormalizeOrNull(options.Contributor.EditUrlTemplate);
+                    options.Contributor.SymbolSourceUrlTemplate = NormalizeOrNull(options.Contributor.SymbolSourceUrlTemplate);
+                    options.Contributor.SourceRef = NormalizeOrNull(options.Contributor.SourceRef);
                     options.Sidebar.NamespacePrefixes = options.Sidebar.NamespacePrefixes
                         .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
                         .Select(prefix => prefix.Trim())

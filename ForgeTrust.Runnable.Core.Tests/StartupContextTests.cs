@@ -35,6 +35,61 @@ public class StartupContextTests
         Assert.Equal(ConsoleOutputMode.CommandFirst, context.ConsoleOutputMode);
     }
 
+    [Theory]
+    [InlineData(ConsoleOutputMode.Default, 0)]
+    [InlineData(ConsoleOutputMode.CommandFirst, 1)]
+    public void ConsoleOutputMode_NumericValues_AreStable(ConsoleOutputMode value, int expected)
+    {
+        Assert.Equal(expected, (int)value);
+    }
+
+    [Fact]
+    public void ApplicationName_DefaultsToRootModuleAssemblyName()
+    {
+        var context = new StartupContext([], new DummyModule());
+
+        Assert.Equal(typeof(DummyModule).Assembly.GetName().Name, context.ApplicationName);
+    }
+
+    [Fact]
+    public void ApplicationName_CanBeProvidedThroughConstructor()
+    {
+        var context = new StartupContext([], new DummyModule(), "CustomApp");
+
+        Assert.Equal("CustomApp", context.ApplicationName);
+    }
+
+    [Fact]
+    public void ApplicationName_CanBeOverriddenWithWithExpression()
+    {
+        var context = new StartupContext([], new DummyModule());
+
+        var renamed = context with { ApplicationName = "CustomApp" };
+
+        Assert.Equal("CustomApp", renamed.ApplicationName);
+        Assert.Equal(context.RootModuleAssembly, renamed.RootModuleAssembly);
+        Assert.Equal(context.HostApplicationName, renamed.HostApplicationName);
+    }
+
+    [Fact]
+    public void HostApplicationName_DefaultsToRootModuleAssemblyName()
+    {
+        var context = new StartupContext([], new DummyModule());
+
+        Assert.Equal(typeof(DummyModule).Assembly.GetName().Name, context.HostApplicationName);
+    }
+
+    [Fact]
+    public void HostApplicationName_UsesOverrideEntryPointAssemblyName()
+    {
+        var context = new StartupContext([], new DummyModule())
+        {
+            OverrideEntryPointAssembly = typeof(string).Assembly
+        };
+
+        Assert.Equal(typeof(string).Assembly.GetName().Name, context.HostApplicationName);
+    }
+
     private class DummyModule : IRunnableHostModule
     {
         public void ConfigureServices(StartupContext context, IServiceCollection services)

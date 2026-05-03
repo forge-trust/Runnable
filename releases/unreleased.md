@@ -40,7 +40,12 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - RazorWire CLI now has a first-class .NET tool package contract with the `razorwire` command, supports exact-version `dnx` execution from published or explicit local package sources, and verifies the installed tool path through help and sample export smoke tests. Public package publishing remains manual until the coordinated release automation tracked in #161 lands.
 - Project exports now disable persistent MSBuild build servers during CLI-controlled publish and assembly-name probes so captured tool output cannot hang on reused build nodes.
 - RazorWire CLI process cleanup now waits for asynchronous stdout and stderr callbacks to flush before disposing launched target processes, which keeps short-lived command output observable in tests and diagnostics.
+- RazorWire CLI validation errors now include a concrete source-selection example and `razorwire export --help` hint, so a failed export tells developers the next useful command instead of only naming the bad input.
 - PackageIndex now has a real `--help`/`-h` surface that exits successfully, describes its commands and options, and reports unknown commands before printing usage.
+
+### Core diagnostics
+
+- Core static utilities now use explicit `ILogger` overloads and source-generated `[LoggerMessage]` definitions for host-owned diagnostics. `PathUtils.FindRepositoryRoot` can warn when discovery falls back from a missing path, and parallel enumerable cleanup paths now log suppressed cleanup failures at `Debug` when a caller supplies a logger.
 
 ### Dependency maintenance
 
@@ -52,11 +57,17 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Nested config validation can now opt into Microsoft Options `[ValidateObjectMembers]` and `[ValidateEnumeratedItems]` markers while Runnable owns traversal, path formatting, and cycle protection.
 - Scalar config wrappers can now validate resolved primitive values directly with `ConfigValueNotEmpty`, `ConfigValueRange`, and `ConfigValueMinLength` attributes, while wrapper-specific scalar rules can override `ValidateValue`.
 - The new `examples/config-validation` sample demonstrates an intentional startup validation failure for a scalar `ConfigStruct<int>` without printing the invalid configured value.
+- Environment variables can now patch individual members of object-valued config loaded from lower-priority providers, so `APP__SETTINGS__DATABASE__PORT` can override one nested value without replacing the rest of the JSON-backed options object.
 
 ### Web host development defaults
 
 - Runnable web hosts now choose a deterministic localhost-only development URL when no endpoint is configured, while production, staging, container, and appsettings-based endpoint choices remain untouched.
+- OpenAPI's optional web package now has dedicated test coverage for service registration, endpoint mapping, generated document titles, and transformer behavior that removes `ForgeTrust.Runnable.Web` tags at the document and operation levels while preserving unrelated tags, so the public module contract is guarded independently of Scalar.
+- Scalar's optional web package now has dedicated test coverage for OpenAPI dependency wiring, Scalar endpoint mapping, no-op lifecycle hooks, and minimal Runnable web host composition.
+- Tailwind development watch mode now treats a missing standalone CLI as a recoverable local-tooling gap: the app keeps serving existing CSS and logs a warning that points to the runtime package or `TailwindCliPath` override.
 - Runnable's conventional browser 404 page now prioritizes user recovery paths, including documentation search for missing `/docs/...` routes and a home link for other misses, while still documenting how app owners can override the default page.
+- Runnable now assigns explicit numeric values to public Web and RazorWire enums, preserving existing ordinals for consumers that persist, serialize, bind, or compare those values.
+- Runnable startup now keeps custom `StartupContext.ApplicationName` values as display labels while preserving assembly-backed host identity for ASP.NET static web asset manifests, so custom-labeled web hosts can still serve package styles and scripts.
 
 ### RazorWire package guidance
 
@@ -73,7 +84,19 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - RazorDocs details pages can now render a `Source of truth` strip with `View source`, `Edit this page`, and relative `Last updated` evidence driven by contributor metadata, configured URL templates, and git freshness when available.
 - The primary RazorDocs Pages deployment now exports with contributor provenance configured and full git history available, so the public docs artifact can show the same `Source of truth` strip as local smoke tests.
 - Contributor provenance now degrades safely: namespace and API pages stay explicit-override-only for the MVP, and missing or slow git history omits only freshness instead of breaking docs rendering.
+- RazorDocs generated C# API references can now render per-symbol source links for documented types, methods, properties, and enums that point at the exact source file and line, with immutable refs available when hosts want links pinned to the code version used to build the docs.
+- The primary RazorDocs Pages deployment now configures commit-pinned symbol source links, so generated C# API `Source` chips resolve to the exact file and line from the CI build revision.
 - Shared RazorDocs badges, metadata chips, provenance strips, and trust bars now live in the shared package stylesheet while `search.css` stays focused on search-specific UI.
+- RazorDocs search now keeps failure recovery markup out of the active search shell until the index actually fails to load, so successful searches no longer expose hidden failure copy to text extraction tools.
+- RazorDocs now treats `Releases` as a first-class public section and suppresses breadcrumb links to generated parent routes that do not correspond to published docs pages, keeping static export warnings focused on actionable broken links.
+- RazorDocs wayfinding coverage now waits for docs content replacement before asserting sequence-link destinations, keeping the details-page proof path deterministic in CI.
+
+### RazorWire form UX
+
+- RazorWire-enhanced forms now get a convention-based failed-submission stack: durable request markers, default form-local fallback UI, handled server validation helpers, and runtime events for custom consumers.
+- Development anti-forgery failures from RazorWire forms now return useful diagnostics with safe production copy, so stale or missing token problems are easier to fix without exposing implementation detail to users.
+- The MVC sample now includes `/Reactivity/FormFailures`, covering validation, anti-forgery, authorization, malformed request, server failure, default styling, CSS variable customization, and manual event-driven rendering.
+- The MVC sample counter keeps its compact icon-only button while exposing an `Increment counter` accessible name for assistive technology and role-based tests.
 
 ## Migration watch
 
@@ -83,7 +106,9 @@ There is no tagged migration guide yet because Runnable has not cut `v0.1.0`. Un
 - the stable policy lives in [Pre-1.0 upgrade policy](./upgrade-policy.md)
 - finalized migration steps move into the tagged release note when the version ships
 - custom RazorDocs harvesters that want detail-page outlines and search heading metadata should populate `DocNode.Outline`; pages without outline metadata continue to render without the optional outline section
+- existing `rw-active` forms opt into failed-form request markers and default fallback UI; applications with custom failure rendering can use `RazorWireOptions.Forms.FailureMode = Manual`, `RazorWireOptions.Forms.EnableFailureUx = false`, or per-form `data-rw-form-failure="off"`
 - RazorDocs authors should migrate flat `featured_pages` metadata to `featured_page_groups`. The old field is ignored and logs a warning; each group needs at least `label` or `intent`, plus a `pages` list containing the existing `question`, `path`, `supporting_copy`, and `order` entries.
+- Code that previously read `IHostEnvironment.ApplicationName` to recover a custom Runnable display label should read `StartupContext.ApplicationName` instead. `IHostEnvironment.ApplicationName` now stays aligned with the host or root-module assembly identity used for static web asset discovery.
 
 ## Proof artifacts
 

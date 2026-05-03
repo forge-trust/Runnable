@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs;
@@ -41,17 +42,22 @@ public sealed class RazorDocsOptions
 /// <summary>
 /// Enumerates the supported RazorDocs content source modes.
 /// </summary>
+/// <remarks>
+/// Numeric values are part of the public configuration and serialization contract. Do not reorder or renumber existing
+/// members; changing these assignments can break persisted configuration, serialized payloads, and consumers. Add new
+/// modes by appending members with new explicit values.
+/// </remarks>
 public enum RazorDocsMode
 {
     /// <summary>
     /// Harvest docs from source files at runtime.
     /// </summary>
-    Source,
+    Source = 0,
 
     /// <summary>
     /// Load docs from a prebuilt bundle. Reserved for a later implementation slice.
     /// </summary>
-    Bundle
+    Bundle = 1
 }
 
 /// <summary>
@@ -109,7 +115,8 @@ public sealed class RazorDocsContributorOptions
     /// <summary>
     /// Gets or sets the stable branch name used when expanding configured source and edit URL templates.
     /// Required when <see cref="Enabled"/> is <see langword="true" /> and either
-    /// <see cref="SourceUrlTemplate"/> or <see cref="EditUrlTemplate"/> is configured.
+    /// <see cref="SourceUrlTemplate"/> or <see cref="EditUrlTemplate"/> is configured, and used as the fallback
+    /// source ref for symbol links when <see cref="SourceRef"/> is not configured.
     /// </summary>
     public string? DefaultBranch { get; set; }
 
@@ -128,6 +135,23 @@ public sealed class RazorDocsContributorOptions
     public string? EditUrlTemplate { get; set; }
 
     /// <summary>
+    /// Gets or sets the source-link template for generated C# API symbols.
+    /// Supported tokens are <c>{path}</c>, <c>{line}</c>, <c>{branch}</c>, and <c>{ref}</c>.
+    /// Configured templates must include <c>{path}</c> and <c>{line}</c> when <see cref="Enabled"/> is
+    /// <see langword="true" />, and unsupported token placeholders are rejected during startup validation.
+    /// Use <c>{ref}</c> when links should prefer a commit SHA supplied through <see cref="SourceRef"/> and fall back to
+    /// <see cref="DefaultBranch"/>.
+    /// </summary>
+    public string? SymbolSourceUrlTemplate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the source-control ref used for generated C# API symbol links.
+    /// Prefer a commit SHA when the docs build knows one. When omitted, symbol links that use <c>{ref}</c> fall back
+    /// to <see cref="DefaultBranch"/> so hosts can still render moving-branch links intentionally.
+    /// </summary>
+    public string? SourceRef { get; set; }
+
+    /// <summary>
     /// Gets or sets the mode used to resolve contributor freshness.
     /// The default is <see cref="RazorDocsLastUpdatedMode.None"/> so hosts opt into git-backed freshness explicitly
     /// instead of paying unexpected snapshot-time git costs.
@@ -140,18 +164,23 @@ public sealed class RazorDocsContributorOptions
 /// <summary>
 /// Enumerates the supported contributor freshness modes for RazorDocs details pages.
 /// </summary>
+/// <remarks>
+/// Numeric values are part of the public configuration and serialization contract. Do not reorder or renumber existing
+/// members; changing these assignments can break persisted configuration, serialized payloads, and consumers. Add new
+/// modes by appending members with new explicit values.
+/// </remarks>
 public enum RazorDocsLastUpdatedMode
 {
     /// <summary>
     /// Do not render automatic contributor freshness.
     /// </summary>
-    None,
+    None = 0,
 
     /// <summary>
     /// Resolve contributor freshness from local git history when a trustworthy source path exists.
     /// Hosts should expect graceful omission when git history is unavailable, shallow, or not trustworthy for the page.
     /// </summary>
-    Git
+    Git = 1
 }
 
 /// <summary>
@@ -159,6 +188,10 @@ public enum RazorDocsLastUpdatedMode
 /// </summary>
 public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOptions>
 {
+    private static readonly Regex SymbolSourceTemplateTokenRegex = new(
+        @"\{[^}]+\}",
+        RegexOptions.Compiled | RegexOptions.NonBacktracking);
+
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, RazorDocsOptions options)
     {
@@ -243,6 +276,59 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             && contributor.EditUrlTemplate.Contains("{path}", StringComparison.Ordinal) is false)
         {
             failures.Add("RazorDocs:Contributor:EditUrlTemplate must contain the {path} token.");
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && !string.IsNullOrWhiteSpace(contributor.SymbolSourceUrlTemplate)
+            && contributor.SymbolSourceUrlTemplate.Contains("{path}", StringComparison.Ordinal) is false)
+        {
+            failures.Add("RazorDocs:Contributor:SymbolSourceUrlTemplate must contain the {path} token.");
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && !string.IsNullOrWhiteSpace(contributor.SymbolSourceUrlTemplate)
+            && contributor.SymbolSourceUrlTemplate.Contains("{line}", StringComparison.Ordinal) is false)
+        {
+            failures.Add("RazorDocs:Contributor:SymbolSourceUrlTemplate must contain the {line} token.");
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && !string.IsNullOrWhiteSpace(contributor.SymbolSourceUrlTemplate))
+        {
+            var unsupportedSymbolSourceTokens = SymbolSourceTemplateTokenRegex
+                .Matches(contributor.SymbolSourceUrlTemplate)
+                .Select(match => match.Value)
+                .Where(token => token is not "{path}" and not "{line}" and not "{branch}" and not "{ref}")
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            if (unsupportedSymbolSourceTokens.Length > 0)
+            {
+                failures.Add(
+                    $"RazorDocs:Contributor:SymbolSourceUrlTemplate contains unsupported token(s): {string.Join(", ", unsupportedSymbolSourceTokens)}.");
+            }
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && !string.IsNullOrWhiteSpace(contributor.SymbolSourceUrlTemplate)
+            && contributor.SymbolSourceUrlTemplate.Contains("{branch}", StringComparison.Ordinal)
+            && string.IsNullOrWhiteSpace(contributor.DefaultBranch))
+        {
+            failures.Add("RazorDocs:Contributor:DefaultBranch is required when SymbolSourceUrlTemplate contains the {branch} token.");
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && !string.IsNullOrWhiteSpace(contributor.SymbolSourceUrlTemplate)
+            && contributor.SymbolSourceUrlTemplate.Contains("{ref}", StringComparison.Ordinal)
+            && string.IsNullOrWhiteSpace(contributor.SourceRef)
+            && string.IsNullOrWhiteSpace(contributor.DefaultBranch))
+        {
+            failures.Add("RazorDocs:Contributor:SourceRef or DefaultBranch is required when SymbolSourceUrlTemplate contains the {ref} token.");
         }
 
         return failures.Count == 0

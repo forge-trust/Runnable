@@ -90,7 +90,7 @@
       activeFilters: document.getElementById('docs-search-page-active-filters'),
       starter: document.getElementById('docs-search-page-starter'),
       failure: document.getElementById('docs-search-page-failure'),
-      retry: document.getElementById('docs-search-page-retry'),
+      failureTemplate: document.getElementById('docs-search-page-failure-template'),
       resultsMeta: document.getElementById('docs-search-page-results-meta'),
       results: document.getElementById('docs-search-page-results'),
       suggestionButtons: root
@@ -1455,6 +1455,23 @@
     page.results?.setAttribute('aria-busy', isBusy ? 'true' : 'false');
   }
 
+  function ensureSearchPageFailureContent(page) {
+    if (!page.failure || page.failure.hasChildNodes()) {
+      return;
+    }
+
+    if (page.failureTemplate instanceof HTMLTemplateElement) {
+      page.failure.append(page.failureTemplate.content.cloneNode(true));
+      return;
+    }
+
+    page.failure.append(createElement('h2', 'docs-search-page-section-title', 'Search is temporarily unavailable'));
+  }
+
+  function clearSearchPageFailureContent(page) {
+    page.failure?.replaceChildren();
+  }
+
   function renderSearchPageFilters(page, view) {
     if (!page.filters) {
       return;
@@ -1578,6 +1595,7 @@
 
     if (searchPageState.loadState === 'loading' && !searchData.index) {
       setStatus(page.status, 'Loading search index...');
+      clearSearchPageFailureContent(page);
       page.failure.hidden = true;
       page.starter.hidden = true;
       page.resultsMeta.hidden = true;
@@ -1588,6 +1606,7 @@
 
     if (searchPageState.loadState === 'error' && !searchData.index) {
       setStatus(page.status, 'Search is temporarily unavailable.');
+      ensureSearchPageFailureContent(page);
       page.failure.hidden = false;
       page.starter.hidden = true;
       page.resultsMeta.hidden = true;
@@ -1603,6 +1622,7 @@
     const view = buildSearchView();
     renderSearchPageFilters(page, view);
     renderSearchPageActiveFilters(page, view);
+    clearSearchPageFailureContent(page);
     page.failure.hidden = true;
     page.starter.hidden = !view.isStarter;
     setSearchPageBusy(page, false);
@@ -1658,8 +1678,8 @@
 
   function bindSearchPage() {
     const page = getSearchPageElements();
-    const { root, input, filters, activeFilters, retry, filtersToggle, suggestionButtons } = page;
-    if (!root || !input || !filters || !activeFilters || !retry || !filtersToggle) {
+    const { root, input, filters, activeFilters, failure, filtersToggle, suggestionButtons } = page;
+    if (!root || !input || !filters || !activeFilters || !failure || !filtersToggle) {
       return;
     }
 
@@ -1723,7 +1743,17 @@
       setSearchPageState({ [key]: '' }, 'push');
     });
 
-    retry.addEventListener('click', () => {
+    failure.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const retry = target.closest('#docs-search-page-retry');
+      if (!(retry instanceof HTMLButtonElement)) {
+        return;
+      }
+
       loadSearchPageData().catch((error) => console.error(error));
     });
 

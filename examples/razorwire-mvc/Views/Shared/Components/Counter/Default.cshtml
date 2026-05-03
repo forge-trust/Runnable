@@ -14,7 +14,7 @@
     
     <form asp-controller="Reactivity" asp-action="IncrementCounter" method="post" rw-active="true" data-counter-form>
         <input type="hidden" name="clientCount" id="client-count-input" value="0" />
-        <button type="submit" class="h-10 w-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center hover:bg-indigo-700 active:scale-90 transition-all shadow-sm shadow-indigo-100">
+        <button type="submit" aria-label="Increment counter" class="h-10 w-10 bg-indigo-600 text-white rounded-lg flex items-center justify-center hover:bg-indigo-700 active:scale-90 transition-all shadow-sm shadow-indigo-100">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
         </button>
     </form>

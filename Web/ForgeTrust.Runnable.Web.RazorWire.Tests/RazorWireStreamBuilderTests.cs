@@ -170,6 +170,158 @@ public class RazorWireStreamBuilderTests
         Assert.Equal(4, viewComponentHelper.NamedInvocationCount);
     }
 
+    [Fact]
+    public async Task FormError_EncodesTextAndMarksResultHandled()
+    {
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
+        {
+            services.AddSingleton(tempDataFactory);
+        });
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+
+        var result = new RazorWireStreamBuilder()
+            .FormError("form-errors", "<b>Bad</b>", "<script>alert(1)</script>")
+            .BuildResult(StatusCodes.Status422UnprocessableEntity);
+
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
+
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, actionContext.ActionContext.HttpContext.Response.StatusCode);
+        Assert.Equal("true", actionContext.ActionContext.HttpContext.Response.Headers["X-RazorWire-Form-Handled"]);
+        Assert.Contains("data-rw-form-error-generated=\"true\"", rendered);
+        Assert.Contains("&lt;b&gt;Bad&lt;/b&gt;", rendered);
+        Assert.Contains("&lt;script&gt;alert(1)&lt;/script&gt;", rendered);
+        Assert.DoesNotContain("<script>alert(1)</script>", rendered);
+    }
+
+    [Fact]
+    public async Task FormValidationErrors_RendersModelStateErrorsInSortedOrderWithOverflow()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.AddModelError(string.Empty, "Model error");
+        modelState.AddModelError("Name", "Name is required");
+        modelState.AddModelError("Message", "<message> is invalid");
+        modelState.AddModelError("Email", "Email is required");
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
+        {
+            services.AddSingleton(tempDataFactory);
+        });
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+
+        var result = new RazorWireStreamBuilder()
+            .FormValidationErrors("form-errors", modelState, maxErrors: 2)
+            .BuildResult(StatusCodes.Status422UnprocessableEntity);
+
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
+
+        Assert.Contains("Model error", rendered);
+        Assert.Contains("data-rw-form-error-field=\"Email\"", rendered);
+        Assert.Contains("Email is required", rendered);
+        Assert.DoesNotContain("data-rw-form-error-field=\"Name\"", rendered);
+        Assert.Contains("There are 2 more validation errors.", rendered);
+        Assert.Equal("true", actionContext.ActionContext.HttpContext.Response.Headers["X-RazorWire-Form-Handled"]);
+    }
+
+    [Fact]
+    public async Task FormValidationErrors_EncodesVisibleModelStateErrors()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.AddModelError("Message", "<message> is invalid");
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
+        {
+            services.AddSingleton(tempDataFactory);
+        });
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+
+        var result = new RazorWireStreamBuilder()
+            .FormValidationErrors("form-errors", modelState)
+            .BuildResult(StatusCodes.Status422UnprocessableEntity);
+
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
+
+        Assert.Contains("&lt;message&gt; is invalid", rendered);
+        Assert.DoesNotContain("<message> is invalid", rendered);
+        Assert.Equal("true", actionContext.ActionContext.HttpContext.Response.Headers["X-RazorWire-Form-Handled"]);
+    }
+
+    [Fact]
+    public async Task FormValidationErrors_PreservesSameFieldErrorOrder()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.AddModelError("DisplayName", "Required");
+        modelState.AddModelError("DisplayName", "Must be shorter");
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
+        {
+            services.AddSingleton(tempDataFactory);
+        });
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+
+        var result = new RazorWireStreamBuilder()
+            .FormValidationErrors("form-errors", modelState)
+            .BuildResult(StatusCodes.Status422UnprocessableEntity);
+
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
+        var requiredIndex = rendered.IndexOf("Required", StringComparison.Ordinal);
+        var lengthIndex = rendered.IndexOf("Must be shorter", StringComparison.Ordinal);
+
+        Assert.True(requiredIndex >= 0);
+        Assert.True(lengthIndex >= 0);
+        Assert.True(requiredIndex < lengthIndex);
+    }
+
+    [Fact]
+    public async Task FormValidationErrors_WithValidModelState_RendersFallbackMessage()
+    {
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
+        {
+            services.AddSingleton(tempDataFactory);
+        });
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+
+        var result = new RazorWireStreamBuilder()
+            .FormValidationErrors("form-errors", new ModelStateDictionary())
+            .BuildResult(StatusCodes.Status422UnprocessableEntity);
+
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
+
+        Assert.Contains("We could not submit this form. Check your input and try again.", rendered);
+        Assert.DoesNotContain("data-rw-form-error-list", rendered);
+    }
+
+    [Fact]
+    public async Task FormValidationErrors_WithZeroMaxErrors_RendersOnlyOverflow()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.AddModelError("Name", "Name is required");
+        modelState.AddModelError("Email", "Email is required");
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
+        {
+            services.AddSingleton(tempDataFactory);
+        });
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+
+        var result = new RazorWireStreamBuilder()
+            .FormValidationErrors("form-errors", modelState, maxErrors: 0)
+            .BuildResult(StatusCodes.Status422UnprocessableEntity);
+
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
+
+        Assert.DoesNotContain("data-rw-form-error-list", rendered);
+        Assert.DoesNotContain("Name is required", rendered);
+        Assert.Contains("There are 2 more validation errors.", rendered);
+    }
+
     private static ViewContext CreateViewContext()
     {
         var httpContext = new DefaultHttpContext

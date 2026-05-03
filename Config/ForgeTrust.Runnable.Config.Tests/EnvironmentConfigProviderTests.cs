@@ -450,4 +450,559 @@ public class EnvironmentConfigProviderTests
 
         Assert.Null(provider.GetValue<List<int>>("Production", "MyApp.Values"));
     }
+
+    [Fact]
+    public void TryPatch_PatchesNestedObjectFromDoubleUnderscoreVariables()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("6543");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new AppSettings
+        {
+            Mode = "file",
+            Database = new DatabaseOptions
+            {
+                Host = "db.from.file",
+                Port = 5432
+            }
+        };
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out AppSettings? value);
+
+        Assert.True(patched);
+        Assert.Same(current, value);
+        Assert.NotNull(value);
+        Assert.Equal("file", value.Mode);
+        Assert.Equal("db.from.file", value.Database.Host);
+        Assert.Equal(6543, value.Database.Port);
+    }
+
+    [Fact]
+    public void TryPatch_CreatesNestedObjectWhenOnlyChildEnvironmentVariablesExist()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION__MYAPP__SETTINGS__MODE", A<string?>._))
+            .Returns("env");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION__MYAPP__SETTINGS__DATABASE__HOST", A<string?>._))
+            .Returns("db.from.env");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        var patched = provider.TryPatch<AppSettings>("Production", "MyApp.Settings", null, out var value);
+
+        Assert.True(patched);
+        Assert.NotNull(value);
+        Assert.Equal("env", value.Mode);
+        Assert.NotNull(value.Database);
+        Assert.Equal("db.from.env", value.Database.Host);
+    }
+
+    [Fact]
+    public void TryPatch_PatchesIndexedCollectionMember()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__ENDPOINTS__0", A<string?>._))
+            .Returns("https://one.example");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__ENDPOINTS__1", A<string?>._))
+            .Returns("https://two.example");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new AppSettings();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out AppSettings? value);
+
+        Assert.True(patched);
+        Assert.NotNull(value);
+        Assert.Equal(["https://one.example", "https://two.example"], value.Endpoints);
+    }
+
+    [Fact]
+    public void TryPatch_PatchesExistingGetterOnlyNestedObject()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("6543");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new GetterOnlyAppSettings
+        {
+            Mode = "file"
+        };
+        current.Database.Host = "db.from.file";
+        current.Database.Port = 5432;
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out GetterOnlyAppSettings? value);
+
+        Assert.True(patched);
+        Assert.Same(current, value);
+        Assert.NotNull(value);
+        Assert.Equal("file", value.Mode);
+        Assert.Equal("db.from.file", value.Database.Host);
+        Assert.Equal(6543, value.Database.Port);
+    }
+
+    [Fact]
+    public void TryPatch_PatchesExistingGetterOnlyCollection()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__ENDPOINTS__0", A<string?>._))
+            .Returns("https://one.example");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__ENDPOINTS__1", A<string?>._))
+            .Returns("https://two.example");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new GetterOnlyAppSettings();
+        current.Endpoints.Add("https://file.example");
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out GetterOnlyAppSettings? value);
+
+        Assert.True(patched);
+        Assert.Same(current, value);
+        Assert.NotNull(value);
+        Assert.Equal(["https://one.example", "https://two.example"], value.Endpoints);
+    }
+
+    [Fact]
+    public void TryPatch_PatchesExistingGetterOnlyCollectionFromEnvironmentScopedVariables()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION__MYAPP__SETTINGS__ENDPOINTS__0", A<string?>._))
+            .Returns("https://one.example");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("PRODUCTION__MYAPP__SETTINGS__ENDPOINTS__1", A<string?>._))
+            .Returns("https://two.example");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new GetterOnlyAppSettings();
+        current.Endpoints.Add("https://file.example");
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out GetterOnlyAppSettings? value);
+
+        Assert.True(patched);
+        Assert.NotNull(value);
+        Assert.Equal(["https://one.example", "https://two.example"], value.Endpoints);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotPatchScalarTopLevelValue()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        var patched = provider.TryPatch<string>("Production", "MyApp.Settings", null, out var value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotPatchNullableScalarTopLevelValue()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        var patched = provider.TryPatch<int?>("Production", "MyApp.Settings", null, out var value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotPatchTopLevelRuntimeScalarValue()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        var patched = provider.TryPatch<object>("Production", "MyApp.Settings", "file", out var value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotCreateTopLevelInterfaceValue()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        var provider = new EnvironmentConfigProvider(innerProvider);
+
+        var patched = provider.TryPatch<IConfigPatchContract>("Production", "MyApp.Settings", null, out var value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+    }
+
+    [Fact]
+    public void TryPatch_SkipsIndexerProperties()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new IndexedOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out IndexedOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Equal("file", current[0]);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotPatchGetterOnlyScalarProperty()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__MODE", A<string?>._))
+            .Returns("environment");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new GetterOnlyScalarOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out GetterOnlyScalarOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Equal("file", current.Mode);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotPatchPrivateSetterScalarProperty()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__MODE", A<string?>._))
+            .Returns("environment");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new PrivateSetterOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out PrivateSetterOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Equal("file", current.Mode);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotAttachNullGetterOnlyNestedObject()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("6543");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new NullGetterOnlyOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out NullGetterOnlyOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Null(current.Database);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotUsePrivateSetterToAttachNestedObject()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("6543");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new PrivateSetterChildOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out PrivateSetterChildOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Null(current.Database);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotPatchGetterOnlyReadOnlyCollection()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__ENDPOINTS__0", A<string?>._))
+            .Returns("https://one.example");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new GetterOnlyReadOnlyCollectionOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out GetterOnlyReadOnlyCollectionOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Equal(["https://file.example"], current.Endpoints);
+    }
+
+    [Fact]
+    public void TryPatch_PatchesRootMemberWhenKeyIsEmpty()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MODE", A<string?>._))
+            .Returns("environment");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new AppSettings
+        {
+            Mode = "file"
+        };
+
+        var patched = provider.TryPatch("Production", string.Empty, current, out AppSettings? value);
+
+        Assert.True(patched);
+        Assert.Same(current, value);
+        Assert.Equal("environment", value?.Mode);
+    }
+
+    [Fact]
+    public void TryPatch_PatchesPublicWritableFields()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__MODE", A<string?>._))
+            .Returns("environment");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("6543");
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__READ_ONLY_MODE", A<string?>._))
+            .Returns("environment-readonly");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new FieldBackedOptions();
+        current.Database.Host = "db.from.file";
+        current.Database.Port = 5432;
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out FieldBackedOptions? value);
+
+        Assert.True(patched);
+        Assert.Same(current, value);
+        Assert.NotNull(value);
+        Assert.Equal("environment", value.Mode);
+        Assert.Equal("file-readonly", value.ReadOnlyMode);
+        Assert.Equal("db.from.file", value.Database.Host);
+        Assert.Equal(6543, value.Database.Port);
+    }
+
+    [Fact]
+    public void TryPatch_CreatesNullFieldChildWhenChildEnvironmentVariablesExist()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("6543");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new NullableFieldBackedOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out NullableFieldBackedOptions? value);
+
+        Assert.True(patched);
+        Assert.Same(current, value);
+        Assert.NotNull(value?.Database);
+        Assert.Equal(6543, value.Database.Port);
+    }
+
+    [Fact]
+    public void TryPatch_SkipsNullInterfaceChildProperty()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__CHILD__VALUE", A<string?>._))
+            .Returns("environment");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new InterfaceChildOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out InterfaceChildOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Null(current.Child);
+    }
+
+    [Fact]
+    public void TryPatch_SkipsChildPropertyWhenConstructorThrows()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__CHILD__VALUE", A<string?>._))
+            .Returns("environment");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new ThrowingChildOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out ThrowingChildOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Null(current.Child);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotRecurseThroughCycles()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__CHILD__NAME", A<string?>._))
+            .Returns("environment");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new CyclicOptions();
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out CyclicOptions? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Equal("file", current.Name);
+    }
+
+    [Fact]
+    public void TryPatch_DoesNotReplaceExistingValueWhenChildEnvironmentVariableIsInvalid()
+    {
+        var innerProvider = A.Fake<IEnvironmentProvider>();
+        A.CallTo(() => innerProvider.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerProvider.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("not-a-port");
+
+        var provider = new EnvironmentConfigProvider(innerProvider);
+        var current = new AppSettings
+        {
+            Database = new DatabaseOptions
+            {
+                Host = "db.from.file",
+                Port = 5432
+            }
+        };
+
+        var patched = provider.TryPatch("Production", "MyApp.Settings", current, out AppSettings? value);
+
+        Assert.False(patched);
+        Assert.Null(value);
+        Assert.Equal(5432, current.Database.Port);
+    }
+
+    private sealed class AppSettings
+    {
+        public string? Mode { get; set; }
+
+        public DatabaseOptions Database { get; set; } = new();
+
+        public List<string> Endpoints { get; set; } = [];
+    }
+
+    private sealed class GetterOnlyAppSettings
+    {
+        public string? Mode { get; set; }
+
+        public DatabaseOptions Database { get; } = new();
+
+        public List<string> Endpoints { get; } = [];
+    }
+
+    private interface IConfigPatchContract
+    {
+        string? Value { get; set; }
+    }
+
+    private sealed class IndexedOptions
+    {
+        public string this[int index]
+        {
+            get => "file";
+            set { }
+        }
+    }
+
+    private sealed class GetterOnlyScalarOptions
+    {
+        public string Mode { get; } = "file";
+    }
+
+    private sealed class PrivateSetterOptions
+    {
+        public string Mode { get; private set; } = "file";
+    }
+
+    private sealed class NullGetterOnlyOptions
+    {
+        public DatabaseOptions? Database { get; }
+    }
+
+    private sealed class PrivateSetterChildOptions
+    {
+        public DatabaseOptions? Database { get; private set; }
+    }
+
+    private sealed class GetterOnlyReadOnlyCollectionOptions
+    {
+        public IList<string> Endpoints { get; } = Array.AsReadOnly(["https://file.example"]);
+    }
+
+    private sealed class FieldBackedOptions
+    {
+        public string? Mode = "file";
+
+        public readonly string ReadOnlyMode = "file-readonly";
+
+        public DatabaseOptions Database = new();
+    }
+
+    private sealed class NullableFieldBackedOptions
+    {
+        public NullableFieldBackedOptions()
+        {
+            Database = null;
+        }
+
+        public DatabaseOptions? Database;
+    }
+
+    private sealed class InterfaceChildOptions
+    {
+        public IConfigPatchContract? Child { get; set; }
+    }
+
+    private sealed class ThrowingChildOptions
+    {
+        public ThrowingChild? Child { get; set; }
+    }
+
+    private sealed class ThrowingChild
+    {
+        public ThrowingChild()
+        {
+            throw new InvalidOperationException("Constructor should be treated as unpatchable.");
+        }
+
+        public string? Value { get; set; }
+    }
+
+    private sealed class CyclicOptions
+    {
+        public CyclicOptions()
+        {
+            Child = this;
+        }
+
+        public string Name { get; set; } = "file";
+
+        public CyclicOptions Child { get; set; }
+    }
+
+    private sealed class DatabaseOptions
+    {
+        public string? Host { get; set; }
+
+        public int Port { get; set; }
+    }
 }

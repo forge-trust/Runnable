@@ -456,7 +456,9 @@ public class RazorWireStreamBuilder
             }
         }
 
-        return errors;
+        return errors
+            .OrderBy(error => error.Key, StringComparer.Ordinal)
+            .ToList();
     }
 
     private sealed record RazorWireValidationError(string Key, string Message);

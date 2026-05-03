@@ -43,8 +43,12 @@ public static partial class PathUtils
         }
 
         var fileExists = File.Exists(startPath);
+        var fullPath = Path.GetFullPath(startPath);
+        var directoryPath = Path.GetDirectoryName(fullPath)
+            ?? Path.GetPathRoot(fullPath)
+            ?? fullPath;
         DirectoryInfo? current = fileExists
-            ? new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(startPath))!)
+            ? new DirectoryInfo(directoryPath)
             : new DirectoryInfo(startPath);
         var fallbackFromMissingPath = !fileExists && !current.Exists;
 

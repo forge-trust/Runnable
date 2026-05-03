@@ -72,62 +72,74 @@ public sealed class RazorDocsPublishedVersion
 /// <summary>
 /// Describes the support posture for one published docs release.
 /// </summary>
+/// <remarks>
+/// Numeric values are explicit and stable because catalog payloads and downstream consumers may serialize or persist
+/// these states outside the current process.
+/// </remarks>
 public enum RazorDocsVersionSupportState
 {
     /// <summary>
     /// The release is the actively recommended line.
     /// </summary>
-    Current,
+    Current = 0,
 
     /// <summary>
     /// The release remains supported but is no longer the recommended line.
     /// </summary>
-    Maintained,
+    Maintained = 1,
 
     /// <summary>
     /// The release is visible for migration or auditing, but new work should move away from it.
     /// </summary>
-    Deprecated,
+    Deprecated = 2,
 
     /// <summary>
     /// The release is kept only as historical record.
     /// </summary>
-    Archived
+    Archived = 3
 }
 
 /// <summary>
 /// Controls whether a published version appears in the public archive and is mounted for static serving.
 /// </summary>
+/// <remarks>
+/// Numeric values are explicit and stable because catalog payloads and downstream consumers may serialize or persist
+/// these states outside the current process.
+/// </remarks>
 public enum RazorDocsVersionVisibility
 {
     /// <summary>
     /// The version is visible in the archive and eligible for mounting.
     /// </summary>
-    Public,
+    Public = 0,
 
     /// <summary>
     /// The version stays hidden from the public archive.
     /// </summary>
-    Hidden
+    Hidden = 1
 }
 
 /// <summary>
 /// Describes release-level advisory severity shown in the archive.
 /// </summary>
+/// <remarks>
+/// Numeric values are explicit and stable because catalog payloads and downstream consumers may serialize or persist
+/// these states outside the current process.
+/// </remarks>
 public enum RazorDocsVersionAdvisoryState
 {
     /// <summary>
     /// No special advisory is attached to the release.
     /// </summary>
-    None,
+    None = 0,
 
     /// <summary>
     /// The release is known to contain a vulnerability that readers should see before adopting it.
     /// </summary>
-    Vulnerable,
+    Vulnerable = 1,
 
     /// <summary>
     /// The release has a more severe security warning that should be emphasized in archive UI.
     /// </summary>
-    SecurityRisk
+    SecurityRisk = 2
 }

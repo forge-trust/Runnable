@@ -69,6 +69,18 @@ public class InMemoryUserPresenceService : IUserPresenceService
     }
 
     /// <summary>
+    /// Clears all tracked presence entries from the in-memory store.
+    /// </summary>
+    /// <remarks>
+    /// This is intended for local diagnostics and integration harness resets in the example application.
+    /// Production modules should prefer domain-specific lifecycle operations over direct store clearing.
+    /// </remarks>
+    public void ClearAll()
+    {
+        _userActivity.Clear();
+    }
+
+    /// <summary>
     /// Removes users whose last activity is older than the sliding ActiveWindow and returns the removed entries along with the current count of active users.
     /// </summary>
     /// <returns>`Removed`: a read-only list of user presence entries that were removed because their last activity preceded the ActiveWindow; `ActiveCount`: the number of users whose last activity is within the ActiveWindow.</returns>

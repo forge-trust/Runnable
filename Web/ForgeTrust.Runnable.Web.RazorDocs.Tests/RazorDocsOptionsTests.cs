@@ -14,6 +14,15 @@ public sealed class RazorDocsOptionsTests
         Assert.Equal(1, (int)RazorDocsMode.Bundle);
         Assert.Equal(0, (int)RazorDocsLastUpdatedMode.None);
         Assert.Equal(1, (int)RazorDocsLastUpdatedMode.Git);
+        Assert.Equal(0, (int)RazorDocsVersionSupportState.Current);
+        Assert.Equal(1, (int)RazorDocsVersionSupportState.Maintained);
+        Assert.Equal(2, (int)RazorDocsVersionSupportState.Deprecated);
+        Assert.Equal(3, (int)RazorDocsVersionSupportState.Archived);
+        Assert.Equal(0, (int)RazorDocsVersionVisibility.Public);
+        Assert.Equal(1, (int)RazorDocsVersionVisibility.Hidden);
+        Assert.Equal(0, (int)RazorDocsVersionAdvisoryState.None);
+        Assert.Equal(1, (int)RazorDocsVersionAdvisoryState.Vulnerable);
+        Assert.Equal(2, (int)RazorDocsVersionAdvisoryState.SecurityRisk);
     }
 
     [Fact]

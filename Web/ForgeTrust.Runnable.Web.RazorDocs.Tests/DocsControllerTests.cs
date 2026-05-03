@@ -1039,14 +1039,17 @@ public class DocsControllerTests : IDisposable
         };
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 
-        var (controller, _, _) = CreateController(options, harvester);
+        var (controller, cache, memo) = CreateController(options, harvester);
+        using (memo)
+        using (cache)
+        {
+            var result = await controller.Index();
 
-        var result = await controller.Index();
-
-        var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
-        var featuredPage = SingleFeaturedPage(model);
-        Assert.Equal("/docs/next/guides/composition.md.html", featuredPage.Href);
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+            var featuredPage = SingleFeaturedPage(model);
+            Assert.Equal("/docs/next/guides/composition.md.html", featuredPage.Href);
+        }
     }
 
     [Fact]
@@ -1085,14 +1088,17 @@ public class DocsControllerTests : IDisposable
         };
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
 
-        var (controller, _, _) = CreateController(options, harvester);
+        var (controller, cache, memo) = CreateController(options, harvester);
+        using (memo)
+        using (cache)
+        {
+            var result = await controller.Index();
 
-        var result = await controller.Index();
-
-        var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
-        var featuredPage = SingleFeaturedPage(model);
-        Assert.Equal("/docs/next/guides/composition.md.html", featuredPage.Href);
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+            var featuredPage = SingleFeaturedPage(model);
+            Assert.Equal("/docs/next/guides/composition.md.html", featuredPage.Href);
+        }
     }
 
     [Fact]
@@ -1413,14 +1419,17 @@ public class DocsControllerTests : IDisposable
                 })
         };
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
-        var (controller, _, _) = CreateController(options, harvester);
+        var (controller, cache, memo) = CreateController(options, harvester);
+        using (memo)
+        using (cache)
+        {
+            var result = await controller.Details("guides/start.md");
 
-        var result = await controller.Details("guides/start.md");
-
-        var viewResult = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
-        Assert.Equal(["guides", "Start"], model.Breadcrumbs.Select(breadcrumb => breadcrumb.Label).ToArray());
-        Assert.Equal("/docs/next/guides.html", model.Breadcrumbs[0].Href);
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+            Assert.Equal(["guides", "Start"], model.Breadcrumbs.Select(breadcrumb => breadcrumb.Label).ToArray());
+            Assert.Equal("/docs/next/guides.html", model.Breadcrumbs[0].Href);
+        }
     }
 
     [Fact]

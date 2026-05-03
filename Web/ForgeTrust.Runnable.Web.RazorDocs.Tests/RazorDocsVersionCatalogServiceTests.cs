@@ -19,6 +19,15 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void RazorDocsResolvedVersionCatalogStatus_ShouldPreserveNumericContract()
+    {
+        Assert.Equal(0, (int)RazorDocsResolvedVersionCatalogStatus.Resolved);
+        Assert.Equal(1, (int)RazorDocsResolvedVersionCatalogStatus.Disabled);
+        Assert.Equal(2, (int)RazorDocsResolvedVersionCatalogStatus.EnabledWithoutCatalog);
+        Assert.Equal(3, (int)RazorDocsResolvedVersionCatalogStatus.Unavailable);
+    }
+
+    [Fact]
     public void Constructor_ShouldThrow_WhenDependenciesAreNull()
     {
         var environment = new TestWebHostEnvironment { ContentRootPath = _tempDirectory, WebRootPath = _tempDirectory };

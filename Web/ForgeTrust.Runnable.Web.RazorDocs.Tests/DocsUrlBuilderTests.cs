@@ -156,8 +156,14 @@ public sealed class DocsUrlBuilderTests
 
     [Theory]
     [InlineData("/docs", "", "/docs")]
+    [InlineData("/docs", null, "/docs")]
+    [InlineData("/docs", " ", "/docs")]
+    [InlineData("/docs", "\t", "/docs")]
     [InlineData("/", "", "/")]
-    public void BuildDocUrl_ShouldReturnDocsRoot_WhenRelativePathIsBlank(string docsRootPath, string relativePath, string expected)
+    [InlineData("/", null, "/")]
+    [InlineData("/", " ", "/")]
+    [InlineData("/", "\t", "/")]
+    public void BuildDocUrl_ShouldReturnDocsRoot_WhenRelativePathIsBlank(string docsRootPath, string? relativePath, string expected)
     {
         var builder = new DocsUrlBuilder(
             new RazorDocsOptions
@@ -168,17 +174,23 @@ public sealed class DocsUrlBuilderTests
                 }
             });
 
-        var href = builder.BuildDocUrl(relativePath);
+        var href = builder.BuildDocUrl(relativePath!);
 
         Assert.Equal(expected, href);
     }
 
     [Theory]
     [InlineData("/docs", "", "/docs")]
+    [InlineData("/docs", null, "/docs")]
+    [InlineData("/docs", " ", "/docs")]
+    [InlineData("/docs", "\t", "/docs")]
     [InlineData("/", "", "/")]
-    public void JoinPath_ShouldReturnDocsRoot_WhenRelativePathIsBlank(string docsRootPath, string relativePath, string expected)
+    [InlineData("/", null, "/")]
+    [InlineData("/", " ", "/")]
+    [InlineData("/", "\t", "/")]
+    public void JoinPath_ShouldReturnDocsRoot_WhenRelativePathIsBlank(string docsRootPath, string? relativePath, string expected)
     {
-        var href = DocsUrlBuilder.JoinPath(docsRootPath, relativePath);
+        var href = DocsUrlBuilder.JoinPath(docsRootPath, relativePath!);
 
         Assert.Equal(expected, href);
     }

@@ -2,6 +2,7 @@ using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.Tailwind;
+using RazorWireWebExample.Services;
 
 namespace RazorWireWebExample;
 
@@ -17,7 +18,8 @@ public class RazorWireExampleModule : IRunnableWebModule
     /// <param name="services">The service collection to which module services are added.</param>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
-        services.AddSingleton<Services.IUserPresenceService, Services.InMemoryUserPresenceService>();
+        services.AddSingleton<InMemoryUserPresenceService>();
+        services.AddSingleton<Services.IUserPresenceService>(sp => sp.GetRequiredService<InMemoryUserPresenceService>());
         services.AddSingleton<Services.IMessageStore, Services.InMemoryMessageStore>();
         services.AddHostedService<Services.UserPresenceBackgroundService>();
         services.AddTailwind();
@@ -66,6 +68,7 @@ public class RazorWireExampleModule : IRunnableWebModule
     /// <param name="endpoints">The endpoint route builder used to register routes; the default controller route "{controller=Home}/{action=Index}/{id?}" is added to it.</param>
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapControllers();
         endpoints.MapControllerRoute(
             name: "default",
             pattern: "{controller=Home}/{action=Index}/{id?}");

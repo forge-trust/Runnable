@@ -194,6 +194,20 @@ public sealed class DocsUrlBuilder
         return url;
     }
 
+    /// <summary>
+    /// Determines whether a request path belongs to the supplied docs root.
+    /// </summary>
+    /// <param name="path">The incoming request path to evaluate.</param>
+    /// <param name="docsRootPath">The normalized docs root path configured for the live docs surface.</param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="path"/> resolves to the docs root itself or one of its child
+    /// routes; otherwise <see langword="false"/>.
+    /// </returns>
+    /// <remarks>
+    /// Blank paths always return <see langword="false"/>. Root-mounted docs (<c>/</c>) use
+    /// <see cref="IsLikelyRootMountedDocsPath(string)"/> so only known docs-like routes are treated as current docs
+    /// traffic. Non-root mounts use case-insensitive exact and prefix matching against <c>{docsRootPath}/...</c>.
+    /// </remarks>
     internal static bool IsUnderRoot(string? path, string docsRootPath)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -210,10 +224,26 @@ public sealed class DocsUrlBuilder
                || path.StartsWith(docsRootPath + "/", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Joins a normalized docs root with a relative docs route segment.
+    /// </summary>
+    /// <param name="docsRootPath">The normalized app-relative docs root path.</param>
+    /// <param name="relativePath">The relative docs route to append.</param>
+    /// <returns>The combined app-relative route path.</returns>
+    /// <remarks>
+    /// Leading slashes on <paramref name="relativePath"/> are ignored. <see langword="null"/>, empty, and whitespace-only
+    /// relative paths return the docs root unchanged. When the docs root is <c>/</c>, the result stays root-mounted
+    /// instead of producing a doubled slash. Callers are expected to pass already-normalized root paths and docs-relative
+    /// segments rather than arbitrary URLs.
+    /// </remarks>
     internal static string JoinPath(string docsRootPath, string relativePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(docsRootPath);
-        ArgumentNullException.ThrowIfNull(relativePath);
+
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return docsRootPath;
+        }
 
         var trimmedRelativePath = relativePath.TrimStart('/');
         if (trimmedRelativePath.Length == 0)

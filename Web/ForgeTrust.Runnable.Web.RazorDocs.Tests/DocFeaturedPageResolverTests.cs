@@ -255,6 +255,8 @@ public sealed class DocFeaturedPageResolverTests
     [Theory]
     [InlineData("/docs/next/guides/intro.md.html")]
     [InlineData("docs/next/guides/intro.md.html")]
+    [InlineData("/docs/guides/intro.md.html")]
+    [InlineData("docs/guides/intro.md.html")]
     public void ResolveGroups_ShouldResolveCurrentRootCanonicalDestinationPaths(string authoredPath)
     {
         var resolver = new DocFeaturedPageResolver(

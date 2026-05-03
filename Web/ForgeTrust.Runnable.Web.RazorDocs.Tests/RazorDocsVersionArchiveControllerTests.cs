@@ -118,6 +118,37 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<RazorDocsVersionArchiveViewModel>(view.Model);
         Assert.Contains("/some-base/docs", model.AvailabilityMessage, StringComparison.Ordinal);
+        Assert.Equal("/docs/next", model.PreviewHref);
+        Assert.Equal("/docs/versions", model.VersionsHref);
+    }
+
+    [Fact]
+    public void Versions_ShouldKeepArchiveHrefsAppRelative_ForViewPathBaseHandling()
+    {
+        var versionTree = CreateExactTree("2.1.0");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "2.1.0",
+                        ExactTreePath = versionTree,
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+        var controller = CreateController(catalogPath, pathBase: "/some-base");
+
+        var result = controller.Versions();
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<RazorDocsVersionArchiveViewModel>(view.Model);
+        Assert.Equal("/docs/next", model.PreviewHref);
+        Assert.Equal("/docs/versions", model.VersionsHref);
+        var version = Assert.Single(model.Versions);
+        Assert.Equal("/docs/v/2.1.0", version.Href);
     }
 
     [Fact]

@@ -448,6 +448,53 @@ public sealed class RazorWireMvcPlaywrightTests
             Timeout = 30_000,
             State = WaitForSelectorState.Attached
         });
+        await page.WaitForFunctionAsync(
+            @"() => {
+                const list = document.querySelector('#active-user-list');
+                return list instanceof HTMLElement
+                    && !list.innerText.includes('Connecting to presence...');
+            }",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+        await page.WaitForFunctionAsync(
+            @"() => {
+                const count = document.querySelector('#user-count');
+                return count instanceof HTMLElement
+                    && /^\d+\s+ONLINE$/i.test(count.innerText.trim());
+            }",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+    }
+
+    private static async Task WaitForRegisterFormReadyAsync(IPage page)
+    {
+        const string formSelector = "#register-form";
+
+        await page.WaitForSelectorAsync(formSelector, new PageWaitForSelectorOptions
+        {
+            State = WaitForSelectorState.Attached,
+            Timeout = 30_000
+        });
+        await page.WaitForFunctionAsync(
+            @"args => {
+                const form = document.querySelector(args.formSelector);
+                if (!(form instanceof HTMLFormElement)) {
+                    return false;
+                }
+
+                const token = form.querySelector(""input[name='__RequestVerificationToken']"");
+                const input = form.querySelector('#register-username');
+                const submit = form.querySelector(""button[type='submit']"");
+
+                return token instanceof HTMLInputElement
+                    && token.value.trim().length > 0
+                    && input instanceof HTMLInputElement
+                    && !input.disabled
+                    && submit instanceof HTMLButtonElement
+                    && !submit.disabled;
+            }",
+            new { formSelector },
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
     }
 
     private static async Task WaitForUserInListAsync(IPage page, string username)
@@ -475,11 +522,7 @@ public sealed class RazorWireMvcPlaywrightTests
         {
             try
             {
-                await page.WaitForSelectorAsync(formSelector, new PageWaitForSelectorOptions
-                {
-                    State = WaitForSelectorState.Attached,
-                    Timeout = 30_000
-                });
+                await WaitForRegisterFormReadyAsync(page);
 
                 return await page.RunAndWaitForResponseAsync(
                     () => page.EvaluateAsync(
@@ -708,6 +751,9 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
     private static readonly SemaphoreSlim PlaywrightInstallLock = new(1, 1);
     private static bool _playwrightInstalled;
     private static readonly Regex ListeningUrlRegex = new(@"Now listening on:\s*(https?://\S+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex AntiforgeryTokenInputRegex = new(
+        @"<input[^>]*name=""__RequestVerificationToken""[^>]*value=""([^""]+)""",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly ConcurrentQueue<string> _appLogs = new();
     private readonly TaskCompletionSource<string> _boundBaseUrlSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -737,6 +783,7 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         FormFailuresUrl = $"{baseUrl}/Reactivity/FormFailures";
 
         await WaitForAppReadyAsync(baseUrl, TimeSpan.FromSeconds(60));
+        await WarmReactivitySurfaceAsync(baseUrl, TimeSpan.FromSeconds(60));
     }
 
     public async Task DisposeAsync()
@@ -886,6 +933,94 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         }
 
         throw new TimeoutException($"RazorWire MVC example did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
+    }
+
+    private async Task WarmReactivitySurfaceAsync(string baseUrl, TimeSpan timeout)
+    {
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
+            CookieContainer = new CookieContainer(),
+            UseCookies = true
+        };
+        using var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri(baseUrl, UriKind.Absolute)
+        };
+
+        using var reactivityResponse = await client.GetAsync("/Reactivity", timeoutCts.Token);
+        if (reactivityResponse.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException(
+                $"RazorWire MVC example did not warm /Reactivity successfully. Expected 200 but received {(int)reactivityResponse.StatusCode}.{Environment.NewLine}{GetRecentLogs()}");
+        }
+
+        var reactivityHtml = await reactivityResponse.Content.ReadAsStringAsync(timeoutCts.Token);
+        var antiforgeryToken = ExtractAntiforgeryToken(reactivityHtml);
+        if (string.IsNullOrWhiteSpace(antiforgeryToken))
+        {
+            throw new InvalidOperationException(
+                $"RazorWire MVC example did not emit an anti-forgery token on /Reactivity during warm-up.{Environment.NewLine}{GetRecentLogs()}");
+        }
+
+        using var registerContent = new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("__RequestVerificationToken", antiforgeryToken),
+            // Warm the first RegisterUser POST path, including cookie and presence broadcast behavior.
+            new KeyValuePair<string, string>("username", "fixture-warmup-user")
+        ]);
+        using var registerResponse = await client.PostAsync("/Reactivity/RegisterUser", registerContent, timeoutCts.Token);
+        if (registerResponse.StatusCode != HttpStatusCode.Redirect)
+        {
+            throw new InvalidOperationException(
+                $"RazorWire MVC example did not warm /Reactivity/RegisterUser successfully. Expected 302 but received {(int)registerResponse.StatusCode}.{Environment.NewLine}{GetRecentLogs()}");
+        }
+
+        using var resetPresenceResponse = await client.PostAsync("/_testing/reactivity/reset-presence", content: null, timeoutCts.Token);
+        if (resetPresenceResponse.StatusCode != HttpStatusCode.NoContent)
+        {
+            throw new InvalidOperationException(
+                $"RazorWire MVC example did not reset warmed presence state successfully. Expected 204 but received {(int)resetPresenceResponse.StatusCode}.{Environment.NewLine}{GetRecentLogs()}");
+        }
+
+        using var verificationClient = new HttpClient
+        {
+            BaseAddress = new Uri(baseUrl, UriKind.Absolute)
+        };
+
+        using var userListResponse = await verificationClient.GetAsync("/Reactivity/UserList", timeoutCts.Token);
+        if (userListResponse.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException(
+                $"RazorWire MVC example did not warm /Reactivity/UserList successfully. Expected 200 but received {(int)userListResponse.StatusCode}.{Environment.NewLine}{GetRecentLogs()}");
+        }
+
+        var userListHtml = await userListResponse.Content.ReadAsStringAsync(timeoutCts.Token);
+        if (!userListHtml.Contains("0 ONLINE", StringComparison.Ordinal)
+            || !userListHtml.Contains("No companions nearby", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"RazorWire MVC warm-up unexpectedly populated user presence state.{Environment.NewLine}{GetRecentLogs()}");
+        }
+
+        using var formFailuresResponse = await verificationClient.GetAsync("/Reactivity/FormFailures", timeoutCts.Token);
+        if (formFailuresResponse.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException(
+                $"RazorWire MVC example did not warm /Reactivity/FormFailures successfully. Expected 200 but received {(int)formFailuresResponse.StatusCode}.{Environment.NewLine}{GetRecentLogs()}");
+        }
+    }
+
+    private static string? ExtractAntiforgeryToken(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return null;
+        }
+
+        var match = AntiforgeryTokenInputRegex.Match(html);
+        return match.Success ? WebUtility.HtmlDecode(match.Groups[1].Value) : null;
     }
 
     private void CaptureAppLog(string? message)

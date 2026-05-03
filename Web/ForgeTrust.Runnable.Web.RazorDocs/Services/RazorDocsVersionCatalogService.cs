@@ -363,28 +363,32 @@ public sealed class RazorDocsVersionCatalogService
 /// <summary>
 /// Describes how the current host resolved its published-version catalog state.
 /// </summary>
+/// <remarks>
+/// Numeric values are explicit and stable because callers may serialize or persist catalog-resolution state across
+/// process boundaries.
+/// </remarks>
 public enum RazorDocsResolvedVersionCatalogStatus
 {
     /// <summary>
     /// Versioning is enabled and the configured catalog resolved successfully enough to describe published releases.
     /// </summary>
-    Resolved,
+    Resolved = 0,
 
     /// <summary>
     /// Versioning is disabled for the current host.
     /// </summary>
-    Disabled,
+    Disabled = 1,
 
     /// <summary>
     /// Versioning is enabled, but no catalog path was configured.
     /// </summary>
-    EnabledWithoutCatalog,
+    EnabledWithoutCatalog = 2,
 
     /// <summary>
     /// Versioning is enabled and a catalog path was configured, but the catalog could not be loaded into a usable
     /// published-release set.
     /// </summary>
-    Unavailable
+    Unavailable = 3
 }
 
 /// <summary>

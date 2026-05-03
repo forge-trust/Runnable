@@ -1545,6 +1545,31 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderPartialContributorProvenance_WhenOnlySourceEvidenceExists()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                SourceHref = "https://example.com/blob/main/guides/quickstart.md"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var provenanceStrip = document.QuerySelector(".docs-provenance-strip");
+        Assert.NotNull(provenanceStrip);
+        Assert.NotNull(provenanceStrip!.QuerySelector("a.docs-provenance-link--primary[href='https://example.com/blob/main/guides/quickstart.md']"));
+        Assert.Null(provenanceStrip.QuerySelector(".docs-provenance-link--secondary"));
+        Assert.Null(provenanceStrip.QuerySelector("time.docs-provenance-time"));
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldUseTurboNavigation_ForLocalContributorProvenanceLinks()
     {
         using var services = CreateServiceProvider(CreateDocs());

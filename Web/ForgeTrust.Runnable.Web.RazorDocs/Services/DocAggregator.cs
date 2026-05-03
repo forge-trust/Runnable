@@ -510,7 +510,7 @@ public class DocAggregator
             && _contributorOptions.LastUpdatedMode == RazorDocsLastUpdatedMode.Git
             && sourcePath is not null)
         {
-            if (!TryGetContributorFreshnessTimeout(contributorFreshnessDeadlineUtc, out var freshnessTimeout))
+            if (!TryGetContributorFreshnessTimeout(contributorFreshnessDeadlineUtc!.Value, out var freshnessTimeout))
             {
                 return sourceHref is null && editHref is null
                     ? null
@@ -558,15 +558,10 @@ public class DocAggregator
         };
     }
 
-    private bool TryGetContributorFreshnessTimeout(DateTimeOffset? contributorFreshnessDeadlineUtc, out TimeSpan freshnessTimeout)
+    private bool TryGetContributorFreshnessTimeout(DateTimeOffset contributorFreshnessDeadlineUtc, out TimeSpan freshnessTimeout)
     {
         freshnessTimeout = _contributorFreshnessTimeout;
-        if (contributorFreshnessDeadlineUtc is null)
-        {
-            return true;
-        }
-
-        var remainingBudget = contributorFreshnessDeadlineUtc.Value - _utcNow();
+        var remainingBudget = contributorFreshnessDeadlineUtc - _utcNow();
         if (remainingBudget <= TimeSpan.Zero)
         {
             return false;
@@ -619,9 +614,7 @@ public class DocAggregator
         }
 
         var normalized = NormalizeLookupPath(path);
-        if (Path.IsPathRooted(normalized)
-            || normalized.StartsWith("/", StringComparison.Ordinal)
-            || normalized.StartsWith("\\", StringComparison.Ordinal))
+        if (LooksLikeWindowsDrivePath(normalized))
         {
             return null;
         }
@@ -635,6 +628,13 @@ public class DocAggregator
         }
 
         return normalized.Length == 0 ? null : normalized;
+    }
+
+    private static bool LooksLikeWindowsDrivePath(string path)
+    {
+        return path.Length >= 2
+               && char.IsAsciiLetter(path[0])
+               && path[1] == ':';
     }
 
     private static string? NormalizeContributorHref(string? href)

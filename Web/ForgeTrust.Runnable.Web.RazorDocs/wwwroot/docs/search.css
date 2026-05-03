@@ -39,6 +39,12 @@
     display: none;
 }
 
+.docs-search-result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 .docs-search-option a {
     display: block;
     padding: 0.65rem 0.75rem;

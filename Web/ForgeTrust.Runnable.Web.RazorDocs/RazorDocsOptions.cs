@@ -31,6 +31,11 @@ public sealed class RazorDocsOptions
     /// Gets sidebar rendering settings.
     /// </summary>
     public RazorDocsSidebarOptions Sidebar { get; set; } = new();
+
+    /// <summary>
+    /// Gets contributor provenance settings used to render source, edit, and freshness evidence on details pages.
+    /// </summary>
+    public RazorDocsContributorOptions Contributor { get; set; } = new();
 }
 
 /// <summary>
@@ -84,6 +89,72 @@ public sealed class RazorDocsSidebarOptions
 }
 
 /// <summary>
+/// Contributor-provenance configuration for RazorDocs details pages.
+/// </summary>
+/// <remarks>
+/// This contract controls the global contributor-provenance surface. Use <see cref="Enabled"/> to switch the entire
+/// feature on or off for a host, and use page-level contributor metadata to suppress or override individual pages
+/// without mutating host-wide defaults.
+/// </remarks>
+public sealed class RazorDocsContributorOptions
+{
+    /// <summary>
+    /// Gets or sets a value indicating whether contributor provenance rendering is enabled for RazorDocs details pages.
+    /// Disable this when the host should suppress all contributor affordances, even if page-level overrides or
+    /// trustworthy source paths exist. When <see langword="false" />, RazorDocs also skips contributor-template startup
+    /// validation because the feature is globally inactive.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the stable branch name used when expanding configured source and edit URL templates.
+    /// Required when <see cref="Enabled"/> is <see langword="true" /> and either
+    /// <see cref="SourceUrlTemplate"/> or <see cref="EditUrlTemplate"/> is configured.
+    /// </summary>
+    public string? DefaultBranch { get; set; }
+
+    /// <summary>
+    /// Gets or sets the source-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
+    /// Configured templates must include <c>{path}</c> so each page expands to its own source location when
+    /// <see cref="Enabled"/> is <see langword="true" />.
+    /// </summary>
+    public string? SourceUrlTemplate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the edit-link template. Supported tokens are <c>{branch}</c> and <c>{path}</c>.
+    /// Configured templates must include <c>{path}</c> when <see cref="Enabled"/> is <see langword="true" />.
+    /// Prefer this when maintainers should land directly in an edit workflow rather than in repository browsing.
+    /// </summary>
+    public string? EditUrlTemplate { get; set; }
+
+    /// <summary>
+    /// Gets or sets the mode used to resolve contributor freshness.
+    /// The default is <see cref="RazorDocsLastUpdatedMode.None"/> so hosts opt into git-backed freshness explicitly
+    /// instead of paying unexpected snapshot-time git costs.
+    /// <see cref="RazorDocsLastUpdatedMode.Git"/> uses local repository history when a trustworthy source path exists and
+    /// omits only freshness when git data is unavailable or untrustworthy.
+    /// </summary>
+    public RazorDocsLastUpdatedMode LastUpdatedMode { get; set; } = RazorDocsLastUpdatedMode.None;
+}
+
+/// <summary>
+/// Enumerates the supported contributor freshness modes for RazorDocs details pages.
+/// </summary>
+public enum RazorDocsLastUpdatedMode
+{
+    /// <summary>
+    /// Do not render automatic contributor freshness.
+    /// </summary>
+    None,
+
+    /// <summary>
+    /// Resolve contributor freshness from local git history when a trustworthy source path exists.
+    /// Hosts should expect graceful omission when git history is unavailable, shallow, or not trustworthy for the page.
+    /// </summary>
+    Git
+}
+
+/// <summary>
 /// Validates <see cref="RazorDocsOptions"/> and rejects unsupported or ambiguous startup configurations.
 /// </summary>
 public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOptions>
@@ -97,6 +168,7 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         var source = options.Source;
         var bundle = options.Bundle;
         var sidebar = options.Sidebar;
+        var contributor = options.Contributor;
 
         if (!Enum.IsDefined(options.Mode))
         {
@@ -122,6 +194,15 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             failures.Add("RazorDocs:Sidebar:NamespacePrefixes must not be null.");
         }
 
+        if (contributor is null)
+        {
+            failures.Add("RazorDocs:Contributor must not be null.");
+        }
+        else if (!Enum.IsDefined(contributor.LastUpdatedMode))
+        {
+            failures.Add($"Unsupported RazorDocs contributor last-updated mode '{contributor.LastUpdatedMode}'.");
+        }
+
         if (options.Mode == RazorDocsMode.Bundle)
         {
             if (bundle is null || string.IsNullOrWhiteSpace(bundle.Path))
@@ -137,6 +218,31 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             && string.IsNullOrWhiteSpace(source.RepositoryRoot))
         {
             failures.Add("RazorDocs:Source:RepositoryRoot cannot be whitespace.");
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && (!string.IsNullOrWhiteSpace(contributor.SourceUrlTemplate)
+                || !string.IsNullOrWhiteSpace(contributor.EditUrlTemplate))
+            && string.IsNullOrWhiteSpace(contributor.DefaultBranch))
+        {
+            failures.Add("RazorDocs:Contributor:DefaultBranch is required when SourceUrlTemplate or EditUrlTemplate is configured.");
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && !string.IsNullOrWhiteSpace(contributor.SourceUrlTemplate)
+            && contributor.SourceUrlTemplate.Contains("{path}", StringComparison.Ordinal) is false)
+        {
+            failures.Add("RazorDocs:Contributor:SourceUrlTemplate must contain the {path} token.");
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && !string.IsNullOrWhiteSpace(contributor.EditUrlTemplate)
+            && contributor.EditUrlTemplate.Contains("{path}", StringComparison.Ordinal) is false)
+        {
+            failures.Add("RazorDocs:Contributor:EditUrlTemplate must contain the {path} token.");
         }
 
         return failures.Count == 0

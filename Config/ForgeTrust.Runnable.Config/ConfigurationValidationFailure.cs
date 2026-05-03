@@ -11,7 +11,10 @@ public sealed record ConfigurationValidationFailure
     /// <param name="key">The configuration key being initialized.</param>
     /// <param name="configType">The concrete configuration wrapper type being initialized.</param>
     /// <param name="valueType">The resolved value type that was validated.</param>
-    /// <param name="memberNames">The member names or paths associated with the failure.</param>
+    /// <param name="memberNames">
+    /// The member names or paths associated with the failure. Use an empty sequence for object-level failures.
+    /// Values are defensively copied into an immutable snapshot owned by this instance.
+    /// </param>
     /// <param name="message">The validation message.</param>
     public ConfigurationValidationFailure(
         string key,
@@ -43,7 +46,9 @@ public sealed record ConfigurationValidationFailure
     public Type ValueType { get; }
 
     /// <summary>
-    /// Gets the member names or paths associated with the failure.
+    /// Gets the member names or paths associated with the failure. Object-level failures use an empty list
+    /// rather than null; consumers should treat that empty collection as a valid failure payload. The returned
+    /// list is an immutable snapshot owned by this instance.
     /// </summary>
     public IReadOnlyList<string> MemberNames { get; }
 

@@ -79,6 +79,25 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public void Stylesheets_ShouldKeepSharedDocsPrimitivesOutOfSearchStylesheet()
+    {
+        var tailwindEntryStylesheet = ReadTailwindEntryStylesheetMarkup();
+        var searchStylesheet = ReadSearchStylesheetMarkup();
+
+        Assert.Contains(".docs-page-badge", tailwindEntryStylesheet);
+        Assert.Contains(".docs-metadata-chip", tailwindEntryStylesheet);
+        Assert.Contains(".docs-page-meta", tailwindEntryStylesheet);
+        Assert.Contains(".docs-provenance-strip", tailwindEntryStylesheet);
+        Assert.Contains(".docs-trust-bar", tailwindEntryStylesheet);
+
+        Assert.DoesNotContain(".docs-page-badge", searchStylesheet);
+        Assert.DoesNotContain(".docs-metadata-chip", searchStylesheet);
+        Assert.DoesNotContain(".docs-page-meta", searchStylesheet);
+        Assert.DoesNotContain(".docs-provenance-strip", searchStylesheet);
+        Assert.DoesNotContain(".docs-trust-bar", searchStylesheet);
+    }
+
+    [Fact]
     public void Layout_ShouldKeepSidebarVisibleByDefault_ForNoScriptFallback()
     {
         var layout = ReadLayoutMarkup();
@@ -142,15 +161,16 @@ public class RazorDocsViewsTests
                 {
                     Title = "Runnable",
                     Summary = "Proof before promises.",
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "How does composition work?",
-                            Path = "guides/composition.md",
-                            SupportingCopy = "Follow the composition model.",
-                            Order = 10
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "How does composition work?",
+                                Path = "guides/composition.md",
+                                SupportingCopy = "Follow the composition model.",
+                                Order = 10
+                            })
                     ]
                 }),
             new(
@@ -169,12 +189,56 @@ public class RazorDocsViewsTests
 
         Assert.Contains(">Runnable</h1>", html);
         Assert.Contains("Proof before promises.", html);
+        Assert.Contains(">Test</h3>", html);
         Assert.Contains("How does composition work?", html);
-        Assert.Contains(">Composition</h3>", html);
+        Assert.Contains(">Composition</h4>", html);
         Assert.Contains("Follow the composition model.", html);
         Assert.Contains("Guide", html);
         Assert.Contains("docs-page-badge--guide", html);
         Assert.Contains("href=\"/docs/guides/composition.md.html\"", html);
+    }
+
+    [Fact]
+    public async Task IndexView_ShouldPreservePathBase_ForFeaturedAndFallbackLinks()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPageGroups =
+                    [
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "How does composition work?",
+                                Path = "guides/composition.md"
+                            })
+                    ]
+                }),
+            new(
+                "Composition",
+                "guides/composition.md",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Destination summary."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Index",
+            c => c.Index(),
+            httpContext => httpContext.Request.PathBase = "/tenant");
+
+        Assert.Contains("href=\"/tenant/docs/sections/start-here\"", html);
+        Assert.Contains("href=\"/tenant/docs/guides/composition.md.html\"", html);
     }
 
     [Fact]
@@ -188,13 +252,14 @@ public class RazorDocsViewsTests
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Show me an example",
-                            Path = "examples/hello.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Show me an example",
+                                Path = "examples/hello.md"
+                            })
                     ]
                 }),
             new(
@@ -227,33 +292,34 @@ public class RazorDocsViewsTests
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "API card",
-                            Path = "guides/api.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "How-to card",
-                            Path = "guides/how-to.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Start card",
-                            Path = "guides/start.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Untyped card",
-                            Path = "guides/plain.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Custom card",
-                            Path = "guides/custom.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "API card",
+                                Path = "guides/api.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "How-to card",
+                                Path = "guides/how-to.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Start card",
+                                Path = "guides/start.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Untyped card",
+                                Path = "guides/plain.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Custom card",
+                                Path = "guides/custom.md"
+                            })
                     ]
                 }),
             new("API Page", "guides/api.md", "<p>API body</p>", Metadata: new DocMetadata { PageType = "api-reference" }),
@@ -300,13 +366,14 @@ public class RazorDocsViewsTests
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Show me internals",
-                            Path = "guides/hidden.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Show me internals",
+                                Path = "guides/hidden.md"
+                            })
                     ]
                 }),
             new(
@@ -351,13 +418,15 @@ public class RazorDocsViewsTests
                 {
                     NavGroup = "Concepts",
                     SectionLanding = true,
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Learn the mental model",
-                            Path = "concepts/deep-dive.md"
-                        }
+                        FeaturedGroup(
+                            "Learn the mental model",
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Learn the mental model",
+                                Path = "concepts/deep-dive.md"
+                            })
                     ]
                 }),
             new(
@@ -806,13 +875,22 @@ public class RazorDocsViewsTests
                 NavGroup = "Concepts",
                 SectionLanding = true,
                 Summary = "Landing summary.",
-                FeaturedPages =
+                FeaturedPageGroups =
                 [
-                    new DocFeaturedPageDefinition
+                    new DocFeaturedPageGroupDefinition
                     {
-                        Question = "Go deeper",
-                        Path = "concepts/deep-dive.md",
-                        SupportingCopy = "Follow the next route."
+                        Intent = "test",
+                        Label = "Test",
+                        Summary = "Choose this path when you need section context.",
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Go deeper",
+                                Path = "concepts/deep-dive.md",
+                                SupportingCopy = "Follow the next route."
+                            }
+                        ]
                     }
                 ]
             });
@@ -842,11 +920,88 @@ public class RazorDocsViewsTests
         Assert.Contains("Use this section as the entry point.", html);
         Assert.Contains("href=\"/docs/sections/concepts\"", html);
         Assert.Contains("Next steps", html);
+        Assert.Contains(">Test</h3>", html);
+        Assert.Contains("Choose this path when you need section context.", html);
         Assert.Contains("Go deeper", html);
         Assert.Contains("Follow the next route.", html);
         Assert.Contains("In this section", html);
         Assert.Contains("Deep dive summary.", html);
         Assert.Contains("Jump to section", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldPreservePathBase_ForSectionLandingFeaturedLinks()
+    {
+        var landingDoc = new DocNode(
+            "Concept Landing",
+            "concepts/landing.md",
+            "<p>Landing body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts",
+                SectionLanding = true,
+                FeaturedPageGroups =
+                [
+                    FeaturedGroup(
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Go deeper",
+                            Path = "concepts/deep-dive.md"
+                        })
+                ]
+            });
+        var deepDive = new DocNode(
+            "Deep Dive",
+            "concepts/deep-dive.md",
+            "<p>Deep dive body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts"
+            });
+        using var services = CreateServiceProvider(CreateDocsWithOverrides([landingDoc, deepDive]));
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Details",
+            controller => controller.Details(landingDoc.Path),
+            httpContext => httpContext.Request.PathBase = "/tenant");
+
+        Assert.Contains("href=\"/tenant/docs/sections/concepts\"", html);
+        Assert.Contains("href=\"/tenant/docs/concepts/deep-dive.md.html\"", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderNextStepsChrome_WhenFeaturedGroupsAreEmpty()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Concept Landing",
+            "concepts/landing.md",
+            "<p>Landing body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts",
+                SectionLanding = true
+            });
+        var model = CreateDetailsViewModel(doc) with
+        {
+            IsSectionLanding = true,
+            FeaturedPageGroups =
+            [
+                new DocLandingFeaturedPageGroupViewModel
+                {
+                    Label = "Empty",
+                    Pages = []
+                }
+            ]
+        };
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.DoesNotContain("Next steps", html);
     }
 
     [Fact]
@@ -1625,6 +1780,45 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldPreservePathBase_ForLocalProvenanceAndMigrationLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Migration = new DocTrustLink
+                    {
+                        Href = "/docs/releases/unreleased.md.html",
+                        Label = "Migration notes"
+                    }
+                }
+            });
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                SourceHref = "/docs/guides/quickstart.md.html",
+                EditHref = "/docs/guides/quickstart.edit.md.html"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model,
+            configureHttpContext: httpContext => httpContext.Request.PathBase = "/tenant");
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.NotNull(document.QuerySelector("a.docs-provenance-link--primary[href='/tenant/docs/guides/quickstart.md.html']"));
+        Assert.NotNull(document.QuerySelector("a.docs-provenance-link--secondary[href='/tenant/docs/guides/quickstart.edit.md.html']"));
+        Assert.NotNull(document.QuerySelector("a.docs-trust-bar-link[href='/tenant/docs/releases/unreleased.md.html']"));
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldNotRenderContributorProvenance_WhenNoEvidenceExists()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -2077,10 +2271,39 @@ public class RazorDocsViewsTests
         return File.ReadAllText(searchClientPath);
     }
 
+    private static string ReadTailwindEntryStylesheetMarkup()
+    {
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        var stylesheetPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "wwwroot",
+            "css",
+            "app.css");
+
+        return File.ReadAllText(stylesheetPath);
+    }
+
+    private static string ReadSearchStylesheetMarkup()
+    {
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        var stylesheetPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "wwwroot",
+            "docs",
+            "search.css");
+
+        return File.ReadAllText(stylesheetPath);
+    }
+
     private static async Task<string> RenderDocsViewAsync(
         ServiceProvider services,
         string actionName,
-        Func<DocsController, Task<IActionResult>> action)
+        Func<DocsController, Task<IActionResult>> action,
+        Action<DefaultHttpContext>? configureHttpContext = null)
     {
         using var scope = services.CreateScope();
         var scopedServices = scope.ServiceProvider;
@@ -2089,6 +2312,7 @@ public class RazorDocsViewsTests
         {
             RequestServices = scopedServices
         };
+        configureHttpContext?.Invoke(httpContext);
         httpContext.Response.Body = new MemoryStream();
 
         var controller = ActivatorUtilities.CreateInstance<DocsController>(scopedServices);
@@ -2156,7 +2380,8 @@ public class RazorDocsViewsTests
         ServiceProvider services,
         string viewName,
         object model,
-        Action<ViewDataDictionary>? configureViewData = null)
+        Action<ViewDataDictionary>? configureViewData = null,
+        Action<HttpContext>? configureHttpContext = null)
     {
         using var scope = services.CreateScope();
         var scopedServices = scope.ServiceProvider;
@@ -2166,6 +2391,7 @@ public class RazorDocsViewsTests
             RequestServices = scopedServices
         };
         httpContext.Response.Body = new MemoryStream();
+        configureHttpContext?.Invoke(httpContext);
 
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         {
@@ -2385,6 +2611,21 @@ public class RazorDocsViewsTests
         }
 
         return docs;
+    }
+
+    private static DocFeaturedPageGroupDefinition FeaturedGroup(params DocFeaturedPageDefinition[] pages)
+    {
+        return FeaturedGroup("Test", pages);
+    }
+
+    private static DocFeaturedPageGroupDefinition FeaturedGroup(string label, params DocFeaturedPageDefinition[] pages)
+    {
+        return new DocFeaturedPageGroupDefinition
+        {
+            Intent = label.ToLowerInvariant().Replace(' ', '-'),
+            Label = label,
+            Pages = pages
+        };
     }
 
     private sealed class StaticDocHarvester : IDocHarvester

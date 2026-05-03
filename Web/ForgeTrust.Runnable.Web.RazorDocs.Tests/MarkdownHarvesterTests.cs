@@ -211,11 +211,13 @@ public class MarkdownHarvesterTests : IDisposable
             """
             title: Runnable
             summary: Start with the proof paths that matter most.
-            featured_pages:
-              - question: Where do I start?
-                path: guides/intro.md
-                supporting_copy: Follow the intro guide first.
-                order: 10
+            featured_page_groups:
+              - label: Start here
+                pages:
+                  - question: Where do I start?
+                    path: guides/intro.md
+                    supporting_copy: Follow the intro guide first.
+                    order: 10
             """);
         await File.WriteAllTextAsync(Path.Combine(guidesDir, "intro.md"), "# Intro");
 
@@ -225,7 +227,8 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal("Runnable", doc.Title);
         Assert.Equal("Start with the proof paths that matter most.", doc.Metadata?.Summary);
         Assert.False(doc.Metadata?.SummaryIsDerived);
-        var featuredPage = Assert.Single(doc.Metadata?.FeaturedPages!);
+        var featuredGroup = Assert.Single(doc.Metadata?.FeaturedPageGroups!);
+        var featuredPage = Assert.Single(featuredGroup.Pages);
         Assert.Equal("Where do I start?", featuredPage.Question);
         Assert.Equal("guides/intro.md", featuredPage.Path);
         Assert.Equal("Follow the intro guide first.", featuredPage.SupportingCopy);
@@ -344,22 +347,24 @@ public class MarkdownHarvesterTests : IDisposable
             Path.Combine(_testRoot, "README.md"),
             """
             ---
-            featured_pages: []
+            featured_page_groups: []
             ---
             # Runnable
             """);
         await File.WriteAllTextAsync(
             Path.Combine(_testRoot, "README.md.yml"),
             """
-            featured_pages:
-              - path: guides/intro.md
+            featured_page_groups:
+              - label: Start here
+                pages:
+                  - path: guides/intro.md
             """);
         await File.WriteAllTextAsync(Path.Combine(guidesDir, "intro.md"), "# Intro");
 
         var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
         var doc = results.Single(n => n.Path == "README.md");
 
-        Assert.Empty(doc.Metadata?.FeaturedPages!);
+        Assert.Empty(doc.Metadata?.FeaturedPageGroups!);
     }
 
     [Fact]
@@ -389,6 +394,47 @@ public class MarkdownHarvesterTests : IDisposable
         Assert.Equal("Guide", doc.Title);
         Assert.Equal("Guide", doc.Metadata?.Title);
         AssertWarningLogged("could not be parsed");
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ShouldLogMetadataDiagnostics_FromInlineFrontMatter()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "Guide.md"),
+            """
+            ---
+            featured_page_groups:
+              - label: Start here
+            ---
+            # Guide
+            """);
+
+        var doc = Assert.Single(await _harvester.HarvestAsync(_testRoot));
+
+        Assert.Equal("Guide", doc.Title);
+        AssertWarningLogged("missing-featured-group-pages");
+        AssertWarningLogged("Groups without pages cannot resolve any landing rows.");
+        AssertWarningLogged("Add pages with at least one path, or remove the empty group.");
+    }
+
+    [Fact]
+    public async Task ReadMetadataSidecarAsync_ShouldLogMetadataDiagnostics_FromSidecar()
+    {
+        var markdownPath = Path.Combine(_testRoot, "Guide.md");
+        await File.WriteAllTextAsync(markdownPath, "# Guide");
+        await File.WriteAllTextAsync(
+            markdownPath + ".yml",
+            """
+            featured_pages:
+              - path: old.md
+            """);
+
+        var metadata = await _harvester.ReadMetadataSidecarAsync(markdownPath, "Guide.md", CancellationToken.None);
+
+        Assert.NotNull(metadata);
+        AssertWarningLogged("stale-featured-pages");
+        AssertWarningLogged("The flat featured_pages field is no longer rendered.");
+        AssertWarningLogged("Move each entry under featured_page_groups[].pages");
     }
 
     [Fact]
@@ -566,6 +612,20 @@ public class MarkdownHarvesterTests : IDisposable
             """);
 
         Assert.Equal("This is the first paragraph.", summary);
+    }
+
+    [Theory]
+    [InlineData("A plain paragraph.", "A plain paragraph.")]
+    [InlineData("1", "1")]
+    [InlineData("1.", "1.")]
+    [InlineData("1) Not a dotted list.", "1) Not a dotted list.")]
+    public void ExtractSummary_ShouldKeepTextThatOnlyLooksAlmostLikeNumberedLists(
+        string markdown,
+        string expectedSummary)
+    {
+        var summary = MarkdownHarvester.ExtractSummary(markdown);
+
+        Assert.Equal(expectedSummary, summary);
     }
 
     [Fact]

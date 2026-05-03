@@ -1,0 +1,33 @@
+name: Docs feedback
+description: Tell us where the docs blocked you or sent you to the wrong next step.
+title: "docs: "
+labels: ["docs"]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Page or URL
+      placeholder: https://forge-trust.github.io/Runnable/docs/...
+    validations:
+      required: true
+  - type: textarea
+    id: task
+    attributes:
+      label: What were you trying to do?
+      description: Name the job. Install a package, run an example, debug an error, upgrade, compare modules, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: blocker
+    attributes:
+      label: Where did you get stuck?
+      description: Point to the missing step, confusing wording, stale command, or broken link.
+    validations:
+      required: true
+  - type: textarea
+    id: better
+    attributes:
+      label: What would have helped?
+      description: A command, example, screenshot, search term, or link you expected to see.
+    validations:
+      required: false

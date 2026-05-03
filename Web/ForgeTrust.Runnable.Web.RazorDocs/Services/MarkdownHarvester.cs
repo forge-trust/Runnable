@@ -73,9 +73,10 @@ public class MarkdownHarvester : IDocHarvester
                 }
 
                 var content = await _readAllTextAsync(file, cancellationToken);
-                var (markdownBody, frontMatterMetadata) = MarkdownFrontMatterParser.Extract(content);
+                var (markdownBody, frontMatterResult) = MarkdownFrontMatterParser.ExtractWithDiagnostics(content);
+                LogMetadataDiagnostics(relativePath, frontMatterResult.Diagnostics);
                 var sidecarMetadata = await ReadMetadataSidecarAsync(file, relativePath, cancellationToken);
-                var explicitMetadata = DocMetadata.Merge(frontMatterMetadata, sidecarMetadata);
+                var explicitMetadata = DocMetadata.Merge(frontMatterResult.Metadata, sidecarMetadata);
                 var title = Path.GetFileNameWithoutExtension(file);
 
                 if (title.Equals("README", StringComparison.OrdinalIgnoreCase))
@@ -156,7 +157,9 @@ public class MarkdownHarvester : IDocHarvester
         try
         {
             var yaml = await _readAllTextAsync(sidecarPath, cancellationToken);
-            return MarkdownFrontMatterParser.ParseMetadataYaml(yaml);
+            var result = MarkdownFrontMatterParser.ParseMetadataYamlWithDiagnostics(yaml);
+            LogMetadataDiagnostics($"{relativeMarkdownPath}{Path.GetExtension(sidecarPath)}", result.Diagnostics);
+            return result.Metadata;
         }
         catch (OperationCanceledException)
         {
@@ -179,6 +182,23 @@ public class MarkdownHarvester : IDocHarvester
                 Path.GetFileName(sidecarPath),
                 relativeMarkdownPath);
             return null;
+        }
+    }
+
+    private void LogMetadataDiagnostics(
+        string sourcePath,
+        IReadOnlyList<RazorDocsMetadataDiagnostic> diagnostics)
+    {
+        foreach (var diagnostic in diagnostics)
+        {
+            _logger.LogWarning(
+                "RazorDocs metadata warning {Code} in {SourcePath} at {FieldPath}: {Problem} Cause: {Cause} Fix: {Fix}",
+                diagnostic.Code,
+                sourcePath,
+                diagnostic.FieldPath,
+                diagnostic.Problem,
+                diagnostic.Cause,
+                diagnostic.Fix);
         }
     }
 

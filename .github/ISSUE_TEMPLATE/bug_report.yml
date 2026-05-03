@@ -13,7 +13,7 @@ body:
     attributes:
       label: What happened?
       description: Describe the unexpected behavior and what you expected instead.
-      placeholder: "I expected ..., but ..."
+      placeholder: "I ran `dotnet run --project examples/web-app -- --port 5055` and expected ..., but ..."
     validations:
       required: true
   - type: textarea
@@ -54,6 +54,8 @@ body:
       label: Runnable version or commit
       description: Use a package version, tag, branch name, or commit SHA.
       placeholder: "v0.1.0, main@abcdef0, or package version"
+    validations:
+      required: true
   - type: textarea
     id: environment
     attributes:
@@ -64,6 +66,8 @@ body:
         - dotnet --version:
         - Browser:
         - Host/CI:
+    validations:
+      required: true
   - type: textarea
     id: logs
     attributes:

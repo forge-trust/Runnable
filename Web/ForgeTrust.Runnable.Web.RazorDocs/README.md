@@ -31,17 +31,22 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 | Surface | Default | Why | Real examples | Exception / note |
 | --- | --- | --- | --- | --- |
 | One-off owned package chrome in Razor views | Prefer Tailwind utility classes in markup | RazorDocs fully owns the markup, so local utility classes keep intent obvious where the change happens | docs landing shell in `Views/Docs/Index.cshtml`, sidebar shell and layout framing in `Views/Shared/_Layout.cshtml`, one-off page header spacing in `Views/Docs/Details.cshtml` | If the same styling contract repeats across package surfaces, promote it to a semantic component class instead of copying long utility strings |
-| Reusable owned package components or stable cross-file UI selectors | Use semantic component classes | Shared selectors keep repeated UI stable across Razor, CSS, and sometimes JavaScript | `docs-page-badge`, `docs-metadata-chip`, `docs-search-page`, `docs-search-page-filters-toggle`, `docs-search-page-active-filters` | Utilities can still handle surrounding layout and one-off placement |
-| Harvested or generated document bodies that RazorDocs does not fully author element by element | Use wrapper-scoped semantic CSS such as `.docs-content ...` | RazorDocs cannot safely push utility classes into nested harvested HTML | headings, paragraphs, code blocks, overload groups, and namespace sections inside `.docs-content` in `Views/Docs/Details.cshtml` and `wwwroot/css/app.css` | Do not rewrite harvested nested HTML just to satisfy utility-class purity |
+| Reusable owned package components or stable cross-file UI selectors | Use semantic component classes in the shared package stylesheet | Shared selectors keep repeated UI stable across Razor, CSS, and sometimes JavaScript | `docs-page-badge`, `docs-metadata-chip`, `docs-page-meta`, `docs-provenance-strip`, `docs-trust-bar` in `wwwroot/css/app.css` | Utilities can still handle surrounding layout and one-off placement |
+| Harvested or generated document bodies that RazorDocs does not fully author element by element | Use wrapper-scoped semantic CSS such as `.docs-content ...` in the shared package stylesheet | RazorDocs cannot safely push utility classes into nested harvested HTML | headings, paragraphs, code blocks, overload groups, and namespace sections inside `.docs-content` in `Views/Docs/Details.cshtml` and `wwwroot/css/app.css` | Do not rewrite harvested nested HTML just to satisfy utility-class purity |
 | JavaScript-generated or stateful UI that needs CSS and JavaScript to share stable hooks | Use semantic hook classes, then style them in CSS | Runtime UI needs stable names both the stylesheet and script can rely on | search result rows, filter chips, active-filter pills, and state containers in `wwwroot/docs/search.css` and `wwwroot/docs/search-client.js` | Use `id` values where uniqueness or ARIA wiring require them, but keep reusable styling and state contracts on semantic classes |
 
 ### Common Calls
 
 - New one-off page header spacing or typography in owned Razor markup: use Tailwind utilities in the view.
-- New reusable badge, metadata chip, or shared search workspace shell element: add or extend a semantic component class, then use utilities around it only when they are purely local.
+- New reusable badge, metadata chip, page metadata row, or trust/provenance surface: add or extend a semantic component class in `wwwroot/css/app.css`, then use utilities around it only when they are purely local.
 - For `Views/Docs/Search.cshtml`, keep the stateful search container or interactive hook semantic, but use local utilities for one-off header copy, helper layout, and fallback-link chrome inside that view.
 - Restyling paragraphs, headings, or code blocks inside `.docs-content`: update wrapper-scoped CSS instead of pushing utility classes into harvested HTML.
 - New search filter pill, active-filter surface, or other stateful search UI: use a semantic hook class because CSS and JavaScript both need to recognize it.
+
+### Stylesheet Responsibilities
+
+- `wwwroot/css/app.css` is the Tailwind entry point for the generated package stylesheet (`site.gen.css`). It owns shared RazorDocs component primitives and wrapper-scoped document body styling because the generated stylesheet is loaded on every docs page before any search-specific assets.
+- `wwwroot/docs/search.css` owns the search shell, interactive search controls, JavaScript-rendered result states, empty/failure states, and search skeletons. It should not define shared page badges, metadata chips, provenance strips, trust bars, or other primitives required by non-search docs pages.
 
 ### Terms
 
@@ -55,6 +60,7 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 - Do not treat required `id` values, such as `docs-search-page-input` or `docs-search-page-filters-panel`, as the reusable styling contract. They exist for uniqueness, targeting, and ARIA relationships.
 - Do not assume every child inside a semantic search container needs its own semantic class; local typography and spacing inside one view can still stay inline.
 - Do not add semantic classes to static package chrome when plain utilities are clearer and the styling is truly local.
+- Do not place non-search primitives in `wwwroot/docs/search.css` just because the layout loads search assets globally today. Use `wwwroot/css/app.css` for shared components so future theming can target one stable package layer.
 
 ## Configuration
 
@@ -253,7 +259,7 @@ Field behavior and pitfalls:
 
 - The page must still belong to a valid built-in public section through explicit or derived `nav_group`.
 - If multiple docs in one section set `section_landing: true`, RazorDocs keeps the lowest `order` value, then the lowest canonical path, and logs a warning for the others.
-- A section landing doc can also author `featured_pages`; RazorDocs uses those entries for section-level “next steps” on the detail page and for the section preview links surfaced on `/docs`.
+- A section landing doc can also author `featured_page_groups`; RazorDocs uses those reader-intent groups for section-level “next steps” on the detail page and collapses the first resolved rows into section preview links surfaced on `/docs`.
 - `HideFromPublicNav = true` always wins. Hidden pages do not appear in section routes, the sidebar, the docs home, or the public search index even if they declare a section or landing status.
 
 ## Docs Link Authoring
@@ -281,14 +287,14 @@ This means a link is rewritten only when the target exists in the harvested docs
 
 ## Landing Curation
 
-RazorDocs can turn the root docs landing into a curated proof-path surface by reading `featured_pages` from the repository-root `README.md` metadata.
+RazorDocs can turn the root docs landing into a curated reader-intent surface by reading `featured_page_groups` from the repository-root `README.md` metadata.
 
 ### Authoring contract
 
-`featured_pages` is parsed as part of `DocMetadata`, so the metadata contract stays page-agnostic. RazorDocs uses those entries in two places:
+`featured_page_groups` is parsed as part of `DocMetadata`, so the metadata contract stays page-agnostic. RazorDocs uses those groups in two places:
 
-- the root `README.md` metadata drives the primary proof-path rows on `/docs`
-- any authored section landing doc can drive its own section-level next-step rows and the section preview links shown on `/docs`
+- the root `README.md` metadata drives grouped proof-path rows on `/docs`
+- any authored section landing doc can drive grouped section-level next-step rows and the section preview links shown on `/docs`
 
 Authors can now supply that metadata in either of two places:
 
@@ -301,37 +307,64 @@ Inline front matter remains the default authoring path for ordinary docs pages. 
 # README.md.yml
 title: Runnable
 summary: Follow the proof paths that explain what this framework is for and how it composes.
-featured_pages:
-  - question: How does composition work?
-    path: guides/composition.md
-    supporting_copy: Start with the composition guide before drilling into APIs.
+featured_page_groups:
+  - intent: understand
+    label: Understand the model
+    summary: Start here when you need the mental model before choosing an implementation path.
     order: 10
-  - question: Show me an end-to-end example
-    path: examples/hello-world/README.md
+    pages:
+      - question: How does composition work?
+        path: guides/composition.md
+        supporting_copy: Start with the composition guide before drilling into APIs.
+        order: 10
+  - label: See it working
     order: 20
+    pages:
+      - question: Show me an end-to-end example
+        path: examples/hello-world/README.md
+        order: 10
 ```
 
 ### Field behavior
 
-- `question` is the reader-facing label shown on the landing card. If omitted, RazorDocs falls back to the destination page title.
+- `intent` is the stable group identity. If omitted, RazorDocs derives one from `label`.
+- `label` is the reader-facing group heading. If omitted, RazorDocs title-cases `intent`.
+- `summary` explains when a reader should choose the group.
+- `order` is optional on groups and pages. Lower values sort first, and ties preserve authored order.
+- `pages` must contain the featured destinations for the group. Empty page lists are skipped.
+- `question` is the reader-facing label shown on a row. If omitted, RazorDocs falls back to the destination page title.
 - `path` accepts either the source path or canonical docs path for the destination page. RazorDocs normalizes forward-slash and backslash separators during resolution.
 - `supporting_copy` is optional landing-only text. If omitted, RazorDocs falls back to the destination page summary.
-- `order` is optional. Lower values sort first, and ties preserve authored order.
+
+Author three to five groups for a broad landing page, and one to three pages per group. Prefer plain reader intents such as `understand`, `choose-package`, `see-it-working`, `release-risk`, and `api-reference`. Use custom intents when your product has domain-specific decisions that those defaults do not capture.
+
+Preview locally from the repository root with the standalone docs host:
+
+```bash
+dotnet run --project Web/ForgeTrust.Runnable.Web.RazorDocs.Standalone -- --urls http://localhost:5189
+```
+
+Then open `http://localhost:5189/docs`. This is only the docs site running locally; the separate `razordocs preview --repo .` CLI idea is intentionally deferred.
 
 ### Fallback and visibility rules
 
 - If the root `README.md` is missing, the landing stays on the neutral docs index.
-- If `featured_pages` is missing or empty, the landing stays on the neutral docs index.
+- If `featured_page_groups` is missing, the landing uses the neutral docs index unless the Start Here public section can provide the built-in proof-path fallback.
+- If `featured_page_groups: []` is authored inline, the explicit empty list is authoritative and suppresses sidecar fallback.
 - If both `README.md.yml` and `README.md.yaml` exist for the same Markdown file, RazorDocs logs a warning and ignores both sidecars until the conflict is removed.
 - If both sidecar metadata and inline front matter define the same field, inline front matter wins and the sidecar acts as fallback metadata only.
 - Invalid sidecar YAML logs a warning and falls back to the inline/default metadata path instead of breaking the page harvest.
 - If a featured path is missing, hidden from public navigation, or duplicated, RazorDocs skips it and logs a warning.
-- If all featured entries are skipped, RazorDocs falls back to the neutral docs index instead of rendering broken cards.
+- If all featured entries are skipped, RazorDocs logs one final warning and falls back instead of rendering broken rows.
+- The old flat `featured_pages` field is ignored and logs a migration warning. If both fields are present, `featured_page_groups` wins.
+
+Diagnostics include the source file, field path when available, problem, cause, and fix. Common warnings are stale `featured_pages`, missing group identity, missing or null `pages`, flat-looking group entries, blank `path`, missing destination, hidden destination, duplicate destination, invalid YAML, sidecar extension conflicts, and all groups skipped after resolution.
 
 ### Pitfalls
 
 - Do not create both `.yml` and `.yaml` sidecars for the same Markdown file. RazorDocs treats that as an authoring error and ignores both.
 - Do not use a sidecar as a second secret metadata system. It supports the same `DocMetadata` schema as inline front matter, and it is best reserved for files whose Markdown needs to stay portable on other surfaces.
+- Do not put `path` or `question` directly under a group. Page fields belong under `pages`.
 - README portability matters most at the repository and package level. In this repo, authored `README.md` files should stay free of inline front matter so GitHub renders them cleanly.
 
 ## Metadata-Driven Wayfinding

@@ -854,6 +854,36 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_WritesHelpToStandardOut()
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exitCode = await Program.RunAsync(["--help"], stdout, stderr, _repositoryRoot);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Commands:", stdout.ToString(), StringComparison.Ordinal);
+        Assert.Contains("generate", stdout.ToString(), StringComparison.Ordinal);
+        Assert.Equal(string.Empty, stderr.ToString());
+    }
+
+    [Theory]
+    [InlineData("generate", "-h")]
+    [InlineData("verify", "--help")]
+    public async Task RunAsync_WritesCommandHelpToStandardOut(string command, string helpOption)
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exitCode = await Program.RunAsync([command, helpOption], stdout, stderr, _repositoryRoot);
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Commands:", stdout.ToString(), StringComparison.Ordinal);
+        Assert.Contains("--repo-root", stdout.ToString(), StringComparison.Ordinal);
+        Assert.Equal(string.Empty, stderr.ToString());
+    }
+
+    [Fact]
     public async Task RunAsync_WritesUsageWhenCommandIsUnknown()
     {
         using var stdout = new StringWriter();
@@ -862,7 +892,22 @@ public sealed class PackageIndexGeneratorTests : IDisposable
         var exitCode = await Program.RunAsync(["mystery"], stdout, stderr, _repositoryRoot);
 
         Assert.Equal(1, exitCode);
+        Assert.Contains("Unknown command 'mystery'.", stderr.ToString(), StringComparison.Ordinal);
         Assert.Contains("Usage:", stderr.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunAsync_WritesUnknownCommandBeforeParsingOptions()
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exitCode = await Program.RunAsync(["mystery", "--bogus"], stdout, stderr, _repositoryRoot);
+
+        Assert.Equal(1, exitCode);
+        Assert.Equal(string.Empty, stdout.ToString());
+        Assert.Contains("Unknown command 'mystery'.", stderr.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Unknown option '--bogus'.", stderr.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

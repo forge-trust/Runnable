@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
@@ -76,14 +75,12 @@ public static partial class PathUtils
         return startPath;
     }
 
-    [ExcludeFromCodeCoverage(
-        Justification = "File.Exists excludes root directories; the fallback preserves defensive handling for unusual path providers.")]
     private static string GetExistingFileDirectory(string startPath)
     {
-        var fullPath = Path.GetFullPath(startPath);
-        return Path.GetDirectoryName(fullPath)
-            ?? Path.GetPathRoot(fullPath)
-            ?? fullPath;
+        var directoryPath = Path.GetDirectoryName(Path.GetFullPath(startPath));
+        ArgumentException.ThrowIfNullOrEmpty(directoryPath, nameof(startPath));
+
+        return directoryPath;
     }
 
     [LoggerMessage(

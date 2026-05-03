@@ -1,4 +1,6 @@
 ﻿using System.Globalization;
+using System.Collections;
+using System.Reflection;
 using System.Text.Json;
 using ForgeTrust.Runnable.Core;
 
@@ -7,7 +9,7 @@ namespace ForgeTrust.Runnable.Config;
 /// <summary>
 /// A configuration provider that retrieves values from environment variables.
 /// </summary>
-internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
+internal class EnvironmentConfigProvider : IEnvironmentConfigProvider, IConfigValuePatcher
 {
     // Safety limit for indexed env-var collections (KEY__0, KEY__1, ...).
     // Prevents unbounded probing while still supporting large lists.
@@ -58,14 +60,14 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
             // lower-priority key formats as fallback when parsing fails.
         }
 
-        if (TryReadIndexedCollection<T>($"{envPrefix}__{hierarchicalKey}", out var envScopedCollection))
+        if (TryReadIndexedCollection(typeof(T), $"{envPrefix}__{hierarchicalKey}", out var envScopedCollection))
         {
-            return envScopedCollection;
+            return (T?)envScopedCollection;
         }
 
-        if (TryReadIndexedCollection<T>(hierarchicalKey, out var collection))
+        if (TryReadIndexedCollection(typeof(T), hierarchicalKey, out var collection))
         {
-            return collection;
+            return (T?)collection;
         }
 
         return default;
@@ -80,6 +82,42 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
     /// <inheritdoc />
     public string? GetEnvironmentVariable(string name, string? defaultValue = null) =>
         _environmentProvider.GetEnvironmentVariable(name, defaultValue);
+
+    /// <inheritdoc />
+    public bool TryPatch<T>(string environment, string key, T? currentValue, out T? patchedValue)
+    {
+        patchedValue = default;
+
+        var targetType = typeof(T);
+        if (!IsPatchableComplexType(targetType) && currentValue == null)
+        {
+            return false;
+        }
+
+        var runtimeType = currentValue?.GetType() ?? targetType;
+        if (!IsPatchableComplexType(runtimeType))
+        {
+            return false;
+        }
+
+        object? target = currentValue;
+        if (target == null && !TryCreateInstance(runtimeType, out target))
+        {
+            return false;
+        }
+
+        var envPrefix = NormalizeSegment(environment);
+        var hierarchicalKey = NormalizeHierarchicalKey(key);
+        var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+        if (!TryPatchObject(target!, runtimeType, envPrefix, hierarchicalKey, visited))
+        {
+            return false;
+        }
+
+        patchedValue = (T?)target!;
+        return true;
+    }
 
     /// <summary>
     /// Converts a key/environment segment to uppercase (via <see cref="string.ToUpperInvariant"/>)
@@ -137,10 +175,9 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
         return true;
     }
 
-    private bool TryReadIndexedCollection<T>(string keyPrefix, out T? parsed)
+    private bool TryReadIndexedCollection(Type targetType, string keyPrefix, out object? parsed)
     {
         parsed = default;
-        var targetType = typeof(T);
         var elementType = GetCollectionElementType(targetType);
         if (elementType == null)
         {
@@ -164,7 +201,7 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
             values.Add(value);
         }
 
-        var typedList = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
+        var typedList = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
         foreach (var value in values)
         {
             if (!TryConvertStringToType(value, elementType, out var element))
@@ -179,11 +216,11 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
         {
             var array = Array.CreateInstance(elementType, typedList.Count);
             typedList.CopyTo(array, 0);
-            parsed = (T)(object)array;
+            parsed = array;
             return true;
         }
 
-        parsed = (T)typedList;
+        parsed = typedList;
         return true;
     }
 
@@ -301,4 +338,218 @@ internal class EnvironmentConfigProvider : IEnvironmentConfigProvider
         targetType.IsPrimitive
         || targetType == typeof(decimal)
         || targetType == typeof(DateTime);
+
+    private bool TryPatchObject(
+        object target,
+        Type targetType,
+        string envPrefix,
+        string hierarchicalKey,
+        HashSet<object> visited)
+    {
+        if (!visited.Add(target))
+        {
+            return false;
+        }
+
+        var patched = false;
+
+        foreach (var property in targetType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (property.GetIndexParameters().Length != 0)
+            {
+                continue;
+            }
+
+            var childKey = CombineHierarchicalKey(hierarchicalKey, property.Name);
+            if (TryReadMemberValue(property.PropertyType, envPrefix, childKey, out var propertyValue))
+            {
+                if (HasPublicSetter(property))
+                {
+                    property.SetValue(target, propertyValue);
+                    patched = true;
+                    continue;
+                }
+
+                if (property.GetMethod != null
+                    && TryPatchExistingCollection(property.GetValue(target), propertyValue))
+                {
+                    patched = true;
+                    continue;
+                }
+
+                continue;
+            }
+
+            if (!IsPatchableComplexType(property.PropertyType))
+            {
+                continue;
+            }
+
+            object? child = null;
+            if (property.GetMethod != null)
+            {
+                child = property.GetValue(target);
+            }
+
+            if (child == null)
+            {
+                if (!HasPublicSetter(property)
+                    || !TryCreateInstance(property.PropertyType, out child))
+                {
+                    continue;
+                }
+            }
+
+            var childToPatch = child!;
+            if (TryPatchObject(childToPatch, childToPatch.GetType(), envPrefix, childKey, visited))
+            {
+                if (HasPublicSetter(property))
+                {
+                    property.SetValue(target, childToPatch);
+                }
+
+                patched = true;
+            }
+        }
+
+        foreach (var field in targetType.GetFields(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (field.IsInitOnly)
+            {
+                continue;
+            }
+
+            var childKey = CombineHierarchicalKey(hierarchicalKey, field.Name);
+            if (TryReadMemberValue(field.FieldType, envPrefix, childKey, out var fieldValue))
+            {
+                field.SetValue(target, fieldValue);
+                patched = true;
+                continue;
+            }
+
+            if (!IsPatchableComplexType(field.FieldType))
+            {
+                continue;
+            }
+
+            var child = field.GetValue(target);
+            if (child == null)
+            {
+                if (!TryCreateInstance(field.FieldType, out child))
+                {
+                    continue;
+                }
+            }
+
+            var childToPatch = child!;
+            if (TryPatchObject(childToPatch, childToPatch.GetType(), envPrefix, childKey, visited))
+            {
+                field.SetValue(target, childToPatch);
+                patched = true;
+            }
+        }
+
+        // Remove on unwind so DAG-shaped graphs can revisit the same instance by another path;
+        // visited.Add(target) still returns false early for true cycles.
+        visited.Remove(target);
+        return patched;
+    }
+
+    private bool TryReadMemberValue(Type targetType, string envPrefix, string hierarchicalKey, out object? parsed)
+    {
+        var legacyKey = hierarchicalKey.Replace("__", "_", StringComparison.Ordinal);
+        foreach (var candidate in BuildDirectCandidates(envPrefix, legacyKey, hierarchicalKey))
+        {
+            var value = _environmentProvider.GetEnvironmentVariable(candidate);
+            if (value == null)
+            {
+                continue;
+            }
+
+            if (TryConvertStringToType(value, targetType, out parsed))
+            {
+                return true;
+            }
+        }
+
+        if (TryReadIndexedCollection(targetType, $"{envPrefix}__{hierarchicalKey}", out parsed))
+        {
+            return true;
+        }
+
+        if (TryReadIndexedCollection(targetType, hierarchicalKey, out parsed))
+        {
+            return true;
+        }
+
+        parsed = default;
+        return false;
+    }
+
+    private static bool TryPatchExistingCollection(object? targetCollection, object? replacement)
+    {
+        if (targetCollection is not IList targetList
+            || replacement is not IEnumerable replacementValues
+            || targetList.IsReadOnly
+            || targetList.IsFixedSize)
+        {
+            return false;
+        }
+
+        targetList.Clear();
+        foreach (var value in replacementValues)
+        {
+            targetList.Add(value);
+        }
+
+        return true;
+    }
+
+    private static bool HasPublicSetter(PropertyInfo property) =>
+        property.SetMethod?.IsPublic == true;
+
+    private static string CombineHierarchicalKey(string parentKey, string memberName)
+    {
+        var memberKey = NormalizeHierarchicalKey(memberName);
+        return string.IsNullOrEmpty(parentKey) ? memberKey : $"{parentKey}__{memberKey}";
+    }
+
+    private static bool IsPatchableComplexType(Type targetType)
+    {
+        var nullableUnderlying = Nullable.GetUnderlyingType(targetType);
+        if (nullableUnderlying != null)
+        {
+            targetType = nullableUnderlying;
+        }
+
+        return targetType != typeof(string)
+               && !IsSimpleType(targetType)
+               && !targetType.IsEnum
+               && targetType != typeof(Guid)
+               && targetType != typeof(DateTimeOffset)
+               && targetType != typeof(TimeSpan)
+               && GetCollectionElementType(targetType) == null
+               && !typeof(IDictionary).IsAssignableFrom(targetType);
+    }
+
+    private static bool TryCreateInstance(Type targetType, out object? instance)
+    {
+        instance = null;
+
+        if (targetType.IsAbstract || targetType.IsInterface)
+        {
+            return false;
+        }
+
+        try
+        {
+            instance = Activator.CreateInstance(targetType);
+            return instance != null;
+        }
+        catch (Exception ex) when (ex is MissingMethodException or MemberAccessException or TargetInvocationException
+                                       or NotSupportedException)
+        {
+            return false;
+        }
+    }
 }

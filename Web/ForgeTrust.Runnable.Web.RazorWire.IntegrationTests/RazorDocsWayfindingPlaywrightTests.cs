@@ -41,15 +41,15 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             "#files-behind-the-hero-flow",
             await page.GetAttributeAsync("#docs-page-outline a[href='#files-behind-the-hero-flow']", "href"));
 
+        const string nextDocPath = "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html";
+        const string nextDocHeading = "Failed Form UX";
         Assert.Equal(
             "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/README.md.html",
             await page.GetAttributeAsync("[data-doc-wayfinding='previous']", "href"));
         Assert.Equal(
-            "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html",
+            nextDocPath,
             await page.GetAttributeAsync("[data-doc-wayfinding='next']", "href"));
 
-        const string nextDocPath = "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html";
-        const string nextDocHeading = "Failed Form UX";
         var initialContent = await page.Locator("#doc-content").InnerHTMLAsync();
 
         await page.ClickAsync("[data-doc-wayfinding='next']");
@@ -57,22 +57,22 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             """
             (args) => {
               const island = document.getElementById('doc-content');
-              const heading = document.querySelector('h1');
-              return window.location.pathname === args.targetPath
+              const heading = document.querySelector('#doc-content h1');
+              return window.location.pathname === args.path
                 && Boolean(island)
                 && island.innerHTML !== args.initialContent
-                && heading?.textContent?.trim() === args.expectedHeading;
+                && heading?.textContent?.trim() === args.title;
             }
             """,
             new
             {
-                targetPath = nextDocPath,
+                path = nextDocPath,
                 initialContent,
-                expectedHeading = nextDocHeading
+                title = nextDocHeading
             },
             new PageWaitForFunctionOptions { Timeout = 30_000 });
 
-        Assert.Equal(nextDocHeading, (await page.TextContentAsync("h1"))?.Trim());
+        Assert.Equal(nextDocHeading, (await page.Locator("#doc-content h1").First.TextContentAsync())?.Trim());
     }
 
     [Fact]

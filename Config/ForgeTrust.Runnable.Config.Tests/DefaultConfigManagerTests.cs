@@ -167,4 +167,174 @@ public class DefaultConfigManagerTests
 
         A.CallTo(logger).Where(c => c.Method.Name == "Log").MustHaveHappenedOnceExactly();
     }
+
+    [Fact]
+    public void GetValue_PatchesProviderObjectWithNestedEnvironmentVariable()
+    {
+        var innerEnvironment = A.Fake<ForgeTrust.Runnable.Core.IEnvironmentProvider>();
+        var fileProvider = A.Fake<IConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+        var fileValue = new AppSettings
+        {
+            Mode = "file",
+            Database = new DatabaseOptions
+            {
+                Host = "db.from.file",
+                Port = 5432
+            }
+        };
+
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("6543");
+        A.CallTo(() => fileProvider.Priority).Returns(1);
+        A.CallTo(() => fileProvider.Name).Returns("File");
+        A.CallTo(() => fileProvider.GetValue<AppSettings>("Production", "MyApp.Settings")).Returns(fileValue);
+
+        var environmentProvider = new EnvironmentConfigProvider(innerEnvironment);
+        var manager = new DefaultConfigManager(environmentProvider, [fileProvider], logger);
+
+        var value = manager.GetValue<AppSettings>("Production", "MyApp.Settings");
+
+        Assert.Same(fileValue, value);
+        Assert.NotNull(value);
+        Assert.Equal("file", value.Mode);
+        Assert.Equal("db.from.file", value.Database.Host);
+        Assert.Equal(6543, value.Database.Port);
+    }
+
+    [Fact]
+    public void GetValue_ReturnsDirectEnvironmentObjectBeforePatchingProviderValue()
+    {
+        var innerEnvironment = A.Fake<ForgeTrust.Runnable.Core.IEnvironmentProvider>();
+        var fileProvider = A.Fake<IConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+        var directJson = """
+            {
+              "Mode": "environment",
+              "Database": {
+                "Host": "db.from.env",
+                "Port": 7000
+              }
+            }
+            """;
+
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable("MYAPP__SETTINGS", A<string?>._))
+            .Returns(directJson);
+
+        var environmentProvider = new EnvironmentConfigProvider(innerEnvironment);
+        var manager = new DefaultConfigManager(environmentProvider, [fileProvider], logger);
+
+        var value = manager.GetValue<AppSettings>("Production", "MyApp.Settings");
+
+        Assert.NotNull(value);
+        Assert.Equal("environment", value.Mode);
+        Assert.Equal("db.from.env", value.Database.Host);
+        Assert.Equal(7000, value.Database.Port);
+        A.CallTo(() => fileProvider.GetValue<AppSettings>(A<string>._, A<string>._))
+            .MustNotHaveHappened();
+    }
+
+    [Fact]
+    public void GetValue_CreatesObjectFromNestedEnvironmentVariableWhenProvidersAreMissing()
+    {
+        var innerEnvironment = A.Fake<ForgeTrust.Runnable.Core.IEnvironmentProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable("MYAPP__SETTINGS__MODE", A<string?>._))
+            .Returns("environment");
+
+        var environmentProvider = new EnvironmentConfigProvider(innerEnvironment);
+        var manager = new DefaultConfigManager(environmentProvider, [], logger);
+
+        var value = manager.GetValue<AppSettings>("Production", "MyApp.Settings");
+
+        Assert.NotNull(value);
+        Assert.Equal("environment", value.Mode);
+    }
+
+    [Fact]
+    public void GetValue_PatchesProviderObjectWithGetterOnlyNestedObject()
+    {
+        var innerEnvironment = A.Fake<ForgeTrust.Runnable.Core.IEnvironmentProvider>();
+        var fileProvider = A.Fake<IConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+        var fileValue = new GetterOnlyAppSettings
+        {
+            Mode = "file"
+        };
+        fileValue.Database.Host = "db.from.file";
+        fileValue.Database.Port = 5432;
+
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable("MYAPP__SETTINGS__DATABASE__PORT", A<string?>._))
+            .Returns("6543");
+        A.CallTo(() => fileProvider.Priority).Returns(1);
+        A.CallTo(() => fileProvider.GetValue<GetterOnlyAppSettings>("Production", "MyApp.Settings"))
+            .Returns(fileValue);
+
+        var environmentProvider = new EnvironmentConfigProvider(innerEnvironment);
+        var manager = new DefaultConfigManager(environmentProvider, [fileProvider], logger);
+
+        var value = manager.GetValue<GetterOnlyAppSettings>("Production", "MyApp.Settings");
+
+        Assert.Same(fileValue, value);
+        Assert.NotNull(value);
+        Assert.Equal("file", value.Mode);
+        Assert.Equal("db.from.file", value.Database.Host);
+        Assert.Equal(6543, value.Database.Port);
+    }
+
+    [Fact]
+    public void GetValue_PatchesProviderObjectWithGetterOnlyCollection()
+    {
+        var innerEnvironment = A.Fake<ForgeTrust.Runnable.Core.IEnvironmentProvider>();
+        var fileProvider = A.Fake<IConfigProvider>();
+        var logger = A.Fake<ILogger<DefaultConfigManager>>();
+        var fileValue = new GetterOnlyAppSettings();
+        fileValue.Endpoints.Add("https://file.example");
+
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable(A<string>._, A<string?>._)).Returns(null);
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable("MYAPP__SETTINGS__ENDPOINTS__0", A<string?>._))
+            .Returns("https://one.example");
+        A.CallTo(() => innerEnvironment.GetEnvironmentVariable("MYAPP__SETTINGS__ENDPOINTS__1", A<string?>._))
+            .Returns("https://two.example");
+        A.CallTo(() => fileProvider.Priority).Returns(1);
+        A.CallTo(() => fileProvider.GetValue<GetterOnlyAppSettings>("Production", "MyApp.Settings"))
+            .Returns(fileValue);
+
+        var environmentProvider = new EnvironmentConfigProvider(innerEnvironment);
+        var manager = new DefaultConfigManager(environmentProvider, [fileProvider], logger);
+
+        var value = manager.GetValue<GetterOnlyAppSettings>("Production", "MyApp.Settings");
+
+        Assert.Same(fileValue, value);
+        Assert.NotNull(value);
+        Assert.Equal(["https://one.example", "https://two.example"], value.Endpoints);
+    }
+
+    private sealed class AppSettings
+    {
+        public string? Mode { get; set; }
+
+        public DatabaseOptions Database { get; set; } = new();
+    }
+
+    private sealed class GetterOnlyAppSettings
+    {
+        public string? Mode { get; set; }
+
+        public DatabaseOptions Database { get; } = new();
+
+        public List<string> Endpoints { get; } = [];
+    }
+
+    private sealed class DatabaseOptions
+    {
+        public string? Host { get; set; }
+
+        public int Port { get; set; }
+    }
 }

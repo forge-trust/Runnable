@@ -137,7 +137,7 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
-    public void Extract_ShouldIgnoreFeaturedPageGroupsWithEmptyPages()
+    public void ExtractWithDiagnostics_ShouldIgnoreFeaturedPageGroupsWithEmptyPages_AndWarn()
     {
         var markdown = """
             ---
@@ -148,13 +148,16 @@ public sealed class MarkdownFrontMatterParserTests
             # Hello
             """;
 
-        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+        var (_, result) = MarkdownFrontMatterParser.ExtractWithDiagnostics(markdown);
 
-        Assert.Empty(metadata!.FeaturedPageGroups!);
+        Assert.Empty(result.Metadata!.FeaturedPageGroups!);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("empty-featured-group-pages", diagnostic.Code);
+        Assert.Equal("featured_page_groups[0].pages", diagnostic.FieldPath);
     }
 
     [Fact]
-    public void Extract_ShouldIgnoreFeaturedPageGroupsWhenAllPagesAreNull()
+    public void ExtractWithDiagnostics_ShouldIgnoreFeaturedPageGroupsWhenAllPagesAreNull_AndWarn()
     {
         var markdown = """
             ---
@@ -166,9 +169,12 @@ public sealed class MarkdownFrontMatterParserTests
             # Hello
             """;
 
-        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+        var (_, result) = MarkdownFrontMatterParser.ExtractWithDiagnostics(markdown);
 
-        Assert.Empty(metadata!.FeaturedPageGroups!);
+        Assert.Empty(result.Metadata!.FeaturedPageGroups!);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("empty-featured-group-page-entries", diagnostic.Code);
+        Assert.Equal("featured_page_groups[0].pages", diagnostic.FieldPath);
     }
 
     [Theory]

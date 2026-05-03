@@ -12,6 +12,16 @@ internal static class MarkdownFrontMatterParser
         .IgnoreUnmatchedProperties()
         .Build();
 
+    /// <summary>
+    /// Extracts inline Markdown front matter and returns the remaining Markdown with parsed metadata.
+    /// </summary>
+    /// <param name="markdown">The Markdown source that may begin with YAML front matter.</param>
+    /// <returns>A tuple containing the Markdown body and parsed <see cref="DocMetadata"/> when present and valid.</returns>
+    /// <remarks>
+    /// This compatibility wrapper discards parser diagnostics. Invalid inline YAML returns the original Markdown with
+    /// <see langword="null"/> metadata, and non-fatal authoring warnings such as invalid curation YAML or migration
+    /// metadata are intentionally not surfaced. Call <see cref="ExtractWithDiagnostics"/> when callers need warnings.
+    /// </remarks>
     internal static (string Markdown, DocMetadata? Metadata) Extract(string markdown)
     {
         var (body, result) = ExtractWithDiagnostics(markdown);
@@ -268,6 +278,13 @@ internal static class MarkdownFrontMatterParser
 
             if (group.Pages.Count == 0)
             {
+                diagnostics.Add(
+                    new RazorDocsMetadataDiagnostic(
+                        "empty-featured-group-pages",
+                        $"{groupPath}.pages",
+                        "A featured page group has an empty pages list.",
+                        "Groups without page entries cannot resolve any landing rows.",
+                        "Add at least one page with a path, or remove the empty group."));
                 continue;
             }
 
@@ -295,6 +312,13 @@ internal static class MarkdownFrontMatterParser
 
             if (pages.Count == 0)
             {
+                diagnostics.Add(
+                    new RazorDocsMetadataDiagnostic(
+                        "empty-featured-group-page-entries",
+                        $"{groupPath}.pages",
+                        "A featured page group has no usable page entries.",
+                        "Every page entry was null or normalized away, so RazorDocs cannot resolve any landing rows.",
+                        "Add at least one page entry with a path, or remove the empty group."));
                 continue;
             }
 

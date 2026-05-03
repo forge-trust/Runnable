@@ -40,10 +40,13 @@ internal static class Program
     /// <summary>
     /// Runs the package chooser CLI against the supplied IO streams and working directory.
     /// </summary>
-    /// <param name="args">Command-line arguments, including the command and optional path overrides.</param>
-    /// <param name="standardOut">Writer that receives success messages.</param>
-    /// <param name="standardError">Writer that receives usage and failure messages.</param>
-    /// <param name="currentDirectory">Working directory used to resolve default repository-relative paths.</param>
+    /// <param name="args">
+    /// Command-line arguments, including the command and optional path overrides. A leading help argument returns
+    /// before command or option parsing so help remains available from any working directory.
+    /// </param>
+    /// <param name="standardOut">Writer that receives success messages and help/usage output.</param>
+    /// <param name="standardError">Writer that receives invalid invocation usage and failure messages.</param>
+    /// <param name="currentDirectory">Working directory used to resolve default repository-relative paths after help handling.</param>
     /// <param name="cancellationToken">Cancellation token propagated to generator operations.</param>
     /// <returns><c>0</c> when the command succeeds; otherwise a non-zero exit code.</returns>
     internal static async Task<int> RunAsync(

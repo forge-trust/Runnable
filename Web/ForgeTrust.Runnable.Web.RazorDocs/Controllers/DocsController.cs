@@ -305,21 +305,25 @@ public class DocsController : Controller
             .Where(doc => !string.Equals(doc.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase))
             .Where(doc => !string.Equals(doc.Path, startHereSection.LandingDoc?.Path, StringComparison.OrdinalIgnoreCase))
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
-            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
+            .OrderBy(doc => doc.Metadata!.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
             .Take(DefaultProofPathStageLabels.Length)
             .ToList();
 
         var pages = candidates
             .Select(
-                (doc, index) => new DocLandingFeaturedPageViewModel
+                (doc, index) =>
                 {
-                    Question = DefaultProofPathStageLabels[Math.Min(index, DefaultProofPathStageLabels.Length - 1)],
-                    Title = ResolveDisplayTitle(doc),
-                    Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
-                    PageType = doc.Metadata?.PageType,
-                    PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType),
-                    SupportingText = string.IsNullOrWhiteSpace(doc.Metadata?.Summary) ? null : doc.Metadata!.Summary!.Trim()
+                    var metadata = doc.Metadata!;
+                    return new DocLandingFeaturedPageViewModel
+                    {
+                        Question = DefaultProofPathStageLabels[index],
+                        Title = ResolveDisplayTitle(doc),
+                        Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
+                        PageType = metadata.PageType,
+                        PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata.PageType),
+                        SupportingText = string.IsNullOrWhiteSpace(metadata.Summary) ? null : metadata.Summary.Trim()
+                    };
                 })
             .ToList();
 
@@ -386,7 +390,7 @@ public class DocsController : Controller
         var candidates = snapshot.VisiblePages
             .Where(doc => !string.Equals(doc.Path, snapshot.LandingDoc?.Path, StringComparison.OrdinalIgnoreCase))
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
-            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
+            .OrderBy(doc => doc.Metadata!.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
             .Take(maxRoutes)
             .ToList();
@@ -425,7 +429,7 @@ public class DocsController : Controller
     {
         return snapshot.VisiblePages
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
-            .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
+            .OrderBy(doc => doc.Metadata!.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
             .Take(1)
             .Select(CreateSectionLink)
@@ -650,12 +654,13 @@ public class DocsController : Controller
 
     private static DocSectionLinkViewModel CreateSectionLink(DocNode doc)
     {
+        var metadata = doc.Metadata!;
         return new DocSectionLinkViewModel
         {
             Title = ResolveDisplayTitle(doc),
             Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
-            Summary = string.IsNullOrWhiteSpace(doc.Metadata?.Summary) ? null : doc.Metadata!.Summary!.Trim(),
-            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType)
+            Summary = string.IsNullOrWhiteSpace(metadata.Summary) ? null : metadata.Summary.Trim(),
+            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata.PageType)
         };
     }
 

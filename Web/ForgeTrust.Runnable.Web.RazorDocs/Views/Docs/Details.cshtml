@@ -28,6 +28,7 @@
     var provenance = Model.ContributorProvenance;
     var sourceHref = string.IsNullOrWhiteSpace(provenance?.SourceHref) ? null : provenance!.SourceHref!.Trim();
     var editHref = string.IsNullOrWhiteSpace(provenance?.EditHref) ? null : provenance!.EditHref!.Trim();
+    var provenanceLabel = string.IsNullOrWhiteSpace(provenance?.Label) ? "Source of truth" : provenance!.Label.Trim();
     var lastUpdatedUtc = provenance?.LastUpdatedUtc?.ToUniversalTime();
     var sourceUsesTurbo = sourceHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
     var editUsesTurbo = editHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
@@ -105,8 +106,8 @@
 
     @if (showContributorProvenance)
     {
-        <section class="docs-provenance-strip" aria-label="Source of truth">
-            <p class="docs-provenance-label">Source of truth</p>
+        <section class="docs-provenance-strip" aria-label="@provenanceLabel">
+            <p class="docs-provenance-label">@provenanceLabel</p>
             <div class="docs-provenance-items">
                 @if (sourceHref is not null)
                 {

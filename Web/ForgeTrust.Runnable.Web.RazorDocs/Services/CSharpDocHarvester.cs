@@ -101,7 +101,13 @@ public class CSharpDocHarvester : IDocHarvester
                         <header class=""doc-type-header"">
                             <span class=""doc-kind"">Type</span>
                             <h2>{WebUtility.HtmlEncode(typeDisplayName)}</h2>
+                            {CreateSymbolSourcePlaceholder(typeId)}
                         </header>");
+
+                    if (doc is not null)
+                    {
+                        AddSymbolSourceProvenance(namespacePage, typeId, relativePath, typeDecl);
+                    }
 
                     if (!string.IsNullOrWhiteSpace(doc))
                     {
@@ -152,11 +158,14 @@ public class CSharpDocHarvester : IDocHarvester
                                 $@"<details id=""{id}"" class=""doc-overload""{openAttribute}>
                                 <summary>
                                     <code class=""doc-signature"">{highlightedDisplaySignature}</code>
+                                    {CreateSymbolSourcePlaceholder(id)}
                                 </summary>
                                 <div class=""doc-overload-body"">
                                     {methodDoc}
                                 </div>
                             </details>");
+
+                            AddSymbolSourceProvenance(namespacePage, id, relativePath, method);
 
                             index++;
                         }
@@ -181,12 +190,15 @@ public class CSharpDocHarvester : IDocHarvester
                             <article class=""doc-overload doc-property"">
                                 <div class=""doc-property-signature"">
                                     <code class=""doc-signature"">{highlightedPropertySignature}</code>
+                                    {CreateSymbolSourcePlaceholder(id)}
                                 </div>
                                 <div class=""doc-overload-body"">
                                     {propertyDoc}
                                 </div>
                             </article>
                         </section>");
+
+                        AddSymbolSourceProvenance(namespacePage, id, relativePath, property);
                     }
 
                     namespacePage.Content.Append("</section>");
@@ -209,11 +221,14 @@ public class CSharpDocHarvester : IDocHarvester
                             <header class=""doc-type-header"">
                                 <span class=""doc-kind"">Enum</span>
                                 <h2>{WebUtility.HtmlEncode(enumDecl.Identifier.Text)}</h2>
+                                {CreateSymbolSourcePlaceholder(enumId)}
                             </header>
                             <div class=""doc-body"">
                                 {doc}
                             </div>
                         </section>");
+
+                        AddSymbolSourceProvenance(namespacePage, enumId, relativePath, enumDecl);
 
                         stubNodes.Add(
                             new DocNode(
@@ -246,7 +261,8 @@ public class CSharpDocHarvester : IDocHarvester
                     namespacePage.Path,
                     namespacePage.Content.ToString(),
                     Metadata: namespacePage.Metadata,
-                    Outline: namespacePage.Outline));
+                    Outline: namespacePage.Outline,
+                    SymbolSourceProvenance: namespacePage.SymbolSourceProvenance));
         }
 
         nodes.AddRange(stubNodes);
@@ -299,6 +315,32 @@ public class CSharpDocHarvester : IDocHarvester
     {
         // Reserve a distinct suffix so the group anchor never collides with a parameterless overload anchor.
         return StringUtils.ToSafeId($"{qualifiedTypeName}.{methodName}.method-group");
+    }
+
+    private static string CreateSymbolSourcePlaceholder(string anchorId)
+    {
+        return $@"<span data-razordocs-symbol-source=""{WebUtility.HtmlEncode(anchorId)}""></span>";
+    }
+
+    private static void AddSymbolSourceProvenance(
+        NamespaceDocPage namespacePage,
+        string anchorId,
+        string relativePath,
+        CSharpSyntaxNode syntaxNode)
+    {
+        if (string.IsNullOrWhiteSpace(anchorId) || string.IsNullOrWhiteSpace(relativePath))
+        {
+            return;
+        }
+
+        var lineSpan = syntaxNode.SyntaxTree.GetLineSpan(syntaxNode.Span);
+        namespacePage.SymbolSourceProvenance.Add(
+            new DocSymbolSourceProvenance
+            {
+                AnchorId = anchorId,
+                SourcePath = relativePath,
+                StartLine = lineSpan.StartLinePosition.Line + 1
+            });
     }
 
     /// <summary>
@@ -1055,6 +1097,8 @@ public class CSharpDocHarvester : IDocHarvester
         public StringBuilder Content { get; } = new();
 
         public List<DocOutlineItem> Outline { get; } = [];
+
+        public List<DocSymbolSourceProvenance> SymbolSourceProvenance { get; } = [];
 
         public HashSet<string> ChildNamespaces { get; } = new(StringComparer.OrdinalIgnoreCase);
     }

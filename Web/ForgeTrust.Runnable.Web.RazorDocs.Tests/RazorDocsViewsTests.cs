@@ -1520,6 +1520,31 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderCustomContributorProvenanceLabel()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Web", "Namespaces/ForgeTrust.Web", "<p>Namespace body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                Label = "Namespace intro source",
+                SourceHref = "https://example.com/blob/main/docs/ForgeTrust.Web/README.md"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var provenanceStrip = document.QuerySelector(".docs-provenance-strip");
+        Assert.NotNull(provenanceStrip);
+        Assert.Equal("Namespace intro source", provenanceStrip!.GetAttribute("aria-label"));
+        Assert.Equal("Namespace intro source", provenanceStrip.QuerySelector(".docs-provenance-label")?.TextContent.Trim());
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderPartialContributorProvenance_WhenOnlyOneEvidenceItemExists()
     {
         using var services = CreateServiceProvider(CreateDocs());

@@ -5,6 +5,20 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
 public sealed class RazorDocsUrlHelperExtensionsTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void PathBaseAware_ShouldReturnEmptyString_ForBlankInputs(string? href)
+    {
+        var urlHelper = A.Fake<IUrlHelper>();
+
+        var rewritten = urlHelper.PathBaseAware(href);
+
+        Assert.Equal(string.Empty, rewritten);
+        A.CallTo(() => urlHelper.Content(A<string>._)).MustNotHaveHappened();
+    }
+
     [Fact]
     public void PathBaseAware_ShouldRewriteSingleSlashAppRelativeHrefs()
     {
@@ -26,6 +40,17 @@ public sealed class RazorDocsUrlHelperExtensionsTests
         var rewritten = urlHelper.PathBaseAware("//cdn.example.com/app.css");
 
         Assert.Equal("//cdn.example.com/app.css", rewritten);
+        A.CallTo(() => urlHelper.Content(A<string>._)).MustNotHaveHappened();
+    }
+
+    [Fact]
+    public void PathBaseAware_ShouldLeaveNonRootedRelativeUrlsUnchanged()
+    {
+        var urlHelper = A.Fake<IUrlHelper>();
+
+        var rewritten = urlHelper.PathBaseAware("assets/style.css");
+
+        Assert.Equal("assets/style.css", rewritten);
         A.CallTo(() => urlHelper.Content(A<string>._)).MustNotHaveHappened();
     }
 }

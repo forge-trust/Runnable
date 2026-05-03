@@ -10,10 +10,14 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// The service performs best-effort validation so a broken stored release tree becomes unavailable without preventing
 /// healthy versions or the live preview surface from loading. Validation is intentionally release-local: every version
 /// is checked independently for a readable tree root, the required landing and search pages, the search index, and
-/// the shared search runtime assets that exact-version pages depend on.
+/// the shared search runtime assets that exact-version pages depend on. Public
+/// <see cref="RazorDocsResolvedVersion.AvailabilityIssue"/> values are sanitized for archive UI consumption, while
+/// filesystem paths and exception details stay in structured logs only.
 /// </remarks>
 public sealed class RazorDocsVersionCatalogService
 {
+    private readonly record struct AvailabilityFailure(string PublicMessage, string InternalDetail);
+
     private static readonly string[] RequiredExactTreeFiles =
     [
         "index.html",
@@ -158,7 +162,7 @@ public sealed class RazorDocsVersionCatalogService
         }
 
         var recommendedVersion = ResolveRecommendedVersion(rawCatalog.RecommendedVersion, versions, catalogPath);
-        return new RazorDocsResolvedVersionCatalog(catalogPath, versions, recommendedVersion);
+        return new RazorDocsResolvedVersionCatalog(RazorDocsResolvedVersionCatalogStatus.Resolved, catalogPath, versions, recommendedVersion);
     }
 
     private RazorDocsResolvedVersion ResolveVersion(
@@ -171,25 +175,28 @@ public sealed class RazorDocsVersionCatalogService
         var exactRootUrl = DocsUrlBuilder.DocsVersionPrefix + "/" + Uri.EscapeDataString(normalizedVersion);
         var isPublic = version.Visibility == RazorDocsVersionVisibility.Public;
         string? exactTreePath;
-        string? availabilityIssue;
+        AvailabilityFailure? availabilityFailure;
 
         try
         {
             exactTreePath = ResolveCatalogRelativePath(catalogDirectory, version.ExactTreePath);
-            availabilityIssue = ValidateExactTree(exactTreePath);
+            availabilityFailure = ValidateExactTree(exactTreePath);
         }
         catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
         {
             exactTreePath = null;
-            availabilityIssue = $"ExactTreePath '{version.ExactTreePath?.Trim()}' is invalid: {ex.Message}";
+            availabilityFailure = new AvailabilityFailure(
+                PublicMessage: "Published release tree path is invalid.",
+                InternalDetail: $"ExactTreePath '{version.ExactTreePath?.Trim()}' is invalid: {ex.Message}");
         }
 
-        if (availabilityIssue is not null && isPublic)
+        if (availabilityFailure is not null && isPublic)
         {
             _logger.LogWarning(
-                "RazorDocs version {Version} is unavailable: {AvailabilityIssue}",
+                "RazorDocs version {Version} is unavailable: {AvailabilityIssue} Detail: {AvailabilityDetail}",
                 normalizedVersion,
-                availabilityIssue);
+                availabilityFailure.Value.PublicMessage,
+                availabilityFailure.Value.InternalDetail);
         }
 
         return new RazorDocsResolvedVersion(
@@ -201,8 +208,8 @@ public sealed class RazorDocsVersionCatalogService
             SupportState: version.SupportState,
             Visibility: version.Visibility,
             AdvisoryState: version.AdvisoryState,
-            IsAvailable: availabilityIssue is null,
-            AvailabilityIssue: availabilityIssue);
+            IsAvailable: availabilityFailure is null,
+            AvailabilityIssue: availabilityFailure?.PublicMessage);
     }
 
     private RazorDocsResolvedVersion? ResolveRecommendedVersion(
@@ -269,16 +276,20 @@ public sealed class RazorDocsVersionCatalogService
             : Path.GetFullPath(Path.Combine(catalogDirectory, configuredPath));
     }
 
-    private static string? ValidateExactTree(string? exactTreePath)
+    private static AvailabilityFailure? ValidateExactTree(string? exactTreePath)
     {
         if (string.IsNullOrWhiteSpace(exactTreePath))
         {
-            return "ExactTreePath is missing.";
+            return new AvailabilityFailure(
+                PublicMessage: "Published release tree path is missing.",
+                InternalDetail: "ExactTreePath is missing.");
         }
 
         if (!Directory.Exists(exactTreePath))
         {
-            return $"ExactTreePath '{exactTreePath}' does not exist.";
+            return new AvailabilityFailure(
+                PublicMessage: "Published release tree directory does not exist.",
+                InternalDetail: $"ExactTreePath '{exactTreePath}' does not exist.");
         }
 
         foreach (var requiredFile in RequiredExactTreeFiles)
@@ -286,7 +297,9 @@ public sealed class RazorDocsVersionCatalogService
             var requiredPath = Path.Combine(exactTreePath, requiredFile);
             if (!File.Exists(requiredPath))
             {
-                return $"ExactTreePath '{exactTreePath}' is missing {requiredFile}.";
+                return new AvailabilityFailure(
+                    PublicMessage: $"Published release tree is missing {requiredFile}.",
+                    InternalDetail: $"ExactTreePath '{exactTreePath}' is missing {requiredFile}.");
             }
         }
 
@@ -299,7 +312,7 @@ public sealed class RazorDocsVersionCatalogService
         return null;
     }
 
-    private static string? ValidateSearchIndexPayload(string searchIndexPath)
+    private static AvailabilityFailure? ValidateSearchIndexPayload(string searchIndexPath)
     {
         try
         {
@@ -307,13 +320,17 @@ public sealed class RazorDocsVersionCatalogService
             using var document = JsonDocument.Parse(stream);
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
-                return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json payload that is not a JSON object.";
+                return new AvailabilityFailure(
+                    PublicMessage: "Published release tree has a search-index.json payload that is not a JSON object.",
+                    InternalDetail: $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json payload that is not a JSON object.");
             }
 
             if (!document.RootElement.TryGetProperty("documents", out var documents)
                 || documents.ValueKind != JsonValueKind.Array)
             {
-                return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json payload without a documents array.";
+                return new AvailabilityFailure(
+                    PublicMessage: "Published release tree has a search-index.json payload without a documents array.",
+                    InternalDetail: $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json payload without a documents array.");
             }
 
             foreach (var item in documents.EnumerateArray())
@@ -326,13 +343,17 @@ public sealed class RazorDocsVersionCatalogService
                     || title.ValueKind != JsonValueKind.String
                     || string.IsNullOrWhiteSpace(title.GetString()))
                 {
-                    return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json document entry without the required path/title fields.";
+                    return new AvailabilityFailure(
+                        PublicMessage: "Published release tree has a search-index.json document entry without the required path/title fields.",
+                        InternalDetail: $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has a search-index.json document entry without the required path/title fields.");
                 }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            return $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has an unreadable search-index.json payload: {ex.Message}";
+            return new AvailabilityFailure(
+                PublicMessage: "Published release tree has an unreadable search-index.json payload.",
+                InternalDetail: $"ExactTreePath '{Path.GetDirectoryName(searchIndexPath)}' has an unreadable search-index.json payload: {ex.Message}");
         }
 
         return null;
@@ -340,8 +361,39 @@ public sealed class RazorDocsVersionCatalogService
 }
 
 /// <summary>
+/// Describes how the current host resolved its published-version catalog state.
+/// </summary>
+public enum RazorDocsResolvedVersionCatalogStatus
+{
+    /// <summary>
+    /// Versioning is enabled and the configured catalog resolved successfully enough to describe published releases.
+    /// </summary>
+    Resolved,
+
+    /// <summary>
+    /// Versioning is disabled for the current host.
+    /// </summary>
+    Disabled,
+
+    /// <summary>
+    /// Versioning is enabled, but no catalog path was configured.
+    /// </summary>
+    EnabledWithoutCatalog,
+
+    /// <summary>
+    /// Versioning is enabled and a catalog path was configured, but the catalog could not be loaded into a usable
+    /// published-release set.
+    /// </summary>
+    Unavailable
+}
+
+/// <summary>
 /// Represents the resolved version catalog used by the current host.
 /// </summary>
+/// <param name="Status">
+/// The high-level catalog resolution state for the current host. This distinguishes successful resolution from the
+/// three sentinel states where versioning is disabled, missing a catalog path, or configured but unavailable.
+/// </param>
 /// <param name="CatalogPath">
 /// The absolute catalog path when a catalog was configured and resolved. This stays <see langword="null" /> for the
 /// <see cref="Disabled" /> and <see cref="EnabledWithoutCatalog" /> sentinels.
@@ -372,6 +424,7 @@ public sealed class RazorDocsVersionCatalogService
 /// </para>
 /// </remarks>
 public sealed record RazorDocsResolvedVersionCatalog(
+    RazorDocsResolvedVersionCatalogStatus Status,
     string? CatalogPath,
     IReadOnlyList<RazorDocsResolvedVersion> Versions,
     RazorDocsResolvedVersion? RecommendedVersion)
@@ -379,12 +432,12 @@ public sealed record RazorDocsResolvedVersionCatalog(
     /// <summary>
     /// Gets the sentinel catalog result for hosts where versioning is disabled entirely.
     /// </summary>
-    public static RazorDocsResolvedVersionCatalog Disabled { get; } = new(null, [], null);
+    public static RazorDocsResolvedVersionCatalog Disabled { get; } = new(RazorDocsResolvedVersionCatalogStatus.Disabled, null, [], null);
 
     /// <summary>
     /// Gets the sentinel catalog result for hosts where versioning is enabled but no catalog path was configured.
     /// </summary>
-    public static RazorDocsResolvedVersionCatalog EnabledWithoutCatalog { get; } = new(null, [], null);
+    public static RazorDocsResolvedVersionCatalog EnabledWithoutCatalog { get; } = new(RazorDocsResolvedVersionCatalogStatus.EnabledWithoutCatalog, null, [], null);
 
     /// <summary>
     /// Gets the public versions that should appear in the archive.
@@ -406,7 +459,7 @@ public sealed record RazorDocsResolvedVersionCatalog(
     /// <returns>An enabled-but-unavailable catalog result.</returns>
     public static RazorDocsResolvedVersionCatalog CreateUnavailable(string? catalogPath)
     {
-        return new RazorDocsResolvedVersionCatalog(catalogPath, [], null);
+        return new RazorDocsResolvedVersionCatalog(RazorDocsResolvedVersionCatalogStatus.Unavailable, catalogPath, [], null);
     }
 }
 
@@ -422,7 +475,10 @@ public sealed record RazorDocsResolvedVersionCatalog(
 /// <param name="Visibility">The archive visibility state.</param>
 /// <param name="AdvisoryState">The release-level advisory state.</param>
 /// <param name="IsAvailable">Whether the exact-version tree validated successfully.</param>
-/// <param name="AvailabilityIssue">The availability failure explanation when the tree is unavailable.</param>
+/// <param name="AvailabilityIssue">
+/// The sanitized public-facing availability explanation when the tree is unavailable. Internal logs retain filesystem
+/// paths and exception details, but this message is safe to surface in archive UI and reader-facing diagnostics.
+/// </param>
 public sealed record RazorDocsResolvedVersion(
     string Version,
     string Label,

@@ -190,7 +190,7 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
-    public void AddRazorDocs_ShouldNormalizeRootPathBeforeValidationRejectsIt()
+    public void AddRazorDocs_ShouldAllowRootMountedDocsSurface()
     {
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(
@@ -205,12 +205,9 @@ public sealed class RazorDocsOptionsTests
         services.AddRazorDocs();
 
         using var provider = services.BuildServiceProvider();
-        var ex = Assert.Throws<OptionsValidationException>(
-            () => _ = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value);
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
 
-        Assert.Contains(
-            ex.Failures,
-            failure => failure.Contains("DocsRootPath must start with '/docs'", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("/", options.Routing.DocsRootPath);
     }
 
     [Fact]
@@ -530,6 +527,30 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Validator_ShouldAllowRootMountedDocsRootPath(bool versioningEnabled)
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = versioningEnabled,
+                CatalogPath = versioningEnabled ? "catalog.json" : null
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
     [InlineData("   ")]
     [InlineData("guides")]
     [InlineData("/docsx")]
@@ -551,7 +572,7 @@ public sealed class RazorDocsOptionsTests
         Assert.True(result.Failed);
         Assert.Contains(
             result.Failures,
-            failure => failure.Contains("DocsRootPath must start with '/docs'", StringComparison.OrdinalIgnoreCase));
+            failure => failure.Contains("DocsRootPath must be exactly '/' or start with '/docs'", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

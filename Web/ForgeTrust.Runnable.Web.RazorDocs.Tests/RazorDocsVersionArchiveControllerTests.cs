@@ -88,6 +88,7 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
         Assert.Equal("/docs/next", model.PreviewHref);
         Assert.Single(model.Versions);
         Assert.False(model.Versions[0].IsAvailable);
+        Assert.DoesNotContain(_tempDirectory, model.Versions[0].AvailabilityMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

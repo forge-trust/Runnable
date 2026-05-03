@@ -128,8 +128,9 @@ Enable versioning when you want the host to keep serving the live unreleased sna
   - Defaults to `/docs` when versioning is off.
   - Defaults to `/docs/next` when versioning is on.
   - Relative-looking values such as `docs/preview` are normalized to app-relative paths like `/docs/preview`.
-  - Must start with `/docs`, must not end with `/`, and cannot contain query or fragment segments.
-  - When versioning is on, this path cannot be `/docs`, `/docs/versions`, `/docs/v`, or any `/docs/v/...` path.
+  - The one supported exception is `/`, which mounts docs at the application root for single-purpose docs hosts.
+  - Other than that root-mount exception, the path must start with `/docs`, must not end with `/`, and cannot contain query or fragment segments.
+  - When versioning is on, non-root-mounted values still cannot be `/docs`, `/docs/versions`, `/docs/v`, or any `/docs/v/...` path.
 - `RazorDocs:Versioning:Enabled`
   - Turns on the published-version route contract and archive surface.
   - Does not switch the runtime into bundle mode.
@@ -196,12 +197,14 @@ Each `exactTreePath` directory is treated as a prebuilt static subtree for one e
 - `search.html` at the tree root
 - `search-index.json` at the tree root
   - The payload must remain valid JSON with a top-level `documents` array so version-local search can load safely.
+  - Every `documents[]` entry must include non-empty string `path` and `title` properties.
+  - Missing or blank `path`/`title` values cause RazorDocs to reject the published release tree during startup validation.
 - `search.css` at the tree root
 - `search-client.js` at the tree root
 - `minisearch.min.js` at the tree root
 - any section, detail, partial, and asset routes that belong to the exported `/docs` surface for that release
 
-RazorDocs does not regenerate these trees at request time. It resolves extensionless requests back to the exported `.html` files and rewrites stable-root HTML plus `search-index.json` payloads so the same artifact can serve both `/docs` and `/docs/v/{version}` honestly. Use the [RazorWire CLI](../ForgeTrust.Runnable.Web.RazorWire.Cli/README.md) or another static-export pipeline to publish those trees ahead of time.
+RazorDocs does not regenerate these trees at request time. It resolves extensionless requests back to the exported `.html` files and rewrites stable-root HTML plus `search-index.json` payloads so the same artifact can serve both `/docs` and `/docs/v/{version}` honestly. Exporters should validate `search-index.json`, `search.css`, `search-client.js`, and `minisearch.min.js` before publishing because a missing runtime asset or a malformed search payload keeps that release unavailable until the artifact is fixed. Use the [RazorWire CLI](../ForgeTrust.Runnable.Web.RazorWire.Cli/README.md) or another static-export pipeline to publish those trees ahead of time.
 
 ### Archive ordering
 

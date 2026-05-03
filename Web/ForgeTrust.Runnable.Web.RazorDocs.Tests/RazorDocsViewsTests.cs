@@ -2569,6 +2569,44 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task VersionsView_ShouldRenderUnavailableVersionEntry()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Versions.cshtml",
+            new RazorDocsVersionArchiveViewModel
+            {
+                Heading = "Documentation versions",
+                Description = "Choose the exact release you want to read.",
+                PreviewHref = "/docs/next",
+                VersionsHref = "/docs/versions",
+                Versions =
+                [
+                    new RazorDocsVersionArchiveEntryViewModel
+                    {
+                        Version = "1.2.3",
+                        Label = "1.2.3",
+                        Summary = "This release is temporarily unavailable.",
+                        Href = "/docs/v/1.2.3",
+                        IsAvailable = false,
+                        SupportStateLabel = "Current",
+                        AdvisoryLabel = "Security risk",
+                        AvailabilityMessage = "Published release tree is missing search-index.json."
+                    }
+                ]
+            });
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        Assert.NotNull(document.QuerySelector("a[href='/docs/versions'][target='_top']"));
+        Assert.Null(document.QuerySelector("a[href='/docs/v/1.2.3']"));
+        var unavailableMessage = document.QuerySelector("p.text-amber-200");
+        Assert.NotNull(unavailableMessage);
+        Assert.Contains("missing search-index.json", unavailableMessage!.TextContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task IndexView_ShouldNotRenderSearchWorkspaceOnlyAssets()
     {
         using var services = CreateServiceProvider(CreateDocs());

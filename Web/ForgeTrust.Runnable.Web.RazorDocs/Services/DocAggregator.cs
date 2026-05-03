@@ -1064,9 +1064,7 @@ public class DocAggregator
                     var content = d.Content ?? string.Empty;
                     var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content, string.Empty), " "));
                     var snippet = TruncateSnippetAtWordBoundary(bodyText, SearchSnippetMaxLength);
-                    var title = string.IsNullOrWhiteSpace(d.Metadata?.Title)
-                        ? d.Title
-                        : d.Metadata!.Title!.Trim();
+                    var title = ResolveSearchIndexTitle(d);
                     var summary = d.Metadata?.Summary ?? snippet;
 
                     var headings = (d.Outline ?? [])
@@ -1118,6 +1116,28 @@ public class DocAggregator
             records);
 
         return (payload, records.Count);
+    }
+
+    private static string ResolveSearchIndexTitle(DocNode doc)
+    {
+        var authoredTitle = string.IsNullOrWhiteSpace(doc.Metadata?.Title)
+            ? doc.Title
+            : doc.Metadata!.Title!.Trim();
+        if (!string.IsNullOrWhiteSpace(authoredTitle))
+        {
+            return authoredTitle;
+        }
+
+        var pathPart = doc.Path.Split('#', 2)[0];
+        var lastSegment = pathPart
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .LastOrDefault();
+        if (!string.IsNullOrWhiteSpace(lastSegment))
+        {
+            return Uri.UnescapeDataString(lastSegment);
+        }
+
+        return "Untitled document";
     }
 
     /// <summary>

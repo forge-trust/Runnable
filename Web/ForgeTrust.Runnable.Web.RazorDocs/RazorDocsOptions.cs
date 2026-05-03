@@ -170,10 +170,12 @@ public enum RazorDocsLastUpdatedMode
 /// <remarks>
 /// The live source-backed surface always stays under the <c>/docs</c> URL family. RazorDocs normalizes configured
 /// values into app-relative paths before validation, so hosts may provide <c>docs/preview</c> and still get the
-/// canonical <c>/docs/preview</c> route contract. When versioning is off the live surface defaults to <c>/docs</c>.
-/// When versioning is on the live surface defaults to <c>/docs/next</c> so the stable <c>/docs</c> alias can point
-/// at the recommended published release instead. These defaults are applied by <c>AddRazorDocs()</c> during
-/// options binding, so callers can omit <see cref="DocsRootPath"/> when the standard route contract is acceptable.
+/// canonical <c>/docs/preview</c> route contract. The one supported exception is <c>/</c>, which mounts the live
+/// docs surface at the application root for single-purpose docs hosts. When versioning is off the live surface
+/// defaults to <c>/docs</c>. When versioning is on the live surface defaults to <c>/docs/next</c> so the stable
+/// <c>/docs</c> alias can point at the recommended published release instead. These defaults are applied by
+/// <c>AddRazorDocs()</c> during options binding, so callers can omit <see cref="DocsRootPath"/> when the standard
+/// route contract is acceptable.
 /// </remarks>
 public sealed class RazorDocsRoutingOptions
 {
@@ -182,15 +184,17 @@ public sealed class RazorDocsRoutingOptions
     /// </summary>
     /// <remarks>
     /// Relative-looking values are normalized into app-relative paths. For example, <c>docs/live</c> becomes
-    /// <c>/docs/live</c> during options binding. The normalized path must start with <c>/docs</c>, must not end with
-    /// <c>/</c>, and cannot include query or fragment segments.
+    /// <c>/docs/live</c> during options binding. The normalized path must either be exactly <c>/</c> for a
+    /// root-mounted docs host or start with <c>/docs</c>; it must not end with <c>/</c> and cannot include query or
+    /// fragment segments.
     /// When versioning is disabled the default path is <c>/docs</c>. When versioning is enabled the default path
     /// becomes <c>/docs/next</c> so the current unreleased snapshot does not collide with the recommended released
     /// docs alias at <c>/docs</c>.
     /// Avoid reserved versioning paths such as <c>/docs</c>, <c>/docs/versions</c>, <c>/docs/v</c>, and any
-    /// <c>/docs/v/{version}</c> route when versioning is enabled. Hosts that customize this root should configure it
-    /// before any generated links or exported trees are produced so server-rendered pages, search assets, and static
-    /// export output all agree on the same live preview root.
+    /// <c>/docs/v/{version}</c> route when versioning is enabled unless you intentionally use the root-mounted
+    /// <c>/</c> special case. Hosts that customize this root should configure it before any generated links or
+    /// exported trees are produced so server-rendered pages, search assets, and static export output all agree on the
+    /// same live preview root.
     /// </remarks>
     public string? DocsRootPath { get; set; }
 }
@@ -315,7 +319,7 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         else if (!IsValidDocsRootPath(routing.DocsRootPath))
         {
             failures.Add(
-                "RazorDocs:Routing:DocsRootPath must start with '/docs', must not end with '/', and cannot contain query or fragment segments.");
+                "RazorDocs:Routing:DocsRootPath must be exactly '/' or start with '/docs', must not end with '/', and cannot contain query or fragment segments.");
         }
 
         if (versioning?.Enabled == true)
@@ -376,7 +380,8 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             return false;
         }
 
-        if (!string.Equals(docsRootPath, "/docs", StringComparison.OrdinalIgnoreCase)
+        if (!string.Equals(docsRootPath, "/", StringComparison.Ordinal)
+            && !string.Equals(docsRootPath, "/docs", StringComparison.OrdinalIgnoreCase)
             && !docsRootPath.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase))
         {
             return false;

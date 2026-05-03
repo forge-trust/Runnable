@@ -2036,6 +2036,25 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSearchIndexPayloadAsync_ShouldSynthesizeFallbackTitle_WhenDocTitleIsBlank()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "   ",
+                "guides/untitled-guide.md",
+                "<p>Guide body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var payload = await _aggregator.GetSearchIndexPayloadAsync();
+
+        var indexedDocument = Assert.Single(payload.Documents);
+        Assert.Equal("untitled-guide.md", indexedDocument.Title);
+        Assert.Equal("/docs/guides/untitled-guide.md", indexedDocument.Path);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldSkipCanceledHarvester_AndContinue()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))

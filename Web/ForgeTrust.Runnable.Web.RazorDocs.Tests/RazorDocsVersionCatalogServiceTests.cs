@@ -61,6 +61,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
 
         var catalog = service.GetCatalog();
 
+        Assert.Equal(RazorDocsResolvedVersionCatalogStatus.Resolved, catalog.Status);
         Assert.Equal(catalogPath, catalog.CatalogPath);
         var recommendedVersion = Assert.IsType<RazorDocsResolvedVersion>(catalog.RecommendedVersion);
         Assert.Equal("1.2.0", recommendedVersion.Version);
@@ -174,6 +175,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         Assert.False(brokenVersion.IsAvailable);
         Assert.Contains("search-index.json", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("unreadable", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(_tempDirectory, brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -367,6 +369,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var catalog = service.GetCatalog();
 
         Assert.Same(RazorDocsResolvedVersionCatalog.Disabled, catalog);
+        Assert.Equal(RazorDocsResolvedVersionCatalogStatus.Disabled, catalog.Status);
         Assert.Empty(catalog.PublicVersions);
     }
 
@@ -385,6 +388,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var catalog = service.GetCatalog();
 
         Assert.Same(RazorDocsResolvedVersionCatalog.Disabled, catalog);
+        Assert.Equal(RazorDocsResolvedVersionCatalogStatus.Disabled, catalog.Status);
     }
 
     [Fact]
@@ -395,6 +399,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var catalog = service.GetCatalog();
 
         Assert.Same(RazorDocsResolvedVersionCatalog.EnabledWithoutCatalog, catalog);
+        Assert.Equal(RazorDocsResolvedVersionCatalogStatus.EnabledWithoutCatalog, catalog.Status);
         Assert.Empty(catalog.PublicVersions);
     }
 
@@ -405,6 +410,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
 
         var catalog = service.GetCatalog();
 
+        Assert.Equal(RazorDocsResolvedVersionCatalogStatus.Unavailable, catalog.Status);
         Assert.Equal(Path.GetFullPath(Path.Combine(_tempDirectory, "missing/catalog.json")), catalog.CatalogPath);
         Assert.Empty(catalog.PublicVersions);
         Assert.Null(catalog.RecommendedVersion);
@@ -418,6 +424,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
 
         var catalog = service.GetCatalog();
 
+        Assert.Equal(RazorDocsResolvedVersionCatalogStatus.Unavailable, catalog.Status);
         Assert.Equal(invalidCatalogPath, catalog.CatalogPath);
         Assert.Empty(catalog.PublicVersions);
         Assert.Null(catalog.RecommendedVersion);
@@ -431,6 +438,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
 
         var catalog = service.GetCatalog();
 
+        Assert.Equal(RazorDocsResolvedVersionCatalogStatus.Unavailable, catalog.Status);
         Assert.Equal(catalogPath, catalog.CatalogPath);
         Assert.Empty(catalog.PublicVersions);
         Assert.Null(catalog.RecommendedVersion);
@@ -461,12 +469,14 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var version = Assert.Single(catalog.PublicVersions);
         Assert.False(version.IsAvailable);
         Assert.Contains("does not exist", version.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(_tempDirectory, version.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void GetCatalog_ShouldMarkVersionUnavailable_WhenExactTreePathIsInvalid_AndKeepHealthyVersions()
     {
         var healthyTree = CreateExactTree("healthy-invalid-path-sibling");
+        const string invalidPathMarker = "sensitive-invalid-path";
         var catalogPath = WriteCatalog(
             new RazorDocsVersionCatalog
             {
@@ -475,7 +485,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
                     new RazorDocsPublishedVersion
                     {
                         Version = "2.0.0",
-                        ExactTreePath = "\0broken",
+                        ExactTreePath = "\0" + invalidPathMarker,
                         SupportState = RazorDocsVersionSupportState.Current
                     },
                     new RazorDocsPublishedVersion
@@ -495,6 +505,7 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var healthyVersion = Assert.Single(catalog.PublicVersions, version => version.Version == "1.9.0");
         Assert.False(brokenVersion.IsAvailable);
         Assert.Contains("invalid", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(invalidPathMarker, brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
         Assert.True(healthyVersion.IsAvailable);
     }
 

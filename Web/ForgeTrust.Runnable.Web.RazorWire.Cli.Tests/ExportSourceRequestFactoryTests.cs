@@ -9,13 +9,21 @@ public class ExportSourceRequestFactoryTests
     [Fact]
     public void Create_Should_Throw_When_No_Source_Is_Provided()
     {
-        Assert.Throws<CommandException>(() => _sut.Create(null, null, null, null, [], false));
+        var ex = Assert.Throws<CommandException>(() => _sut.Create(null, null, null, null, [], false));
+
+        Assert.Contains("exactly one source", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("--project ./MyApp.csproj", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Create_Should_Throw_When_Multiple_Sources_Are_Provided()
     {
-        Assert.Throws<CommandException>(() => _sut.Create("http://localhost:5000", "app.csproj", null, null, [], false));
+        var ex = Assert.Throws<CommandException>(() => _sut.Create("http://localhost:5000", "app.csproj", null, null, [], false));
+
+        Assert.Contains("mutually exclusive", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Choose one source", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -23,18 +31,25 @@ public class ExportSourceRequestFactoryTests
     {
         var ex = Assert.Throws<CommandException>(() => _sut.Create("not-a-url", null, null, null, [], false));
         Assert.Contains("--url", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Create_Should_Throw_When_Project_File_Is_Missing()
     {
-        Assert.Throws<CommandException>(() => _sut.Create(null, "missing.csproj", null, null, [], false));
+        var ex = Assert.Throws<CommandException>(() => _sut.Create(null, "missing.csproj", null, null, [], false));
+
+        Assert.Contains("--project file not found", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Create_Should_Throw_When_Dll_File_Is_Missing()
     {
-        Assert.Throws<CommandException>(() => _sut.Create(null, null, "missing.dll", null, [], false));
+        var ex = Assert.Throws<CommandException>(() => _sut.Create(null, null, "missing.dll", null, [], false));
+
+        Assert.Contains("--dll file not found", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -42,6 +57,7 @@ public class ExportSourceRequestFactoryTests
     {
         var ex = Assert.Throws<CommandException>(() => _sut.Create(null, "app.txt", null, null, [], false));
         Assert.Contains("--project must point to a .csproj file.", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -49,6 +65,7 @@ public class ExportSourceRequestFactoryTests
     {
         var ex = Assert.Throws<CommandException>(() => _sut.Create(null, null, "app.txt", null, [], false));
         Assert.Contains("--dll must point to a .dll file.", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

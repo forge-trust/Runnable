@@ -43,12 +43,12 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/README.md.html",
             await page.GetAttributeAsync("[data-doc-wayfinding='previous']", "href"));
         Assert.Equal(
-            "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/antiforgery.md.html",
+            "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html",
             await page.GetAttributeAsync("[data-doc-wayfinding='next']", "href"));
 
         await page.ClickAsync("[data-doc-wayfinding='next']");
         await page.WaitForFunctionAsync(
-            "() => window.location.pathname.endsWith('/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/antiforgery.md.html')",
+            "() => window.location.pathname.endsWith('/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html')",
             null,
             new PageWaitForFunctionOptions { Timeout = 15_000 });
         await page.WaitForSelectorAsync("h1", new PageWaitForSelectorOptions
@@ -57,7 +57,7 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             State = WaitForSelectorState.Visible
         });
 
-        Assert.Equal("Security & Anti-Forgery", (await page.TextContentAsync("h1"))?.Trim());
+        Assert.Equal("Failed Form UX", (await page.TextContentAsync("h1"))?.Trim());
     }
 
     [Fact]

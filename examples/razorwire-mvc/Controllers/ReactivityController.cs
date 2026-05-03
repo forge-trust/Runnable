@@ -37,6 +37,15 @@ public class ReactivityController : Controller
     }
 
     /// <summary>
+    /// Renders the RazorWire failed-form UX demonstration page.
+    /// </summary>
+    /// <returns>An <see cref="IActionResult"/> that renders the failed-form UX sample.</returns>
+    public IActionResult FormFailures()
+    {
+        return View();
+    }
+
+    /// <summary>
     /// Renders the sidebar inside a RazorWire frame with the ID "permanent-island".
     /// </summary>
     /// <returns>An <see cref="IActionResult"/> that produces the RazorWire frame containing the sidebar content.</returns>
@@ -166,6 +175,99 @@ public class ReactivityController : Controller
         var referer = Request.Headers["Referer"].ToString();
 
         return Url.IsLocalUrl(referer) ? Redirect(referer) : RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Demonstrates a server-handled validation failure that returns a form-local RazorWire error summary.
+    /// </summary>
+    /// <param name="displayName">The display name submitted by the sample form.</param>
+    /// <returns>A Turbo Stream validation response for enhanced requests, or the demo page for fallback requests.</returns>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult SubmitValidationFailure([FromForm] string? displayName)
+    {
+        var normalizedDisplayName = displayName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedDisplayName))
+        {
+            ModelState.AddModelError(nameof(displayName), "Display name is required.");
+        }
+
+        if (normalizedDisplayName is { Length: > 20 })
+        {
+            ModelState.AddModelError(nameof(displayName), "Display name must be 20 characters or fewer.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            if (Request.IsTurboRequest())
+            {
+                return this.RazorWireStream()
+                    .FormValidationErrors("validation-errors", ModelState, maxErrors: 4)
+                    .BuildResult(StatusCodes.Status422UnprocessableEntity);
+            }
+
+            return View(nameof(FormFailures));
+        }
+
+        if (Request.IsTurboRequest())
+        {
+            var savedDisplayName = normalizedDisplayName!;
+
+            return this.RazorWireStream()
+                .Update(
+                    "validation-result",
+                    $"""
+                    <p class="text-sm font-semibold text-emerald-700">Saved {System.Net.WebUtility.HtmlEncode(savedDisplayName)}.</p>
+                    """)
+                .Update("validation-errors", string.Empty)
+                .BuildResult();
+        }
+
+        return RedirectToAction(nameof(FormFailures));
+    }
+
+    /// <summary>
+    /// Endpoint used by the sample page to demonstrate RazorWire's development anti-forgery diagnostics.
+    /// </summary>
+    /// <returns>An OK result when anti-forgery succeeds; the action body is not reached by the intentional sample failure.</returns>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult AntiforgeryFailureDemo()
+    {
+        return Ok();
+    }
+
+    /// <summary>
+    /// Demonstrates the default form-local fallback for authorization-style failures.
+    /// </summary>
+    /// <returns>A 403 response without a server-handled RazorWire form error.</returns>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult AuthorizationFailureDemo()
+    {
+        return StatusCode(StatusCodes.Status403Forbidden);
+    }
+
+    /// <summary>
+    /// Demonstrates the default form-local fallback for malformed request failures.
+    /// </summary>
+    /// <returns>A 400 response without a server-handled RazorWire form error.</returns>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult MalformedFailureDemo()
+    {
+        return BadRequest();
+    }
+
+    /// <summary>
+    /// Demonstrates the default form-local fallback for unexpected server failures.
+    /// </summary>
+    /// <returns>A 500 response without a server-handled RazorWire form error.</returns>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult ServerFailureDemo()
+    {
+        return StatusCode(StatusCodes.Status500InternalServerError);
     }
 
     /// <summary>

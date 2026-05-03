@@ -40,6 +40,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - RazorWire CLI now has a first-class .NET tool package contract with the `razorwire` command, supports exact-version `dnx` execution from published or explicit local package sources, and verifies the installed tool path through help and sample export smoke tests. Public package publishing remains manual until the coordinated release automation tracked in #161 lands.
 - Project exports now disable persistent MSBuild build servers during CLI-controlled publish and assembly-name probes so captured tool output cannot hang on reused build nodes.
 - RazorWire CLI process cleanup now waits for asynchronous stdout and stderr callbacks to flush before disposing launched target processes, which keeps short-lived command output observable in tests and diagnostics.
+- RazorWire CLI validation errors now include a concrete source-selection example and `razorwire export --help` hint, so a failed export tells developers the next useful command instead of only naming the bad input.
 - PackageIndex now has a real `--help`/`-h` surface that exits successfully, describes its commands and options, and reports unknown commands before printing usage.
 
 ### Core diagnostics
@@ -58,6 +59,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 ### Web host development defaults
 
 - Runnable web hosts now choose a deterministic localhost-only development URL when no endpoint is configured, while production, staging, container, and appsettings-based endpoint choices remain untouched.
+- Tailwind development watch mode now treats a missing standalone CLI as a recoverable local-tooling gap: the app keeps serving existing CSS and logs a warning that points to the runtime package or `TailwindCliPath` override.
 - Runnable's conventional browser 404 page now prioritizes user recovery paths, including documentation search for missing `/docs/...` routes and a home link for other misses, while still documenting how app owners can override the default page.
 
 ### RazorWire package guidance
@@ -76,6 +78,14 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - The primary RazorDocs Pages deployment now exports with contributor provenance configured and full git history available, so the public docs artifact can show the same `Source of truth` strip as local smoke tests.
 - Contributor provenance now degrades safely: namespace and API pages stay explicit-override-only for the MVP, and missing or slow git history omits only freshness instead of breaking docs rendering.
 - Shared RazorDocs badges, metadata chips, provenance strips, and trust bars now live in the shared package stylesheet while `search.css` stays focused on search-specific UI.
+- RazorDocs search now keeps failure recovery markup out of the active search shell until the index actually fails to load, so successful searches no longer expose hidden failure copy to text extraction tools.
+
+### RazorWire form UX
+
+- RazorWire-enhanced forms now get a convention-based failed-submission stack: durable request markers, default form-local fallback UI, handled server validation helpers, and runtime events for custom consumers.
+- Development anti-forgery failures from RazorWire forms now return useful diagnostics with safe production copy, so stale or missing token problems are easier to fix without exposing implementation detail to users.
+- The MVC sample now includes `/Reactivity/FormFailures`, covering validation, anti-forgery, authorization, malformed request, server failure, default styling, CSS variable customization, and manual event-driven rendering.
+- The MVC sample counter keeps its compact icon-only button while exposing an `Increment counter` accessible name for assistive technology and role-based tests.
 
 ## Migration watch
 
@@ -85,6 +95,7 @@ There is no tagged migration guide yet because Runnable has not cut `v0.1.0`. Un
 - the stable policy lives in [Pre-1.0 upgrade policy](./upgrade-policy.md)
 - finalized migration steps move into the tagged release note when the version ships
 - custom RazorDocs harvesters that want detail-page outlines and search heading metadata should populate `DocNode.Outline`; pages without outline metadata continue to render without the optional outline section
+- existing `rw-active` forms opt into failed-form request markers and default fallback UI; applications with custom failure rendering can use `RazorWireOptions.Forms.FailureMode = Manual`, `RazorWireOptions.Forms.EnableFailureUx = false`, or per-form `data-rw-form-failure="off"`
 - RazorDocs authors should migrate flat `featured_pages` metadata to `featured_page_groups`. The old field is ignored and logs a warning; each group needs at least `label` or `intent`, plus a `pages` list containing the existing `question`, `path`, `supporting_copy`, and `order` entries.
 
 ## Proof artifacts

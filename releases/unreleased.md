@@ -47,6 +47,10 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 
 - Runnable web hosts now choose a deterministic localhost-only development URL when no endpoint is configured, while production, staging, container, and appsettings-based endpoint choices remain untouched.
 
+### RazorWire package guidance
+
+- RazorWire now has a generated UI design contract for package-owned nodes. The contract separates RazorWire UI from app-authored markup and RazorDocs chrome, establishes `data-rw-*` attributes plus `--rw-ui-*` custom properties as the default styling surface, and documents global, form-level, and target-level override expectations for future generated UI.
+
 ### RazorDocs product example
 
 - Runnable's own release pages now double as a working RazorDocs example for consumers who want better release notes.

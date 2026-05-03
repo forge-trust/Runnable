@@ -161,6 +161,46 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldUseDefaultBranch_WhenSymbolSourceRefIsMissing()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Calculator",
+                    "Namespaces/Test",
+                    """<h2>Calculator</h2><span data-razordocs-symbol-source="Test-Calculator"></span>""",
+                    SymbolSourceProvenance:
+                    [
+                        new DocSymbolSourceProvenance
+                        {
+                            AnchorId = "Test-Calculator",
+                            SourcePath = "src/Calculator.cs",
+                            StartLine = 12
+                        }
+                    ])
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                DefaultBranch = "main",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{ref}/{path}#L{line}"
+            },
+            null);
+
+        var result = Assert.Single((await aggregator.GetDocsAsync()).ToList());
+
+        Assert.Contains("href=\"https://example.com/blob/main/src/Calculator.cs#L12\"", result.Content);
+        Assert.Contains("aria-label=\"View source for Test-Calculator\"", result.Content);
+        Assert.Contains(">Source</a>", result.Content);
+        Assert.DoesNotContain("data-razordocs-symbol-source", result.Content);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldRemoveSymbolSourcePlaceholders_WhenHrefIsUnsafeOrAnchorIsAmbiguous()
     {
         var harvester = A.Fake<IDocHarvester>();
@@ -2306,6 +2346,39 @@ public class DocAggregatorTests : IDisposable
 
         Assert.Equal("Calculator behavior.", bodyText);
         Assert.Equal("Calculator behavior.", snippet);
+    }
+
+    [Fact]
+    public async Task GetSearchIndexPayloadAsync_ShouldOmitGeneratedSymbolSourceLinkText_RegardlessOfAttributeOrder()
+    {
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Calculator",
+                    "Namespaces/Test",
+                    """
+                    <p>Calculator behavior.</p>
+                    <a aria-label="View source for Test-Calculator" href="https://example.com/blob/abc123/src/Calculator.cs#L12" class="chip doc-symbol-source-link">Source</a>
+                    <a href="https://example.com/source-help" class="not-doc-symbol-source-link">Source help remains searchable.</a>
+                    """)
+            ]);
+
+        var payload = await _aggregator.GetSearchIndexPayloadAsync();
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var bodyText = document.RootElement
+            .GetProperty("documents")[0]
+            .GetProperty("bodyText")
+            .GetString();
+        var snippet = document.RootElement
+            .GetProperty("documents")[0]
+            .GetProperty("snippet")
+            .GetString();
+
+        Assert.Equal("Calculator behavior. Source help remains searchable.", bodyText);
+        Assert.Equal("Calculator behavior. Source help remains searchable.", snippet);
     }
 
     [Fact]

@@ -57,7 +57,10 @@
 
     private string ResolveGeneratedContentHrefs(string content)
     {
-        if (string.IsNullOrEmpty(content))
+        if (string.IsNullOrEmpty(content)
+            || !Context.Request.PathBase.HasValue
+            || content.IndexOf("doc-symbol-source-link", StringComparison.Ordinal) < 0
+            || !RootedSymbolSourceLinkRegex.IsMatch(content))
         {
             return content;
         }

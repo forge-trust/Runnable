@@ -49,7 +49,7 @@ public class DocAggregator
         RegexOptions.IgnoreCase | RegexOptions.NonBacktracking);
 
     private static readonly Regex SymbolSourceLinkRegex = new(
-        """<a\s+href="[^"]*"\s+class="doc-symbol-source-link"[^>]*>Source</a>""",
+        """<a\b[^>]*\bclass\s*=\s*"(?:doc-symbol-source-link(?:\s[^"]*)?|[^"]*\sdoc-symbol-source-link(?:\s[^"]*)?)"[^>]*>[\s\S]*?</a>""",
         RegexOptions.IgnoreCase | RegexOptions.NonBacktracking);
 
     private sealed record CachedDocsSnapshot(

@@ -2,6 +2,8 @@
 
 This directory contains libraries and tools specifically for web application development within the Runnable ecosystem.
 
+Need install guidance first? Start with the [Runnable v0.1 package chooser](../packages/README.md), then come back here for the deeper web-surface breakdown.
+
 ## Contents
 
 - [**ForgeTrust.Runnable.Web**](./ForgeTrust.Runnable.Web/README.md) – The core web bootstrapping library.

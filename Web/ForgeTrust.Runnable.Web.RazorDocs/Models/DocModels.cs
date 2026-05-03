@@ -124,6 +124,11 @@ public sealed record DocMetadata
     /// </remarks>
     public DocTrustMetadata? Trust { get; init; }
 
+    /// <summary>
+    /// Gets optional contributor provenance metadata for page-level source, edit, and freshness control.
+    /// </summary>
+    public DocContributorMetadata? Contributor { get; init; }
+
     internal bool? PageTypeIsDerived { get; init; }
 
     internal bool? AudienceIsDerived { get; init; }
@@ -208,7 +213,8 @@ public sealed record DocMetadata
             Breadcrumbs = breadcrumbs,
             BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets,
             FeaturedPages = MergeLists(primary.FeaturedPages, fallback.FeaturedPages),
-            Trust = DocTrustMetadata.Merge(primary.Trust, fallback.Trust)
+            Trust = DocTrustMetadata.Merge(primary.Trust, fallback.Trust),
+            Contributor = DocContributorMetadata.Merge(primary.Contributor, fallback.Contributor)
         };
     }
 
@@ -374,6 +380,78 @@ public sealed record DocTrustLink
         {
             Label = DocTrustMergeHelpers.PreferNonBlank(primary.Label, fallback.Label),
             Href = DocTrustMergeHelpers.PreferNonBlank(primary.Href, fallback.Href)
+        };
+    }
+}
+
+/// <summary>
+/// Page-level contributor provenance metadata used to override or suppress source, edit, and freshness evidence.
+/// </summary>
+public sealed record DocContributorMetadata
+{
+    /// <summary>
+    /// Gets a value indicating whether contributor provenance should be hidden for the page even when automatic evidence exists.
+    /// </summary>
+    public bool? HideContributorInfo { get; init; }
+
+    /// <summary>
+    /// Gets an optional repository-relative source-path override used for source links, edit links, and git freshness resolution.
+    /// Rooted paths and traversal segments are rejected.
+    /// </summary>
+    public string? SourcePathOverride { get; init; }
+
+    /// <summary>
+    /// Gets an optional explicit source URL override.
+    /// Only absolute HTTP(S) URLs and root-relative paths are accepted.
+    /// </summary>
+    public string? SourceUrlOverride { get; init; }
+
+    /// <summary>
+    /// Gets an optional explicit edit URL override.
+    /// Only absolute HTTP(S) URLs and root-relative paths are accepted.
+    /// </summary>
+    public string? EditUrlOverride { get; init; }
+
+    /// <summary>
+    /// Gets an optional exact timestamp override for contributor freshness.
+    /// </summary>
+    public DateTimeOffset? LastUpdatedOverride { get; init; }
+
+    /// <summary>
+    /// Merges contributor metadata by preferring authored primary values and filling missing values from fallback metadata.
+    /// </summary>
+    /// <remarks>
+    /// Precedence rules:
+    /// <list type="bullet">
+    /// <item><description><see cref="HideContributorInfo"/> uses nullable-boolean precedence, so explicit <see langword="false"/> is preserved.</description></item>
+    /// <item><description><see cref="SourcePathOverride"/>, <see cref="SourceUrlOverride"/>, and <see cref="EditUrlOverride"/> prefer the first non-blank string; whitespace-only values are treated as missing.</description></item>
+    /// <item><description><see cref="LastUpdatedOverride"/> uses null coalescing and therefore keeps the primary timestamp when present.</description></item>
+    /// </list>
+    /// Pitfalls:
+    /// <list type="bullet">
+    /// <item><description>Setting a string override to the empty string does not clear a fallback value; it falls back instead.</description></item>
+    /// <item><description>Callers that need to suppress inherited contributor rendering should use <see cref="HideContributorInfo"/> instead of relying on blank string overrides.</description></item>
+    /// </list>
+    /// </remarks>
+    internal static DocContributorMetadata? Merge(DocContributorMetadata? primary, DocContributorMetadata? fallback)
+    {
+        if (primary is null)
+        {
+            return fallback;
+        }
+
+        if (fallback is null)
+        {
+            return primary;
+        }
+
+        return new DocContributorMetadata
+        {
+            HideContributorInfo = primary.HideContributorInfo ?? fallback.HideContributorInfo,
+            SourcePathOverride = DocTrustMergeHelpers.PreferNonBlank(primary.SourcePathOverride, fallback.SourcePathOverride),
+            SourceUrlOverride = DocTrustMergeHelpers.PreferNonBlank(primary.SourceUrlOverride, fallback.SourceUrlOverride),
+            EditUrlOverride = DocTrustMergeHelpers.PreferNonBlank(primary.EditUrlOverride, fallback.EditUrlOverride),
+            LastUpdatedOverride = primary.LastUpdatedOverride ?? fallback.LastUpdatedOverride
         };
     }
 }
@@ -879,6 +957,11 @@ public sealed record DocDetailsViewModel
     public IReadOnlyList<DocPageLinkViewModel> RelatedPages { get; init; } = [];
 
     /// <summary>
+    /// Gets the contributor provenance evidence resolved for the current page.
+    /// </summary>
+    public DocContributorProvenanceViewModel? ContributorProvenance { get; init; }
+
+    /// <summary>
     /// Gets the resolved display title for the page.
     /// </summary>
     public string Title { get; init; } = string.Empty;
@@ -962,6 +1045,27 @@ public sealed record DocDetailsViewModel
     /// Gets a value indicating whether the page has any sequence or related-page wayfinding links to render.
     /// </summary>
     public bool HasWayfinding => PreviousPage is not null || NextPage is not null || RelatedPages.Count > 0;
+}
+
+/// <summary>
+/// View model describing the contributor provenance evidence rendered near the top of a details page.
+/// </summary>
+public sealed record DocContributorProvenanceViewModel
+{
+    /// <summary>
+    /// Gets the browser-facing source URL when one exists.
+    /// </summary>
+    public string? SourceHref { get; init; }
+
+    /// <summary>
+    /// Gets the browser-facing edit URL when one exists.
+    /// </summary>
+    public string? EditHref { get; init; }
+
+    /// <summary>
+    /// Gets the exact UTC timestamp used for contributor freshness when one exists.
+    /// </summary>
+    public DateTimeOffset? LastUpdatedUtc { get; init; }
 }
 
 /// <summary>

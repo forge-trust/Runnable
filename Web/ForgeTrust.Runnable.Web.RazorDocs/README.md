@@ -13,6 +13,7 @@ Documentation site generation and hosting for Runnable web applications.
 - `DocAggregator` plus the built-in Markdown and C# harvesters
 - Search UI assets and the `/docs` MVC surface used by RazorDocs consumers
 - Structured trust metadata plus a built-in trust bar for release notes, upgrade guides, and other pages that need status and provenance near the top
+- Contributor provenance rendering with a `Source of truth` strip for source links, edit links, and relative `Last updated` timestamps on details pages
 - Precompiled Tailwind-powered styling with layout-time path resolution for root-module and embedded hosts
 
 ## Styling Boundary
@@ -30,17 +31,22 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 | Surface | Default | Why | Real examples | Exception / note |
 | --- | --- | --- | --- | --- |
 | One-off owned package chrome in Razor views | Prefer Tailwind utility classes in markup | RazorDocs fully owns the markup, so local utility classes keep intent obvious where the change happens | docs landing shell in `Views/Docs/Index.cshtml`, sidebar shell and layout framing in `Views/Shared/_Layout.cshtml`, one-off page header spacing in `Views/Docs/Details.cshtml` | If the same styling contract repeats across package surfaces, promote it to a semantic component class instead of copying long utility strings |
-| Reusable owned package components or stable cross-file UI selectors | Use semantic component classes | Shared selectors keep repeated UI stable across Razor, CSS, and sometimes JavaScript | `docs-page-badge`, `docs-metadata-chip`, `docs-search-page`, `docs-search-page-filters-toggle`, `docs-search-page-active-filters` | Utilities can still handle surrounding layout and one-off placement |
-| Harvested or generated document bodies that RazorDocs does not fully author element by element | Use wrapper-scoped semantic CSS such as `.docs-content ...` | RazorDocs cannot safely push utility classes into nested harvested HTML | headings, paragraphs, code blocks, overload groups, and namespace sections inside `.docs-content` in `Views/Docs/Details.cshtml` and `wwwroot/css/app.css` | Do not rewrite harvested nested HTML just to satisfy utility-class purity |
+| Reusable owned package components or stable cross-file UI selectors | Use semantic component classes in the shared package stylesheet | Shared selectors keep repeated UI stable across Razor, CSS, and sometimes JavaScript | `docs-page-badge`, `docs-metadata-chip`, `docs-page-meta`, `docs-provenance-strip`, `docs-trust-bar` in `wwwroot/css/app.css` | Utilities can still handle surrounding layout and one-off placement |
+| Harvested or generated document bodies that RazorDocs does not fully author element by element | Use wrapper-scoped semantic CSS such as `.docs-content ...` in the shared package stylesheet | RazorDocs cannot safely push utility classes into nested harvested HTML | headings, paragraphs, code blocks, overload groups, and namespace sections inside `.docs-content` in `Views/Docs/Details.cshtml` and `wwwroot/css/app.css` | Do not rewrite harvested nested HTML just to satisfy utility-class purity |
 | JavaScript-generated or stateful UI that needs CSS and JavaScript to share stable hooks | Use semantic hook classes, then style them in CSS | Runtime UI needs stable names both the stylesheet and script can rely on | search result rows, filter chips, active-filter pills, and state containers in `wwwroot/docs/search.css` and `wwwroot/docs/search-client.js` | Use `id` values where uniqueness or ARIA wiring require them, but keep reusable styling and state contracts on semantic classes |
 
 ### Common Calls
 
 - New one-off page header spacing or typography in owned Razor markup: use Tailwind utilities in the view.
-- New reusable badge, metadata chip, or shared search workspace shell element: add or extend a semantic component class, then use utilities around it only when they are purely local.
+- New reusable badge, metadata chip, page metadata row, or trust/provenance surface: add or extend a semantic component class in `wwwroot/css/app.css`, then use utilities around it only when they are purely local.
 - For `Views/Docs/Search.cshtml`, keep the stateful search container or interactive hook semantic, but use local utilities for one-off header copy, helper layout, and fallback-link chrome inside that view.
 - Restyling paragraphs, headings, or code blocks inside `.docs-content`: update wrapper-scoped CSS instead of pushing utility classes into harvested HTML.
 - New search filter pill, active-filter surface, or other stateful search UI: use a semantic hook class because CSS and JavaScript both need to recognize it.
+
+### Stylesheet Responsibilities
+
+- `wwwroot/css/app.css` is the Tailwind entry point for the generated package stylesheet (`site.gen.css`). It owns shared RazorDocs component primitives and wrapper-scoped document body styling because the generated stylesheet is loaded on every docs page before any search-specific assets.
+- `wwwroot/docs/search.css` owns the search shell, interactive search controls, JavaScript-rendered result states, empty/failure states, and search skeletons. It should not define shared page badges, metadata chips, provenance strips, trust bars, or other primitives required by non-search docs pages.
 
 ### Terms
 
@@ -54,6 +60,7 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 - Do not treat required `id` values, such as `docs-search-page-input` or `docs-search-page-filters-panel`, as the reusable styling contract. They exist for uniqueness, targeting, and ARIA relationships.
 - Do not assume every child inside a semantic search container needs its own semantic class; local typography and spacing inside one view can still stay inline.
 - Do not add semantic classes to static package chrome when plain utilities are clearer and the styling is truly local.
+- Do not place non-search primitives in `wwwroot/docs/search.css` just because the layout loads search assets globally today. Use `wwwroot/css/app.css` for shared components so future theming can target one stable package layer.
 
 ## Configuration
 
@@ -71,6 +78,92 @@ Source-backed docs are configured via `RazorDocsOptions`:
 ```
 
 If `RazorDocs:Source:RepositoryRoot` is omitted, the package falls back to repository discovery from the app content root. Bundle mode is modeled but intentionally rejected until the next slice lands.
+
+## Contributor Provenance
+
+RazorDocs can render a lightweight `Source of truth` strip directly under the page title and summary on details pages. The strip is evidence-driven:
+
+- `View source` links to the authored source when RazorDocs can identify one safely.
+- `Edit this page` links to an edit surface when the host configures one safely.
+- `Last updated` renders as relative time with an exact machine-readable `<time datetime="...">` value behind it.
+
+If a page has no trustworthy contributor evidence, RazorDocs omits the strip entirely instead of rendering placeholder copy.
+
+### Host configuration
+
+Contributor provenance is configured under `RazorDocs:Contributor`:
+
+```json
+{
+  "RazorDocs": {
+    "Mode": "Source",
+    "Source": {
+      "RepositoryRoot": "/path/to/repo"
+    },
+    "Contributor": {
+      "Enabled": true,
+      "DefaultBranch": "main",
+      "SourceUrlTemplate": "https://github.com/forge-trust/Runnable/blob/{branch}/{path}",
+      "EditUrlTemplate": "https://github.com/forge-trust/Runnable/edit/{branch}/{path}",
+      "LastUpdatedMode": "Git"
+    }
+  }
+}
+```
+
+Field behavior:
+
+- `Enabled` defaults to `true`. Set it to `false` to disable all contributor provenance rendering.
+- `DefaultBranch` is the stable branch or ref used when expanding configured source and edit templates.
+- `SourceUrlTemplate` and `EditUrlTemplate` support only `{branch}` and `{path}` tokens, and configured templates must include `{path}` so each page expands to its own source or edit target.
+- `LastUpdatedMode` supports `None` and `Git`. `None` is the default so hosts opt into git-backed freshness explicitly; `Git` resolves freshness from local repository history when a trustworthy source path exists.
+
+Host contract:
+
+- If `Enabled` is `false`, RazorDocs skips contributor rendering and does not enforce `DefaultBranch` or `{path}` template requirements at startup.
+- If `Enabled` is `true` and `SourceUrlTemplate` or `EditUrlTemplate` is configured, `DefaultBranch` is required and RazorDocs fails options validation on startup when it is missing.
+- If `Enabled` is `true` and `SourceUrlTemplate` or `EditUrlTemplate` is configured, that template must contain `{path}`. RazorDocs rejects startup when a template would collapse every page to one shared URL.
+- Templates expand both the branch and normalized source path segment-by-segment, so slash-separated refs stay readable while spaces and other special characters are still URL-escaped safely.
+- Git-backed freshness runs during docs snapshot generation, not during view rendering. RazorDocs uses a bounded snapshot-time freshness budget so slow or wedged git lookups degrade to omitted timestamps instead of stretching one timeout across the whole docs corpus. If git is unavailable, shallow, or missing history for a page, RazorDocs omits only `Last updated`.
+- Hosts that want `LastUpdatedMode: Git` in CI or export jobs must provide real history for the docs checkout. For GitHub Actions, use `actions/checkout` with `fetch-depth: 0` or another checkout shape that preserves commit history for the rendered files.
+
+### Page-level overrides
+
+Authors can supply a nested `contributor:` block in inline Markdown front matter or in a paired sidecar such as `page.md.yml`:
+
+```yaml
+contributor:
+  hide_contributor_info: true
+  source_path_override: Web/ForgeTrust.Runnable.Web.RazorDocs/README.md
+  source_url_override: https://github.com/forge-trust/Runnable/blob/main/Web/ForgeTrust.Runnable.Web.RazorDocs/README.md
+  edit_url_override: https://github.com/forge-trust/Runnable/edit/main/Web/ForgeTrust.Runnable.Web.RazorDocs/README.md
+  last_updated_override: 2026-04-22T23:19:00Z
+```
+
+Field behavior:
+
+- `hide_contributor_info: true` suppresses the strip entirely for that page.
+- `source_path_override` feeds template expansion and git freshness when the rendered page does not map cleanly to `DocNode.Path`. It must stay repository-relative; rooted paths and traversal segments are ignored.
+- `source_url_override` and `edit_url_override` bypass template generation entirely. RazorDocs accepts only absolute `http`/`https` URLs or root-relative paths for these overrides.
+- `last_updated_override` must stay a real timestamp. RazorDocs renders it through the same relative-time treatment as git-backed freshness.
+
+### Automatic versus explicit provenance
+
+RazorDocs is intentionally conservative about automatic provenance:
+
+- Markdown pages use their harvested source path automatically.
+- Harvested C# API and namespace-synthetic pages do not get automatic source or edit links in this slice.
+- Synthetic or merged pages can still opt into source, edit, or freshness evidence through explicit `contributor:` overrides.
+
+This keeps RazorDocs from inventing fake precision for pages that do not have one trustworthy underlying source file.
+
+### Pitfalls
+
+- Do not configure source or edit templates without `DefaultBranch`. RazorDocs rejects that startup shape because local git state is too brittle to guess from.
+- Do not configure source or edit templates without `{path}`. That shape cannot identify one source file per page, so RazorDocs rejects it at startup.
+- Do not author free-text freshness copy in the provenance strip. Use `last_updated_override` for an exact timestamp, and use `trust.freshness` for broader lifecycle guidance.
+- Do not expect shallow CI clones to populate `Last updated`. RazorDocs degrades safely by omitting freshness when history is unavailable. In GitHub Actions, prefer `actions/checkout` with `fetch-depth: 0` for pages that should surface git-backed freshness.
+- Do not expect automatic edit links on namespace-synthetic API pages yet. That richer symbol-to-source mapping remains future work.
 
 ## Usage
 

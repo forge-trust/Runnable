@@ -60,6 +60,12 @@ Read the [focused proof path](../../examples/razorwire-mvc/README.md#start-here-
 
 For failed submissions, RazorWire also ships a convention-based form UX stack: default form-local fallbacks for unhandled failures, server helpers for validation errors, anti-forgery diagnostics in development, and styling/event hooks for consumers. See [Failed Form UX](Docs/form-failures.md) or run the sample and visit `/Reactivity/FormFailures`.
 
+## Generated UI Design Contract
+
+RazorWire should feel like a quiet enhancement inside the host application, not like a separate visual product placed on top of it. Package-owned generated UI follows the [RazorWire generated UI design contract](DESIGN.md).
+
+Use that contract when adding or styling RazorWire-generated nodes such as form feedback, stream status affordances, or package-owned fallback UI. It defines the scope boundary, data-attribute and CSS custom-property styling surface, accessibility baseline, override model, and anti-patterns. It does not apply to app-authored forms, partials, layouts, or RazorDocs chrome.
+
 ## Add the Module
 
 Once you already reference the RazorWire package in your app, add `RazorWireWebModule` to your root module:

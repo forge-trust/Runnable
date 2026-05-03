@@ -35,20 +35,20 @@ public sealed class RazorDocsLandingPlaywrightTests
         Assert.DoesNotContain(
             "Welcome to the technical documentation.",
             await page.InnerTextAsync("body"));
-        Assert.Equal("/docs/releases/README.md.html", await page.GetAttributeAsync("main a.group", "href"));
+        Assert.Equal("/docs/packages/README.md.html", await page.GetAttributeAsync("main a.group", "href"));
+
+        await AssertFeaturedCardAsync(
+            page,
+            "/docs/packages/README.md.html",
+            "Which Runnable package should I install first?",
+            "Runnable v0.1 package chooser",
+            "GUIDE");
 
         await AssertFeaturedCardAsync(
             page,
             "/docs/releases/README.md.html",
             "What is shipping next, and how risky is the upgrade?",
             "Releases",
-            "GUIDE");
-
-        await AssertFeaturedCardAsync(
-            page,
-            "/docs/Web/README.md.html",
-            "How do I ship a web app with Runnable?",
-            "Web",
             "GUIDE");
         await AssertFeaturedCardAsync(
             page,
@@ -104,6 +104,48 @@ public sealed class RazorDocsLandingPlaywrightTests
         var trustText = await page.InnerTextAsync(".docs-trust-bar");
         Assert.Contains("provisional", trustText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Repository-wide", trustText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DetailsPage_RendersContributorProvenanceStrip_AboveTrustBar()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/releases/unreleased.md.html");
+        await page.WaitForSelectorAsync(".docs-provenance-strip", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+        await page.WaitForSelectorAsync(".docs-trust-bar", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+        await page.WaitForFunctionAsync(
+            "() => { const time = document.querySelector('.docs-provenance-strip time'); return Boolean(time?.textContent) && !time.textContent.includes('UTC'); }",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+
+        Assert.Contains("Source of truth", await page.InnerTextAsync(".docs-provenance-strip"), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            "https://github.com/forge-trust/Runnable/blob/main/releases/unreleased.md",
+            await page.GetAttributeAsync(".docs-provenance-strip a.docs-provenance-link--primary", "href"));
+        Assert.Equal(
+            "https://github.com/forge-trust/Runnable/edit/main/releases/unreleased.md",
+            await page.GetAttributeAsync(".docs-provenance-strip a.docs-provenance-link--secondary", "href"));
+        Assert.Equal(
+            "relative",
+            await page.GetAttributeAsync(".docs-provenance-strip time", "data-rw-time-display"));
+
+        var datetime = await page.GetAttributeAsync(".docs-provenance-strip time", "datetime");
+        Assert.NotNull(datetime);
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T", datetime!);
+
+        var provenancePrecedesTrustBar = await page.EvaluateAsync<bool>(
+            "() => { const provenance = document.querySelector('.docs-provenance-strip'); const trust = document.querySelector('.docs-trust-bar'); return Boolean(provenance && trust) && (provenance.compareDocumentPosition(trust) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0; }");
+        Assert.True(provenancePrecedesTrustBar);
     }
 
     private static async Task AssertFeaturedCardAsync(

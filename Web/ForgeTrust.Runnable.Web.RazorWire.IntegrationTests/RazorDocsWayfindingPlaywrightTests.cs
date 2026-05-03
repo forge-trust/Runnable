@@ -40,7 +40,7 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             await page.GetAttributeAsync("#docs-page-outline a[href='#files-behind-the-hero-flow']", "href"));
 
         Assert.Equal(
-            "/docs/Namespaces/ForgeTrust.Runnable.Web.RazorWire.html",
+            "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/README.md.html",
             await page.GetAttributeAsync("[data-doc-wayfinding='previous']", "href"));
         Assert.Equal(
             "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html",

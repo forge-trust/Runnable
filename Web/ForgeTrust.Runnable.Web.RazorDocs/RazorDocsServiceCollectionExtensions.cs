@@ -93,6 +93,7 @@ public static class RazorDocsServiceCollectionExtensions
         services.TryAddSingleton<IRazorDocsHtmlSanitizer, RazorDocsHtmlSanitizer>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IDocHarvester, MarkdownHarvester>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IDocHarvester, CSharpDocHarvester>());
+        services.TryAddSingleton<DocFeaturedPageResolver>();
         services.TryAddSingleton<DocAggregator>();
 
         return services;

@@ -51,6 +51,15 @@ Built-in support for CORS configuration:
 
 Modules can define their own endpoints, making it easy to slice features vertically ("Vertical Slice Architecture").
 
+### Conventional 404 Pages
+
+Runnable Web includes a conventional browser-facing 404 page when MVC views are available through `WebOptions.Mvc.MvcSupportLevel` values such as `MvcSupport.ControllersWithViews` or `MvcSupport.Full`, or when `WebOptions.Errors.NotFoundPageMode` explicitly enables the conventional page. The page keeps the HTTP status code at `404` and gives users recovery actions instead of exposing only framework or maintainer details.
+
+- Missing `/docs/...` routes include a documentation search recovery link because stale docs links are the most common browser miss.
+- Other browser requests include a home recovery link and plain-language copy that explains the route may have moved or may not exist.
+- JSON and API-oriented requests do not get the HTML fallback; they keep API-friendly 404 behavior.
+- Applications can override the page with `~/Views/Shared/404.cshtml`. Keep a clear recovery path and preserve the `404` response code when replacing the default view.
+
 ### Configuration and Port Overrides
 
 The web application supports standard ASP.NET Core configuration sources (command-line arguments, environment variables, and `appsettings.json`).

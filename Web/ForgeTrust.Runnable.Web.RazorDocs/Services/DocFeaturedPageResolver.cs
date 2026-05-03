@@ -74,10 +74,25 @@ public sealed class DocFeaturedPageResolver
                 continue;
             }
 
-            foreach (var (definition, pageIndex) in authoredPages
-                         .Select((definition, index) => (definition, index))
-                         .OrderBy(item => item.definition.Order ?? int.MaxValue)
-                         .ThenBy(item => item.index))
+            var pageDefinitions = new List<(DocFeaturedPageDefinition Definition, int Index)>();
+            for (var pageIndex = 0; pageIndex < authoredPages.Count; pageIndex++)
+            {
+                var definition = authoredPages[pageIndex];
+                if (definition is null)
+                {
+                    _logger.LogWarning(
+                        "Skipping featured docs landing entry on {LandingPath} at {FieldPath} because it is null.",
+                        landingDoc.Path,
+                        $"{groupPath}.pages[{pageIndex}]");
+                    continue;
+                }
+
+                pageDefinitions.Add((definition, pageIndex));
+            }
+
+            foreach (var (definition, pageIndex) in pageDefinitions
+                         .OrderBy(item => item.Definition.Order ?? int.MaxValue)
+                         .ThenBy(item => item.Index))
             {
                 var fieldPath = definition.SourceFieldPath ?? $"{groupPath}.pages[{pageIndex}]";
                 var resolvedPage = ResolvePage(landingDoc, definition, fieldPath, lookup, seenPaths);

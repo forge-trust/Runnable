@@ -31,7 +31,7 @@ If a node is authored by the application, RazorWire should not impose a visual o
 
 RazorDocs owns a full documentation workspace with its own editorial chrome, navigation, search, and package-specific design language. RazorWire does not.
 
-RazorWire generated UI should inherit from the application around it. It should feel like a quiet enhancement inside the host app, not like a branded Runnable component transplanted onto the page.
+RazorWire-generated UI should inherit from the application around it. It should feel like a quiet enhancement inside the host app, not like a branded Runnable component transplanted onto the page.
 
 Use the RazorDocs design language only when working on RazorDocs. For RazorWire, this file is the package-level source of truth.
 
@@ -50,7 +50,7 @@ Generated UI should explain state, not compete with the app's primary interface.
 
 ## Styling Surface
 
-RazorWire generated UI should expose two styling layers:
+RazorWire-generated UI should expose two styling layers:
 
 1. Stable `data-rw-*` attributes for selectors and behavior.
 2. CSS custom properties for host-controlled visual defaults.
@@ -75,7 +75,7 @@ Recommended shared properties:
 }
 ```
 
-Package CSS should keep defaults modest and overrideable. Do not require a build step, sample-app Tailwind setup, or package-wide visual theme for RazorWire generated UI to work.
+Package CSS should keep defaults modest and overrideable. Do not require a build step, sample-app Tailwind setup, or package-wide visual theme for RazorWire-generated UI to work.
 
 ## Override Model
 

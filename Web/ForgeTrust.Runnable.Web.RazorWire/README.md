@@ -207,7 +207,7 @@ Enhances a normal form so Turbo handles the submission and optional frame target
 
 - `rw-active="true"` enables RazorWire form handling.
 - `rw-target` sets the target frame when you want to constrain the response.
-- `data-rw-form-failure-target` points failed-submission UI at a local error container.
+- `data-rw-form-failure-target` points failed-submission UI at a local error container by simple element ID, optionally prefixed with `#`; selector-like values are ignored.
 - `data-rw-form-failure="auto"` uses the default fallback UI, `manual` only dispatches events, and `off` disables the failure convention for that form.
 - Generated hidden fields `__RazorWireForm` and, when possible, `__RazorWireFormFailureTarget` help server-side adapters identify and localize form failures.
 

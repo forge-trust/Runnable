@@ -81,14 +81,14 @@ public class RazorDocsViewsTests
     [Fact]
     public void Stylesheets_ShouldKeepSharedDocsPrimitivesOutOfSearchStylesheet()
     {
-        var appStylesheet = ReadPackageStylesheetMarkup();
+        var tailwindEntryStylesheet = ReadTailwindEntryStylesheetMarkup();
         var searchStylesheet = ReadSearchStylesheetMarkup();
 
-        Assert.Contains(".docs-page-badge", appStylesheet);
-        Assert.Contains(".docs-metadata-chip", appStylesheet);
-        Assert.Contains(".docs-page-meta", appStylesheet);
-        Assert.Contains(".docs-provenance-strip", appStylesheet);
-        Assert.Contains(".docs-trust-bar", appStylesheet);
+        Assert.Contains(".docs-page-badge", tailwindEntryStylesheet);
+        Assert.Contains(".docs-metadata-chip", tailwindEntryStylesheet);
+        Assert.Contains(".docs-page-meta", tailwindEntryStylesheet);
+        Assert.Contains(".docs-provenance-strip", tailwindEntryStylesheet);
+        Assert.Contains(".docs-trust-bar", tailwindEntryStylesheet);
 
         Assert.DoesNotContain(".docs-page-badge", searchStylesheet);
         Assert.DoesNotContain(".docs-metadata-chip", searchStylesheet);
@@ -2071,7 +2071,7 @@ public class RazorDocsViewsTests
         return File.ReadAllText(searchClientPath);
     }
 
-    private static string ReadPackageStylesheetMarkup()
+    private static string ReadTailwindEntryStylesheetMarkup()
     {
         var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
         var stylesheetPath = Path.Combine(

@@ -563,7 +563,7 @@ internal static class RazorDocsPublishedTreeContentRewriter
         {
             if (Uri.TryCreate(value, UriKind.Absolute, out var absoluteUri))
             {
-                var rewrittenPath = RewriteMountedDocsPath(absoluteUri.AbsolutePath, mountRootPath, previewRootPath, requestPathBase: null);
+                var rewrittenPath = RewriteMountedDocsPath(absoluteUri.AbsolutePath, mountRootPath, previewRootPath, requestPathBase);
                 if (rewrittenPath is null)
                 {
                     return value;

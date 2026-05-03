@@ -6,6 +6,7 @@ using ForgeTrust.Runnable.Web.RazorWire;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs;
 
@@ -78,7 +79,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <param name="app">The application builder used to configure middleware and endpoints.</param>
     public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
     {
-        var options = app.ApplicationServices.GetService(typeof(RazorDocsOptions)) as RazorDocsOptions ?? new RazorDocsOptions();
+        var options = ResolveOptions(app.ApplicationServices);
         if (options.Versioning?.Enabled != true)
         {
             return;
@@ -140,7 +141,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <param name="endpoints">Endpoint route builder used to map the module's routes.</param>
     public void ConfigureEndpoints(StartupContext context, IEndpointRouteBuilder endpoints)
     {
-        var docsOptions = endpoints.ServiceProvider.GetService(typeof(RazorDocsOptions)) as RazorDocsOptions ?? new RazorDocsOptions();
+        var docsOptions = ResolveOptions(endpoints.ServiceProvider);
         var docsUrlBuilder = endpoints.ServiceProvider.GetService(typeof(DocsUrlBuilder)) as DocsUrlBuilder
                              ?? new DocsUrlBuilder(docsOptions);
 
@@ -193,8 +194,8 @@ public class RazorDocsWebModule : IRunnableWebModule
         var currentRootPattern = docsUrlBuilder.CurrentDocsRootPath.TrimStart('/');
         var currentSearchPattern = TrimLeadingSlash(docsUrlBuilder.BuildSearchUrl());
         var currentSearchIndexPattern = TrimLeadingSlash(docsUrlBuilder.BuildSearchIndexUrl());
-        var currentSectionPattern = $"{currentRootPattern}/sections/{{sectionSlug}}";
-        var currentDetailsPattern = $"{currentRootPattern}/{{*path}}";
+        var currentSectionPattern = TrimLeadingSlash(DocsUrlBuilder.JoinPath(docsUrlBuilder.CurrentDocsRootPath, "sections/{sectionSlug}"));
+        var currentDetailsPattern = TrimLeadingSlash(DocsUrlBuilder.JoinPath(docsUrlBuilder.CurrentDocsRootPath, "{*path}"));
 
         // Index route MUST come before catch-all to be matched first
         endpoints.MapControllerRoute(
@@ -260,6 +261,13 @@ public class RazorDocsWebModule : IRunnableWebModule
                 context.Response.Redirect(redirectPath, permanent: false);
                 return Task.CompletedTask;
             });
+    }
+
+    private static RazorDocsOptions ResolveOptions(IServiceProvider? services)
+    {
+        return services?.GetService(typeof(RazorDocsOptions)) as RazorDocsOptions
+               ?? (services?.GetService(typeof(IOptionsMonitor<RazorDocsOptions>)) as IOptionsMonitor<RazorDocsOptions>)?.CurrentValue
+               ?? new RazorDocsOptions();
     }
 
     private static void MapWebRootAsset(IEndpointRouteBuilder endpoints, string route, string webRootSubPath)

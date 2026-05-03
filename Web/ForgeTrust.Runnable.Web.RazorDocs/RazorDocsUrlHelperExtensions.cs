@@ -15,7 +15,8 @@ internal static class RazorDocsUrlHelperExtensions
     /// <param name="href">The href to normalize for rendering.</param>
     /// <returns>
     /// A path-base-aware href for rooted docs links, the original non-rooted href for relative/external links, or an
-    /// empty string when <paramref name="href" /> is blank.
+    /// empty string when <paramref name="href" /> is blank. Protocol-relative URLs such as
+    /// <c>//cdn.example.com/app.css</c> are preserved as-is so they do not get mistaken for app-relative docs links.
     /// </returns>
     internal static string PathBaseAware(this IUrlHelper url, string? href)
     {
@@ -27,6 +28,7 @@ internal static class RazorDocsUrlHelperExtensions
         }
 
         return href.StartsWith("/", StringComparison.Ordinal)
+               && !href.StartsWith("//", StringComparison.Ordinal)
             ? url.Content("~" + href)
             : href;
     }

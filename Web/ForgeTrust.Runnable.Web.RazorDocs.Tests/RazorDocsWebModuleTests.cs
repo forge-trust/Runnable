@@ -221,8 +221,9 @@ public class RazorDocsWebModuleTests
                 CatalogPath = "catalog.json"
             }
         };
-        builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton(new DocsUrlBuilder(options));
+        var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+        A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+        builder.Services.AddSingleton(optionsMonitor);
         using var app = builder.Build();
         var routeBuilder = (IEndpointRouteBuilder)app;
 
@@ -244,23 +245,61 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
+    public void ConfigureEndpoints_ShouldTrimLeadingSlash_ForRootMountedSectionAndDetailsRoutes()
+    {
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            }
+        };
+        var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+        A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+        builder.Services.AddSingleton(optionsMonitor);
+        using var app = builder.Build();
+        var routeBuilder = (IEndpointRouteBuilder)app;
+
+        _module.ConfigureEndpoints(context, routeBuilder);
+
+        var routePatterns = routeBuilder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .Where(pattern => pattern is not null)
+            .ToList();
+
+        Assert.Contains("search", routePatterns);
+        Assert.Contains("search-index.json", routePatterns);
+        Assert.Contains("sections/{sectionSlug}", routePatterns);
+        Assert.Contains("{*path}", routePatterns);
+        Assert.DoesNotContain("/sections/{sectionSlug}", routePatterns);
+        Assert.DoesNotContain("/{*path}", routePatterns);
+    }
+
+    [Fact]
     public void ConfigureWebApplication_ShouldReturn_WhenVersioningIsEnabledButCatalogServiceIsMissing()
     {
         var context = CreateStartupContext();
         var services = new ServiceCollection();
-        services.AddSingleton(
-            new RazorDocsOptions
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
             {
-                Routing = new RazorDocsRoutingOptions
-                {
-                    DocsRootPath = "/docs/next"
-                },
-                Versioning = new RazorDocsVersioningOptions
-                {
-                    Enabled = true,
-                    CatalogPath = "catalog.json"
-                }
-            });
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = "catalog.json"
+            }
+        };
+        var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+        A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+        services.AddSingleton(optionsMonitor);
         var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
 
         _module.ConfigureWebApplication(context, recordingBuilder);
@@ -320,7 +359,9 @@ public class RazorDocsWebModuleTests
                     CatalogPath = catalogPath
                 }
             };
-            services.AddSingleton(options);
+            var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+            A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+            services.AddSingleton(optionsMonitor);
             services.AddSingleton(
                 new RazorDocsVersionCatalogService(
                     options,
@@ -444,8 +485,9 @@ public class RazorDocsWebModuleTests
             },
             Versioning = null!
         };
-        builder.Services.AddSingleton(options);
-        builder.Services.AddSingleton(new DocsUrlBuilder(options));
+        var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+        A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+        builder.Services.AddSingleton(optionsMonitor);
         using var app = builder.Build();
         var routeBuilder = (IEndpointRouteBuilder)app;
 

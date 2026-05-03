@@ -83,7 +83,21 @@ public sealed class RazorDocsVersionCatalogService
             return RazorDocsResolvedVersionCatalog.EnabledWithoutCatalog;
         }
 
-        var catalogPath = ResolveAbsolutePath(configuredCatalogPath);
+        string catalogPath;
+        try
+        {
+            catalogPath = ResolveAbsolutePath(configuredCatalogPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            var trimmedCatalogPath = configuredCatalogPath.Trim();
+            _logger.LogWarning(
+                ex,
+                "RazorDocs version catalog path {CatalogPath} is invalid. Versioned release trees will stay unavailable.",
+                trimmedCatalogPath);
+            return RazorDocsResolvedVersionCatalog.CreateUnavailable(trimmedCatalogPath);
+        }
+
         if (!File.Exists(catalogPath))
         {
             _logger.LogWarning(
@@ -154,11 +168,22 @@ public sealed class RazorDocsVersionCatalogService
     {
         var label = string.IsNullOrWhiteSpace(version.Label) ? normalizedVersion : version.Label.Trim();
         var summary = string.IsNullOrWhiteSpace(version.Summary) ? null : version.Summary.Trim();
-        var exactTreePath = ResolveCatalogRelativePath(catalogDirectory, version.ExactTreePath);
         var exactRootUrl = DocsUrlBuilder.DocsVersionPrefix + "/" + Uri.EscapeDataString(normalizedVersion);
         var isPublic = version.Visibility == RazorDocsVersionVisibility.Public;
+        string? exactTreePath;
+        string? availabilityIssue;
 
-        var availabilityIssue = ValidateExactTree(exactTreePath);
+        try
+        {
+            exactTreePath = ResolveCatalogRelativePath(catalogDirectory, version.ExactTreePath);
+            availabilityIssue = ValidateExactTree(exactTreePath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            exactTreePath = null;
+            availabilityIssue = $"ExactTreePath '{version.ExactTreePath?.Trim()}' is invalid: {ex.Message}";
+        }
+
         if (availabilityIssue is not null && isPublic)
         {
             _logger.LogWarning(

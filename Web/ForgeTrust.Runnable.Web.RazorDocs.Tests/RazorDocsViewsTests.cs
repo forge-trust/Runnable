@@ -117,12 +117,21 @@ public class RazorDocsViewsTests
         Assert.Contains("const indexUrl = rawConfig.docsSearchIndexUrl || joinDocsPath(docsRootPath, 'search-index.json');", searchClient);
         Assert.Contains("const miniSearchUrl = rawConfig.miniSearchUrl || joinDocsPath(docsRootPath, 'minisearch.min.js');", searchClient);
         Assert.Contains("return root === '/' ? `/${normalizedLeaf}` : `${root}/${normalizedLeaf}`;", searchClient);
-        Assert.Contains("docsByPath: new Set()", searchClient);
+        Assert.Contains("docsByPath: collectInitialDocsPaths()", searchClient);
+        Assert.Contains("function collectInitialDocsPaths()", searchClient);
+        Assert.Contains("a[data-turbo-frame=\"${docsFrameId}\"][href]", searchClient);
         Assert.Contains("function isKnownRootMountedDocsNavigationPath(path)", searchClient);
-        Assert.Contains("normalizeComparablePath(toUrl(doc.path)?.pathname ?? doc.path)", searchClient);
-        Assert.Contains("return searchData.docsByPath.has(normalizedPath)", searchClient);
+        Assert.Contains("function getRootMountedDocsPathCandidates(path)", searchClient);
+        Assert.Contains("if (normalizedPath.endsWith('.md'))", searchClient);
+        Assert.Contains("if (normalizedPath.endsWith('.md.html'))", searchClient);
+        Assert.Contains("candidates.add(normalizedPath.slice(0, -'.html'.length));", searchClient);
+        Assert.Contains("docs.flatMap((doc) => getRootMountedDocsPathCandidates(toUrl(doc.path)?.pathname ?? doc.path))", searchClient);
+        Assert.Contains("candidates.some((candidate) => searchData.docsByPath.has(candidate)", searchClient);
+        Assert.Contains("candidates.add(`${canonicalPath}.html`);", searchClient);
+        Assert.Contains("...collectInitialDocsPaths()", searchClient);
         Assert.Contains("normalizeComparablePath(searchUrl?.pathname)", searchClient);
         Assert.Contains("return isKnownRootMountedDocsNavigationPath(normalizedPath);", searchClient);
+        Assert.DoesNotContain("? path.startsWith('/')", searchClient);
         Assert.Contains("const namespacesPath = joinDocsPath(docsRootPath, 'Namespaces');", searchClient);
     }
 

@@ -411,6 +411,19 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetCatalog_ShouldReturnUnavailable_WhenCatalogPathIsInvalid()
+    {
+        var invalidCatalogPath = "\0catalog.json";
+        var service = CreateCatalogService(invalidCatalogPath);
+
+        var catalog = service.GetCatalog();
+
+        Assert.Equal(invalidCatalogPath, catalog.CatalogPath);
+        Assert.Empty(catalog.PublicVersions);
+        Assert.Null(catalog.RecommendedVersion);
+    }
+
+    [Fact]
     public void GetCatalog_ShouldReturnUnavailable_WhenCatalogJsonIsMalformed()
     {
         var catalogPath = WriteRawCatalogJson("{");
@@ -448,6 +461,41 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
         var version = Assert.Single(catalog.PublicVersions);
         Assert.False(version.IsAvailable);
         Assert.Contains("does not exist", version.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void GetCatalog_ShouldMarkVersionUnavailable_WhenExactTreePathIsInvalid_AndKeepHealthyVersions()
+    {
+        var healthyTree = CreateExactTree("healthy-invalid-path-sibling");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "2.0.0",
+                        ExactTreePath = "\0broken",
+                        SupportState = RazorDocsVersionSupportState.Current
+                    },
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "1.9.0",
+                        ExactTreePath = Path.GetRelativePath(_tempDirectory, healthyTree),
+                        SupportState = RazorDocsVersionSupportState.Maintained
+                    }
+                ]
+            });
+
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        var brokenVersion = Assert.Single(catalog.PublicVersions, version => version.Version == "2.0.0");
+        var healthyVersion = Assert.Single(catalog.PublicVersions, version => version.Version == "1.9.0");
+        Assert.False(brokenVersion.IsAvailable);
+        Assert.Contains("invalid", brokenVersion.AvailabilityIssue, StringComparison.OrdinalIgnoreCase);
+        Assert.True(healthyVersion.IsAvailable);
     }
 
     [Fact]

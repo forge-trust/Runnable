@@ -505,7 +505,7 @@ public sealed class RazorDocsOptionsTests
     public void Validator_ShouldRejectReservedVersioningPreviewPath()
     {
         var validator = new RazorDocsOptionsValidator();
-        foreach (var docsRootPath in new[] { "/docs/v", "/docs/v/1.0.0" })
+        foreach (var docsRootPath in new[] { "/docs/v", "/docs/v/1.0.0", "/docs/versions" })
         {
             var options = new RazorDocsOptions
             {

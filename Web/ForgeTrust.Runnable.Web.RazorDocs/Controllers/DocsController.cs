@@ -32,8 +32,16 @@ public class DocsController : Controller
     private readonly ILogger<DocsController> _logger;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="DocsController"/> with the specified documentation aggregator.
+    /// Initializes a new instance of <see cref="DocsController"/> for ad hoc callers that only supply the doc aggregator and logger.
     /// </summary>
+    /// <remarks>
+    /// This convenience overload does <em>not</em> use the host-configured RazorDocs routing or version catalog.
+    /// Instead it constructs <see cref="DocsUrlBuilder" /> from <c>new RazorDocsOptions()</c> and creates a fallback
+    /// version catalog via <see cref="CreateDefaultVersionCatalogService()" />. Callers that need the configured live
+    /// docs root, preview/versioned routing surface, or published-release catalog should use the
+    /// <see cref="DocsController(DocAggregator, DocsUrlBuilder, RazorDocsVersionCatalogService, ILogger{DocsController})" />
+    /// overload instead.
+    /// </remarks>
     /// <param name="aggregator">Service used to retrieve documentation items.</param>
     /// <param name="logger">Logger used for search index diagnostics.</param>
     public DocsController(DocAggregator aggregator, ILogger<DocsController> logger)

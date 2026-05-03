@@ -148,6 +148,27 @@ public sealed class RazorDocsPublishedTreeContentRewriterTests
     }
 
     [Fact]
+    public void RewriteHtml_ShouldPreservePathBase_WhenRewritingAbsoluteMountedDocsUrls()
+    {
+        const string html =
+            """
+            <!DOCTYPE html>
+            <html>
+            <body>
+              <a href="https://example.com/docs/guide.html?view=full#top">Guide</a>
+            </body>
+            </html>
+            """;
+
+        var rewritten = RazorDocsPublishedTreeContentRewriter.RewriteHtml(
+            html,
+            "/docs/v/1.2.3",
+            requestPathBase: "/some-base");
+
+        Assert.Contains("https://example.com/some-base/docs/v/1.2.3/guide.html?view=full#top", rewritten);
+    }
+
+    [Fact]
     public void RewriteHtml_ShouldLeaveInvalidDocsConfigScriptUnchanged()
     {
         const string html =

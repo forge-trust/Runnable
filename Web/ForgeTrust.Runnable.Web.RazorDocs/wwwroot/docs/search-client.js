@@ -50,7 +50,7 @@
     index: null,
     docs: [],
     docsById: new Map(),
-    docsByPath: new Set(),
+    docsByPath: collectInitialDocsPaths(),
     facetValues: createEmptyFacetValues(),
     loadPromise: null,
     runtimePromise: null
@@ -145,16 +145,84 @@
 
   function isDocsPath(path) {
     return docsRootPath === '/'
-      ? path.startsWith('/')
+      ? isKnownRootMountedDocsNavigationPath(path)
       : path === docsRootPath || path.startsWith(`${docsRootPath}/`);
   }
 
-  function isKnownRootMountedDocsNavigationPath(path) {
-    const normalizedPath = normalizeComparablePath(path);
+  function collectInitialDocsPaths() {
+    const paths = new Set();
+    const currentUrl = toUrl(window.location.href);
     const searchUrl = toUrl(docsSearchUrl);
 
-    return searchData.docsByPath.has(normalizedPath)
-      || normalizedPath === normalizeComparablePath(searchUrl?.pathname);
+    if (currentUrl?.pathname) {
+      for (const candidate of getRootMountedDocsPathCandidates(currentUrl.pathname)) {
+        paths.add(candidate);
+      }
+    }
+
+    if (searchUrl?.pathname) {
+      for (const candidate of getRootMountedDocsPathCandidates(searchUrl.pathname)) {
+        paths.add(candidate);
+      }
+    }
+
+    document
+      .querySelectorAll(`a[data-turbo-frame="${docsFrameId}"][href]`)
+      .forEach((anchor) => {
+        const href = anchor.getAttribute('href');
+        const path = toUrl(href)?.pathname;
+        if (path) {
+          for (const candidate of getRootMountedDocsPathCandidates(path)) {
+            paths.add(candidate);
+          }
+        }
+      });
+
+    return paths;
+  }
+
+  function getRootMountedDocsPathCandidates(path) {
+    const normalizedPath = normalizeComparablePath(path);
+    const candidates = new Set([normalizedPath]);
+
+    if (normalizedPath.endsWith('.md')) {
+      candidates.add(`${normalizedPath}.html`);
+    }
+
+    if (normalizedPath.endsWith('.md.html')) {
+      candidates.add(normalizedPath.slice(0, -'.html'.length));
+    }
+
+    if (normalizedPath.endsWith('/index.partial.html')) {
+      const canonicalIndexPath = normalizedPath.slice(0, -'/index.partial.html'.length) || '/';
+      candidates.add(canonicalIndexPath);
+      candidates.add(joinDocsPath(canonicalIndexPath, 'index.html'));
+    }
+
+    if (normalizedPath.endsWith('.partial.html')) {
+      const canonicalPath = normalizedPath.slice(0, -'.partial.html'.length) || '/';
+      candidates.add(canonicalPath);
+
+      if (canonicalPath !== '/' && !canonicalPath.endsWith('.html')) {
+        candidates.add(`${canonicalPath}.html`);
+      }
+
+      if (canonicalPath.endsWith('/index')) {
+        const withoutIndex = canonicalPath.slice(0, -'/index'.length) || '/';
+        candidates.add(withoutIndex);
+        candidates.add(joinDocsPath(withoutIndex, 'index.html'));
+      }
+    }
+
+    return [...candidates].map(normalizeComparablePath);
+  }
+
+  function isKnownRootMountedDocsNavigationPath(path) {
+    const candidates = getRootMountedDocsPathCandidates(path);
+    const searchUrl = toUrl(docsSearchUrl);
+    const normalizedSearchPath = normalizeComparablePath(searchUrl?.pathname);
+
+    return candidates.some((candidate) => searchData.docsByPath.has(candidate) || candidate === normalizedSearchPath);
   }
 
   function getHeader(headers, name) {
@@ -297,12 +365,25 @@
       if (pendingCanonical) {
         frame.removeAttribute('data-rw-canonical-url');
         replaceBrowserUrl(pendingCanonical);
+        if (docsRootPath === '/') {
+          searchData.docsByPath = new Set([
+            ...searchData.docsByPath,
+            ...collectInitialDocsPaths()
+          ]);
+        }
         return;
       }
 
       const canonicalUrl = toDocsCanonicalUrl(window.location.href);
       if (canonicalUrl) {
         replaceBrowserUrl(canonicalUrl);
+      }
+
+      if (docsRootPath === '/') {
+        searchData.docsByPath = new Set([
+          ...searchData.docsByPath,
+          ...collectInitialDocsPaths()
+        ]);
       }
     });
   }
@@ -1302,9 +1383,10 @@
     searchData.index = index;
     searchData.docs = docs;
     searchData.docsById = new Map(docs.map((doc) => [doc.id, doc]));
-    searchData.docsByPath = new Set(
-      docs.map((doc) => normalizeComparablePath(toUrl(doc.path)?.pathname ?? doc.path))
-    );
+    searchData.docsByPath = new Set([
+      ...searchData.docsByPath,
+      ...docs.flatMap((doc) => getRootMountedDocsPathCandidates(toUrl(doc.path)?.pathname ?? doc.path))
+    ]);
     searchData.facetValues = deriveFacetValues(docs);
   }
 

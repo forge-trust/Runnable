@@ -1032,6 +1032,25 @@ public sealed record DocDetailsViewModel
     public bool TrustMigrationUsesTurbo { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the contributor source link should stay inside the docs content frame.
+    /// </summary>
+    /// <remarks>
+    /// This is resolved from the harvested docs corpus rather than inferred from the raw href alone so mounted or
+    /// root-hosted docs surfaces can keep local provenance links inside the docs shell without trapping unrelated app
+    /// routes.
+    /// </remarks>
+    public bool ContributorSourceUsesTurbo { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the contributor edit link should stay inside the docs content frame.
+    /// </summary>
+    /// <remarks>
+    /// This follows the same docs-local resolution contract as <see cref="ContributorSourceUsesTurbo" /> so preview,
+    /// versioned, and root-mounted docs surfaces all make the same frame-targeting decision.
+    /// </remarks>
+    public bool ContributorEditUsesTurbo { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the current document is a section landing doc.
     /// </summary>
     public bool IsSectionLanding { get; init; }

@@ -638,6 +638,8 @@ public class DocsController : Controller
             PublicSectionLabel = currentSectionSnapshot?.Label,
             PublicSectionHref = currentSectionSnapshot is null ? null : _docsUrlBuilder.BuildSectionUrl(currentSectionSnapshot.Section),
             PublicSectionPurpose = currentSectionSnapshot is null ? null : DocPublicSectionCatalog.GetPurpose(currentSectionSnapshot.Section),
+            ContributorSourceUsesTurbo = ShouldUseDocsFrame(details.ContributorProvenance?.SourceHref, lookup),
+            ContributorEditUsesTurbo = ShouldUseDocsFrame(details.ContributorProvenance?.EditHref, lookup),
             TrustMigrationUsesTurbo = ShouldUseDocsFrame(metadata?.Trust?.Migration?.Href, lookup),
             IsSectionLanding = isSectionLanding,
             FeaturedPages = featuredPages,

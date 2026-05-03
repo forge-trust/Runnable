@@ -28,8 +28,6 @@
     var sourceHref = string.IsNullOrWhiteSpace(provenance?.SourceHref) ? null : provenance!.SourceHref!.Trim();
     var editHref = string.IsNullOrWhiteSpace(provenance?.EditHref) ? null : provenance!.EditHref!.Trim();
     var lastUpdatedUtc = provenance?.LastUpdatedUtc?.ToUniversalTime();
-    var sourceUsesTurbo = sourceHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
-    var editUsesTurbo = editHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
     var showContributorProvenance = sourceHref is not null || editHref is not null || lastUpdatedUtc is not null;
 }
 
@@ -109,18 +107,18 @@
             <div class="docs-provenance-items">
                 @if (sourceHref is not null)
                 {
-                    <a href="@sourceHref"
+                    <a href="@Url.PathBaseAware(sourceHref)"
                        class="docs-provenance-link docs-provenance-link--primary"
-                       @if (sourceUsesTurbo)
+                       @if (Model.ContributorSourceUsesTurbo)
                        {
                            <text>data-turbo-frame="doc-content" data-turbo-action="advance"</text>
                        }>View source</a>
                 }
                 @if (editHref is not null)
                 {
-                    <a href="@editHref"
+                    <a href="@Url.PathBaseAware(editHref)"
                        class="docs-provenance-link docs-provenance-link--secondary"
-                       @if (editUsesTurbo)
+                       @if (Model.ContributorEditUsesTurbo)
                        {
                            <text>data-turbo-frame="doc-content" data-turbo-action="advance"</text>
                        }>

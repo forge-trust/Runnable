@@ -1827,7 +1827,7 @@ public class RazorDocsViewsTests
             "Namespaces/Test",
             """
             <p>
-                <a href="/repo/blob/src/Calculator.cs#L12" class="doc-symbol-source-link" aria-label="View source for Test-Calculator">Source</a>
+                <a aria-label="View source for Test-Calculator" class="chip doc-symbol-source-link" href="/repo/blob/src/Calculator.cs#L12">Source</a>
             </p>
             """);
         var model = CreateDetailsViewModel(doc);

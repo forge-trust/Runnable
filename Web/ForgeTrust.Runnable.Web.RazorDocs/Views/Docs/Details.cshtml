@@ -36,7 +36,7 @@
 }
 @functions {
     private static readonly System.Text.RegularExpressions.Regex RootedSymbolSourceLinkRegex = new(
-        """<a href="(?<href>/[^"]*)" class="doc-symbol-source-link"(?<rest>[^>]*)>""",
+        """<a\b(?:(?:[^>]*\bhref\s*=\s*"(?<hrefBefore>/[^"]*)"[^>]*\bclass\s*=\s*"(?:doc-symbol-source-link(?:\s[^"]*)?|[^"]*\sdoc-symbol-source-link(?:\s[^"]*)?)")|(?:[^>]*\bclass\s*=\s*"(?:doc-symbol-source-link(?:\s[^"]*)?|[^"]*\sdoc-symbol-source-link(?:\s[^"]*)?)"[^>]*\bhref\s*=\s*"(?<hrefAfter>/[^"]*)"))[^>]*>""",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase
         | System.Text.RegularExpressions.RegexOptions.NonBacktracking);
 
@@ -69,7 +69,9 @@
             content,
             match =>
             {
-                var encodedHref = match.Groups["href"].Value;
+                var encodedHref = match.Groups["hrefBefore"].Success
+                    ? match.Groups["hrefBefore"].Value
+                    : match.Groups["hrefAfter"].Value;
                 var href = System.Net.WebUtility.HtmlDecode(encodedHref);
                 if (href.StartsWith("//", StringComparison.Ordinal))
                 {

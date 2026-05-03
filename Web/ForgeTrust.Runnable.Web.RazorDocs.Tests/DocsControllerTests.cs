@@ -1344,6 +1344,78 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Details_ShouldLinkReleaseBreadcrumbParentToSectionRoute_WhenParsedParentDocRouteIsSynthetic()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Releases",
+                "releases/README.md",
+                "<p>Release index</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Releases",
+                    Breadcrumbs = ["Releases"],
+                    BreadcrumbsMatchPathTargets = true,
+                    SectionLanding = true
+                }),
+            new(
+                "Unreleased",
+                "releases/unreleased.md",
+                "<p>Current release notes</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Releases",
+                    Breadcrumbs = ["release-notes", "Unreleased"],
+                    BreadcrumbsMatchPathTargets = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("releases/unreleased.md");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal(DocPublicSection.Releases, model.PublicSection);
+        Assert.Equal(
+            ["release-notes", "Unreleased"],
+            model.Breadcrumbs.Select(breadcrumb => breadcrumb.Label).ToArray());
+        Assert.Equal("/docs/sections/releases", model.Breadcrumbs[0].Href);
+        Assert.DoesNotContain(model.Breadcrumbs, breadcrumb => breadcrumb.Href == "/docs/releases.html");
+        AssertNoWarningsLogged();
+    }
+
+    [Fact]
+    public async Task Details_ShouldSuppressSyntheticParentDocBreadcrumbHrefs_WhenNoPublishedDocMatches()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Web",
+                "Web/ForgeTrust.Runnable.Web/README.md",
+                "<p>Web package docs</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "How-to Guides",
+                    Breadcrumbs = ["Web", "ForgeTrust.Runnable.Web"],
+                    BreadcrumbsMatchPathTargets = true
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("Web/ForgeTrust.Runnable.Web/README.md");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal(
+            ["Web", "ForgeTrust.Runnable.Web"],
+            model.Breadcrumbs.Select(breadcrumb => breadcrumb.Label).ToArray());
+        Assert.Null(model.Breadcrumbs[0].Href);
+        Assert.DoesNotContain(model.Breadcrumbs, breadcrumb => breadcrumb.Href == "/docs/Web.html");
+        AssertNoWarningsLogged();
+    }
+
+    [Fact]
     public async Task Details_ShouldReturnTurboFramePartial_WhenPartialSuffixRequested()
     {
         var docs = new List<DocNode> { new("Title", "target-path", "content") };
@@ -1461,7 +1533,7 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public async Task Details_ShouldHonorMetadataBreadcrumbs_ForNonApiPublicDocs_WhenTargetsMatch()
+    public async Task Details_ShouldHonorMetadataBreadcrumbLabels_AndSuppressSyntheticParentDocHref()
     {
         var docs = new List<DocNode>
         {
@@ -1486,7 +1558,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
         Assert.Equal(["Get Started", "Quickstart"], model.Breadcrumbs.Select(crumb => crumb.Label).ToArray());
-        Assert.Equal("/docs/guides.html", model.Breadcrumbs[0].Href);
+        Assert.Null(model.Breadcrumbs[0].Href);
         Assert.Null(model.Breadcrumbs[1].Href);
     }
 
@@ -2677,9 +2749,19 @@ public class DocsControllerTests : IDisposable
                 : $"Expected warning log containing '{expectedMessageFragment}'.");
     }
 
+    private void AssertNoWarningsLogged()
+    {
+        var controllerLoggedWarning = Fake.GetCalls(_controllerLoggerFake)
+            .Any(call => IsWarningLog(call));
+        var resolverLoggedWarning = Fake.GetCalls(_featuredPageResolverLoggerFake)
+            .Any(call => IsWarningLog(call));
+
+        Assert.False(controllerLoggedWarning || resolverLoggedWarning, "Expected no warning logs.");
+    }
+
     private static bool IsWarningLog(FakeItEasy.Core.IFakeObjectCall call, string? expectedMessageFragment)
     {
-        if (call.Method.Name != nameof(ILogger.Log) || call.GetArgument<LogLevel>(0) != LogLevel.Warning)
+        if (!IsWarningLog(call))
         {
             return false;
         }
@@ -2702,5 +2784,11 @@ public class DocsControllerTests : IDisposable
             options,
             environment,
             NullLogger<RazorDocsVersionCatalogService>.Instance);
+    }
+
+    private static bool IsWarningLog(FakeItEasy.Core.IFakeObjectCall call)
+    {
+        return call.Method.Name == nameof(ILogger.Log)
+               && call.GetArgument<LogLevel>(0) == LogLevel.Warning;
     }
 }

@@ -330,6 +330,7 @@ RazorDocs now organizes public documentation around a fixed section-first model 
 - `How-to Guides`
 - `Examples`
 - `API Reference`
+- `Releases`
 - `Troubleshooting`
 - `Internals`
 
@@ -342,6 +343,7 @@ These sections back the current docs home, the sidebar shell, and the dedicated 
 - Markdown docs with no explicit `nav_group` are derived into built-in sections using path and filename heuristics:
   - repository-root `README.md` and start-like names such as `quickstart` or `getting-started` fall into `Start Here`
   - `examples/` content falls into `Examples`
+  - `releases/` content and root changelogs fall into `Releases`
   - concepts, architecture, explanation, and glossary-style paths fall into `Concepts`
   - troubleshooting, faq, debug, and error-oriented paths fall into `Troubleshooting`
   - internal-oriented paths fall into `Internals`

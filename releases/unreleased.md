@@ -81,6 +81,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Contributor provenance now degrades safely: namespace and API pages stay explicit-override-only for the MVP, and missing or slow git history omits only freshness instead of breaking docs rendering.
 - Shared RazorDocs badges, metadata chips, provenance strips, and trust bars now live in the shared package stylesheet while `search.css` stays focused on search-specific UI.
 - RazorDocs search now keeps failure recovery markup out of the active search shell until the index actually fails to load, so successful searches no longer expose hidden failure copy to text extraction tools.
+- RazorDocs now treats `Releases` as a first-class public section and suppresses breadcrumb links to generated parent routes that do not correspond to published docs pages, keeping static export warnings focused on actionable broken links.
 
 ### RazorWire form UX
 

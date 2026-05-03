@@ -103,6 +103,55 @@ public sealed class DocMetadataFactoryTests
     }
 
     [Fact]
+    public void CreateMarkdownMetadata_ShouldAcceptReleaseNavGroupWithoutWarning()
+    {
+        var logger = A.Fake<ILogger>();
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(
+            "releases/unreleased.md",
+            "Unreleased",
+            new DocMetadata
+            {
+                NavGroup = "Releases",
+                Breadcrumbs = ["Releases", "Unreleased"]
+            },
+            null,
+            logger);
+
+        Assert.Equal("Releases", metadata.NavGroup);
+        Assert.False(metadata.NavGroupIsDerived);
+        Assert.Equal(["Releases", "Unreleased"], metadata.Breadcrumbs);
+        Assert.True(metadata.BreadcrumbsMatchPathTargets);
+        A.CallTo(logger)
+            .Where(call => call.Method.Name == "Log" && call.GetArgument<LogLevel>(0) == LogLevel.Warning)
+            .MustNotHaveHappened();
+    }
+
+    [Theory]
+    [InlineData("releases/README.md")]
+    [InlineData("releases/upgrade-policy.md")]
+    [InlineData("CHANGELOG.md")]
+    public void CreateMarkdownMetadata_ShouldDeriveReleaseSection_ForReleasePaths(string path)
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(path, "Release Notes", null, null);
+
+        Assert.Equal("Releases", metadata.NavGroup);
+        Assert.True(metadata.NavGroupIsDerived);
+        Assert.Equal(["Releases", "Release Notes"], metadata.Breadcrumbs);
+    }
+
+    [Theory]
+    [InlineData("docs/CHANGELOG.md")]
+    [InlineData("packages/CHANGELOG.md")]
+    public void CreateMarkdownMetadata_ShouldNotDeriveReleaseSection_ForNestedChangelogPaths(string path)
+    {
+        var metadata = DocMetadataFactory.CreateMarkdownMetadata(path, "Package Changelog", null, null);
+
+        Assert.Equal("How-to Guides", metadata.NavGroup);
+        Assert.True(metadata.NavGroupIsDerived);
+        Assert.Equal(["How-to Guides", "Package Changelog"], metadata.Breadcrumbs);
+    }
+
+    [Fact]
     public void CreateMarkdownMetadata_ShouldNotMarkExplicitBreadcrumbs_WhenTargetCountDoesNotMatch()
     {
         var metadata = DocMetadataFactory.CreateMarkdownMetadata(

@@ -718,7 +718,7 @@ public class DocsController : Controller
             PageTypeBadge = pageTypeBadge,
             Component = component,
             Audience = audience,
-            Breadcrumbs = BuildBreadcrumbs(doc, currentSectionSnapshot, resolvedTitle),
+            Breadcrumbs = BuildBreadcrumbs(doc, currentSectionSnapshot, resolvedTitle, docs),
             PublicSection = currentSectionSnapshot?.Section,
             PublicSectionLabel = currentSectionSnapshot?.Label,
             PublicSectionHref = currentSectionSnapshot is null ? null : _docsUrlBuilder.BuildSectionUrl(currentSectionSnapshot.Section),
@@ -750,8 +750,13 @@ public class DocsController : Controller
     private IReadOnlyList<DocBreadcrumbViewModel> BuildBreadcrumbs(
         DocNode doc,
         DocSectionSnapshot? currentSectionSnapshot,
-        string resolvedTitle)
+        string resolvedTitle,
+        IReadOnlyList<DocNode> docs)
     {
+        var publishedDocHrefs = docs
+            .Where(item => !string.IsNullOrWhiteSpace(item.CanonicalPath))
+            .Select(item => $"/docs/{GetSnapshotCanonicalPath(item)}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var normalizedPath = doc.Path.Trim().Trim('/');
         var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
                               || normalizedPath.StartsWith("Namespaces/", StringComparison.OrdinalIgnoreCase);
@@ -837,7 +842,7 @@ public class DocsController : Controller
                     ];
             }
 
-            return parsedBreadcrumbs;
+            return ResolveBreadcrumbHrefs(parsedBreadcrumbs, currentSectionSnapshot, publishedDocHrefs);
         }
 
         return metadataBreadcrumbs!
@@ -845,11 +850,61 @@ public class DocsController : Controller
                 (label, index) => new DocBreadcrumbViewModel
                 {
                     Label = label,
-                    Href = index - (metadataBreadcrumbCount - parsedBreadcrumbs.Count) >= 0
-                        ? parsedBreadcrumbs[index - (metadataBreadcrumbCount - parsedBreadcrumbs.Count)].Href
-                        : null
+                    Href = ResolveBreadcrumbHref(
+                        label,
+                        index == metadataBreadcrumbCount - 1,
+                        index - (metadataBreadcrumbCount - parsedBreadcrumbs.Count) >= 0
+                            ? parsedBreadcrumbs[index - (metadataBreadcrumbCount - parsedBreadcrumbs.Count)].Href
+                            : null,
+                        currentSectionSnapshot,
+                        publishedDocHrefs)
                 })
             .ToList();
+    }
+
+    private static IReadOnlyList<DocBreadcrumbViewModel> ResolveBreadcrumbHrefs(
+        IEnumerable<DocBreadcrumbViewModel> breadcrumbs,
+        DocSectionSnapshot? currentSectionSnapshot,
+        IReadOnlySet<string> publishedDocHrefs)
+    {
+        var items = breadcrumbs.ToArray();
+        return items
+            .Select(
+                (breadcrumb, index) => breadcrumb with
+                {
+                    Href = ResolveBreadcrumbHref(
+                        breadcrumb.Label,
+                        index == items.Length - 1,
+                        breadcrumb.Href,
+                        currentSectionSnapshot,
+                        publishedDocHrefs)
+                })
+            .ToArray();
+    }
+
+    private static string? ResolveBreadcrumbHref(
+        string label,
+        bool isLast,
+        string? candidateHref,
+        DocSectionSnapshot? currentSectionSnapshot,
+        IReadOnlySet<string> publishedDocHrefs)
+    {
+        if (isLast)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidateHref)
+            && publishedDocHrefs.Contains(candidateHref))
+        {
+            return candidateHref;
+        }
+
+        return currentSectionSnapshot is not null
+               && DocPublicSectionCatalog.TryResolve(label, out var section)
+               && section == currentSectionSnapshot.Section
+            ? DocPublicSectionCatalog.GetHref(currentSectionSnapshot.Section)
+            : null;
     }
 
     private static bool MetadataBreadcrumbsMatchPathTargets(

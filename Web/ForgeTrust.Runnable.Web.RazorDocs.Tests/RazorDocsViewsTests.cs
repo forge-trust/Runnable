@@ -2177,7 +2177,7 @@ public class RazorDocsViewsTests
             "Namespaces/Test",
             """
             <p>
-                <a aria-label="View source for Test-Calculator" class="chip doc-symbol-source-link" href="/repo/blob/src/Calculator.cs#L12">Source</a>
+                <a aria-label="View source" class="chip doc-symbol-source-link" href="/repo/blob/src/Calculator.cs#L12">Source</a>
             </p>
             """);
         var model = CreateDetailsViewModel(doc);
@@ -2192,7 +2192,7 @@ public class RazorDocsViewsTests
         var sourceLink = document.QuerySelector("a.doc-symbol-source-link");
         Assert.NotNull(sourceLink);
         Assert.Equal("/tenant/repo/blob/src/Calculator.cs#L12", sourceLink!.GetAttribute("href"));
-        Assert.Equal("View source for Test-Calculator", sourceLink.GetAttribute("aria-label"));
+        Assert.Equal("View source", sourceLink.GetAttribute("aria-label"));
     }
 
     [Fact]
@@ -2204,7 +2204,7 @@ public class RazorDocsViewsTests
             "Namespaces/Test",
             """
             <p>
-                <a aria-label="View source for Test-Calculator" class="chip doc-symbol-source-link" href="//example.com/repo/blob/src/Calculator.cs#L12">Source</a>
+                <a aria-label="View source" class="chip doc-symbol-source-link" href="//example.com/repo/blob/src/Calculator.cs#L12">Source</a>
             </p>
             """);
         var model = CreateDetailsViewModel(doc);
@@ -2219,7 +2219,7 @@ public class RazorDocsViewsTests
         var sourceLink = document.QuerySelector("a.doc-symbol-source-link");
         Assert.NotNull(sourceLink);
         Assert.Equal("//example.com/repo/blob/src/Calculator.cs#L12", sourceLink!.GetAttribute("href"));
-        Assert.Equal("View source for Test-Calculator", sourceLink.GetAttribute("aria-label"));
+        Assert.Equal("View source", sourceLink.GetAttribute("aria-label"));
     }
 
     [Fact]

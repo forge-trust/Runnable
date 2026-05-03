@@ -1386,6 +1386,44 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Details_ShouldPreserveConfiguredDocsRoot_WhenResolvedBreadcrumbTargetIsPublishedDoc()
+    {
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            }
+        };
+        var harvester = A.Fake<IDocHarvester>();
+        var docs = new List<DocNode>
+        {
+            new(
+                "Guides",
+                "guides",
+                "<p>Guides landing</p>"),
+            new(
+                "Start",
+                "guides/start.md",
+                "<p>Start here</p>",
+                Metadata: new DocMetadata
+                {
+                    Breadcrumbs = ["guides", "Start"],
+                    BreadcrumbsMatchPathTargets = true
+                })
+        };
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+        var (controller, _, _) = CreateController(options, harvester);
+
+        var result = await controller.Details("guides/start.md");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.Equal(["guides", "Start"], model.Breadcrumbs.Select(breadcrumb => breadcrumb.Label).ToArray());
+        Assert.Equal("/docs/next/guides.html", model.Breadcrumbs[0].Href);
+    }
+
+    [Fact]
     public async Task Details_ShouldSuppressSyntheticParentDocBreadcrumbHrefs_WhenNoPublishedDocMatches()
     {
         var docs = new List<DocNode>

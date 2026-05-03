@@ -699,8 +699,7 @@ public class DocAggregator
                     return string.Empty;
                 }
 
-                var label = $"View source for {anchorId}";
-                return $@"<a href=""{WebUtility.HtmlEncode(href)}"" class=""doc-symbol-source-link"" aria-label=""{WebUtility.HtmlEncode(label)}"">Source</a>";
+                return $@"<a href=""{WebUtility.HtmlEncode(href)}"" class=""doc-symbol-source-link"" aria-label=""View source"">Source</a>";
             });
     }
 
@@ -1897,7 +1896,11 @@ public class DocAggregator
     /// Extracts a namespace name from a README path, optionally matching against a list of known namespaces.
     /// </summary>
     /// <param name="path">The README path to process.</param>
-    /// <param name="knownNamespaceNames">Optional list of known namespaces to match directory segments against.</param>
+    /// <param name="knownNamespaceNames">
+    /// Optional list of known namespaces to match directory segments against. When provided, README paths are only
+    /// treated as namespace introductions when the matching namespace folder appears under a trusted container
+    /// directory such as <c>docs</c> or <c>Namespaces</c>.
+    /// </param>
     /// <returns>The extracted namespace name, or <c>null</c> if it cannot be determined.</returns>
     private static string? ExtractNamespaceNameFromReadmePath(string path, IEnumerable<string>? knownNamespaceNames)
     {
@@ -1940,6 +1943,17 @@ public class DocAggregator
         return parts.LastOrDefault();
     }
 
+    /// <summary>
+    /// Determines whether the matched namespace folder appears in one of the supported namespace README locations.
+    /// </summary>
+    /// <param name="parts">The normalized directory path segments that precede <c>README.md</c>.</param>
+    /// <param name="namespaceStartIndex">
+    /// The index where the matched namespace name begins within <paramref name="parts"/>.
+    /// </param>
+    /// <returns>
+    /// <c>true</c> when the namespace folder lives under a trusted container like <c>docs</c> or <c>Namespaces</c>;
+    /// otherwise, <c>false</c>.
+    /// </returns>
     private static bool HasNamespaceReadmePrefix(IReadOnlyList<string> parts, int namespaceStartIndex)
     {
         if (namespaceStartIndex <= 0)

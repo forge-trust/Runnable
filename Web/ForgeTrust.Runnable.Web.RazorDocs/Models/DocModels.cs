@@ -744,8 +744,6 @@ public sealed record DocLandingViewModel
 /// visible docs. Empty <see cref="Pages"/> lists are treated as no featured pages and are suppressed by
 /// <see cref="DocLandingViewModel.HasFeaturedPages"/>, <see cref="DocDetailsViewModel.HasFeaturedPages"/>, and the
 /// RazorDocs views.
-/// </remarks>
-/// <remarks>
 /// Pitfalls: callers should not rely on an empty <see cref="Pages"/> list being rendered, and should expect
 /// <see cref="Intent"/>, <see cref="Label"/>, <see cref="Summary"/>, and <see cref="Pages"/> to reflect resolver output
 /// rather than raw authored front matter.

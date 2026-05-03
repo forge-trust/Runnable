@@ -136,7 +136,7 @@ public class DocAggregatorTests : IDisposable
                 {
                     Assert.Contains("href=\"https://example.com/blob/abc123/src/Calculator.cs#L12\"", input);
                     Assert.Contains("doc-symbol-source-link", input);
-                    Assert.Contains("aria-label=\"View source for Test-Calculator\"", input);
+                    Assert.Contains("aria-label=\"View source\"", input);
                     Assert.DoesNotContain("data-razordocs-symbol-source", input);
                     return input;
                 });
@@ -155,7 +155,7 @@ public class DocAggregatorTests : IDisposable
         var result = Assert.Single((await aggregator.GetDocsAsync()).ToList());
 
         Assert.Contains("href=\"https://example.com/blob/abc123/src/Calculator.cs#L12\"", result.Content);
-        Assert.Contains("aria-label=\"View source for Test-Calculator\"", result.Content);
+        Assert.Contains("aria-label=\"View source\"", result.Content);
         Assert.Contains(">Source</a>", result.Content);
         Assert.DoesNotContain("data-razordocs-symbol-source", result.Content);
     }
@@ -195,7 +195,7 @@ public class DocAggregatorTests : IDisposable
         var result = Assert.Single((await aggregator.GetDocsAsync()).ToList());
 
         Assert.Contains("href=\"https://example.com/blob/main/src/Calculator.cs#L12\"", result.Content);
-        Assert.Contains("aria-label=\"View source for Test-Calculator\"", result.Content);
+        Assert.Contains("aria-label=\"View source\"", result.Content);
         Assert.Contains(">Source</a>", result.Content);
         Assert.DoesNotContain("data-razordocs-symbol-source", result.Content);
     }
@@ -513,6 +513,7 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task GetDocsAsync_ShouldRewritePackageChooserTableLinks_FromRealRepoDocs()
     {
         var repositoryRoot = ForgeTrust.Runnable.Core.PathUtils.FindRepositoryRoot(AppContext.BaseDirectory);
@@ -2438,7 +2439,7 @@ public class DocAggregatorTests : IDisposable
                     "Namespaces/Test",
                     """
                     <p>Calculator behavior.</p>
-                    <a aria-label="View source for Test-Calculator" href="https://example.com/blob/abc123/src/Calculator.cs#L12" class="chip doc-symbol-source-link">Source</a>
+                    <a aria-label="View source" href="https://example.com/blob/abc123/src/Calculator.cs#L12" class="chip doc-symbol-source-link">Source</a>
                     <a href="https://example.com/source-help" class="not-doc-symbol-source-link">Source help remains searchable.</a>
                     """)
             ]);
@@ -2787,6 +2788,42 @@ public class DocAggregatorTests : IDisposable
         Assert.Equal("ForgeTrust-Web-Type", provenance.AnchorId);
         Assert.Equal("src/Type.cs", provenance.SourcePath);
         Assert.Equal(10, provenance.StartLine);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldNotMergeSourceFolderPackageReadmes_IntoNamespacePages()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Web", "Namespaces/ForgeTrust.Web", namespaceContent),
+            new("README", "src/ForgeTrust.Web/README.md", "<p>Package overview</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = await _aggregator.GetDocsAsync();
+
+        Assert.Contains(docs, d => d.Path == "src/ForgeTrust.Web/README.md");
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Web");
+        Assert.DoesNotContain("Package overview", namespaceDoc.Content);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldNotMergeRootLevelPackageReadmes_IntoNamespacePages()
+    {
+        var namespaceContent = "<section class='doc-namespace-groups'><h4>Namespaces</h4></section><section class='doc-type'>Type body</section>";
+        var harvestedDocs = new List<DocNode>
+        {
+            new("Core namespace", "Namespaces/ForgeTrust.Runnable.Core", namespaceContent),
+            new("Core package", "ForgeTrust.Runnable.Core/README.md", "<p>Package overview</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = await _aggregator.GetDocsAsync();
+
+        Assert.Contains(docs, d => d.Path == "ForgeTrust.Runnable.Core/README.md");
+        var namespaceDoc = docs.Single(d => d.Path == "Namespaces/ForgeTrust.Runnable.Core");
+        Assert.DoesNotContain("Package overview", namespaceDoc.Content);
     }
 
     [Fact]

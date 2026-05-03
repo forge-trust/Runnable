@@ -755,7 +755,7 @@ public class DocsController : Controller
     {
         var publishedDocHrefs = docs
             .Where(item => !string.IsNullOrWhiteSpace(item.CanonicalPath))
-            .Select(item => $"/docs/{GetSnapshotCanonicalPath(item)}")
+            .Select(item => _docsUrlBuilder.BuildDocUrl(GetSnapshotCanonicalPath(item)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var normalizedPath = doc.Path.Trim().Trim('/');
         var isNamespacePath = normalizedPath.Equals("Namespaces", StringComparison.OrdinalIgnoreCase)
@@ -862,7 +862,7 @@ public class DocsController : Controller
             .ToList();
     }
 
-    private static IReadOnlyList<DocBreadcrumbViewModel> ResolveBreadcrumbHrefs(
+    private IReadOnlyList<DocBreadcrumbViewModel> ResolveBreadcrumbHrefs(
         IEnumerable<DocBreadcrumbViewModel> breadcrumbs,
         DocSectionSnapshot? currentSectionSnapshot,
         IReadOnlySet<string> publishedDocHrefs)
@@ -882,7 +882,7 @@ public class DocsController : Controller
             .ToArray();
     }
 
-    private static string? ResolveBreadcrumbHref(
+    private string? ResolveBreadcrumbHref(
         string label,
         bool isLast,
         string? candidateHref,
@@ -903,7 +903,7 @@ public class DocsController : Controller
         return currentSectionSnapshot is not null
                && DocPublicSectionCatalog.TryResolve(label, out var section)
                && section == currentSectionSnapshot.Section
-            ? DocPublicSectionCatalog.GetHref(currentSectionSnapshot.Section)
+            ? _docsUrlBuilder.BuildSectionUrl(currentSectionSnapshot.Section)
             : null;
     }
 

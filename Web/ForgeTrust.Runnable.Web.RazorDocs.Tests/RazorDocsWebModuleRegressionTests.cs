@@ -17,6 +17,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 // Regression: ISSUE-001 — standalone host lost RazorDocs search assets after the package split
 // Found by /qa on 2026-04-02
 // Report: .gstack/qa-reports/qa-report-localhost-2026-04-02.md
+[Trait("Category", "Integration")]
 public class RazorDocsWebModuleRegressionTests
 {
     private const string PackagedAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";

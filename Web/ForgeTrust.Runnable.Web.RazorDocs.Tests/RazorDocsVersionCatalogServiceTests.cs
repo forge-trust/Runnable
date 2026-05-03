@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
+[Trait("Category", "Unit")]
 public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
 {
     private readonly string _tempDirectory;

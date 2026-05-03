@@ -126,6 +126,8 @@ public class RazorWireFormOptions
 /// <remarks>
 /// This enum only applies when <see cref="RazorWireFormOptions.EnableFailureUx"/> is enabled. Per-form
 /// <c>data-rw-form-failure</c> values may narrow behavior for a specific form, but the global kill switch always wins.
+/// The numeric values are explicit because this public enum may be persisted, serialized, or bound by
+/// applications. New values should be appended without changing the values documented here.
 /// </remarks>
 public enum RazorWireFormFailureMode
 {
@@ -138,7 +140,7 @@ public enum RazorWireFormFailureMode
     /// <see cref="Bridge.RazorWireStreamBuilder.FormError(string,string,string)"/> or
     /// <see cref="Bridge.RazorWireStreamBuilder.FormValidationErrors(string,Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary,string,int,string)"/>.
     /// </remarks>
-    Auto,
+    Auto = 0,
 
     /// <summary>
     /// Emit request markers and lifecycle events, but do not render fallback UI.
@@ -147,7 +149,7 @@ public enum RazorWireFormFailureMode
     /// Choose this when the app needs RazorWire request classification and cancelable failure events but wants to own
     /// every visible error surface.
     /// </remarks>
-    Manual,
+    Manual = 1,
 
     /// <summary>
     /// Disable RazorWire's failed-form request markers, events, and fallback UI by default.
@@ -156,5 +158,5 @@ public enum RazorWireFormFailureMode
     /// Choose this when most forms should behave like plain enhanced Turbo forms and only selected forms should opt back
     /// into RazorWire failure handling with per-form attributes.
     /// </remarks>
-    Off
+    Off = 2
 }

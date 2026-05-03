@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ForgeTrust.Runnable.Core.Defaults;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +10,11 @@ namespace ForgeTrust.Runnable.Core;
 /// </summary>
 /// <param name="Args">Command-line arguments provided to the application.</param>
 /// <param name="RootModule">The root module of the application.</param>
-/// <param name="ApplicationName">Optional name of the application.</param>
+/// <param name="ApplicationName">
+/// Optional user-facing display label for product surfaces.
+/// Defaults to the root module assembly name when not provided.
+/// This value does not control Generic Host/static web asset manifest identity.
+/// </param>
 /// <param name="EnvironmentProvider">Optional provider for environment information.</param>
 /// <param name="CustomRegistrations">Optional custom service registrations.</param>
 public record StartupContext(
@@ -20,6 +25,8 @@ public record StartupContext(
     params List<Action<IServiceCollection>> CustomRegistrations)
 {
     internal ModuleDependencyBuilder Dependencies { get; } = new();
+
+    private string? _applicationName = ApplicationName;
 
     /// <summary>
     /// Gets or sets an assembly that should be treated as the entry point assembly, overriding the default.
@@ -57,10 +64,29 @@ public record StartupContext(
     public bool IsDevelopment => EnvironmentProvider.IsDevelopment;
 
     /// <summary>
-    /// Gets the name of the application.
+    /// Gets the user-facing name of the application.
     /// </summary>
-    public string ApplicationName { get; } =
-        ApplicationName ?? RootModule.GetType().Assembly.GetName().Name ?? "RunnableApp";
+    /// <remarks>
+    /// This value is intended for product surfaces such as generated OpenAPI titles, command output, and other places
+    /// where callers need a readable application label. It is intentionally separate from <see cref="HostApplicationName"/>,
+    /// which must stay aligned with the assembly identity used by the .NET Generic Host and ASP.NET static web asset
+    /// manifest discovery.
+    /// </remarks>
+    public string ApplicationName
+    {
+        get => _applicationName ?? GetAssemblyNameOrDefault(RootModuleAssembly);
+        init => _applicationName = value;
+    }
+
+    /// <summary>
+    /// Gets the assembly-backed application identity assigned to <see cref="Microsoft.Extensions.Hosting.IHostEnvironment.ApplicationName"/>.
+    /// </summary>
+    /// <remarks>
+    /// ASP.NET static web assets resolve runtime manifests by host application name. Custom display names should not be
+    /// written into the host environment because they can point static web asset discovery at a non-existent manifest.
+    /// Override <see cref="OverrideEntryPointAssembly"/> when a test or host needs to select a different manifest identity.
+    /// </remarks>
+    public string HostApplicationName => GetAssemblyNameOrDefault(EntryPointAssembly);
 
     /// <summary>
     /// Gets the list of modules that the application depends on.
@@ -69,4 +95,9 @@ public record StartupContext(
     public IReadOnlyList<IRunnableModule> GetDependencies() =>
         Dependencies.Modules
             .ToList();
+
+    [ExcludeFromCodeCoverage(
+        Justification = "Loaded assemblies normally expose a name; the fallback preserves legacy defensive behavior.")]
+    private static string GetAssemblyNameOrDefault(Assembly assembly) =>
+        assembly.GetName().Name ?? "RunnableApp";
 }

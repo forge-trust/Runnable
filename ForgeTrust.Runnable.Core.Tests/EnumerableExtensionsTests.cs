@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Core.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core.Tests;
 
@@ -234,6 +235,37 @@ public class EnumerableExtensionsTests
     }
 
     [Fact]
+    public async Task ParallelSelectAsync_CancellationToken_DoesNotLogCleanupFailure_WhenLoggerProvided()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 100);
+        using var cts = new CancellationTokenSource();
+        var logger = new TestLogger();
+        var processedCount = 0;
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await input.ParallelSelectAsync(
+                async (x, ct) =>
+                {
+                    if (Interlocked.Increment(ref processedCount) >= 5)
+                    {
+                        await cts.CancelAsync();
+                    }
+
+                    await Task.Delay(50, ct);
+                    return x;
+                },
+                maxDegreeOfParallelism: 2,
+                cancellationToken: cts.Token,
+                logger: logger);
+        });
+
+        Assert.Empty(logger.Entries);
+    }
+
+    [Fact]
     public async Task ParallelSelectAsync_BodyThrowsException_PropagatesException()
     {
         // Arrange
@@ -254,6 +286,76 @@ public class EnumerableExtensionsTests
                 },
                 maxDegreeOfParallelism: 3);
         });
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_BodyThrowsException_LogsSuppressedCleanupFailure_WhenLoggerProvided()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 5);
+        var logger = new TestLogger();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await input.ParallelSelectAsync(
+                async (x, ct) =>
+                {
+                    await Task.Delay(10, ct);
+                    if (x == 2)
+                    {
+                        throw new InvalidOperationException("Primary failure");
+                    }
+
+                    return x;
+                },
+                maxDegreeOfParallelism: 2,
+                cancellationToken: CancellationToken.None,
+                logger: logger);
+        });
+
+        Assert.Contains(
+            logger.Entries,
+            entry => entry.Level == LogLevel.Debug
+                && entry.EventId.Id == 1102
+                && entry.Exception is InvalidOperationException
+                && entry.Message.Contains("suppressed task cleanup failures", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_WithLoggerOverload_ThrowsWhenLoggerIsNull()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 5);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+        {
+            await input.ParallelSelectAsync(
+                async (x, ct) => await Task.FromResult(x),
+                maxDegreeOfParallelism: 2,
+                cancellationToken: CancellationToken.None,
+                logger: null!);
+        });
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsync_WithLoggerOverload_ReturnsResults_WhenSuccessful()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 5);
+        var logger = new TestLogger();
+
+        // Act
+        var results = await input.ParallelSelectAsync(
+            async (x, ct) => await Task.FromResult(x * 2),
+            maxDegreeOfParallelism: 2,
+            cancellationToken: CancellationToken.None,
+            logger: logger);
+
+        // Assert
+        Assert.Equal(new[] { 2, 4, 6, 8, 10 }, results);
+        Assert.Empty(logger.Entries);
     }
 
     [Fact]
@@ -463,6 +565,46 @@ public class EnumerableExtensionsTests
     }
 
     [Fact]
+    public async Task ParallelSelectAsyncEnumerable_Cancellation_DoesNotLogCleanupFailure_WhenLoggerProvided()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 50);
+        using var cts = new CancellationTokenSource();
+        var logger = new TestLogger();
+        var results = new List<int>();
+
+        // Act
+        try
+        {
+            await foreach (var item in input.ParallelSelectAsyncEnumerable(
+                               async (x, ct) =>
+                               {
+                                   await Task.Delay(20, ct);
+                                   return x;
+                               },
+                               maxDegreeOfParallelism: 3,
+                               bufferMultiplier: 4,
+                               cancellationToken: cts.Token,
+                               logger: logger))
+            {
+                results.Add(item);
+                if (results.Count >= 5)
+                {
+                    await cts.CancelAsync();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert
+        Assert.True(results.Count < 50);
+        Assert.Empty(logger.Entries);
+    }
+
+    [Fact]
     public async Task ParallelSelectAsyncEnumerable_CustomBufferMultiplier_Works()
     {
         // Arrange
@@ -539,6 +681,83 @@ public class EnumerableExtensionsTests
     }
 
     [Fact]
+    public async Task ParallelSelectAsyncEnumerable_BodyThrowsException_LogsSuppressedCleanupFailure_WhenLoggerProvided()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 5);
+        var logger = new TestLogger();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var _ in input.ParallelSelectAsyncEnumerable(
+                               async (x, ct) =>
+                               {
+                                   await Task.Delay(10, ct);
+                                   if (x == 2)
+                                   {
+                                       throw new InvalidOperationException("Primary failure");
+                                   }
+
+                                   return x;
+                               },
+                               maxDegreeOfParallelism: 2,
+                               bufferMultiplier: 4,
+                               cancellationToken: CancellationToken.None,
+                               logger: logger))
+            {
+            }
+        });
+
+        Assert.Contains(
+            logger.Entries,
+            entry => entry.Level == LogLevel.Debug
+                && entry.EventId.Id == 1105
+                && entry.Exception is InvalidOperationException
+                && entry.Message.Contains("suppressed task cleanup failures", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ParallelSelectAsyncEnumerable_WithLoggerOverload_ThrowsWhenLoggerIsNull()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 5);
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() =>
+            input.ParallelSelectAsyncEnumerable(
+                async (x, ct) => await Task.FromResult(x),
+                maxDegreeOfParallelism: 2,
+                bufferMultiplier: 4,
+                cancellationToken: CancellationToken.None,
+                logger: null!));
+    }
+
+    [Fact]
+    public async Task ParallelSelectAsyncEnumerable_WithLoggerOverload_ReturnsResults_WhenSuccessful()
+    {
+        // Arrange
+        var input = Enumerable.Range(1, 5);
+        var logger = new TestLogger();
+
+        // Act
+        var results = new List<int>();
+        await foreach (var item in input.ParallelSelectAsyncEnumerable(
+                           async (x, ct) => await Task.FromResult(x * 2),
+                           maxDegreeOfParallelism: 2,
+                           bufferMultiplier: 4,
+                           cancellationToken: CancellationToken.None,
+                           logger: logger))
+        {
+            results.Add(item);
+        }
+
+        // Assert
+        Assert.Equal(new[] { 2, 4, 6, 8, 10 }, results);
+        Assert.Empty(logger.Entries);
+    }
+
+    [Fact]
     public async Task ParallelSelectAsyncEnumerable_OverflowCapacity_ClampsToIntMax()
     {
         // Act
@@ -582,11 +801,8 @@ public class EnumerableExtensionsTests
     }
 
     [Fact]
-    public async Task ParallelSelectAsync_CancellationToken_DisposedSemaphore_Ignored()
+    public async Task ParallelSelectAsync_CancellationToken_JoinsActiveTasksBeforeDisposal()
     {
-        // This test aims to hit the catch block for ObjectDisposedException in ParallelSelectAsync
-        // by cancelling while tasks are still completing.
-
         // Arrange
         var input = Enumerable.Range(1, 10);
         using var cts = new CancellationTokenSource();

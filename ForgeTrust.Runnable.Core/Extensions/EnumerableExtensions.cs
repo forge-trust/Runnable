@@ -1,12 +1,13 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core.Extensions;
 
 /// <summary>
 /// Provides extension methods for <see cref="IEnumerable{T}"/> to perform parallel operations.
 /// </summary>
-public static class EnumerableExtensions
+public static partial class EnumerableExtensions
 {
     /// <summary>
     /// Projects each element of a sequence into a new form with bounded concurrency and preserves the input order of results.
@@ -25,6 +26,51 @@ public static class EnumerableExtensions
         Func<TSource, CancellationToken, Task<TResult>> body,
         int maxDegreeOfParallelism,
         CancellationToken cancellationToken = default)
+    {
+        return await ParallelSelectAsyncCore(
+            source,
+            body,
+            maxDegreeOfParallelism,
+            cancellationToken,
+            logger: null);
+    }
+
+    /// <summary>
+    /// Projects each element of a sequence into a new form with bounded concurrency, preserves the input order of results, observes <paramref name="cancellationToken"/>, and logs suppressed cleanup diagnostics through <paramref name="logger"/>.
+    /// </summary>
+    /// <param name="source">The sequence of input items.</param>
+    /// <param name="body">An asynchronous transform that receives an input item and a cancellation token and produces a result.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of concurrent invocations of <paramref name="body"/>; must be greater than zero.</param>
+    /// <param name="cancellationToken">A token to observe while waiting for tasks to complete.</param>
+    /// <param name="logger">Logger for cleanup diagnostics that would otherwise be suppressed to preserve the primary exception.</param>
+    /// <returns>An <see cref="IEnumerable{T}"/> of results in the same order as the input sequence.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="source"/>, <paramref name="body"/>, or <paramref name="logger"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero.</exception>
+    /// <exception cref="OperationCanceledException">The operation was canceled via <paramref name="cancellationToken"/>.</exception>
+    /// <remarks>Exceptions thrown by the <paramref name="body"/> function propagate to the returned task.</remarks>
+    public static async Task<IEnumerable<TResult>> ParallelSelectAsync<TSource, TResult>(
+        this IEnumerable<TSource> source,
+        Func<TSource, CancellationToken, Task<TResult>> body,
+        int maxDegreeOfParallelism,
+        CancellationToken cancellationToken,
+        ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        return await ParallelSelectAsyncCore(
+            source,
+            body,
+            maxDegreeOfParallelism,
+            cancellationToken,
+            logger);
+    }
+
+    private static async Task<IEnumerable<TResult>> ParallelSelectAsyncCore<TSource, TResult>(
+        IEnumerable<TSource> source,
+        Func<TSource, CancellationToken, Task<TResult>> body,
+        int maxDegreeOfParallelism,
+        CancellationToken cancellationToken,
+        ILogger? logger)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (body == null) throw new ArgumentNullException(nameof(body));
@@ -53,16 +99,8 @@ public static class EnumerableExtensions
                             }
                             finally
                             {
-                                try
-                                {
-                                    // ReSharper disable AccessToDisposedClosure
-                                    semaphore.Release();
-                                    // ReSharper restore AccessToDisposedClosure
-                                }
-                                catch (ObjectDisposedException)
-                                {
-                                    // Intentionally ignored: the operation was cancelled and the semaphore was disposed
-                                }
+                                // ReSharper disable once AccessToDisposedClosure
+                                semaphore.Release();
                             }
                         },
                         cancellationToken));
@@ -78,9 +116,12 @@ public static class EnumerableExtensions
             {
                 await Task.WhenAll(tasks);
             }
-            catch
+            catch (Exception ex)
             {
-                // Exceptions in individual tasks are already captured by the main Task.WhenAll
+                if (logger != null && ShouldLogCleanupFailure(ex, cancellationToken))
+                {
+                    LogParallelSelectAsyncTaskCleanupFailure(logger, ex);
+                }
             }
 
             throw;
@@ -128,6 +169,57 @@ public static class EnumerableExtensions
         int maxDegreeOfParallelism,
         int bufferMultiplier = 4,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var result in ParallelSelectAsyncEnumerableCore(
+                           source,
+                           body,
+                           maxDegreeOfParallelism,
+                           bufferMultiplier,
+                           cancellationToken,
+                           logger: null))
+        {
+            yield return result;
+        }
+    }
+
+    /// <summary>
+    /// Produces an asynchronous sequence of results by applying <paramref name="body"/> to each element of <paramref name="source"/>, limiting concurrency, preserving input order, observing <paramref name="cancellationToken"/>, and logging suppressed cleanup diagnostics through <paramref name="logger"/>.
+    /// </summary>
+    /// <param name="source">The input sequence to project; must not be null.</param>
+    /// <param name="body">A selector that projects an element to a <see cref="Task{TResult}"/>; it receives the element and a cancellation token that is signaled when the operation is canceled.</param>
+    /// <param name="maxDegreeOfParallelism">The maximum number of selector tasks that may run concurrently; must be greater than zero.</param>
+    /// <param name="bufferMultiplier">A multiplier used to compute the internal channel capacity as <c>maxDegreeOfParallelism * bufferMultiplier</c> (capped to <see cref="int.MaxValue"/>); must be at least 1.</param>
+    /// <param name="cancellationToken">Token to observe for cooperative cancellation of the overall operation.</param>
+    /// <param name="logger">Logger for cleanup diagnostics that would otherwise be suppressed to preserve the primary exception.</param>
+    /// <returns>An <see cref="IAsyncEnumerable{TResult}"/> that yields projected results in the same order as the source sequence.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/>, <paramref name="body"/>, or <paramref name="logger"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="maxDegreeOfParallelism"/> is less than or equal to zero or if <paramref name="bufferMultiplier"/> is less than 1.</exception>
+    public static IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerable<TSource, TResult>(
+        this IEnumerable<TSource> source,
+        Func<TSource, CancellationToken, Task<TResult>> body,
+        int maxDegreeOfParallelism,
+        int bufferMultiplier,
+        CancellationToken cancellationToken,
+        ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        return ParallelSelectAsyncEnumerableCore(
+            source,
+            body,
+            maxDegreeOfParallelism,
+            bufferMultiplier,
+            cancellationToken: cancellationToken,
+            logger: logger);
+    }
+
+    private static async IAsyncEnumerable<TResult> ParallelSelectAsyncEnumerableCore<TSource, TResult>(
+        IEnumerable<TSource> source,
+        Func<TSource, CancellationToken, Task<TResult>> body,
+        int maxDegreeOfParallelism,
+        int bufferMultiplier,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken,
+        ILogger? logger)
     {
         if (source == null)
         {
@@ -198,17 +290,8 @@ public static class EnumerableExtensions
                                 }
                                 finally
                                 {
-                                    // Release concurrency limit slot when task completes
-                                    try
-                                    {
-                                        // ReSharper disable AccessToDisposedClosure
-                                        semaphore.Release();
-                                        // ReSharper restore AccessToDisposedClosure
-                                    }
-                                    catch (ObjectDisposedException)
-                                    {
-                                        // Intentionally ignored: the operation was cancelled and the semaphore was disposed
-                                    }
+                                    // ReSharper disable once AccessToDisposedClosure
+                                    semaphore.Release();
                                 }
                             },
                             // ReSharper disable AccessToDisposedClosure
@@ -256,14 +339,6 @@ public static class EnumerableExtensions
             {
                 // Expected on cancellation
             }
-            catch (Exception _)
-            {
-                // Cleanup failures during producer termination are suppressed to avoid shadowing main exceptions
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine(
-                    $"Error during ParallelSelectAsyncEnumerable cleanup (producer): {_}");
-#endif
-            }
 
             // JOIN ALL ACTIVE TASKS before disposing the semaphore and CTS
             // This is critical because they capture the semaphore and CTS in their closures.
@@ -273,15 +348,32 @@ public static class EnumerableExtensions
             }
             catch (Exception ex)
             {
-                // Exceptions in individual tasks are already handled/re-thrown via the channel/yield return.
-                // We ignore them here to ensure disposal of resources like the semaphore and CTS continues.
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine(
-                    $"Ignored task exception during ParallelSelectAsyncEnumerable disposal: {ex}");
-#endif
+                if (logger != null && ShouldLogCleanupFailure(ex, cts.Token))
+                {
+                    LogParallelSelectAsyncEnumerableTaskCleanupFailure(logger, ex);
+                }
             }
         }
     }
+
+    private static bool ShouldLogCleanupFailure(Exception exception, CancellationToken cancellationToken)
+    {
+        return !cancellationToken.IsCancellationRequested || exception is not OperationCanceledException;
+    }
+
+    [LoggerMessage(
+        EventId = 1102,
+        Level = LogLevel.Debug,
+        Message = "ParallelSelectAsync suppressed task cleanup failures while preserving the primary failure.")]
+    private static partial void LogParallelSelectAsyncTaskCleanupFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 1105,
+        Level = LogLevel.Debug,
+        Message = "ParallelSelectAsyncEnumerable suppressed task cleanup failures while disposing concurrency resources.")]
+    private static partial void LogParallelSelectAsyncEnumerableTaskCleanupFailure(
+        ILogger logger,
+        Exception exception);
 
     /// <summary>
     /// Projects each element of <paramref name="source"/> using the provided task-returning selector with bounded concurrency and yields the results in the same order as the source.

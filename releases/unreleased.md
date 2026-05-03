@@ -20,6 +20,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Runnable now ships a public release hub, a changelog, an unreleased page, and a tagged release template inside the repository.
 - Release-note pages can show status, freshness, scope, migration guidance, and provenance in a shared trust bar instead of bespoke page chrome.
 - Runnable now ships a generated package chooser that tells first-time adopters which package to install first, which optional modules to add next, and which proof paths to follow for release risk and working examples.
+- The root README now has a single hello-world quickstart that starts the smallest web example on an explicit port and proves the response with `curl`.
 
 ### Contribution contract
 
@@ -28,6 +29,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Markdown-only changes on `main` now republish the docs surface, so release-note and policy edits are treated as first-class product updates.
 - Runnable now exposes focused GitHub issue forms for bug reports and docs/developer-experience feedback, with the root README and contribution guide pointing developers to that feedback path.
 - Public contribution surfaces now steer suspected vulnerabilities away from issue forms and into a private security reporting path.
+- GitHub issue template support links now point first-time adopters to the package chooser and release/upgrade contract when they are evaluating install path or migration risk.
 
 ### Console and CLI polish
 
@@ -39,6 +41,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Project exports now disable persistent MSBuild build servers during CLI-controlled publish and assembly-name probes so captured tool output cannot hang on reused build nodes.
 - RazorWire CLI process cleanup now waits for asynchronous stdout and stderr callbacks to flush before disposing launched target processes, which keeps short-lived command output observable in tests and diagnostics.
 - RazorWire CLI validation errors now include a concrete source-selection example and `razorwire export --help` hint, so a failed export tells developers the next useful command instead of only naming the bad input.
+- PackageIndex now has a real `--help`/`-h` surface that exits successfully, describes its commands and options, and reports unknown commands before printing usage.
 
 ### Dependency maintenance
 
@@ -48,6 +51,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 
 - Runnable web hosts now choose a deterministic localhost-only development URL when no endpoint is configured, while production, staging, container, and appsettings-based endpoint choices remain untouched.
 - Tailwind development watch mode now treats a missing standalone CLI as a recoverable local-tooling gap: the app keeps serving existing CSS and logs a warning that points to the runtime package or `TailwindCliPath` override.
+- Runnable's conventional browser 404 page now prioritizes user recovery paths, including documentation search for missing `/docs/...` routes and a home link for other misses, while still documenting how app owners can override the default page.
 
 ### RazorWire package guidance
 
@@ -58,9 +62,11 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Runnable's own release pages now double as a working RazorDocs example for consumers who want better release notes.
 - RazorDocs pages can now expose typed `On this page` outlines, explicit proof-path previous/next links, related-page cards, and sidebar anchor navigation from harvested metadata instead of scraping rendered HTML.
 - Public docs navigation now groups pages by intent-first sections, preserves authored editorial breadcrumbs, and keeps Start Here recovery links hidden when that section is unavailable.
+- RazorDocs landing curation now uses `featured_page_groups`, so root and section landing pages can organize next-step links by reader intent instead of rendering one flat list.
 - The release contract is designed so future tooling can generate both a changelog entry and a blog-style tagged release note from the same underlying signals.
 - RazorDocs now rewrites authored doc links from a harvested target manifest instead of broad suffix heuristics, so normal site links such as `../privacy.html` stay untouched and missing doc targets do not become broken `/docs/...` routes.
 - RazorDocs details pages can now render a `Source of truth` strip with `View source`, `Edit this page`, and relative `Last updated` evidence driven by contributor metadata, configured URL templates, and git freshness when available.
+- The primary RazorDocs Pages deployment now exports with contributor provenance configured and full git history available, so the public docs artifact can show the same `Source of truth` strip as local smoke tests.
 - Contributor provenance now degrades safely: namespace and API pages stay explicit-override-only for the MVP, and missing or slow git history omits only freshness instead of breaking docs rendering.
 - Shared RazorDocs badges, metadata chips, provenance strips, and trust bars now live in the shared package stylesheet while `search.css` stays focused on search-specific UI.
 - RazorDocs search now keeps failure recovery markup out of the active search shell until the index actually fails to load, so successful searches no longer expose hidden failure copy to text extraction tools.
@@ -81,6 +87,7 @@ There is no tagged migration guide yet because Runnable has not cut `v0.1.0`. Un
 - finalized migration steps move into the tagged release note when the version ships
 - custom RazorDocs harvesters that want detail-page outlines and search heading metadata should populate `DocNode.Outline`; pages without outline metadata continue to render without the optional outline section
 - existing `rw-active` forms opt into failed-form request markers and default fallback UI; applications with custom failure rendering can use `RazorWireOptions.Forms.FailureMode = Manual`, `RazorWireOptions.Forms.EnableFailureUx = false`, or per-form `data-rw-form-failure="off"`
+- RazorDocs authors should migrate flat `featured_pages` metadata to `featured_page_groups`. The old field is ignored and logs a warning; each group needs at least `label` or `intent`, plus a `pages` list containing the existing `question`, `path`, `supporting_copy`, and `order` entries.
 
 ## Proof artifacts
 

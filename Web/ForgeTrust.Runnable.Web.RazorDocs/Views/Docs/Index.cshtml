@@ -2,6 +2,22 @@
 @{
     ViewData["Title"] = "Documentation Index";
 }
+@functions {
+    private string ResolveAppHref(string href)
+    {
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return "#";
+        }
+
+        var trimmed = href.Trim();
+        return trimmed.Equals("/docs", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("/docs?", StringComparison.OrdinalIgnoreCase)
+            ? Url.Content($"~{trimmed}")
+            : Url.Content(trimmed);
+    }
+}
 
 <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
     <div class="mb-10 max-w-3xl">
@@ -21,7 +37,7 @@
             </div>
             @if (!string.IsNullOrWhiteSpace(Model.StartHereHref))
             {
-                <a href="@Model.StartHereHref"
+                <a href="@ResolveAppHref(Model.StartHereHref)"
                    class="inline-flex items-center gap-2 self-start rounded-full border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition-colors hover:border-cyan-400 hover:bg-cyan-500/15">
                     Open Start Here
                     <span aria-hidden="true">-&gt;</span>
@@ -29,46 +45,56 @@
             }
         </div>
 
-        @if (Model.FeaturedPages.Count > 0)
+        @if (Model.HasFeaturedPages)
         {
-            <ol class="mt-6 space-y-3">
-                @for (var i = 0; i < Model.FeaturedPages.Count; i++)
+            <div class="mt-6 space-y-8">
+                @foreach (var featuredGroup in Model.FeaturedPageGroups.Where(group => group.Pages.Count > 0))
                 {
-                    var featuredPage = Model.FeaturedPages[i];
-                    <li>
-                        <a href="@featuredPage.Href"
-                           data-turbo-frame="doc-content"
-                           data-turbo-action="advance"
-                           class="group block rounded-2xl border border-slate-800 bg-slate-950/50 px-5 py-4 transition-colors hover:border-cyan-500/40 hover:bg-slate-950">
-                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                <div class="min-w-0 flex-1">
-                                    <div class="flex flex-wrap items-center gap-3">
-                                        <span class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 text-xs font-semibold text-cyan-200">@(i + 1)</span>
-                                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                                            @(!string.IsNullOrWhiteSpace(featuredPage.Question) ? featuredPage.Question : $"Step {i + 1}")
-                                        </p>
-                                        @if (featuredPage.PageTypeBadge is not null)
-                                        {
-                                            <span class="docs-page-badge docs-page-badge--@featuredPage.PageTypeBadge.Variant">
-                                                @featuredPage.PageTypeBadge.Label
+                    <section class="border-t border-slate-800 pt-5 first:border-t-0 first:pt-0">
+                        <div class="max-w-3xl">
+                            <h3 class="text-base font-semibold text-white">@featuredGroup.Label</h3>
+                            @if (!string.IsNullOrWhiteSpace(featuredGroup.Summary))
+                            {
+                                <p class="mt-2 text-sm leading-6 text-slate-300">@featuredGroup.Summary</p>
+                            }
+                        </div>
+                        <ul class="mt-4 space-y-3">
+                            @foreach (var featuredPage in featuredGroup.Pages)
+                            {
+                                <li>
+                                    <a href="@ResolveAppHref(featuredPage.Href)"
+                                       data-turbo-frame="doc-content"
+                                       data-turbo-action="advance"
+                                       class="group block rounded-2xl border border-slate-800 bg-slate-950/50 px-5 py-4 transition-colors hover:border-cyan-500/40 hover:bg-slate-950">
+                                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                            <div class="min-w-0 flex-1">
+                                                <div class="flex flex-wrap items-center gap-3">
+                                                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">@featuredPage.Question</p>
+                                                    @if (featuredPage.PageTypeBadge is not null)
+                                                    {
+                                                        <span class="docs-page-badge docs-page-badge--@featuredPage.PageTypeBadge.Variant">
+                                                            @featuredPage.PageTypeBadge.Label
+                                                        </span>
+                                                    }
+                                                </div>
+                                                <h4 class="mt-3 text-lg font-semibold text-white transition-colors group-hover:text-cyan-100">@featuredPage.Title</h4>
+                                                @if (!string.IsNullOrWhiteSpace(featuredPage.SupportingText))
+                                                {
+                                                    <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">@featuredPage.SupportingText</p>
+                                                }
+                                            </div>
+                                            <span class="inline-flex items-center gap-2 text-sm font-semibold text-cyan-200 transition-colors group-hover:text-cyan-100">
+                                                Open page
+                                                <span class="transition-transform group-hover:translate-x-1" aria-hidden="true">-&gt;</span>
                                             </span>
-                                        }
-                                    </div>
-                                    <h3 class="mt-3 text-lg font-semibold text-white transition-colors group-hover:text-cyan-100">@featuredPage.Title</h3>
-                                    @if (!string.IsNullOrWhiteSpace(featuredPage.SupportingText))
-                                    {
-                                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-300">@featuredPage.SupportingText</p>
-                                    }
-                                </div>
-                                <span class="inline-flex items-center gap-2 text-sm font-semibold text-cyan-200 transition-colors group-hover:text-cyan-100">
-                                    Open page
-                                    <span class="transition-transform group-hover:translate-x-1" aria-hidden="true">-&gt;</span>
-                                </span>
-                            </div>
-                        </a>
-                    </li>
+                                        </div>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    </section>
                 }
-            </ol>
+            </div>
         }
     </section>
 
@@ -80,7 +106,7 @@
                 <section class="border-b border-slate-900/80 pb-6 last:border-b-0 last:pb-0">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div class="min-w-0 flex-1">
-                            <a href="@secondarySection.Href"
+                            <a href="@ResolveAppHref(secondarySection.Href)"
                                class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 transition-colors hover:text-cyan-300">
                                 @secondarySection.Label
                             </a>
@@ -94,7 +120,7 @@
                             @foreach (var route in secondarySection.KeyRoutes)
                             {
                                 <li>
-                                    <a href="@route.Href"
+                                    <a href="@ResolveAppHref(route.Href)"
                                        data-turbo-frame="doc-content"
                                        data-turbo-action="advance"
                                        class="group flex flex-col gap-2 rounded-2xl border border-slate-900 bg-slate-950/30 px-4 py-3 transition-colors hover:border-cyan-500/30 hover:bg-slate-950/60 sm:flex-row sm:items-start sm:justify-between">

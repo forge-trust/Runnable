@@ -75,6 +75,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v5
@@ -91,6 +93,11 @@ jobs:
           dotnet build Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj -c Release
 
       - name: Export RazorDocs static site
+        env:
+          RazorDocs__Contributor__DefaultBranch: ${{ github.ref_name }}
+          RazorDocs__Contributor__SourceUrlTemplate: https://github.com/${{ github.repository }}/blob/{branch}/{path}
+          RazorDocs__Contributor__EditUrlTemplate: https://github.com/${{ github.repository }}/edit/{branch}/{path}
+          RazorDocs__Contributor__LastUpdatedMode: Git
         run: |
           dotnet run --project Web/ForgeTrust.Runnable.Web.RazorWire.Cli/ForgeTrust.Runnable.Web.RazorWire.Cli.csproj -c Release -- \
             export \

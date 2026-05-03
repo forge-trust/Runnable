@@ -22,6 +22,8 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 - RazorDocs pages can now render a top-of-page trust bar from structured metadata so release notes and upgrade guidance can show status, safety context, and provenance without custom page code.
 - RazorDocs now supports metadata-driven page wayfinding: harvested outlines, explicit proof-path previous/next links, related pages, and sidebar anchor navigation.
 - RazorWire forms now have convention-based failed-submission UX with default form-local fallbacks, server helpers for handled validation errors, development anti-forgery diagnostics, runtime events, and sample coverage.
+- The root README now includes a single hello-world web quickstart with an explicit local port and a concrete expected response.
+- Runnable now ships GitHub issue templates for bug reports and documentation feedback.
 
 ### Changed
 
@@ -32,12 +34,16 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 - Tailwind development watch mode now logs a warning, not a startup error, when the standalone CLI is unavailable and the app can continue serving existing CSS.
 - RazorDocs search now keeps failure recovery markup out of the active search shell until the index actually fails to load.
 - The RazorWire MVC sample counter button now has an accessible name while preserving the compact icon-only UI.
+- RazorDocs landing curation now renders reader-intent `featured_page_groups` instead of one flat featured list.
+- The PackageIndex generator now has a successful `--help`/`-h` path with command and option guidance instead of a bare usage failure.
+- The conventional browser 404 page now favors user recovery, including documentation search for missing docs routes and a home link for other missing pages.
 
 ### Migration
 
 - Runnable has not cut `v0.1.0` yet, so there is no tagged migration guide today.
 - Before `v0.1.0`, any breaking or behavior-changing update should record provisional guidance in [`releases/unreleased.md`](./releases/unreleased.md) and move finalized steps into the tagged release note once the version ships.
 - Existing `rw-active` forms opt into failed-form request markers and automatic fallback UI by default. Set `options.Forms.EnableFailureUx = false`, `options.Forms.FailureMode = RazorWireFormFailureMode.Manual`, or per-form `data-rw-form-failure="off"` if an app already owns all failure rendering.
+- RazorDocs authors using `featured_pages` should migrate to `featured_page_groups`; the old flat field now logs a warning and no longer renders.
 
 ## No tagged releases yet
 

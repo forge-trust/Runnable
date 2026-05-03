@@ -22,16 +22,22 @@ public class DocsController : Controller
     private static readonly TimeSpan SearchShellFallbackBudget = TimeSpan.FromMilliseconds(500);
 
     private readonly DocAggregator _aggregator;
+    private readonly DocFeaturedPageResolver _featuredPageResolver;
     private readonly ILogger<DocsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of <see cref="DocsController"/> with the specified documentation aggregator.
     /// </summary>
     /// <param name="aggregator">Service used to retrieve documentation items.</param>
+    /// <param name="featuredPageResolver">Service used to resolve grouped landing curation metadata.</param>
     /// <param name="logger">Logger used for search index diagnostics.</param>
-    public DocsController(DocAggregator aggregator, ILogger<DocsController> logger)
+    public DocsController(
+        DocAggregator aggregator,
+        DocFeaturedPageResolver featuredPageResolver,
+        ILogger<DocsController> logger)
     {
         _aggregator = aggregator ?? throw new ArgumentNullException(nameof(aggregator));
+        _featuredPageResolver = featuredPageResolver ?? throw new ArgumentNullException(nameof(featuredPageResolver));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -40,7 +46,7 @@ public class DocsController : Controller
     /// </summary>
     /// <returns>
     /// A view result whose model is a <see cref="DocLandingViewModel"/>. The model includes curated featured cards when the
-    /// repository-root <c>README.md</c> metadata authors <c>featured_pages</c> through inline front matter or a paired
+    /// repository-root <c>README.md</c> metadata authors <c>featured_page_groups</c> through inline front matter or a paired
     /// sidecar such as <c>README.md.yml</c>; otherwise it includes the neutral fallback landing data.
     /// </returns>
     public async Task<IActionResult> Index()
@@ -265,7 +271,7 @@ public class DocsController : Controller
         var landingDoc = docs.FirstOrDefault(
             d => string.Equals(d.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase));
         var startHereSection = sections.FirstOrDefault(section => section.Section == DocPublicSection.StartHere);
-        var featuredPages = BuildProofPathPages(landingDoc, docs, startHereSection);
+        var featuredPageGroups = BuildProofPathGroups(landingDoc, docs, startHereSection);
 
         return new DocLandingViewModel
         {
@@ -274,20 +280,20 @@ public class DocsController : Controller
             LandingDoc = landingDoc,
             StartHereHref = startHereSection is null ? null : DocPublicSectionCatalog.GetHref(DocPublicSection.StartHere),
             VisibleDocs = visibleDocs,
-            FeaturedPages = featuredPages,
+            FeaturedPageGroups = featuredPageGroups,
             SecondarySections = BuildSecondarySections(sections, docs)
         };
     }
 
-    private IReadOnlyList<DocLandingFeaturedPageViewModel> BuildProofPathPages(
+    private IReadOnlyList<DocLandingFeaturedPageGroupViewModel> BuildProofPathGroups(
         DocNode? landingDoc,
         IReadOnlyList<DocNode> docs,
         DocSectionSnapshot? startHereSection)
     {
-        var curatedPages = ResolveFeaturedPages(landingDoc, docs);
-        if (curatedPages.Count > 0)
+        var curatedGroups = _featuredPageResolver.ResolveGroups(landingDoc, docs);
+        if (curatedGroups.Count > 0)
         {
-            return curatedPages;
+            return curatedGroups;
         }
 
         if (startHereSection is null)
@@ -297,24 +303,43 @@ public class DocsController : Controller
 
         var candidates = startHereSection.VisiblePages
             .Where(doc => !string.Equals(doc.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase))
+            .Where(doc => !string.Equals(doc.Path, startHereSection.LandingDoc?.Path, StringComparison.OrdinalIgnoreCase))
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
             .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)
             .Take(DefaultProofPathStageLabels.Length)
             .ToList();
 
-        return candidates
+        var pages = candidates
             .Select(
-                (doc, index) => new DocLandingFeaturedPageViewModel
+                (doc, index) =>
                 {
-                    Question = DefaultProofPathStageLabels[Math.Min(index, DefaultProofPathStageLabels.Length - 1)],
-                    Title = ResolveDisplayTitle(doc),
-                    Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
-                    PageType = doc.Metadata?.PageType,
-                    PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType),
-                    SupportingText = string.IsNullOrWhiteSpace(doc.Metadata?.Summary) ? null : doc.Metadata!.Summary!.Trim()
+                    var metadata = doc.Metadata;
+                    var summary = metadata?.Summary;
+                    return new DocLandingFeaturedPageViewModel
+                    {
+                        Question = DefaultProofPathStageLabels[index],
+                        Title = ResolveDisplayTitle(doc),
+                        Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
+                        PageType = metadata?.PageType,
+                        PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType),
+                        SupportingText = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim()
+                    };
                 })
             .ToList();
+
+        return pages.Count == 0
+            ? []
+            :
+            [
+                new DocLandingFeaturedPageGroupViewModel
+                {
+                    Intent = "start-here",
+                    Label = "Start Here",
+                    Summary = DocPublicSectionCatalog.GetPurpose(DocPublicSection.StartHere),
+                    Pages = pages
+                }
+            ];
     }
 
     private IReadOnlyList<DocHomeSectionViewModel> BuildSecondarySections(
@@ -343,16 +368,19 @@ public class DocsController : Controller
     {
         if (snapshot.LandingDoc is not null)
         {
-            var curatedRoutes = ResolveFeaturedPages(snapshot.LandingDoc, docs)
+            var curatedRoutes = _featuredPageResolver.ResolveGroups(snapshot.LandingDoc, docs)
+                .SelectMany(group => group.Pages.Select(page => (Group: group, Page: page)))
                 .Take(maxRoutes)
                 .Select(
-                    page => new DocSectionLinkViewModel
+                    item => new DocSectionLinkViewModel
                     {
-                        Title = page.Title,
-                        Href = page.Href,
-                        Summary = page.SupportingText,
-                        Eyebrow = page.Question,
-                        PageTypeBadge = page.PageTypeBadge
+                        Title = item.Page.Title,
+                        Href = item.Page.Href,
+                        Summary = item.Page.SupportingText,
+                        Eyebrow = string.Equals(item.Group.Label, "Featured", StringComparison.OrdinalIgnoreCase)
+                            ? item.Page.Question
+                            : item.Group.Label,
+                        PageTypeBadge = item.Page.PageTypeBadge
                     })
                 .ToList();
 
@@ -465,11 +493,11 @@ public class DocsController : Controller
         var isSectionLanding = currentSectionSnapshot?.LandingDoc is not null
                                && string.Equals(currentSectionSnapshot.LandingDoc.Path, doc.Path, StringComparison.OrdinalIgnoreCase);
 
-        IReadOnlyList<DocLandingFeaturedPageViewModel> featuredPages = [];
+        IReadOnlyList<DocLandingFeaturedPageGroupViewModel> featuredPageGroups = [];
         IReadOnlyList<DocSectionGroupViewModel> sectionGroups = [];
         if (isSectionLanding && currentSectionSnapshot is not null)
         {
-            featuredPages = ResolveFeaturedPages(doc, docs);
+            featuredPageGroups = _featuredPageResolver.ResolveGroups(doc, docs);
             var remainingPages = currentSectionSnapshot.VisiblePages
                 .Where(item => !string.Equals(item.Path, doc.Path, StringComparison.OrdinalIgnoreCase))
                 .ToList();
@@ -500,85 +528,9 @@ public class DocsController : Controller
             PublicSectionHref = currentSectionSnapshot is null ? null : DocPublicSectionCatalog.GetHref(currentSectionSnapshot.Section),
             PublicSectionPurpose = currentSectionSnapshot is null ? null : DocPublicSectionCatalog.GetPurpose(currentSectionSnapshot.Section),
             IsSectionLanding = isSectionLanding,
-            FeaturedPages = featuredPages,
+            FeaturedPageGroups = featuredPageGroups,
             SectionGroups = sectionGroups
         };
-    }
-
-    private List<DocLandingFeaturedPageViewModel> ResolveFeaturedPages(DocNode? landingDoc, IReadOnlyList<DocNode> docs)
-    {
-        if (landingDoc?.Metadata?.FeaturedPages is not { Count: > 0 } featuredDefinitions)
-        {
-            return [];
-        }
-
-        var lookup = BuildDocLookup(docs);
-        var resolvedCards = new List<DocLandingFeaturedPageViewModel>();
-        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (definition, _) in featuredDefinitions
-                     .Select((definition, index) => (definition, index))
-                     .OrderBy(item => item.definition.Order ?? int.MaxValue)
-                     .ThenBy(item => item.index))
-        {
-            if (string.IsNullOrWhiteSpace(definition.Path))
-            {
-                _logger.LogWarning(
-                    "Skipping featured docs landing entry on {LandingPath} because it has no destination path.",
-                    landingDoc.Path);
-                continue;
-            }
-
-            var destination = ResolveDocByPath(definition.Path!, lookup);
-            if (destination is null)
-            {
-                _logger.LogWarning(
-                    "Skipping featured docs landing entry '{FeaturedPath}' on {LandingPath} because the destination page could not be resolved.",
-                    definition.Path,
-                    landingDoc.Path);
-                continue;
-            }
-
-            if (destination.Metadata?.HideFromPublicNav == true)
-            {
-                _logger.LogWarning(
-                    "Skipping featured docs landing entry '{FeaturedPath}' on {LandingPath} because the destination page is hidden from public navigation.",
-                    definition.Path,
-                    landingDoc.Path);
-                continue;
-            }
-
-            var destinationLinkPath = GetSnapshotCanonicalPath(destination);
-            if (!seenPaths.Add(destinationLinkPath))
-            {
-                _logger.LogWarning(
-                    "Skipping duplicate featured docs landing entry '{FeaturedPath}' on {LandingPath} because its destination is already featured.",
-                    definition.Path,
-                    landingDoc.Path);
-                continue;
-            }
-
-            var destinationTitle = string.IsNullOrWhiteSpace(destination.Metadata?.Title)
-                ? destination.Title
-                : destination.Metadata!.Title!.Trim();
-            var question = string.IsNullOrWhiteSpace(definition.Question)
-                ? destinationTitle
-                : definition.Question.Trim();
-            var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(destination.Metadata?.PageType);
-
-            resolvedCards.Add(
-                new DocLandingFeaturedPageViewModel
-                {
-                    Question = question,
-                    Title = destinationTitle,
-                    Href = $"/docs/{destinationLinkPath}",
-                    PageType = destination.Metadata?.PageType,
-                    PageTypeBadge = pageTypeBadge,
-                    SupportingText = GetSupportingText(definition, destination)
-                });
-        }
-
-        return resolvedCards;
     }
 
     private static IReadOnlyList<DocBreadcrumbViewModel> BuildBreadcrumbs(
@@ -705,12 +657,14 @@ public class DocsController : Controller
 
     private static DocSectionLinkViewModel CreateSectionLink(DocNode doc)
     {
+        var metadata = doc.Metadata;
+        var summary = metadata?.Summary;
         return new DocSectionLinkViewModel
         {
             Title = ResolveDisplayTitle(doc),
             Href = $"/docs/{GetSnapshotCanonicalPath(doc)}",
-            Summary = string.IsNullOrWhiteSpace(doc.Metadata?.Summary) ? null : doc.Metadata!.Summary!.Trim(),
-            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType)
+            Summary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim(),
+            PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType)
         };
     }
 
@@ -735,75 +689,6 @@ public class DocsController : Controller
 
         section = default;
         return false;
-    }
-
-    private sealed class DocLookupBucket
-    {
-        public List<DocNode> OrderedDocs { get; } = [];
-
-        public HashSet<DocNode> SeenDocs { get; } = [];
-    }
-
-    private static Dictionary<string, DocLookupBucket> BuildDocLookup(IEnumerable<DocNode> docs)
-    {
-        var lookup = new Dictionary<string, DocLookupBucket>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var doc in docs)
-        {
-            AddLookupEntry(lookup, NormalizeLookupPath(doc.Path), doc);
-            AddLookupEntry(lookup, NormalizeLookupPath(GetSnapshotCanonicalPath(doc)), doc);
-        }
-
-        return lookup;
-    }
-
-    private static void AddLookupEntry(Dictionary<string, DocLookupBucket> lookup, string key, DocNode doc)
-    {
-        if (!lookup.TryGetValue(key, out var bucket))
-        {
-            bucket = new DocLookupBucket();
-            lookup[key] = bucket;
-        }
-
-        if (bucket.SeenDocs.Add(doc))
-        {
-            bucket.OrderedDocs.Add(doc);
-        }
-    }
-
-    private static DocNode? ResolveDocByPath(
-        string path,
-        IReadOnlyDictionary<string, DocLookupBucket> lookup)
-    {
-        var lookupPath = NormalizeLookupPath(path);
-        var lookupCanonicalPath = NormalizeCanonicalPath(path);
-
-        if (!lookup.TryGetValue(lookupPath, out var bucket) || bucket.OrderedDocs.Count == 0)
-        {
-            return null;
-        }
-
-        var candidates = bucket.OrderedDocs;
-
-        var exactCanonicalMatch = candidates.FirstOrDefault(
-            doc => string.Equals(
-                       NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
-                       lookupCanonicalPath,
-                       StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(
-                       NormalizeCanonicalPath(doc.Path),
-                       lookupCanonicalPath,
-                       StringComparison.OrdinalIgnoreCase));
-        if (exactCanonicalMatch is not null)
-        {
-            return exactCanonicalMatch;
-        }
-
-        return candidates
-            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
-            .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
-            .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
     }
 
     private static SearchPageViewModel BuildSearchPageViewModel(IReadOnlyList<DocNode> docs)
@@ -908,52 +793,11 @@ public class DocsController : Controller
             .FirstOrDefault();
     }
 
-    private static string NormalizeLookupPath(string path)
-    {
-        var sanitized = path.Trim().Replace('\\', '/').Trim('/');
-        var hashIndex = sanitized.IndexOf('#');
-        if (hashIndex >= 0)
-        {
-            sanitized = sanitized[..hashIndex];
-        }
-
-        return sanitized;
-    }
-
-    private static string NormalizeCanonicalPath(string path)
-    {
-        return path.Trim().Replace('\\', '/').Trim('/');
-    }
-
     private static string GetSnapshotCanonicalPath(DocNode doc)
     {
         return doc.CanonicalPath
                ?? throw new InvalidOperationException(
                    $"DocsController requires snapshot canonical paths. Doc '{doc.Path}' was missing CanonicalPath.");
-    }
-
-    private static string? GetFragment(string path)
-    {
-        var canonical = NormalizeCanonicalPath(path);
-        var hashIndex = canonical.IndexOf('#');
-        if (hashIndex < 0 || hashIndex == canonical.Length - 1)
-        {
-            return null;
-        }
-
-        return canonical[(hashIndex + 1)..];
-    }
-
-    private static string? GetSupportingText(DocFeaturedPageDefinition definition, DocNode destination)
-    {
-        if (!string.IsNullOrWhiteSpace(definition.SupportingCopy))
-        {
-            return definition.SupportingCopy.Trim();
-        }
-
-        return string.IsNullOrWhiteSpace(destination.Metadata?.Summary)
-            ? null
-            : destination.Metadata!.Summary!.Trim();
     }
 
     private static string GetCuratedHeading(DocNode landingDoc)

@@ -31,17 +31,22 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 | Surface | Default | Why | Real examples | Exception / note |
 | --- | --- | --- | --- | --- |
 | One-off owned package chrome in Razor views | Prefer Tailwind utility classes in markup | RazorDocs fully owns the markup, so local utility classes keep intent obvious where the change happens | docs landing shell in `Views/Docs/Index.cshtml`, sidebar shell and layout framing in `Views/Shared/_Layout.cshtml`, one-off page header spacing in `Views/Docs/Details.cshtml` | If the same styling contract repeats across package surfaces, promote it to a semantic component class instead of copying long utility strings |
-| Reusable owned package components or stable cross-file UI selectors | Use semantic component classes | Shared selectors keep repeated UI stable across Razor, CSS, and sometimes JavaScript | `docs-page-badge`, `docs-metadata-chip`, `docs-search-page`, `docs-search-page-filters-toggle`, `docs-search-page-active-filters` | Utilities can still handle surrounding layout and one-off placement |
-| Harvested or generated document bodies that RazorDocs does not fully author element by element | Use wrapper-scoped semantic CSS such as `.docs-content ...` | RazorDocs cannot safely push utility classes into nested harvested HTML | headings, paragraphs, code blocks, overload groups, and namespace sections inside `.docs-content` in `Views/Docs/Details.cshtml` and `wwwroot/css/app.css` | Do not rewrite harvested nested HTML just to satisfy utility-class purity |
+| Reusable owned package components or stable cross-file UI selectors | Use semantic component classes in the shared package stylesheet | Shared selectors keep repeated UI stable across Razor, CSS, and sometimes JavaScript | `docs-page-badge`, `docs-metadata-chip`, `docs-page-meta`, `docs-provenance-strip`, `docs-trust-bar` in `wwwroot/css/app.css` | Utilities can still handle surrounding layout and one-off placement |
+| Harvested or generated document bodies that RazorDocs does not fully author element by element | Use wrapper-scoped semantic CSS such as `.docs-content ...` in the shared package stylesheet | RazorDocs cannot safely push utility classes into nested harvested HTML | headings, paragraphs, code blocks, overload groups, and namespace sections inside `.docs-content` in `Views/Docs/Details.cshtml` and `wwwroot/css/app.css` | Do not rewrite harvested nested HTML just to satisfy utility-class purity |
 | JavaScript-generated or stateful UI that needs CSS and JavaScript to share stable hooks | Use semantic hook classes, then style them in CSS | Runtime UI needs stable names both the stylesheet and script can rely on | search result rows, filter chips, active-filter pills, and state containers in `wwwroot/docs/search.css` and `wwwroot/docs/search-client.js` | Use `id` values where uniqueness or ARIA wiring require them, but keep reusable styling and state contracts on semantic classes |
 
 ### Common Calls
 
 - New one-off page header spacing or typography in owned Razor markup: use Tailwind utilities in the view.
-- New reusable badge, metadata chip, or shared search workspace shell element: add or extend a semantic component class, then use utilities around it only when they are purely local.
+- New reusable badge, metadata chip, page metadata row, or trust/provenance surface: add or extend a semantic component class in `wwwroot/css/app.css`, then use utilities around it only when they are purely local.
 - For `Views/Docs/Search.cshtml`, keep the stateful search container or interactive hook semantic, but use local utilities for one-off header copy, helper layout, and fallback-link chrome inside that view.
 - Restyling paragraphs, headings, or code blocks inside `.docs-content`: update wrapper-scoped CSS instead of pushing utility classes into harvested HTML.
 - New search filter pill, active-filter surface, or other stateful search UI: use a semantic hook class because CSS and JavaScript both need to recognize it.
+
+### Stylesheet Responsibilities
+
+- `wwwroot/css/app.css` is the Tailwind entry point for the generated package stylesheet (`site.gen.css`). It owns shared RazorDocs component primitives and wrapper-scoped document body styling because the generated stylesheet is loaded on every docs page before any search-specific assets.
+- `wwwroot/docs/search.css` owns the search shell, interactive search controls, JavaScript-rendered result states, empty/failure states, and search skeletons. It should not define shared page badges, metadata chips, provenance strips, trust bars, or other primitives required by non-search docs pages.
 
 ### Terms
 
@@ -55,6 +60,7 @@ This section is the normative source of truth for the boundary. `DESIGN.md` expl
 - Do not treat required `id` values, such as `docs-search-page-input` or `docs-search-page-filters-panel`, as the reusable styling contract. They exist for uniqueness, targeting, and ARIA relationships.
 - Do not assume every child inside a semantic search container needs its own semantic class; local typography and spacing inside one view can still stay inline.
 - Do not add semantic classes to static package chrome when plain utilities are clearer and the styling is truly local.
+- Do not place non-search primitives in `wwwroot/docs/search.css` just because the layout loads search assets globally today. Use `wwwroot/css/app.css` for shared components so future theming can target one stable package layer.
 
 ## Configuration
 

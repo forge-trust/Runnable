@@ -64,6 +64,8 @@ Use this order when deciding where a new style belongs:
 
 Classes such as `docs-page-badge` and `docs-metadata-chip` are not a failure of utility-first styling. They are the right tool when a repeated package component needs one stable contract across multiple views and stylesheets.
 
+Shared reusable primitives belong in the Tailwind entry stylesheet at `wwwroot/css/app.css`, which generates the package stylesheet loaded on every RazorDocs page. Search-specific state and result styling belongs in `wwwroot/docs/search.css`; do not make non-search pages depend on search assets for badges, metadata chips, or trust/provenance chrome.
+
 #### Search workspace hooks
 
 The search workspace renders semantic classes such as `docs-search-page`, `docs-search-page-filters-toggle`, and `docs-search-page-active-filters` directly in Razor, then extends those hooks in CSS and JavaScript. That is intentional. Shared hooks keep stateful UI readable and stable.

@@ -522,7 +522,7 @@
         }
 
         start() {
-            if ((this.config.failureMode || 'auto').toLowerCase() !== 'off') {
+            if (this.config.failureUxEnabled !== false && (this.config.failureMode || 'auto').toLowerCase() !== 'off') {
                 this.injectStyles();
             }
 
@@ -659,6 +659,7 @@
 
         isRazorWireForm(form) {
             return form instanceof HTMLFormElement
+                && this.config.failureUxEnabled !== false
                 && form.getAttribute('data-rw-form') === 'true'
                 && this.getMode(form) !== 'off';
         }
@@ -927,6 +928,9 @@
 
         return {
             developmentDiagnostics: dataset.rwDevelopmentDiagnostics === 'true',
+            failureUxEnabled: dataset.rwFormFailureEnabled === undefined
+                ? (dataset.rwFormFailureMode || 'auto').toLowerCase() !== 'off'
+                : dataset.rwFormFailureEnabled !== 'false',
             failureMode: dataset.rwFormFailureMode || 'auto',
             defaultFailureMessage: dataset.rwDefaultFailureMessage || 'We could not submit this form. Check your input and try again.'
         };

@@ -118,14 +118,14 @@ services.AddRazorWire(options =>
 });
 ```
 
-- `EnableFailureUx` disables all failed-form request markers, events, fallback rendering, and anti-forgery rewriting when set to `false`.
+- `EnableFailureUx` disables all failed-form request markers, events, fallback rendering, runtime handling, and anti-forgery rewriting when set to `false`.
 - `FailureMode.Auto` renders the default fallback UI for unhandled failures.
 - `FailureMode.Manual` dispatches failure events but does not render fallback UI.
 - `FailureMode.Off` disables the failure convention by default.
 - `EnableDevelopmentDiagnostics` controls detailed diagnostics in development only.
 - `DefaultFailureMessage` is the generic fallback message for unhandled client-rendered failures.
 
-Per-form `data-rw-form-failure="auto"`, `manual`, or `off` overrides the global failure mode.
+When `EnableFailureUx` is `true`, per-form `data-rw-form-failure="auto"`, `manual`, or `off` overrides the global failure mode.
 
 ## Server API
 

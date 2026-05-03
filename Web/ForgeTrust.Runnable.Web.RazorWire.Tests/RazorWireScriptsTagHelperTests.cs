@@ -96,6 +96,7 @@ public class RazorWireScriptsTagHelperTests
         // Assert
         var content = _output.Content.GetContent();
         Assert.Contains("data-rw-development-diagnostics=\"true\"", content);
+        Assert.Contains("data-rw-form-failure-enabled=\"true\"", content);
         Assert.Contains("data-rw-form-failure-mode=\"auto\"", content);
         Assert.Contains("data-rw-default-failure-message=\"Custom failure\"", content);
     }
@@ -122,6 +123,7 @@ public class RazorWireScriptsTagHelperTests
         // Assert
         var content = _output.Content.GetContent();
         Assert.Contains("data-rw-development-diagnostics=\"false\"", content);
+        Assert.Contains("data-rw-form-failure-enabled=\"false\"", content);
         Assert.Contains("data-rw-form-failure-mode=\"off\"", content);
     }
 

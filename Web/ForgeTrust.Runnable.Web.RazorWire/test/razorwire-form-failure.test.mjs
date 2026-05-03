@@ -10,6 +10,7 @@ test('runtime merges config and exposes formFailureManager', () => {
 
   assert.equal(context.window.RazorWire.config.existing, true);
   assert.equal(context.window.RazorWire.config.developmentDiagnostics, true);
+  assert.equal(context.window.RazorWire.config.failureUxEnabled, true);
   assert.equal(context.window.RazorWire.config.failureMode, 'auto');
   assert.ok(context.window.RazorWire.formFailureManager);
   assert.equal(document.head.querySelectorAll('#rw-form-failure-default-styles').length, 1);
@@ -142,8 +143,45 @@ test('handled failures clear generated fallback instead of duplicating server UI
   assert.equal(form.getAttribute('data-rw-submit-status'), 'failed');
 });
 
-function loadRuntime() {
-  const document = new FakeDocument();
+test('global disabled failure UX ignores stale form-level auto markup', () => {
+  const { document } = loadRuntime({ formFailureEnabled: 'false', failureMode: 'off' });
+  const form = new FakeForm();
+  form.setAttribute('data-rw-form', 'true');
+  form.setAttribute('data-rw-form-failure', 'auto');
+  const button = new FakeElement('button');
+  form.appendChild(button);
+  document.body.appendChild(form);
+
+  const beforeFetch = {
+    type: 'turbo:before-fetch-request',
+    target: form,
+    detail: { fetchOptions: { headers: {} } }
+  };
+  document.dispatchEvent(beforeFetch);
+  document.dispatchEvent({
+    type: 'turbo:submit-start',
+    target: form,
+    detail: { formSubmission: { submitter: button } }
+  });
+
+  assert.equal(beforeFetch.detail.fetchOptions.headers['X-RazorWire-Form'], undefined);
+  assert.equal(form.hasAttribute('data-rw-submitting'), false);
+  assert.equal(button.disabled, false);
+  assert.equal(document.head.querySelectorAll('#rw-form-failure-default-styles').length, 0);
+});
+
+test('legacy runtime mode off also disables stale form-level auto markup', () => {
+  const { context } = loadRuntime({ omitFormFailureEnabled: true, failureMode: 'off' });
+  const form = new FakeForm();
+  form.setAttribute('data-rw-form', 'true');
+  form.setAttribute('data-rw-form-failure', 'auto');
+
+  assert.equal(context.window.RazorWire.config.failureUxEnabled, false);
+  assert.equal(context.window.RazorWire.formFailureManager.isRazorWireForm(form), false);
+});
+
+function loadRuntime(runtimeOptions = {}) {
+  const document = new FakeDocument(runtimeOptions);
   const window = {
     RazorWireInitialized: false,
     RazorWire: { config: { existing: true } },
@@ -339,7 +377,7 @@ class FakeForm extends FakeElement {
 }
 
 class FakeDocument {
-  constructor() {
+  constructor(runtimeOptions = {}) {
     this.readyState = 'complete';
     this.listeners = new Map();
     this.head = new FakeElement('head');
@@ -347,9 +385,12 @@ class FakeDocument {
     this.activeElement = null;
     this.currentScript = new FakeElement('script');
     this.currentScript.setAttribute('src', '/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js');
-    this.currentScript.setAttribute('data-rw-development-diagnostics', 'true');
-    this.currentScript.setAttribute('data-rw-form-failure-mode', 'auto');
-    this.currentScript.setAttribute('data-rw-default-failure-message', 'Default failure');
+    this.currentScript.setAttribute('data-rw-development-diagnostics', runtimeOptions.developmentDiagnostics ?? 'true');
+    if (!runtimeOptions.omitFormFailureEnabled) {
+      this.currentScript.setAttribute('data-rw-form-failure-enabled', runtimeOptions.formFailureEnabled ?? 'true');
+    }
+    this.currentScript.setAttribute('data-rw-form-failure-mode', runtimeOptions.failureMode ?? 'auto');
+    this.currentScript.setAttribute('data-rw-default-failure-message', runtimeOptions.defaultFailureMessage ?? 'Default failure');
   }
 
   addEventListener(type, listener) {

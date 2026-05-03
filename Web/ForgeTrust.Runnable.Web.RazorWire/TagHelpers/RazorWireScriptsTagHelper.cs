@@ -64,13 +64,14 @@ public class RazorWireScriptsTagHelper : TagHelper
         var failureMode = _options.Forms.EnableFailureUx
             ? _options.Forms.FailureMode.ToString().ToLowerInvariant()
             : "off";
+        var failureUxEnabled = _options.Forms.EnableFailureUx.ToString().ToLowerInvariant();
         var defaultFailureMessage = HtmlEncoder.Default.Encode(_options.Forms.DefaultFailureMessage);
 
         // This includes Turbo.js and the custom RazorWire island loader.
         output.Content.SetHtmlContent(
             $@"
 <script src=""https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-umd.js"" integrity=""sha256-1evN/OxCRDJtuVCzQ3gklVq8LzN6qhCm7x/sbawknOk="" crossorigin=""anonymous""></script>
-<script src=""{razorwireJs}"" data-rw-development-diagnostics=""{diagnosticsEnabled.ToString().ToLowerInvariant()}"" data-rw-form-failure-mode=""{failureMode}"" data-rw-default-failure-message=""{defaultFailureMessage}""></script>
+<script src=""{razorwireJs}"" data-rw-development-diagnostics=""{diagnosticsEnabled.ToString().ToLowerInvariant()}"" data-rw-form-failure-enabled=""{failureUxEnabled}"" data-rw-form-failure-mode=""{failureMode}"" data-rw-default-failure-message=""{defaultFailureMessage}""></script>
 <script src=""{islandsJs}""></script>
 ");
     }

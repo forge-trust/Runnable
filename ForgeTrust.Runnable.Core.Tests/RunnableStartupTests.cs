@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -29,6 +30,8 @@ public class RunnableStartupTests
     {
         var context = new StartupContext([], new RootModule(), "CustomApp");
         var startup = new TestStartup();
+        var expectedHostApplicationName = Assembly.GetEntryAssembly()?.GetName().Name
+            ?? typeof(RootModule).Assembly.GetName().Name;
 
         var hostBuilder = ((IRunnableStartup)startup).CreateHostBuilder(context);
         using var host = hostBuilder.Build();
@@ -36,7 +39,7 @@ public class RunnableStartupTests
         var env = host.Services.GetRequiredService<IHostEnvironment>();
         var config = host.Services.GetRequiredService<IConfiguration>();
         Assert.Equal("CustomApp", context.ApplicationName);
-        Assert.Equal(typeof(RootModule).Assembly.GetName().Name, context.HostApplicationName);
+        Assert.Equal(expectedHostApplicationName, context.HostApplicationName);
         Assert.Equal(context.HostApplicationName, env.ApplicationName);
         Assert.Equal(context.HostApplicationName, config[HostDefaults.ApplicationKey]);
     }

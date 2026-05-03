@@ -12,7 +12,7 @@ The Core library is designed to be lightweight and implementation-agnostic. It p
 ## Key Concepts
 
 - **`IRunnableModule`**: The base interface for any unit of functionality that needs to register services or configure the application.
-- **`StartupContext`**: Provides metadata about the running application, including the user-facing application label, assembly-backed host identity, environment, entry point assembly, and startup-level console output mode.
+- **`StartupContext`**: Provides metadata about the running application, including the user-facing application label, assembly-backed host identity, application discovery assembly, environment, and startup-level console output mode.
 - **`ConsoleOutputMode`**: Shared core enum that lets console-oriented packages describe whether command output should remain host-centric or command-first.
 - **`RunnableStartup`**: The base class that orchestrates the host building and service registration process.
 
@@ -20,7 +20,9 @@ The Core library is designed to be lightweight and implementation-agnostic. It p
 
 `StartupContext.ApplicationName` is a display label. Use it for generated documentation titles, command output, OpenAPI branding, and other user-facing product surfaces.
 
-`StartupContext.HostApplicationName` is the assembly-backed identity assigned to `IHostEnvironment.ApplicationName` and the Generic Host `applicationName` setting. It defaults to the root module assembly name. When `StartupContext.OverrideEntryPointAssembly` is set, it uses that override assembly name instead.
+`StartupContext.HostApplicationName` is the assembly-backed identity assigned to `IHostEnvironment.ApplicationName` and the Generic Host `applicationName` setting. It defaults to the process entry assembly when one is available so cross-assembly hosts still resolve the correct static web asset manifest. When `StartupContext.OverrideEntryPointAssembly` is set, it uses that override assembly name instead. If no entry assembly is available, Runnable falls back to the root module assembly as a defensive last resort.
+
+`StartupContext.EntryPointAssembly` is the assembly Runnable scans for application-owned commands, MVC application parts, Aspire components, and similar extensibility points. It defaults to the root module assembly so test runners and shared outer hosts do not accidentally scan the xUnit/VSTest process entry assembly. When `StartupContext.OverrideEntryPointAssembly` is set, that override applies to both discovery and host manifest identity.
 
 Keep these values separate. ASP.NET static web assets use the host application name to find runtime manifests. Passing a custom display label such as `CustomDocsHost` into the host environment can make static asset requests resolve against a manifest that does not exist. When a test or custom host needs a different manifest identity, set `StartupContext.OverrideEntryPointAssembly` instead of overloading `ApplicationName`.
 

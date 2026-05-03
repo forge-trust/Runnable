@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Text.Json;
 using FakeItEasy;
 using ForgeTrust.Runnable.Core;
@@ -41,7 +42,7 @@ public class RazorDocsWebModuleRegressionTests
     {
         var module = new RazorDocsWebModule();
         var startup = new TestRazorDocsStartup(module);
-        var context = new StartupContext([], module);
+        var context = CreatePackagedModuleStartupContext(module);
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
 
         builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
@@ -81,7 +82,7 @@ public class RazorDocsWebModuleRegressionTests
     {
         var module = new RazorDocsWebModule();
         var startup = new TestRazorDocsStartup(module);
-        var context = new StartupContext([], module);
+        var context = CreatePackagedModuleStartupContext(module);
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
 
         builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
@@ -116,11 +117,41 @@ public class RazorDocsWebModuleRegressionTests
     }
 
     [Fact]
-    public async Task ConfigureWebOptions_Issue130_ServesRootStylesheet_WhenApplicationNameIsCustomized()
+    public Task ConfigureWebOptions_Issue130_UsesProcessEntryAssemblyForHostIdentity_WhenRootModuleAssemblyDiffers()
     {
         var module = new RazorDocsWebModule();
         var startup = new TestRazorDocsStartup(module);
         var context = new StartupContext([], module, "CustomDocsHost");
+        var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        var expectedHostApplicationName = Assembly.GetEntryAssembly()?.GetName().Name
+            ?? typeof(RazorDocsWebModule).Assembly.GetName().Name;
+
+        builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
+
+        using var host = builder.Build();
+
+        var environment = host.Services.GetRequiredService<IHostEnvironment>();
+
+        Assert.Equal(expectedHostApplicationName, environment.ApplicationName);
+
+        if (!string.Equals(expectedHostApplicationName, typeof(RazorDocsWebModule).Assembly.GetName().Name, StringComparison.Ordinal))
+        {
+            Assert.NotEqual(typeof(RazorDocsWebModule).Assembly.GetName().Name, environment.ApplicationName);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task ConfigureWebOptions_Issue130_ServesRootStylesheet_WhenApplicationNameIsCustomized()
+    {
+        var module = new RazorDocsWebModule();
+        var startup = new TestRazorDocsStartup(module);
+        var hostAssembly = typeof(RazorDocsWebModule).Assembly;
+        var context = new StartupContext([], module, "CustomDocsHost")
+        {
+            OverrideEntryPointAssembly = hostAssembly
+        };
         var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
 
         builder.ConfigureWebHost(webHost => webHost.UseUrls("http://127.0.0.1:0"));
@@ -131,6 +162,7 @@ public class RazorDocsWebModuleRegressionTests
         try
         {
             var server = host.Services.GetRequiredService<IServer>();
+            var environment = host.Services.GetRequiredService<IHostEnvironment>();
             var addresses = server.Features.Get<IServerAddressesFeature>();
             var baseAddress = Assert.Single(addresses!.Addresses);
 
@@ -138,6 +170,8 @@ public class RazorDocsWebModuleRegressionTests
             {
                 BaseAddress = new Uri(baseAddress)
             };
+
+            Assert.Equal(hostAssembly.GetName().Name, environment.ApplicationName);
 
             using var docsResponse = await client.GetAsync("/docs");
             var html = await docsResponse.Content.ReadAsStringAsync();
@@ -204,7 +238,7 @@ public class RazorDocsWebModuleRegressionTests
 
             var module = new RazorDocsWebModule();
             var startup = new TestRazorDocsStartup(module);
-            var context = new StartupContext([], module);
+            var context = CreatePackagedModuleStartupContext(module);
             var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
 
             builder.ConfigureAppConfiguration(
@@ -637,7 +671,7 @@ public class RazorDocsWebModuleRegressionTests
 
             var module = new RazorDocsWebModule();
             var startup = new TestRazorDocsStartup(module);
-            var context = new StartupContext([], module);
+            var context = CreatePackagedModuleStartupContext(module);
             var builder = ((IRunnableStartup)startup).CreateHostBuilder(context);
 
             builder.ConfigureAppConfiguration(
@@ -956,6 +990,16 @@ public class RazorDocsWebModuleRegressionTests
         var rootModule = A.Fake<IRunnableHostModule>();
         var environmentProvider = A.Fake<IEnvironmentProvider>();
         return new StartupContext(Array.Empty<string>(), rootModule, "TestApp", environmentProvider);
+    }
+
+    private static StartupContext CreatePackagedModuleStartupContext(
+        RazorDocsWebModule module,
+        string? applicationName = null)
+    {
+        return new StartupContext([], module, applicationName)
+        {
+            OverrideEntryPointAssembly = typeof(RazorDocsWebModule).Assembly
+        };
     }
 
     private static string CreatePublishedExactTree(string parentDirectory, string version)

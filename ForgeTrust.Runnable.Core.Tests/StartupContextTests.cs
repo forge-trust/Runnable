@@ -35,6 +35,14 @@ public class StartupContextTests
         Assert.Equal(ConsoleOutputMode.CommandFirst, context.ConsoleOutputMode);
     }
 
+    [Theory]
+    [InlineData(ConsoleOutputMode.Default, 0)]
+    [InlineData(ConsoleOutputMode.CommandFirst, 1)]
+    public void ConsoleOutputMode_NumericValues_AreStable(ConsoleOutputMode value, int expected)
+    {
+        Assert.Equal(expected, (int)value);
+    }
+
     [Fact]
     public void ApplicationName_DefaultsToRootModuleAssemblyName()
     {

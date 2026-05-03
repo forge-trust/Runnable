@@ -26,25 +26,29 @@ public record MvcOptions
 /// <summary>
 /// Specifies the level of MVC feature support to enable in the web application.
 /// </summary>
+/// <remarks>
+/// The numeric values are explicit because this public enum may be persisted, serialized, or bound by
+/// applications. New values should be appended without changing the values documented here.
+/// </remarks>
 public enum MvcSupport
 {
     /// <summary>
     /// No MVC services are registered.
     /// </summary>
-    None,
+    None = 0,
 
     /// <summary>
     /// Only basic controller support (without views) is registered via <c>AddControllers()</c>.
     /// </summary>
-    Controllers,
+    Controllers = 1,
 
     /// <summary>
     /// Controller and Razor View support is registered via <c>AddControllersWithViews()</c>.
     /// </summary>
-    ControllersWithViews,
+    ControllersWithViews = 2,
 
     /// <summary>
     /// Full MVC support, including Pages and other features, is registered via <c>AddMvc()</c>.
     /// </summary>
-    Full
+    Full = 3
 }

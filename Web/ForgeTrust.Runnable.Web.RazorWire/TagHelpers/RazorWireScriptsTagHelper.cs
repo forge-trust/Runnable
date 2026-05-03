@@ -61,7 +61,9 @@ public class RazorWireScriptsTagHelper : TagHelper
         var diagnosticsEnabled = _options.Forms.EnableFailureUx
                                  && _options.Forms.EnableDevelopmentDiagnostics
                                  && _environment?.IsDevelopment() == true;
-        var failureMode = _options.Forms.FailureMode.ToString().ToLowerInvariant();
+        var failureMode = _options.Forms.EnableFailureUx
+            ? _options.Forms.FailureMode.ToString().ToLowerInvariant()
+            : "off";
         var defaultFailureMessage = HtmlEncoder.Default.Encode(_options.Forms.DefaultFailureMessage);
 
         // This includes Turbo.js and the custom RazorWire island loader.

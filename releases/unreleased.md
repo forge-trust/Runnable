@@ -42,6 +42,10 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - RazorWire CLI process cleanup now waits for asynchronous stdout and stderr callbacks to flush before disposing launched target processes, which keeps short-lived command output observable in tests and diagnostics.
 - PackageIndex now has a real `--help`/`-h` surface that exits successfully, describes its commands and options, and reports unknown commands before printing usage.
 
+### Core diagnostics
+
+- Core static utilities now use explicit `ILogger` overloads and source-generated `[LoggerMessage]` definitions for host-owned diagnostics. `PathUtils.FindRepositoryRoot` can warn when discovery falls back from a missing path, and parallel enumerable cleanup paths now log suppressed cleanup failures at `Debug` when a caller supplies a logger.
+
 ### Dependency maintenance
 
 - The centrally managed `YamlDotNet` dependency now targets `17.0.1`, and the affected PackageIndex, RazorDocs, and Aspire lock files have been regenerated.

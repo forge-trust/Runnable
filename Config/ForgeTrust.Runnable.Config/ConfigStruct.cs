@@ -38,5 +38,10 @@ public class ConfigStruct<T> : IConfig
         Value = rawValue ?? DefaultValue;
         IsDefaultValue = rawValue == null || Equals(Value, DefaultValue);
         HasValue = Value != null;
+        ConfigDataAnnotationsValidator.Validate(
+            key,
+            GetType(),
+            typeof(T),
+            Value);
     }
 }

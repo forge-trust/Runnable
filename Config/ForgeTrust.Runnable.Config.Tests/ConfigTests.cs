@@ -1,5 +1,7 @@
+using System.ComponentModel.DataAnnotations;
 using FakeItEasy;
 using ForgeTrust.Runnable.Core;
+using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Config.Tests;
 
@@ -13,6 +15,143 @@ public class ConfigTests
     private sealed class TestStructConfig : ConfigStruct<int>
     {
         public override int? DefaultValue => 42;
+    }
+
+    private sealed class AnnotatedOptions
+    {
+        [Required]
+        public string? Name { get; init; }
+
+        [Range(1, 5)]
+        public int RetryCount { get; init; }
+    }
+
+    private sealed class AnnotatedOptionsConfig : Config<AnnotatedOptions>
+    {
+    }
+
+    private sealed class DefaultAnnotatedOptionsConfig : Config<AnnotatedOptions>
+    {
+        public override AnnotatedOptions DefaultValue { get; } = new()
+        {
+            Name = "default",
+            RetryCount = 0
+        };
+    }
+
+    private sealed class ValidatableOptions : IValidatableObject
+    {
+        public bool Invalid { get; init; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (Invalid)
+            {
+                yield return new ValidationResult("Object is invalid.");
+            }
+        }
+    }
+
+    private sealed class MultiMemberValidatableOptions : IValidatableObject
+    {
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            yield return new ValidationResult("Both values are invalid.", ["Second", "First"]);
+        }
+    }
+
+    private sealed class ShortCircuitOptions : IValidatableObject
+    {
+        public static bool ObjectValidationRan { get; set; }
+
+        [Required]
+        public string? Name { get; init; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            ObjectValidationRan = true;
+            yield return new ValidationResult("Object validation ran.");
+        }
+    }
+
+    private sealed class ValidatableOptionsConfig : Config<ValidatableOptions>
+    {
+    }
+
+    private sealed class MultiMemberValidatableOptionsConfig : Config<MultiMemberValidatableOptions>
+    {
+    }
+
+    private sealed class ShortCircuitOptionsConfig : Config<ShortCircuitOptions>
+    {
+    }
+
+    private sealed class NestedOptions
+    {
+        [Required]
+        public string? Host { get; init; }
+    }
+
+    private sealed class EndpointOptions
+    {
+        [Required]
+        public string? Url { get; init; }
+    }
+
+    private sealed class RecursiveOptions
+    {
+        [ValidateObjectMembers]
+        public NestedOptions? Database { get; init; }
+
+        [ValidateEnumeratedItems]
+        public List<EndpointOptions?> Endpoints { get; init; } = [];
+    }
+
+    private sealed class NonRecursiveOptions
+    {
+        public NestedOptions? Database { get; init; }
+
+        public List<EndpointOptions?> Endpoints { get; init; } = [];
+    }
+
+    private sealed class OptionsWithUnmarkedThrowingGetter
+    {
+        [Required]
+        public string? Name { get; init; }
+
+        public NestedOptions Database => throw new InvalidOperationException("Getter should not run.");
+    }
+
+    private sealed class RecursiveOptionsConfig : Config<RecursiveOptions>
+    {
+    }
+
+    private sealed class NonRecursiveOptionsConfig : Config<NonRecursiveOptions>
+    {
+    }
+
+    private sealed class OptionsWithUnmarkedThrowingGetterConfig : Config<OptionsWithUnmarkedThrowingGetter>
+    {
+    }
+
+    private sealed class CyclicOptions
+    {
+        [ValidateObjectMembers]
+        public CyclicOptions? Next { get; set; }
+    }
+
+    private sealed class CyclicOptionsConfig : Config<CyclicOptions>
+    {
+    }
+
+    private sealed class UnsupportedValidatorOptions
+    {
+        [ValidateObjectMembers(typeof(object))]
+        public NestedOptions Child { get; init; } = new();
+    }
+
+    private sealed class UnsupportedValidatorOptionsConfig : Config<UnsupportedValidatorOptions>
+    {
     }
 
     [Fact]
@@ -138,5 +277,199 @@ public class ConfigTests
         Assert.True(config.HasValue);
         Assert.True(config.IsDefaultValue);
         Assert.Equal(42, config.Value);
+    }
+
+    [Fact]
+    public void Init_WithValidAnnotatedObject_PopulatesValue()
+    {
+        var config = new AnnotatedOptionsConfig();
+        var value = new AnnotatedOptions
+        {
+            Name = "payments",
+            RetryCount = 3
+        };
+
+        Init(config, value);
+
+        Assert.True(config.HasValue);
+        Assert.False(config.IsDefaultValue);
+        Assert.Same(value, config.Value);
+    }
+
+    [Fact]
+    public void Init_WithInvalidAnnotatedObject_ThrowsStructuredValidationException()
+    {
+        var config = new AnnotatedOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, new AnnotatedOptions { RetryCount = 7 }));
+
+        Assert.Equal("App.Settings", exception.Key);
+        Assert.Equal(typeof(AnnotatedOptionsConfig), exception.ConfigType);
+        Assert.Equal(typeof(AnnotatedOptions), exception.ValueType);
+        Assert.Equal(2, exception.Failures.Count);
+        Assert.Contains(
+            exception.Failures,
+            failure => failure.MemberNames.SequenceEqual(["Name"])
+                       && failure.Message.Contains("Name", StringComparison.Ordinal));
+        Assert.Contains(
+            exception.Failures,
+            failure => failure.MemberNames.SequenceEqual(["RetryCount"])
+                       && failure.Message.Contains("between 1 and 5", StringComparison.Ordinal));
+        Assert.DoesNotContain("7", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Init_WithInvalidDefault_ValidatesDefaultAndThrows()
+    {
+        var config = new DefaultAnnotatedOptionsConfig();
+        var configManager = A.Fake<IConfigManager>();
+        var environmentProvider = A.Fake<IEnvironmentProvider>();
+
+        A.CallTo(() => environmentProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<AnnotatedOptions>(A<string>._, A<string>._))
+            .Returns(null);
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            ((IConfig)config).Init(configManager, environmentProvider, "App.Settings"));
+
+        Assert.True(config.HasValue);
+        Assert.True(config.IsDefaultValue);
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["RetryCount"]));
+    }
+
+    [Fact]
+    public void Init_WithObjectLevelValidationFailure_UsesObjectFailureLabel()
+    {
+        var config = new ValidatableOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, new ValidatableOptions { Invalid = true }));
+
+        var failure = Assert.Single(exception.Failures);
+        Assert.Empty(failure.MemberNames);
+        Assert.Contains("- <object>: Object is invalid.", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Init_WithMultipleMemberValidationResult_PreservesAllMemberNames()
+    {
+        var config = new MultiMemberValidatableOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, new MultiMemberValidatableOptions()));
+
+        var failure = Assert.Single(exception.Failures);
+        Assert.Equal(["Second", "First"], failure.MemberNames);
+        Assert.Contains("- First, Second: Both values are invalid.", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Init_WithPropertyFailures_DoesNotForceObjectLevelValidation()
+    {
+        ShortCircuitOptions.ObjectValidationRan = false;
+        var config = new ShortCircuitOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, new ShortCircuitOptions()));
+
+        Assert.False(ShortCircuitOptions.ObjectValidationRan);
+        Assert.Single(exception.Failures);
+    }
+
+    [Fact]
+    public void Init_WithNestedOptionsWithoutMarkers_DoesNotValidateRecursively()
+    {
+        var config = new NonRecursiveOptionsConfig();
+
+        Init(
+            config,
+            new NonRecursiveOptions
+            {
+                Database = new NestedOptions(),
+                Endpoints = [new EndpointOptions()]
+            });
+
+        Assert.True(config.HasValue);
+    }
+
+    [Fact]
+    public void Init_WithUnmarkedThrowingGetter_DoesNotInvokeGetter()
+    {
+        var config = new OptionsWithUnmarkedThrowingGetterConfig();
+
+        Init(config, new OptionsWithUnmarkedThrowingGetter { Name = "payments" });
+
+        Assert.True(config.HasValue);
+    }
+
+    [Fact]
+    public void Init_WithRecursiveMarkers_ValidatesNestedObjectAndCollectionItems()
+    {
+        var config = new RecursiveOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(
+                config,
+                new RecursiveOptions
+                {
+                    Database = new NestedOptions(),
+                    Endpoints = [new EndpointOptions(), null, new EndpointOptions { Url = "https://example.test" }]
+                }));
+
+        Assert.Equal(2, exception.Failures.Count);
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Database.Host"]));
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Endpoints[0].Url"]));
+        Assert.DoesNotContain("Endpoints[1]", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Init_WithCyclicRecursiveMarkers_DoesNotLoopForever()
+    {
+        var config = new CyclicOptionsConfig();
+        var value = new CyclicOptions();
+        value.Next = value;
+
+        Init(config, value);
+
+        Assert.True(config.HasValue);
+    }
+
+    [Fact]
+    public void Init_WithUnsupportedOptionsValidatorType_ReportsFailure()
+    {
+        var config = new UnsupportedValidatorOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, new UnsupportedValidatorOptions()));
+
+        Assert.Contains(
+            exception.Failures,
+            failure => failure.MemberNames.SequenceEqual(["Child"])
+                       && failure.Message.Contains("custom validator types are not supported", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Init_WithScalarPrimitiveConfig_DoesNotRunDataAnnotations()
+    {
+        var config = new TestConfig();
+
+        Init(config, string.Empty);
+
+        Assert.True(config.HasValue);
+        Assert.Equal(string.Empty, config.Value);
+    }
+
+    private static void Init<T>(Config<T> config, T? value)
+        where T : class
+    {
+        var configManager = A.Fake<IConfigManager>();
+        var environmentProvider = A.Fake<IEnvironmentProvider>();
+
+        A.CallTo(() => environmentProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<T>("Production", "App.Settings"))
+            .Returns(value);
+
+        ((IConfig)config).Init(configManager, environmentProvider, "App.Settings");
     }
 }

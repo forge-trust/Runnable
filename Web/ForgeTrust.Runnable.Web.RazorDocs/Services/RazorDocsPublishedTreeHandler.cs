@@ -315,7 +315,8 @@ internal static class RazorDocsPublishedTreeContentRewriter
         ArgumentException.ThrowIfNullOrWhiteSpace(mountRootPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(previewRootPath);
 
-        if (string.Equals(mountRootPath, DocsUrlBuilder.DocsEntryPath, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(mountRootPath, DocsUrlBuilder.DocsEntryPath, StringComparison.OrdinalIgnoreCase)
+            && !HasNonEmptyPathBase(requestPathBase))
         {
             return html;
         }
@@ -386,7 +387,8 @@ internal static class RazorDocsPublishedTreeContentRewriter
         ArgumentException.ThrowIfNullOrWhiteSpace(mountRootPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(previewRootPath);
 
-        if (string.Equals(mountRootPath, DocsUrlBuilder.DocsEntryPath, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(mountRootPath, DocsUrlBuilder.DocsEntryPath, StringComparison.OrdinalIgnoreCase)
+            && !HasNonEmptyPathBase(requestPathBase))
         {
             return json;
         }
@@ -550,12 +552,12 @@ internal static class RazorDocsPublishedTreeContentRewriter
 
     private static string PrefixPathBase(string path, string? requestPathBase)
     {
-        if (string.IsNullOrWhiteSpace(requestPathBase) || string.Equals(requestPathBase, "/", StringComparison.Ordinal))
+        if (!HasNonEmptyPathBase(requestPathBase))
         {
             return path;
         }
 
-        var normalizedPathBase = requestPathBase.Trim();
+        var normalizedPathBase = requestPathBase!.Trim();
         if (!normalizedPathBase.StartsWith("/", StringComparison.Ordinal))
         {
             normalizedPathBase = "/" + normalizedPathBase;
@@ -569,5 +571,11 @@ internal static class RazorDocsPublishedTreeContentRewriter
         return DocsUrlBuilder.IsUnderRoot(path, normalizedPathBase) || string.Equals(path, normalizedPathBase, StringComparison.OrdinalIgnoreCase)
             ? path
             : normalizedPathBase + path;
+    }
+
+    private static bool HasNonEmptyPathBase(string? requestPathBase)
+    {
+        return !string.IsNullOrWhiteSpace(requestPathBase)
+               && !string.Equals(requestPathBase, "/", StringComparison.Ordinal);
     }
 }

@@ -79,7 +79,8 @@
       return '/docs';
     }
 
-    return value !== '/' && value.endsWith('/') ? value.slice(0, -1) : value;
+    const prefixed = value.startsWith('/') ? value : `/${value}`;
+    return prefixed !== '/' && prefixed.endsWith('/') ? prefixed.slice(0, -1) : prefixed;
   }
 
   function getSidebarSearchElements() {

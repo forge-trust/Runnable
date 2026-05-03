@@ -100,6 +100,15 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public void SearchClient_ShouldNormalizeDocsRootPathsWithLeadingSlash()
+    {
+        var searchClient = ReadSearchClientMarkup();
+
+        Assert.Contains("const prefixed = value.startsWith('/') ? value : `/${value}`;", searchClient);
+        Assert.Contains("return prefixed !== '/' && prefixed.endsWith('/') ? prefixed.slice(0, -1) : prefixed;", searchClient);
+    }
+
+    [Fact]
     public void Layout_ShouldKeepSidebarVisibleByDefault_ForNoScriptFallback()
     {
         var layout = ReadLayoutMarkup();

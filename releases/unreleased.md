@@ -60,6 +60,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - RazorDocs now rewrites authored doc links from a harvested target manifest instead of broad suffix heuristics, so normal site links such as `../privacy.html` stay untouched and missing doc targets do not become broken `/docs/...` routes.
 - RazorDocs details pages can now render a `Source of truth` strip with `View source`, `Edit this page`, and relative `Last updated` evidence driven by contributor metadata, configured URL templates, and git freshness when available.
 - Contributor provenance now degrades safely: namespace and API pages stay explicit-override-only for the MVP, and missing or slow git history omits only freshness instead of breaking docs rendering.
+- RazorDocs generated C# API references can now render per-type, per-method, and per-property source links that point at the exact source file and line for the code version used to build the docs.
 
 ## Migration watch
 

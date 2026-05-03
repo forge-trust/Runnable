@@ -207,6 +207,139 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldIgnoreInvalidDuplicateAndOrphanedSymbolSourceProvenance()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Calculator",
+                    "Namespaces/Test",
+                    """<span data-razordocs-symbol-source="Duplicate"></span>""",
+                    SymbolSourceProvenance:
+                    [
+                        new DocSymbolSourceProvenance
+                        {
+                            AnchorId = "   ",
+                            SourcePath = "src/Blank.cs",
+                            StartLine = 3
+                        },
+                        new DocSymbolSourceProvenance
+                        {
+                            AnchorId = "Duplicate",
+                            SourcePath = "src/Duplicate.cs",
+                            StartLine = 7
+                        },
+                        new DocSymbolSourceProvenance
+                        {
+                            AnchorId = "Duplicate",
+                            SourcePath = "src/DuplicateReplacement.cs",
+                            StartLine = 9
+                        },
+                        new DocSymbolSourceProvenance
+                        {
+                            AnchorId = "Orphan",
+                            SourcePath = "src/Orphan.cs",
+                            StartLine = 11
+                        }
+                    ])
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                SourceRef = "abc123",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{ref}/{path}#L{line}"
+            },
+            null);
+
+        var result = Assert.Single((await aggregator.GetDocsAsync()).ToList());
+
+        Assert.Contains("href=\"https://example.com/blob/abc123/src/Duplicate.cs#L7\"", result.Content);
+        Assert.DoesNotContain("DuplicateReplacement", result.Content);
+        Assert.DoesNotContain("Orphan", result.Content);
+        Assert.DoesNotContain("data-razordocs-symbol-source", result.Content);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldRemoveSymbolSourcePlaceholders_WhenRequiredBranchIsMissing()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Calculator",
+                    "Namespaces/Test",
+                    """<span data-razordocs-symbol-source="Calculator"></span>""",
+                    SymbolSourceProvenance:
+                    [
+                        new DocSymbolSourceProvenance
+                        {
+                            AnchorId = "Calculator",
+                            SourcePath = "src/Calculator.cs",
+                            StartLine = 12
+                        }
+                    ])
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                SourceRef = "abc123",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{branch}/{path}#L{line}"
+            },
+            null);
+
+        var result = Assert.Single((await aggregator.GetDocsAsync()).ToList());
+
+        Assert.DoesNotContain("doc-symbol-source-link", result.Content);
+        Assert.DoesNotContain("data-razordocs-symbol-source", result.Content);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldRemoveSymbolSourcePlaceholders_WhenRequiredRefIsMissing()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Calculator",
+                    "Namespaces/Test",
+                    """<span data-razordocs-symbol-source="Calculator"></span>""",
+                    SymbolSourceProvenance:
+                    [
+                        new DocSymbolSourceProvenance
+                        {
+                            AnchorId = "Calculator",
+                            SourcePath = "src/Calculator.cs",
+                            StartLine = 12
+                        }
+                    ])
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                SymbolSourceUrlTemplate = "https://example.com/blob/{ref}/{path}#L{line}"
+            },
+            null);
+
+        var result = Assert.Single((await aggregator.GetDocsAsync()).ToList());
+
+        Assert.DoesNotContain("doc-symbol-source-link", result.Content);
+        Assert.DoesNotContain("data-razordocs-symbol-source", result.Content);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldSuppressSymbolSourceLinks_WhenContributorRenderingIsDisabled()
     {
         var harvester = A.Fake<IDocHarvester>();

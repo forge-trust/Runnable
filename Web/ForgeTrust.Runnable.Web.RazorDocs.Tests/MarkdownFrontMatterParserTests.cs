@@ -138,6 +138,53 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void Extract_ShouldParseContributorMetadata()
+    {
+        var markdown = """
+            ---
+            contributor:
+              hide_contributor_info: false
+              source_path_override: docs/releases/unreleased.md
+              source_url_override: https://example.com/source
+              edit_url_override: https://example.com/edit
+              last_updated_override: 2026-04-22T23:19:00Z
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        Assert.NotNull(metadata?.Contributor);
+        Assert.False(metadata!.Contributor!.HideContributorInfo);
+        Assert.Equal("docs/releases/unreleased.md", metadata.Contributor.SourcePathOverride);
+        Assert.Equal("https://example.com/source", metadata.Contributor.SourceUrlOverride);
+        Assert.Equal("https://example.com/edit", metadata.Contributor.EditUrlOverride);
+        Assert.Equal(
+            new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero),
+            metadata.Contributor.LastUpdatedOverride);
+    }
+
+    [Fact]
+    public void Extract_ShouldTreatEmptyContributorMetadataAsMissing()
+    {
+        var markdown = """
+            ---
+            contributor:
+              source_path_override: "   "
+              source_url_override: ""
+              edit_url_override: "   "
+            ---
+            # Hello
+            """;
+
+        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.NotNull(metadata);
+        Assert.Null(metadata!.Contributor);
+    }
+
+    [Fact]
     public void Extract_ShouldTreatBlankMigrationLinkFieldsAsMissing()
     {
         var markdown = """

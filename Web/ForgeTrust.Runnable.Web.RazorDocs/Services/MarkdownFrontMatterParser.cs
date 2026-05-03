@@ -79,6 +79,7 @@ internal static class MarkdownFrontMatterParser
             Breadcrumbs = NormalizeList(document.Breadcrumbs),
             FeaturedPages = NormalizeFeaturedPages(document.FeaturedPages),
             Trust = NormalizeTrust(document.Trust),
+            Contributor = NormalizeContributor(document.Contributor),
             PageTypeIsDerived = document.PageType is not null ? false : null,
             AudienceIsDerived = document.Audience is not null ? false : null,
             ComponentIsDerived = document.Component is not null ? false : null,
@@ -207,6 +208,31 @@ internal static class MarkdownFrontMatterParser
             : link;
     }
 
+    private static DocContributorMetadata? NormalizeContributor(FrontMatterContributorDocument? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var contributor = new DocContributorMetadata
+        {
+            HideContributorInfo = value.HideContributorInfo,
+            SourcePathOverride = Normalize(value.SourcePathOverride),
+            SourceUrlOverride = Normalize(value.SourceUrlOverride),
+            EditUrlOverride = Normalize(value.EditUrlOverride),
+            LastUpdatedOverride = value.LastUpdatedOverride?.ToUniversalTime()
+        };
+
+        return contributor.HideContributorInfo is null
+               && contributor.SourcePathOverride is null
+               && contributor.SourceUrlOverride is null
+               && contributor.EditUrlOverride is null
+               && contributor.LastUpdatedOverride is null
+            ? null
+            : contributor;
+    }
+
     private sealed class FrontMatterDocument
     {
         public string? Title { get; init; }
@@ -250,6 +276,8 @@ internal static class MarkdownFrontMatterParser
         public List<FrontMatterFeaturedPageDefinition?>? FeaturedPages { get; init; }
 
         public FrontMatterTrustDocument? Trust { get; init; }
+
+        public FrontMatterContributorDocument? Contributor { get; init; }
     }
 
     private sealed class FrontMatterFeaturedPageDefinition
@@ -278,6 +306,19 @@ internal static class MarkdownFrontMatterParser
         public string? Archive { get; init; }
 
         public List<string>? Sources { get; init; }
+    }
+
+    private sealed class FrontMatterContributorDocument
+    {
+        public bool? HideContributorInfo { get; init; }
+
+        public string? SourcePathOverride { get; init; }
+
+        public string? SourceUrlOverride { get; init; }
+
+        public string? EditUrlOverride { get; init; }
+
+        public DateTimeOffset? LastUpdatedOverride { get; init; }
     }
 
     private sealed class FrontMatterTrustLinkDocument

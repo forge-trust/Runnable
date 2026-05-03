@@ -13,6 +13,7 @@ Documentation site generation and hosting for Runnable web applications.
 - `DocAggregator` plus the built-in Markdown and C# harvesters
 - Search UI assets and the `/docs` MVC surface used by RazorDocs consumers
 - Structured trust metadata plus a built-in trust bar for release notes, upgrade guides, and other pages that need status and provenance near the top
+- Contributor provenance rendering with a `Source of truth` strip for source links, edit links, and relative `Last updated` timestamps on details pages
 - Precompiled Tailwind-powered styling with layout-time path resolution for root-module and embedded hosts
 
 ## Styling Boundary
@@ -71,6 +72,92 @@ Source-backed docs are configured via `RazorDocsOptions`:
 ```
 
 If `RazorDocs:Source:RepositoryRoot` is omitted, the package falls back to repository discovery from the app content root. Bundle mode is modeled but intentionally rejected until the next slice lands.
+
+## Contributor Provenance
+
+RazorDocs can render a lightweight `Source of truth` strip directly under the page title and summary on details pages. The strip is evidence-driven:
+
+- `View source` links to the authored source when RazorDocs can identify one safely.
+- `Edit this page` links to an edit surface when the host configures one safely.
+- `Last updated` renders as relative time with an exact machine-readable `<time datetime="...">` value behind it.
+
+If a page has no trustworthy contributor evidence, RazorDocs omits the strip entirely instead of rendering placeholder copy.
+
+### Host configuration
+
+Contributor provenance is configured under `RazorDocs:Contributor`:
+
+```json
+{
+  "RazorDocs": {
+    "Mode": "Source",
+    "Source": {
+      "RepositoryRoot": "/path/to/repo"
+    },
+    "Contributor": {
+      "Enabled": true,
+      "DefaultBranch": "main",
+      "SourceUrlTemplate": "https://github.com/forge-trust/Runnable/blob/{branch}/{path}",
+      "EditUrlTemplate": "https://github.com/forge-trust/Runnable/edit/{branch}/{path}",
+      "LastUpdatedMode": "Git"
+    }
+  }
+}
+```
+
+Field behavior:
+
+- `Enabled` defaults to `true`. Set it to `false` to disable all contributor provenance rendering.
+- `DefaultBranch` is the stable branch or ref used when expanding configured source and edit templates.
+- `SourceUrlTemplate` and `EditUrlTemplate` support only `{branch}` and `{path}` tokens, and configured templates must include `{path}` so each page expands to its own source or edit target.
+- `LastUpdatedMode` supports `None` and `Git`. `None` is the default so hosts opt into git-backed freshness explicitly; `Git` resolves freshness from local repository history when a trustworthy source path exists.
+
+Host contract:
+
+- If `Enabled` is `false`, RazorDocs skips contributor rendering and does not enforce `DefaultBranch` or `{path}` template requirements at startup.
+- If `Enabled` is `true` and `SourceUrlTemplate` or `EditUrlTemplate` is configured, `DefaultBranch` is required and RazorDocs fails options validation on startup when it is missing.
+- If `Enabled` is `true` and `SourceUrlTemplate` or `EditUrlTemplate` is configured, that template must contain `{path}`. RazorDocs rejects startup when a template would collapse every page to one shared URL.
+- Templates expand both the branch and normalized source path segment-by-segment, so slash-separated refs stay readable while spaces and other special characters are still URL-escaped safely.
+- Git-backed freshness runs during docs snapshot generation, not during view rendering. RazorDocs uses a bounded snapshot-time freshness budget so slow or wedged git lookups degrade to omitted timestamps instead of stretching one timeout across the whole docs corpus. If git is unavailable, shallow, or missing history for a page, RazorDocs omits only `Last updated`.
+- Hosts that want `LastUpdatedMode: Git` in CI or export jobs must provide real history for the docs checkout. For GitHub Actions, use `actions/checkout` with `fetch-depth: 0` or another checkout shape that preserves commit history for the rendered files.
+
+### Page-level overrides
+
+Authors can supply a nested `contributor:` block in inline Markdown front matter or in a paired sidecar such as `page.md.yml`:
+
+```yaml
+contributor:
+  hide_contributor_info: true
+  source_path_override: Web/ForgeTrust.Runnable.Web.RazorDocs/README.md
+  source_url_override: https://github.com/forge-trust/Runnable/blob/main/Web/ForgeTrust.Runnable.Web.RazorDocs/README.md
+  edit_url_override: https://github.com/forge-trust/Runnable/edit/main/Web/ForgeTrust.Runnable.Web.RazorDocs/README.md
+  last_updated_override: 2026-04-22T23:19:00Z
+```
+
+Field behavior:
+
+- `hide_contributor_info: true` suppresses the strip entirely for that page.
+- `source_path_override` feeds template expansion and git freshness when the rendered page does not map cleanly to `DocNode.Path`. It must stay repository-relative; rooted paths and traversal segments are ignored.
+- `source_url_override` and `edit_url_override` bypass template generation entirely. RazorDocs accepts only absolute `http`/`https` URLs or root-relative paths for these overrides.
+- `last_updated_override` must stay a real timestamp. RazorDocs renders it through the same relative-time treatment as git-backed freshness.
+
+### Automatic versus explicit provenance
+
+RazorDocs is intentionally conservative about automatic provenance:
+
+- Markdown pages use their harvested source path automatically.
+- Harvested C# API and namespace-synthetic pages do not get automatic source or edit links in this slice.
+- Synthetic or merged pages can still opt into source, edit, or freshness evidence through explicit `contributor:` overrides.
+
+This keeps RazorDocs from inventing fake precision for pages that do not have one trustworthy underlying source file.
+
+### Pitfalls
+
+- Do not configure source or edit templates without `DefaultBranch`. RazorDocs rejects that startup shape because local git state is too brittle to guess from.
+- Do not configure source or edit templates without `{path}`. That shape cannot identify one source file per page, so RazorDocs rejects it at startup.
+- Do not author free-text freshness copy in the provenance strip. Use `last_updated_override` for an exact timestamp, and use `trust.freshness` for broader lifecycle guidance.
+- Do not expect shallow CI clones to populate `Last updated`. RazorDocs degrades safely by omitting freshness when history is unavailable. In GitHub Actions, prefer `actions/checkout` with `fetch-depth: 0` for pages that should surface git-backed freshness.
+- Do not expect automatic edit links on namespace-synthetic API pages yet. That richer symbol-to-source mapping remains future work.
 
 ## Usage
 

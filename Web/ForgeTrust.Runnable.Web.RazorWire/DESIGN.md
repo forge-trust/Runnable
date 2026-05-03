@@ -97,8 +97,8 @@ A future generated form-failure summary should follow this shape: scoped data at
 <div
   data-rw-ui="form-failure"
   data-rw-severity="error"
-  data-rw-target="checkout-form"
-  role="alert"
+  data-rw-target="payment-step"
+  role="status"
   aria-live="polite"
 >
   <p data-rw-ui="form-failure-title">We could not submit this form.</p>
@@ -129,17 +129,17 @@ The host app can align generated feedback with its own design system without rep
   --rw-ui-radius: 0.25rem;
 }
 
-#checkout-form {
+.checkout-form {
   --rw-ui-gap: 0.375rem;
 }
 
-[data-rw-ui="form-failure"][data-rw-target="checkout-form"] {
+.checkout-form [data-rw-ui="form-failure"][data-rw-target="payment-step"] {
   padding-block: 0.5rem;
   border-block-start: 1px solid var(--rw-ui-danger);
 }
 ```
 
-This override changes the presentation of a generated node. It does not require replacing RazorWire scripts, copying sample-app classes, or changing unrelated app markup.
+In this example, `.checkout-form` is a host-owned selector on the form or nearest generated RazorWire container. It could be a class, ID, or app-specific data attribute. The override changes the presentation of a generated node. It does not require replacing RazorWire scripts, copying sample-app classes, or changing unrelated app markup.
 
 ## Accessibility Baseline
 

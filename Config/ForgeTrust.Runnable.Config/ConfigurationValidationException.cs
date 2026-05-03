@@ -19,12 +19,22 @@ public sealed class ConfigurationValidationException : Exception
         Type configType,
         Type valueType,
         IReadOnlyList<ConfigurationValidationFailure> failures)
+        : this(key, configType, valueType, SnapshotFailures(failures), failuresAlreadySnapshotted: true)
+    {
+    }
+
+    private ConfigurationValidationException(
+        string key,
+        Type configType,
+        Type valueType,
+        IReadOnlyList<ConfigurationValidationFailure> failures,
+        bool failuresAlreadySnapshotted)
         : base(BuildMessage(key, configType, valueType, failures))
     {
         Key = key;
         ConfigType = configType;
         ValueType = valueType;
-        Failures = failures;
+        Failures = failuresAlreadySnapshotted ? failures : SnapshotFailures(failures);
     }
 
     /// <summary>
@@ -46,6 +56,10 @@ public sealed class ConfigurationValidationException : Exception
     /// Gets the validation failures returned for the configuration value.
     /// </summary>
     public IReadOnlyList<ConfigurationValidationFailure> Failures { get; }
+
+    private static IReadOnlyList<ConfigurationValidationFailure> SnapshotFailures(
+        IReadOnlyList<ConfigurationValidationFailure> failures) =>
+        Array.AsReadOnly(failures.ToArray());
 
     private static string BuildMessage(
         string key,

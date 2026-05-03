@@ -39,7 +39,7 @@ Resolve them through the configuration services used by your module or applicati
 
 ## DataAnnotations Validation
 
-`Config<T>` and `ConfigStruct<T>` validate the resolved value during initialization when the value is present. Validation runs after provider/default resolution, so defaults are held to the same rules as provider-supplied values.
+`Config<T>` and `ConfigStruct<T>` validate the resolved value during initialization when the value is present. Validation runs after provider/default resolution, so defaults are held to the same rules as provider-supplied values. Optional `ConfigStruct<T>` values resolve through nullable `T?` provider lookups so a missing struct value is not confused with a configured zero-initialized value.
 
 Use ordinary DataAnnotations on object-valued config models:
 
@@ -100,7 +100,7 @@ public sealed class AppConfig : Config<AppOptions>
 }
 ```
 
-Nested member paths are reported with dot and index notation, such as `Database.Host` and `Endpoints[0].Url`. Recursive validation tracks visited reference objects so cycles do not loop forever. Null nested objects and null collection items are skipped unless the containing property has `[Required]`.
+Nested member paths are reported with dot and index notation, such as `Database.Host` and `Endpoints[0].Url`. Recursive validation tracks the active traversal path so cycles do not loop forever while repeated references are still reported at each distinct reachable path. Null nested objects and null collection items are skipped unless the containing property has `[Required]`.
 
 Runnable uses the Microsoft marker attributes as the public authoring contract, but it owns the runtime traversal and `ConfigurationValidationException` output. It does not invoke the Options source generator or the `IValidateOptions<TOptions>` pipeline.
 

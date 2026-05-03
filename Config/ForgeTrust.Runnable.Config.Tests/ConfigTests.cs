@@ -165,6 +165,28 @@ public class ConfigTests
         public List<EndpointOptions> Endpoints { get; init; } = [];
     }
 
+    private readonly struct AnnotatedStructOptions
+    {
+        [Required]
+        public string? Name { get; init; }
+
+        [Range(1, 5)]
+        public int RetryCount { get; init; }
+    }
+
+    private sealed class AnnotatedStructOptionsConfig : ConfigStruct<AnnotatedStructOptions>
+    {
+    }
+
+    private sealed class DefaultAnnotatedStructOptionsConfig : ConfigStruct<AnnotatedStructOptions>
+    {
+        public override AnnotatedStructOptions? DefaultValue => new()
+        {
+            Name = "default",
+            RetryCount = 0
+        };
+    }
+
     private readonly struct StructNestedOptions
     {
         [Required]
@@ -206,6 +228,19 @@ public class ConfigTests
     }
 
     private sealed class OptionsWithStructNestedObjectConfig : Config<OptionsWithStructNestedObject>
+    {
+    }
+
+    private sealed class OptionsWithSharedReferences
+    {
+        [ValidateObjectMembers]
+        public NestedOptions? Primary { get; init; }
+
+        [ValidateObjectMembers]
+        public NestedOptions? Secondary { get; init; }
+    }
+
+    private sealed class OptionsWithSharedReferencesConfig : Config<OptionsWithSharedReferences>
     {
     }
 
@@ -269,8 +304,7 @@ public class ConfigTests
     public void Init_ForStructConfigUsesManagerValueWhenPresent()
     {
         var configManager = A.Fake<IConfigManager>();
-        // Configure the generic method for int based on the user request to match behavior
-        A.CallTo(() => configManager.GetValue<int>(A<string>._, A<string>._))
+        A.CallTo(() => configManager.GetValue<int?>(A<string>._, A<string>._))
             .Returns(7);
 
         var environmentProvider = A.Fake<IEnvironmentProvider>();
@@ -328,7 +362,7 @@ public class ConfigTests
         var environmentProvider = A.Fake<IEnvironmentProvider>();
 
         A.CallTo(() => environmentProvider.Environment).Returns("Production");
-        A.CallTo(() => configManager.GetValue<int>(A<string>._, A<string>._)).Returns(42);
+        A.CallTo(() => configManager.GetValue<int?>(A<string>._, A<string>._)).Returns(42);
 
         ((IConfig)config).Init(configManager, environmentProvider, "Key");
 
@@ -345,13 +379,31 @@ public class ConfigTests
         var environmentProvider = A.Fake<IEnvironmentProvider>();
 
         A.CallTo(() => environmentProvider.Environment).Returns("Production");
-        A.CallTo(() => configManager.GetValue<int>(A<string>._, A<string>._)).Returns(42);
+        A.CallTo(() => configManager.GetValue<int?>(A<string>._, A<string>._)).Returns(42);
 
         ((IConfig)config).Init(configManager, environmentProvider, "Key");
 
         Assert.True(config.HasValue);
         Assert.True(config.IsDefaultValue);
         Assert.Equal(42, config.Value);
+    }
+
+    [Fact]
+    public void Struct_Init_WithMissingValueAndNoDefault_DoesNotValidateDefaultStruct()
+    {
+        var config = new AnnotatedStructOptionsConfig();
+        var configManager = A.Fake<IConfigManager>();
+        var environmentProvider = A.Fake<IEnvironmentProvider>();
+
+        A.CallTo(() => environmentProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<AnnotatedStructOptions?>("Production", "Struct.Settings"))
+            .Returns(null);
+
+        ((IConfig)config).Init(configManager, environmentProvider, "Struct.Settings");
+
+        Assert.False(config.HasValue);
+        Assert.True(config.IsDefaultValue);
+        Assert.Null(config.Value);
     }
 
     [Fact]
@@ -399,6 +451,33 @@ public class ConfigTests
     }
 
     [Fact]
+    public void ValidationFailures_AreImmutableSnapshots()
+    {
+        var memberNames = new List<string> { "Name" };
+        var failure = new ConfigurationValidationFailure(
+            "App.Settings",
+            typeof(AnnotatedOptionsConfig),
+            typeof(AnnotatedOptions),
+            memberNames,
+            "Name is required.");
+        var failures = new List<ConfigurationValidationFailure> { failure };
+
+        var exception = new ConfigurationValidationException(
+            "App.Settings",
+            typeof(AnnotatedOptionsConfig),
+            typeof(AnnotatedOptions),
+            failures);
+
+        memberNames.Add("RetryCount");
+        failures.Clear();
+
+        Assert.Equal(["Name"], failure.MemberNames);
+        Assert.Single(exception.Failures);
+        Assert.Throws<NotSupportedException>(() => ((ICollection<string>)failure.MemberNames).Add("Other"));
+        Assert.Throws<NotSupportedException>(() => ((ICollection<ConfigurationValidationFailure>)exception.Failures).Clear());
+    }
+
+    [Fact]
     public void Init_WithInvalidDefault_ValidatesDefaultAndThrows()
     {
         var config = new DefaultAnnotatedOptionsConfig();
@@ -411,6 +490,46 @@ public class ConfigTests
 
         var exception = Assert.Throws<ConfigurationValidationException>(() =>
             ((IConfig)config).Init(configManager, environmentProvider, "App.Settings"));
+
+        Assert.True(config.HasValue);
+        Assert.True(config.IsDefaultValue);
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["RetryCount"]));
+    }
+
+    [Fact]
+    public void Struct_Init_WithInvalidAnnotatedObject_ThrowsStructuredValidationException()
+    {
+        var config = new AnnotatedStructOptionsConfig();
+        var configManager = A.Fake<IConfigManager>();
+        var environmentProvider = A.Fake<IEnvironmentProvider>();
+
+        A.CallTo(() => environmentProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<AnnotatedStructOptions?>("Production", "Struct.Settings"))
+            .Returns(new AnnotatedStructOptions { RetryCount = 7 });
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            ((IConfig)config).Init(configManager, environmentProvider, "Struct.Settings"));
+
+        Assert.Equal("Struct.Settings", exception.Key);
+        Assert.Equal(typeof(AnnotatedStructOptionsConfig), exception.ConfigType);
+        Assert.Equal(typeof(AnnotatedStructOptions), exception.ValueType);
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Name"]));
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["RetryCount"]));
+    }
+
+    [Fact]
+    public void Struct_Init_WithInvalidDefault_ValidatesDefaultAndThrows()
+    {
+        var config = new DefaultAnnotatedStructOptionsConfig();
+        var configManager = A.Fake<IConfigManager>();
+        var environmentProvider = A.Fake<IEnvironmentProvider>();
+
+        A.CallTo(() => environmentProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<AnnotatedStructOptions?>("Production", "Struct.Settings"))
+            .Returns(null);
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            ((IConfig)config).Init(configManager, environmentProvider, "Struct.Settings"));
 
         Assert.True(config.HasValue);
         Assert.True(config.IsDefaultValue);
@@ -573,6 +692,26 @@ public class ConfigTests
 
         var failure = Assert.Single(exception.Failures);
         Assert.Equal(["Child.Name"], failure.MemberNames);
+    }
+
+    [Fact]
+    public void Init_WithSharedRecursiveReference_ReportsEachReachablePath()
+    {
+        var config = new OptionsWithSharedReferencesConfig();
+        var shared = new NestedOptions();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(
+                config,
+                new OptionsWithSharedReferences
+                {
+                    Primary = shared,
+                    Secondary = shared
+                }));
+
+        Assert.Equal(2, exception.Failures.Count);
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Primary.Host"]));
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Secondary.Host"]));
     }
 
     [Fact]

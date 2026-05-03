@@ -20,7 +20,7 @@ internal static class ConfigDataAnnotationsValidator
         }
 
         var failures = new List<ConfigurationValidationFailure>();
-        var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var activePath = new HashSet<object>(ReferenceEqualityComparer.Instance);
 
         ValidateNode(
             key,
@@ -28,7 +28,7 @@ internal static class ConfigDataAnnotationsValidator
             valueType,
             value,
             path: null,
-            visited,
+            activePath,
             failures);
 
         if (failures.Count > 0)
@@ -43,36 +43,46 @@ internal static class ConfigDataAnnotationsValidator
         Type valueType,
         object value,
         string? path,
-        HashSet<object> visited,
+        HashSet<object> activePath,
         List<ConfigurationValidationFailure> failures)
     {
-        if (!TrackVisit(value, visited))
+        if (!TrackVisit(value, activePath))
         {
             return;
         }
 
-        var results = new List<ValidationResult>();
-        var context = new ValidationContext(value);
-
-        Validator.TryValidateObject(
-            value,
-            context,
-            results,
-            validateAllProperties: true);
-
-        foreach (var result in results)
+        try
         {
-            failures.Add(ToFailure(key, configType, valueType, path, result));
+            var results = new List<ValidationResult>();
+            var context = new ValidationContext(value);
+
+            Validator.TryValidateObject(
+                value,
+                context,
+                results,
+                validateAllProperties: true);
+
+            foreach (var result in results)
+            {
+                failures.Add(ToFailure(key, configType, valueType, path, result));
+            }
+
+            foreach (var property in GetValidatableProperties(value.GetType()))
+            {
+                ValidateProperty(key, configType, valueType, value, property, path, activePath, failures);
+            }
+
+            foreach (var field in GetValidatableFields(value.GetType()))
+            {
+                ValidateField(key, configType, valueType, value, field, path, activePath, failures);
+            }
         }
-
-        foreach (var property in GetValidatableProperties(value.GetType()))
+        finally
         {
-            ValidateProperty(key, configType, valueType, value, property, path, visited, failures);
-        }
-
-        foreach (var field in GetValidatableFields(value.GetType()))
-        {
-            ValidateField(key, configType, valueType, value, field, path, visited, failures);
+            if (!value.GetType().IsValueType)
+            {
+                activePath.Remove(value);
+            }
         }
     }
 
@@ -83,7 +93,7 @@ internal static class ConfigDataAnnotationsValidator
         object parent,
         PropertyInfo property,
         string? parentPath,
-        HashSet<object> visited,
+        HashSet<object> activePath,
         List<ConfigurationValidationFailure> failures)
     {
         var objectMembersAttribute = property.GetCustomAttribute<ValidateObjectMembersAttribute>();
@@ -104,7 +114,7 @@ internal static class ConfigDataAnnotationsValidator
             memberPath,
             objectMembersAttribute,
             enumeratedItemsAttribute,
-            visited,
+            activePath,
             failures);
     }
 
@@ -115,7 +125,7 @@ internal static class ConfigDataAnnotationsValidator
         object parent,
         FieldInfo field,
         string? parentPath,
-        HashSet<object> visited,
+        HashSet<object> activePath,
         List<ConfigurationValidationFailure> failures)
     {
         var objectMembersAttribute = field.GetCustomAttribute<ValidateObjectMembersAttribute>();
@@ -136,7 +146,7 @@ internal static class ConfigDataAnnotationsValidator
             memberPath,
             objectMembersAttribute,
             enumeratedItemsAttribute,
-            visited,
+            activePath,
             failures);
     }
 
@@ -148,7 +158,7 @@ internal static class ConfigDataAnnotationsValidator
         string memberPath,
         ValidateObjectMembersAttribute? objectMembersAttribute,
         ValidateEnumeratedItemsAttribute? enumeratedItemsAttribute,
-        HashSet<object> visited,
+        HashSet<object> activePath,
         List<ConfigurationValidationFailure> failures)
     {
         if (objectMembersAttribute?.Validator != null)
@@ -184,7 +194,7 @@ internal static class ConfigDataAnnotationsValidator
                 valueType,
                 memberValue,
                 memberPath,
-                visited,
+                activePath,
                 failures);
         }
 
@@ -201,7 +211,7 @@ internal static class ConfigDataAnnotationsValidator
                         valueType,
                         item,
                         $"{memberPath}[{index.ToString(System.Globalization.CultureInfo.InvariantCulture)}]",
-                        visited,
+                        activePath,
                         failures);
                 }
 

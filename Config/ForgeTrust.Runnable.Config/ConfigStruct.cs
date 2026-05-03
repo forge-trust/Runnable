@@ -4,6 +4,12 @@ namespace ForgeTrust.Runnable.Config;
 
 /// <summary>
 /// A base class for strongly-typed configuration objects where the value is a struct.
+/// Values are resolved during <see cref="IConfig.Init"/>, then any DataAnnotations on the
+/// resolved provider value or <see cref="DefaultValue"/> are validated before initialization completes.
+/// Invalid provider values and invalid defaults fail fast by throwing
+/// <see cref="ConfigurationValidationException"/>, so callers that activate config wrappers can catch
+/// that exception and surface its structured failures. Ensure defaults satisfy the same validation
+/// rules as configured values; an invalid default prevents initialization when no provider value exists.
 /// </summary>
 /// <typeparam name="T">The struct type of the configuration value.</typeparam>
 public class ConfigStruct<T> : IConfig
@@ -29,12 +35,22 @@ public class ConfigStruct<T> : IConfig
     /// </summary>
     public virtual T? DefaultValue => null;
 
+    /// <summary>
+    /// Resolves the configured value for <paramref name="key"/> and validates the resolved provider
+    /// value or <see cref="DefaultValue"/> with DataAnnotations before initialization completes.
+    /// </summary>
+    /// <param name="configManager">The configuration manager used to resolve the provider value.</param>
+    /// <param name="environmentProvider">The environment provider used to choose the active environment.</param>
+    /// <param name="key">The configuration key to resolve.</param>
+    /// <exception cref="ConfigurationValidationException">
+    /// Thrown when the provider value or default value violates DataAnnotations validation rules.
+    /// </exception>
     void IConfig.Init(
         IConfigManager configManager,
         IEnvironmentProvider environmentProvider,
         string key)
     {
-        T? rawValue = configManager.GetValue<T>(environmentProvider.Environment, key);
+        T? rawValue = configManager.GetValue<T?>(environmentProvider.Environment, key);
         Value = rawValue ?? DefaultValue;
         IsDefaultValue = rawValue == null || Equals(Value, DefaultValue);
         HasValue = Value != null;

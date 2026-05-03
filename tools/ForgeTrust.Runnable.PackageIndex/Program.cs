@@ -17,7 +17,7 @@ internal static class Program
           dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- <command> [options]
 
         Commands:
-          generate    Rewrite packages/README.md from packages/package-index.yml and project metadata.
+          generate    Rewrites packages/README.md from packages/package-index.yml and project metadata.
           verify      Check that packages/README.md is already up to date.
 
         Options:

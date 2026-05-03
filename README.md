@@ -90,13 +90,13 @@ Hello World from the root!
 
 That example is the smallest concrete path through `ForgeTrust.Runnable.Web`: a root module, one mapped endpoint, and the Runnable startup pipeline doing the hosting work.
 
-If you are evaluating packages from your own app project rather than running this repo, start with the generated package chooser:
+If you are evaluating packages from your own app project rather than running this repo, start with the generated package chooser in [packages/README.md](./packages/README.md). Use the package matrix to pick the module your app actually needs, then run the matching install command from your app project, for example:
 
 ```bash
 dotnet add package ForgeTrust.Runnable.Web --project <path-to-your-app.csproj>
 ```
 
-Then read [packages/README.md](./packages/README.md) for the package matrix and add optional modules only when your app needs them.
+Add optional modules only when the generated chooser points you to them.
 
 For contributor verification, build the solution:
 

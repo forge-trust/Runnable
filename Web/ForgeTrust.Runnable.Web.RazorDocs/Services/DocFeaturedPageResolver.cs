@@ -249,6 +249,16 @@ public sealed class DocFeaturedPageResolver
         string path,
         IReadOnlyDictionary<string, DocLookupBucket> lookup)
     {
+        return ResolveDocByNormalizedPath(path, lookup)
+               ?? (TryStripDocsRoutePrefix(path, out var routeRelativePath)
+                   ? ResolveDocByNormalizedPath(routeRelativePath, lookup)
+                   : null);
+    }
+
+    private static DocNode? ResolveDocByNormalizedPath(
+        string path,
+        IReadOnlyDictionary<string, DocLookupBucket> lookup)
+    {
         var lookupPath = NormalizeLookupPath(path);
         var lookupCanonicalPath = NormalizeCanonicalPath(path);
 
@@ -278,6 +288,20 @@ public sealed class DocFeaturedPageResolver
             .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
             .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
+    }
+
+    private static bool TryStripDocsRoutePrefix(string path, out string routeRelativePath)
+    {
+        var normalizedPath = path.Trim().Replace('\\', '/').TrimStart('/');
+        const string docsRoutePrefix = "docs/";
+        if (normalizedPath.StartsWith(docsRoutePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            routeRelativePath = normalizedPath[docsRoutePrefix.Length..];
+            return !string.IsNullOrWhiteSpace(routeRelativePath);
+        }
+
+        routeRelativePath = path;
+        return false;
     }
 
     private static string NormalizeLookupPath(string path)

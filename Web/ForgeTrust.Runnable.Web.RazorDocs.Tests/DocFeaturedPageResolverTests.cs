@@ -225,6 +225,26 @@ public sealed class DocFeaturedPageResolverTests
         AssertWarningLogged(logger, "destination is already featured");
     }
 
+    [Theory]
+    [InlineData("/docs/guides/intro.md.html")]
+    [InlineData("docs/guides/intro.md.html")]
+    public void ResolveGroups_ShouldResolveRoutePrefixedCanonicalDestinationPaths(string authoredPath)
+    {
+        var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = authoredPath
+            });
+        var intro = Doc("Intro", "guides/intro.md");
+
+        var groups = resolver.ResolveGroups(landing, [landing, intro]);
+
+        var page = Assert.Single(Assert.Single(groups).Pages);
+        Assert.Equal("Intro", page.Title);
+        Assert.Equal("/docs/guides/intro.md.html", page.Href);
+    }
+
     [Fact]
     public void ResolveGroups_ShouldOrderGroupsAndPages_ByOrderThenAuthoredPosition()
     {

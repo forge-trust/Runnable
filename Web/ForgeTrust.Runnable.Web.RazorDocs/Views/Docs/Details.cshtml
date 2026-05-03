@@ -126,7 +126,7 @@
             <div class="docs-provenance-items">
                 @if (sourceHref is not null)
                 {
-                    <a href="@sourceHref"
+                    <a href="@ResolveAppHref(sourceHref)"
                        class="docs-provenance-link docs-provenance-link--primary"
                        @if (sourceUsesTurbo)
                        {
@@ -135,7 +135,7 @@
                 }
                 @if (editHref is not null)
                 {
-                    <a href="@editHref"
+                    <a href="@ResolveAppHref(editHref)"
                        class="docs-provenance-link docs-provenance-link--secondary"
                        @if (editUsesTurbo)
                        {
@@ -194,7 +194,7 @@
                     {
                         <p class="docs-trust-bar-value">
                             <span class="docs-trust-bar-key">Migration:</span>
-                            <a href="@trustMigrationHref"
+                            <a href="@ResolveAppHref(trustMigrationHref)"
                                class="docs-trust-bar-link"
                                @if (trustMigrationUsesTurbo)
                                {

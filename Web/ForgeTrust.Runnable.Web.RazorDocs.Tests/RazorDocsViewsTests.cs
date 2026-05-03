@@ -1755,6 +1755,45 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldPreservePathBase_ForLocalProvenanceAndMigrationLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Quickstart",
+            "guides/quickstart.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Migration = new DocTrustLink
+                    {
+                        Href = "/docs/releases/unreleased.md.html",
+                        Label = "Migration notes"
+                    }
+                }
+            });
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                SourceHref = "/docs/guides/quickstart.md.html",
+                EditHref = "/docs/guides/quickstart.edit.md.html"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model,
+            configureHttpContext: httpContext => httpContext.Request.PathBase = "/tenant");
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.NotNull(document.QuerySelector("a.docs-provenance-link--primary[href='/tenant/docs/guides/quickstart.md.html']"));
+        Assert.NotNull(document.QuerySelector("a.docs-provenance-link--secondary[href='/tenant/docs/guides/quickstart.edit.md.html']"));
+        Assert.NotNull(document.QuerySelector("a.docs-trust-bar-link[href='/tenant/docs/releases/unreleased.md.html']"));
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldNotRenderContributorProvenance_WhenNoEvidenceExists()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -2316,7 +2355,8 @@ public class RazorDocsViewsTests
         ServiceProvider services,
         string viewName,
         object model,
-        Action<ViewDataDictionary>? configureViewData = null)
+        Action<ViewDataDictionary>? configureViewData = null,
+        Action<HttpContext>? configureHttpContext = null)
     {
         using var scope = services.CreateScope();
         var scopedServices = scope.ServiceProvider;
@@ -2326,6 +2366,7 @@ public class RazorDocsViewsTests
             RequestServices = scopedServices
         };
         httpContext.Response.Body = new MemoryStream();
+        configureHttpContext?.Invoke(httpContext);
 
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         {

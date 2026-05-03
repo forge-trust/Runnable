@@ -701,8 +701,21 @@ public sealed record DocLandingViewModel
 }
 
 /// <summary>
-/// View model for one reader-intent group on a docs landing page.
+/// View model for one resolved reader-intent group on a docs landing page.
 /// </summary>
+/// <remarks>
+/// <see cref="Intent"/> and <see cref="Label"/> are normalized by the featured-page resolver before rendering: authored
+/// whitespace is trimmed, missing labels fall back to the resolved intent, and both values are non-null. <see cref="Summary"/>
+/// contains optional group copy and may be <c>null</c>. <see cref="Pages"/> contains the resolved
+/// <see cref="DocLandingFeaturedPageViewModel"/> rows produced by the resolver after it matches authored destinations to
+/// visible docs. Empty <see cref="Pages"/> lists are treated as no featured pages and are suppressed by
+/// <see cref="DocDetailsViewModel.HasFeaturedPages"/> and the RazorDocs views.
+/// </remarks>
+/// <remarks>
+/// Pitfalls: callers should not rely on an empty <see cref="Pages"/> list being rendered, and should expect
+/// <see cref="Intent"/>, <see cref="Label"/>, <see cref="Summary"/>, and <see cref="Pages"/> to reflect resolver output
+/// rather than raw authored front matter.
+/// </remarks>
 public sealed record DocLandingFeaturedPageGroupViewModel
 {
     /// <summary>

@@ -35,6 +35,25 @@ public class StartupContextTests
         Assert.Equal(ConsoleOutputMode.CommandFirst, context.ConsoleOutputMode);
     }
 
+    [Fact]
+    public void ApplicationName_DefaultsToRootModuleAssemblyName()
+    {
+        var context = new StartupContext([], new DummyModule());
+
+        Assert.Equal(typeof(DummyModule).Assembly.GetName().Name, context.ApplicationName);
+    }
+
+    [Fact]
+    public void ApplicationName_CanBeOverriddenWithWithExpression()
+    {
+        var context = new StartupContext([], new DummyModule());
+
+        var renamed = context with { ApplicationName = "CustomApp" };
+
+        Assert.Equal("CustomApp", renamed.ApplicationName);
+        Assert.Equal(context.RootModuleAssembly, renamed.RootModuleAssembly);
+    }
+
     private class DummyModule : IRunnableHostModule
     {
         public void ConfigureServices(StartupContext context, IServiceCollection services)

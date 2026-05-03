@@ -21,7 +21,7 @@ public record StartupContext(
 {
     internal ModuleDependencyBuilder Dependencies { get; } = new();
 
-    private readonly string? _applicationName = ApplicationName;
+    private string? _applicationName = ApplicationName;
 
     /// <summary>
     /// Gets or sets an assembly that should be treated as the entry point assembly, overriding the default.
@@ -67,7 +67,11 @@ public record StartupContext(
     /// which must stay aligned with the assembly identity used by the .NET Generic Host and ASP.NET static web asset
     /// manifest discovery.
     /// </remarks>
-    public string ApplicationName => _applicationName ?? RootModuleAssembly.GetName().Name ?? "RunnableApp";
+    public string ApplicationName
+    {
+        get => _applicationName ?? RootModuleAssembly.GetName().Name ?? "RunnableApp";
+        init => _applicationName = value;
+    }
 
     /// <summary>
     /// Gets the assembly-backed application identity assigned to <see cref="Microsoft.Extensions.Hosting.IHostEnvironment.ApplicationName"/>.

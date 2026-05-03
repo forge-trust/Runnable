@@ -75,6 +75,22 @@ public static partial class PathUtils
         return startPath;
     }
 
+    /// <summary>
+    /// Resolves the containing directory for an existing file path used by repository-root discovery.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="FindRepositoryRootCore"/> calls <c>GetExistingFileDirectory</c> only after <see cref="File.Exists(string?)"/>
+    /// has accepted <paramref name="startPath"/> as an existing file. The method normalizes the value with
+    /// <see cref="Path.GetFullPath(string)"/> so relative file paths are canonicalized before returning the directory
+    /// portion from <see cref="Path.GetDirectoryName(string?)"/>. If normalization cannot produce a containing
+    /// directory, <see cref="ArgumentException.ThrowIfNullOrEmpty(string?, string?)"/> throws to surface the broken
+    /// existing-file invariant instead of silently probing from an unrelated fallback path.
+    /// </remarks>
+    /// <param name="startPath">A non-empty path already known to reference an existing file.</param>
+    /// <returns>The normalized containing directory for <paramref name="startPath"/>.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the normalized file path does not yield a containing directory.
+    /// </exception>
     private static string GetExistingFileDirectory(string startPath)
     {
         var directoryPath = Path.GetDirectoryName(Path.GetFullPath(startPath));

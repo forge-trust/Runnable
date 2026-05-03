@@ -353,6 +353,26 @@ body {
     color: #94a3b8;
 }
 
+.docs-content .doc-symbol-source-link {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    border: 1px solid #334155;
+    border-radius: 9999px;
+    padding: 0.18rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #67e8f9;
+    background: rgba(8, 47, 73, 0.38);
+    text-decoration: none;
+}
+
+.docs-content .doc-symbol-source-link:hover {
+    border-color: rgba(103, 232, 249, 0.65);
+    color: #cffafe;
+}
+
 .docs-content .doc-overload {
     border: 1px solid #334155;
     border-radius: 0.75rem;

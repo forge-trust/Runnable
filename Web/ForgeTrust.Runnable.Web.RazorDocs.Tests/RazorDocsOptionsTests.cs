@@ -92,7 +92,9 @@ public sealed class RazorDocsOptionsTests
                     {
                         ["RazorDocs:Contributor:DefaultBranch"] = " main ",
                         ["RazorDocs:Contributor:SourceUrlTemplate"] = " https://example.com/blob/{branch}/{path} ",
-                        ["RazorDocs:Contributor:EditUrlTemplate"] = " https://example.com/edit/{branch}/{path} "
+                        ["RazorDocs:Contributor:EditUrlTemplate"] = " https://example.com/edit/{branch}/{path} ",
+                        ["RazorDocs:Contributor:SymbolSourceUrlTemplate"] = " https://example.com/blob/{ref}/{path}#L{line} ",
+                        ["RazorDocs:Contributor:SourceRef"] = " abc123 "
                     })
                 .Build());
 
@@ -104,6 +106,8 @@ public sealed class RazorDocsOptionsTests
         Assert.Equal("main", options.Contributor.DefaultBranch);
         Assert.Equal("https://example.com/blob/{branch}/{path}", options.Contributor.SourceUrlTemplate);
         Assert.Equal("https://example.com/edit/{branch}/{path}", options.Contributor.EditUrlTemplate);
+        Assert.Equal("https://example.com/blob/{ref}/{path}#L{line}", options.Contributor.SymbolSourceUrlTemplate);
+        Assert.Equal("abc123", options.Contributor.SourceRef);
     }
 
     [Fact]
@@ -198,7 +202,9 @@ public sealed class RazorDocsOptionsTests
         {
             DefaultBranch = " main ",
             SourceUrlTemplate = " https://example.com/blob/{branch}/{path} ",
-            EditUrlTemplate = " https://example.com/edit/{branch}/{path} "
+            EditUrlTemplate = " https://example.com/edit/{branch}/{path} ",
+            SymbolSourceUrlTemplate = " https://example.com/blob/{ref}/{path}#L{line} ",
+            SourceRef = " abc123 "
         };
 
         services.Configure<RazorDocsOptions>(
@@ -225,6 +231,8 @@ public sealed class RazorDocsOptionsTests
         Assert.Equal("main", options.Contributor.DefaultBranch);
         Assert.Equal("https://example.com/blob/{branch}/{path}", options.Contributor.SourceUrlTemplate);
         Assert.Equal("https://example.com/edit/{branch}/{path}", options.Contributor.EditUrlTemplate);
+        Assert.Equal("https://example.com/blob/{ref}/{path}#L{line}", options.Contributor.SymbolSourceUrlTemplate);
+        Assert.Equal("abc123", options.Contributor.SourceRef);
     }
 
     [Fact]
@@ -442,6 +450,126 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void Validator_ShouldRequirePathAndLineTokens_WhenSymbolSourceTemplateIsConfigured()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                SymbolSourceUrlTemplate = "https://example.com/blob/{ref}/docs-index"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("SymbolSourceUrlTemplate must contain the {path} token", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("SymbolSourceUrlTemplate must contain the {line} token", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRequireSourceRefOrDefaultBranch_WhenSymbolSourceTemplateUsesRef()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                SymbolSourceUrlTemplate = "https://example.com/blob/{ref}/{path}#L{line}"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("SourceRef or DefaultBranch is required", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRequireDefaultBranch_WhenSymbolSourceTemplateUsesBranch()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                SymbolSourceUrlTemplate = "https://example.com/blob/{branch}/{path}#L{line}"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("DefaultBranch is required when SymbolSourceUrlTemplate contains the {branch} token", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldAllowSymbolSourceTemplate_WhenBranchTokenHasDefaultBranch()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                DefaultBranch = "main",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{branch}/{path}#L{line}"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Fact]
+    public void Validator_ShouldAllowSymbolSourceTemplate_WhenRefTokenHasSourceRef()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                SourceRef = "abc123",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{ref}/{path}#L{line}"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectUnsupportedSymbolSourceTemplateTokens()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                SourceRef = "abc123",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{commit}/{path}#L{linen}"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("unsupported token(s): {commit}, {linen}", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validator_ShouldSkipContributorTemplateValidation_WhenContributorRenderingIsDisabled()
     {
         var validator = new RazorDocsOptionsValidator();
@@ -452,7 +580,8 @@ public sealed class RazorDocsOptionsTests
                 Enabled = false,
                 DefaultBranch = "   ",
                 SourceUrlTemplate = "https://example.com/blob/{branch}/docs-index",
-                EditUrlTemplate = "https://example.com/edit/{branch}/docs-index"
+                EditUrlTemplate = "https://example.com/edit/{branch}/docs-index",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{ref}/docs-index"
             }
         };
 

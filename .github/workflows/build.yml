@@ -95,7 +95,9 @@ jobs:
       - name: Export RazorDocs static site
         env:
           RazorDocs__Contributor__DefaultBranch: ${{ github.ref_name }}
+          RazorDocs__Contributor__SourceRef: ${{ github.sha }}
           RazorDocs__Contributor__SourceUrlTemplate: https://github.com/${{ github.repository }}/blob/{branch}/{path}
+          RazorDocs__Contributor__SymbolSourceUrlTemplate: https://github.com/${{ github.repository }}/blob/{ref}/{path}#L{line}
           RazorDocs__Contributor__EditUrlTemplate: https://github.com/${{ github.repository }}/edit/{branch}/{path}
           RazorDocs__Contributor__LastUpdatedMode: Git
         run: |

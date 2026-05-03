@@ -13,15 +13,35 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 /// </remarks>
 public sealed class DocFeaturedPageResolver
 {
+    private readonly DocsUrlBuilder _docsUrlBuilder;
     private readonly ILogger<DocFeaturedPageResolver> _logger;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="DocFeaturedPageResolver"/>.
+    /// Initializes a new instance of <see cref="DocFeaturedPageResolver"/> with the default live docs root.
     /// </summary>
+    /// <remarks>
+    /// This overload preserves the historical convenience API for ad hoc callers that only need the default
+    /// <c>/docs</c> routing surface. Hosts that customize <see cref="RazorDocsRoutingOptions.DocsRootPath"/> should use
+    /// <see cref="DocFeaturedPageResolver(ILogger{DocFeaturedPageResolver}, DocsUrlBuilder)"/> so resolved featured-page
+    /// links match the configured live docs root.
+    /// </remarks>
     /// <param name="logger">Logger used for authored curation diagnostics.</param>
     public DocFeaturedPageResolver(ILogger<DocFeaturedPageResolver> logger)
+        : this(logger, new DocsUrlBuilder(new RazorDocsOptions()))
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="DocFeaturedPageResolver"/> with the configured live docs root.
+    /// </summary>
+    /// <param name="logger">Logger used for authored curation diagnostics.</param>
+    /// <param name="docsUrlBuilder">
+    /// URL builder that supplies the current live docs root for browser-facing featured-page links.
+    /// </param>
+    public DocFeaturedPageResolver(ILogger<DocFeaturedPageResolver> logger, DocsUrlBuilder docsUrlBuilder)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _docsUrlBuilder = docsUrlBuilder ?? throw new ArgumentNullException(nameof(docsUrlBuilder));
     }
 
     /// <summary>
@@ -37,7 +57,10 @@ public sealed class DocFeaturedPageResolver
     /// an empty list when <paramref name="landingDoc"/> is <c>null</c>, when the landing doc has no
     /// <c>featured_page_groups</c>, or when every authored group is filtered out during resolution. Groups with no visible
     /// destinations after validation are omitted. Duplicate destinations are suppressed across all groups, so a page
-    /// resolved earlier in authored order will not appear again later in the landing.
+    /// resolved earlier in authored order will not appear again later in the landing. Browser-facing
+    /// <see cref="DocLandingFeaturedPageViewModel.Href"/> values are rooted at the current live docs surface from
+    /// <see cref="DocsUrlBuilder"/>, not hardcoded to <c>/docs</c>, and authored canonical input paths are matched
+    /// against that same configured live docs root before the legacy stable <c>/docs</c> prefix fallback is considered.
     /// </returns>
     /// <exception cref="InvalidOperationException">
     /// Thrown when a resolved featured destination is missing <see cref="DocNode.CanonicalPath"/>.
@@ -201,7 +224,7 @@ public sealed class DocFeaturedPageResolver
         {
             Question = question,
             Title = destinationTitle,
-            Href = $"/docs/{destinationLinkPath}",
+            Href = _docsUrlBuilder.BuildDocUrl(destinationLinkPath),
             PageType = destination.Metadata?.PageType,
             PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(destination.Metadata?.PageType),
             SupportingText = GetSupportingText(definition, destination)
@@ -245,14 +268,26 @@ public sealed class DocFeaturedPageResolver
         }
     }
 
-    private static DocNode? ResolveDocByPath(
+    private DocNode? ResolveDocByPath(
         string path,
         IReadOnlyDictionary<string, DocLookupBucket> lookup)
     {
-        return ResolveDocByNormalizedPath(path, lookup)
-               ?? (TryStripDocsRoutePrefix(path, out var routeRelativePath)
-                   ? ResolveDocByNormalizedPath(routeRelativePath, lookup)
-                   : null);
+        var resolved = ResolveDocByNormalizedPath(path, lookup);
+        if (resolved is not null)
+        {
+            return resolved;
+        }
+
+        foreach (var routeRelativePath in GetRouteRelativePaths(path))
+        {
+            resolved = ResolveDocByNormalizedPath(routeRelativePath, lookup);
+            if (resolved is not null)
+            {
+                return resolved;
+            }
+        }
+
+        return null;
     }
 
     private static DocNode? ResolveDocByNormalizedPath(
@@ -290,17 +325,49 @@ public sealed class DocFeaturedPageResolver
             .FirstOrDefault();
     }
 
-    private static bool TryStripDocsRoutePrefix(string path, out string routeRelativePath)
+    private IEnumerable<string> GetRouteRelativePaths(string path)
     {
-        var normalizedPath = path.Trim().Replace('\\', '/').TrimStart('/');
-        const string docsRoutePrefix = "docs/";
-        if (normalizedPath.StartsWith(docsRoutePrefix, StringComparison.OrdinalIgnoreCase))
+        if (TryStripRouteRoot(path, _docsUrlBuilder.CurrentDocsRootPath, out var currentRootRelativePath))
         {
-            routeRelativePath = normalizedPath[docsRoutePrefix.Length..];
-            return !string.IsNullOrWhiteSpace(routeRelativePath);
+            yield return currentRootRelativePath;
         }
 
+        if (TryStripRouteRoot(path, DocsUrlBuilder.DocsEntryPath, out var stableRootRelativePath)
+            && !string.Equals(currentRootRelativePath, stableRootRelativePath, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return stableRootRelativePath;
+        }
+    }
+
+    private static bool TryStripRouteRoot(string path, string routeRootPath, out string routeRelativePath)
+    {
         routeRelativePath = path;
+
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(routeRootPath))
+        {
+            return false;
+        }
+
+        var normalizedPath = path.Trim().Replace('\\', '/').TrimStart('/');
+        var normalizedRouteRoot = routeRootPath.Trim().Replace('\\', '/').Trim('/');
+        if (normalizedRouteRoot.Length == 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(normalizedPath, normalizedRouteRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            routeRelativePath = string.Empty;
+            return true;
+        }
+
+        var routePrefix = normalizedRouteRoot + "/";
+        if (normalizedPath.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            routeRelativePath = normalizedPath[routePrefix.Length..];
+            return true;
+        }
+
         return false;
     }
 

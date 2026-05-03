@@ -1004,6 +1004,98 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Index_ShouldHonorConfiguredLiveDocsRoot_ForCuratedFeaturedPages()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true
+            }
+        };
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPageGroups =
+                    [
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/composition.md"
+                            })
+                    ]
+                }),
+            new("Composition", "guides/composition.md", "<p>Guide body</p>")
+        };
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var (controller, _, _) = CreateController(options, harvester);
+
+        var result = await controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        var featuredPage = SingleFeaturedPage(model);
+        Assert.Equal("/docs/next/guides/composition.md.html", featuredPage.Href);
+    }
+
+    [Fact]
+    public async Task Index_ShouldResolveConfiguredRootCanonicalFeaturedPaths()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true
+            }
+        };
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPageGroups =
+                    [
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "/docs/next/guides/composition.md.html"
+                            })
+                    ]
+                }),
+            new("Composition", "guides/composition.md", "<p>Guide body</p>")
+        };
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var (controller, _, _) = CreateController(options, harvester);
+
+        var result = await controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        var featuredPage = SingleFeaturedPage(model);
+        Assert.Equal("/docs/next/guides/composition.md.html", featuredPage.Href);
+    }
+
+    [Fact]
     public async Task Index_ShouldPreferBestFallbackCandidate_WhenFeaturedPathHasNoExactCanonicalMatch()
     {
         var docs = new List<DocNode>

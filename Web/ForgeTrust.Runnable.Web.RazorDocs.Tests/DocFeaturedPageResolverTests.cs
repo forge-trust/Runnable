@@ -27,6 +27,13 @@ public sealed class DocFeaturedPageResolverTests
     }
 
     [Fact]
+    public void Constructor_ShouldThrow_WhenDocsUrlBuilderIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>(), null!));
+    }
+
+    [Fact]
     public void ResolveGroups_ShouldReturnEmpty_WhenLandingDocIsNull()
     {
         var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
@@ -243,6 +250,69 @@ public sealed class DocFeaturedPageResolverTests
         var page = Assert.Single(Assert.Single(groups).Pages);
         Assert.Equal("Intro", page.Title);
         Assert.Equal("/docs/guides/intro.md.html", page.Href);
+    }
+
+    [Theory]
+    [InlineData("/docs/next/guides/intro.md.html")]
+    [InlineData("docs/next/guides/intro.md.html")]
+    public void ResolveGroups_ShouldResolveCurrentRootCanonicalDestinationPaths(string authoredPath)
+    {
+        var resolver = new DocFeaturedPageResolver(
+            A.Fake<ILogger<DocFeaturedPageResolver>>(),
+            new DocsUrlBuilder(
+                new RazorDocsOptions
+                {
+                    Routing = new RazorDocsRoutingOptions
+                    {
+                        DocsRootPath = "/docs/next"
+                    },
+                    Versioning = new RazorDocsVersioningOptions
+                    {
+                        Enabled = true
+                    }
+                }));
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = authoredPath
+            });
+        var intro = Doc("Intro", "guides/intro.md");
+
+        var groups = resolver.ResolveGroups(landing, [landing, intro]);
+
+        var page = Assert.Single(Assert.Single(groups).Pages);
+        Assert.Equal("Intro", page.Title);
+        Assert.Equal("/docs/next/guides/intro.md.html", page.Href);
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldHonorConfiguredLiveDocsRoot()
+    {
+        var resolver = new DocFeaturedPageResolver(
+            A.Fake<ILogger<DocFeaturedPageResolver>>(),
+            new DocsUrlBuilder(
+                new RazorDocsOptions
+                {
+                    Routing = new RazorDocsRoutingOptions
+                    {
+                        DocsRootPath = "/docs/next"
+                    },
+                    Versioning = new RazorDocsVersioningOptions
+                    {
+                        Enabled = true
+                    }
+                }));
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = "guides/intro.md"
+            });
+        var intro = Doc("Intro", "guides/intro.md");
+
+        var groups = resolver.ResolveGroups(landing, [landing, intro]);
+
+        var page = Assert.Single(Assert.Single(groups).Pages);
+        Assert.Equal("/docs/next/guides/intro.md.html", page.Href);
     }
 
     [Fact]

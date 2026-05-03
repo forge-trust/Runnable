@@ -50,7 +50,9 @@ public class DocsController : Controller
             aggregator,
             new DocsUrlBuilder(new RazorDocsOptions()),
             CreateDefaultVersionCatalogService(),
-            new DocFeaturedPageResolver(NullLogger<DocFeaturedPageResolver>.Instance),
+            new DocFeaturedPageResolver(
+                NullLogger<DocFeaturedPageResolver>.Instance,
+                new DocsUrlBuilder(new RazorDocsOptions())),
             logger)
     {
     }
@@ -98,7 +100,7 @@ public class DocsController : Controller
             aggregator,
             docsUrlBuilder,
             versionCatalogService,
-            new DocFeaturedPageResolver(NullLogger<DocFeaturedPageResolver>.Instance),
+            new DocFeaturedPageResolver(NullLogger<DocFeaturedPageResolver>.Instance, docsUrlBuilder),
             logger)
     {
     }

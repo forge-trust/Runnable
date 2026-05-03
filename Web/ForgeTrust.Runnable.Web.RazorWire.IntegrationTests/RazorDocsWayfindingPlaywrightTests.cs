@@ -16,6 +16,8 @@ public sealed class RazorDocsWayfindingPlaywrightTests
     [Fact]
     public async Task DetailsPage_RendersOutline_AndSequenceWayfinding()
     {
+        // Regression: ISSUE-002 — partial wayfinding navigation could update the URL before the
+        // replacement doc content landed, making this assertion flaky on slower runners.
         await using var context = await _fixture.Browser.NewContextAsync();
         var page = await context.NewPageAsync();
 
@@ -46,18 +48,31 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html",
             await page.GetAttributeAsync("[data-doc-wayfinding='next']", "href"));
 
+        const string nextDocPath = "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html";
+        const string nextDocHeading = "Failed Form UX";
+        var initialContent = await page.Locator("#doc-content").InnerHTMLAsync();
+
         await page.ClickAsync("[data-doc-wayfinding='next']");
         await page.WaitForFunctionAsync(
-            "() => window.location.pathname.endsWith('/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html')",
-            null,
-            new PageWaitForFunctionOptions { Timeout = 15_000 });
-        await page.WaitForSelectorAsync("h1", new PageWaitForSelectorOptions
-        {
-            Timeout = 30_000,
-            State = WaitForSelectorState.Visible
-        });
+            """
+            (args) => {
+              const island = document.getElementById('doc-content');
+              const heading = document.querySelector('h1');
+              return window.location.pathname === args.targetPath
+                && Boolean(island)
+                && island.innerHTML !== args.initialContent
+                && heading?.textContent?.trim() === args.expectedHeading;
+            }
+            """,
+            new
+            {
+                targetPath = nextDocPath,
+                initialContent,
+                expectedHeading = nextDocHeading
+            },
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
 
-        Assert.Equal("Failed Form UX", (await page.TextContentAsync("h1"))?.Trim());
+        Assert.Equal(nextDocHeading, (await page.TextContentAsync("h1"))?.Trim());
     }
 
     [Fact]

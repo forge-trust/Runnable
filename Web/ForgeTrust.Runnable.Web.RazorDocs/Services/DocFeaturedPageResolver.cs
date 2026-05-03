@@ -40,7 +40,7 @@ public sealed class DocFeaturedPageResolver
     /// resolved earlier in authored order will not appear again later in the landing.
     /// </returns>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when a harvested document participating in resolution is missing <see cref="DocNode.CanonicalPath"/>.
+    /// Thrown when a resolved featured destination is missing <see cref="DocNode.CanonicalPath"/>.
     /// </exception>
     public IReadOnlyList<DocLandingFeaturedPageGroupViewModel> ResolveGroups(
         DocNode? landingDoc,
@@ -171,7 +171,7 @@ public sealed class DocFeaturedPageResolver
     {
         public List<DocNode> OrderedDocs { get; } = [];
 
-        public HashSet<DocNode> SeenDocs { get; } = [];
+        public HashSet<DocNode> SeenDocs { get; } = new(ReferenceEqualityComparer.Instance);
     }
 
     private static Dictionary<string, DocLookupBucket> BuildDocLookup(IEnumerable<DocNode> docs)
@@ -181,7 +181,10 @@ public sealed class DocFeaturedPageResolver
         foreach (var doc in docs)
         {
             AddLookupEntry(lookup, NormalizeLookupPath(doc.Path), doc);
-            AddLookupEntry(lookup, NormalizeLookupPath(GetSnapshotCanonicalPath(doc)), doc);
+            if (!string.IsNullOrWhiteSpace(doc.CanonicalPath))
+            {
+                AddLookupEntry(lookup, NormalizeLookupPath(doc.CanonicalPath), doc);
+            }
         }
 
         return lookup;
@@ -215,10 +218,11 @@ public sealed class DocFeaturedPageResolver
 
         var candidates = bucket.OrderedDocs;
         var exactCanonicalMatch = candidates.FirstOrDefault(
-            doc => string.Equals(
-                       NormalizeCanonicalPath(GetSnapshotCanonicalPath(doc)),
-                       lookupCanonicalPath,
-                       StringComparison.OrdinalIgnoreCase)
+            doc => (!string.IsNullOrWhiteSpace(doc.CanonicalPath)
+                    && string.Equals(
+                        NormalizeCanonicalPath(doc.CanonicalPath),
+                        lookupCanonicalPath,
+                        StringComparison.OrdinalIgnoreCase))
                    || string.Equals(
                        NormalizeCanonicalPath(doc.Path),
                        lookupCanonicalPath,
@@ -229,7 +233,7 @@ public sealed class DocFeaturedPageResolver
         }
 
         return candidates
-            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(GetSnapshotCanonicalPath(doc))) ? 0 : 1)
+            .OrderBy(doc => string.IsNullOrWhiteSpace(GetFragment(doc.CanonicalPath ?? doc.Path)) ? 0 : 1)
             .ThenBy(doc => string.IsNullOrWhiteSpace(doc.Content) ? 1 : 0)
             .ThenBy(doc => doc.Path, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();

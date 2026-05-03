@@ -41,8 +41,9 @@ internal static class Program
     /// Runs the package chooser CLI against the supplied IO streams and working directory.
     /// </summary>
     /// <param name="args">
-    /// Command-line arguments, including the command and optional path overrides. A leading help argument returns
-    /// before command or option parsing so help remains available from any working directory.
+    /// Command-line arguments, including the command and optional path overrides. If any help argument is present,
+    /// this method returns usage output before command or option parsing so help remains available from any working
+    /// directory.
     /// </param>
     /// <param name="standardOut">Writer that receives success messages and help/usage output.</param>
     /// <param name="standardError">Writer that receives invalid invocation usage and failure messages.</param>

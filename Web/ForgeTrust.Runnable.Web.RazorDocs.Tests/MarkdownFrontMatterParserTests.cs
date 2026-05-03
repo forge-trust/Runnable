@@ -177,6 +177,30 @@ public sealed class MarkdownFrontMatterParserTests
         Assert.Equal("featured_page_groups[0].pages", diagnostic.FieldPath);
     }
 
+    [Fact]
+    public void ExtractWithDiagnostics_ShouldIgnoreFeaturedPageGroupsWhenAllPagesNormalizeAway_AndWarn()
+    {
+        var markdown = """
+            ---
+            featured_page_groups:
+              - label: Empty group
+                pages:
+                  - {}
+                  - question: "   "
+                    path: "   "
+                    supporting_copy: "   "
+            ---
+            # Hello
+            """;
+
+        var (_, result) = MarkdownFrontMatterParser.ExtractWithDiagnostics(markdown);
+
+        Assert.Empty(result.Metadata!.FeaturedPageGroups!);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("empty-featured-group-page-entries", diagnostic.Code);
+        Assert.Equal("featured_page_groups[0].pages", diagnostic.FieldPath);
+    }
+
     [Theory]
     [InlineData("!!!", "featured", "!!!")]
     [InlineData("---", "featured", "---")]
@@ -333,6 +357,53 @@ public sealed class MarkdownFrontMatterParserTests
         Assert.Equal("/docs/releases/upgrade-policy.md.html", metadata.Trust.Migration?.Href);
         Assert.Equal("Tagged release notes keep the durable record.", metadata.Trust.Archive);
         Assert.Empty(metadata.Trust.Sources!);
+    }
+
+    [Fact]
+    public void Extract_ShouldParseContributorMetadata()
+    {
+        var markdown = """
+            ---
+            contributor:
+              hide_contributor_info: false
+              source_path_override: docs/releases/unreleased.md
+              source_url_override: https://example.com/source
+              edit_url_override: https://example.com/edit
+              last_updated_override: 2026-04-22T23:19:00Z
+            ---
+            # Hello
+            """;
+
+        var (body, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.Equal("# Hello", body);
+        Assert.NotNull(metadata?.Contributor);
+        Assert.False(metadata!.Contributor!.HideContributorInfo);
+        Assert.Equal("docs/releases/unreleased.md", metadata.Contributor.SourcePathOverride);
+        Assert.Equal("https://example.com/source", metadata.Contributor.SourceUrlOverride);
+        Assert.Equal("https://example.com/edit", metadata.Contributor.EditUrlOverride);
+        Assert.Equal(
+            new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero),
+            metadata.Contributor.LastUpdatedOverride);
+    }
+
+    [Fact]
+    public void Extract_ShouldTreatEmptyContributorMetadataAsMissing()
+    {
+        var markdown = """
+            ---
+            contributor:
+              source_path_override: "   "
+              source_url_override: ""
+              edit_url_override: "   "
+            ---
+            # Hello
+            """;
+
+        var (_, metadata) = MarkdownFrontMatterParser.Extract(markdown);
+
+        Assert.NotNull(metadata);
+        Assert.Null(metadata!.Contributor);
     }
 
     [Fact]

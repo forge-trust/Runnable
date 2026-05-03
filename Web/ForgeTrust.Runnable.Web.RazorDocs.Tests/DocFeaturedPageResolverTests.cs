@@ -287,6 +287,24 @@ public sealed class DocFeaturedPageResolverTests
         Assert.Contains("missing CanonicalPath", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ResolveGroups_ShouldIgnoreUnselectedDocsWithoutCanonicalPath()
+    {
+        var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = "guides/intro.md"
+            });
+        var intro = Doc("Intro", "guides/intro.md");
+        var unrelated = new DocNode("Unrelated", "guides/unrelated.md", "<p>Unrelated</p>");
+
+        var groups = resolver.ResolveGroups(landing, [landing, unrelated, intro]);
+
+        var page = Assert.Single(Assert.Single(groups).Pages);
+        Assert.Equal("Intro", page.Title);
+    }
+
     private static DocNode Landing(params DocFeaturedPageDefinition[] pages)
     {
         return new DocNode(

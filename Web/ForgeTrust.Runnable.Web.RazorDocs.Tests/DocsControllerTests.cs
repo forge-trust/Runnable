@@ -359,7 +359,18 @@ public class DocsControllerTests : IDisposable
                 "<p>Quickstart</p>",
                 Metadata: new DocMetadata
                 {
-                    NavGroup = "Start Here"
+                    NavGroup = "Start Here",
+                    Order = 30
+                }),
+            new(
+                "Deploy",
+                "guides/deploy.md",
+                "<p>Deploy</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Order = 40,
+                    Summary = "Ship it."
                 })
         };
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
@@ -370,6 +381,9 @@ public class DocsControllerTests : IDisposable
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         var group = Assert.Single(model.FeaturedPageGroups);
         Assert.Equal(["Install", "Build", "Quickstart"], group.Pages.Select(page => page.Title).ToArray());
+        Assert.Equal(["Understand", "See Proof", "Adopt Next"], group.Pages.Select(page => page.Question).ToArray());
+        Assert.Equal(3, group.Pages.Count);
+        Assert.DoesNotContain(group.Pages, page => page.Title == "Deploy");
         Assert.DoesNotContain(group.Pages, page => page.Title == "Start Here");
     }
 
@@ -1077,6 +1091,62 @@ public class DocsControllerTests : IDisposable
         Assert.Equal(DocPublicSection.StartHere, model.PublicSection);
         Assert.Empty(model.FeaturedPageGroups);
         Assert.Empty(model.SectionGroups);
+        AssertWarningLogged("destination page could not be resolved");
+    }
+
+    [Fact]
+    public async Task Details_ShouldKeepRemainingSectionPages_WhenNoFeaturedPagesResolve()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Start Here",
+                "README.md",
+                "<p>Start here</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    SectionLanding = true,
+                    FeaturedPageGroups =
+                    [
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/missing.md"
+                            })
+                    ]
+                }),
+            new(
+                "Install",
+                "guides/install.md",
+                "<p>Install</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Order = 10
+                }),
+            new(
+                "Configure",
+                "guides/configure.md",
+                "<p>Configure</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Order = 20
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("README.md");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.True(model.IsSectionLanding);
+        Assert.Equal(DocPublicSection.StartHere, model.PublicSection);
+        Assert.Empty(model.FeaturedPageGroups);
+        var sectionGroup = Assert.Single(model.SectionGroups);
+        Assert.Equal(["Install", "Configure"], sectionGroup.Links.Select(link => link.Title).ToArray());
+        Assert.DoesNotContain(sectionGroup.Links, link => link.Title == "Start Here");
         AssertWarningLogged("destination page could not be resolved");
     }
 

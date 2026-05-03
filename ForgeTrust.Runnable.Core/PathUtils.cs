@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Core;
@@ -43,12 +44,8 @@ public static partial class PathUtils
         }
 
         var fileExists = File.Exists(startPath);
-        var fullPath = Path.GetFullPath(startPath);
-        var directoryPath = Path.GetDirectoryName(fullPath)
-            ?? Path.GetPathRoot(fullPath)
-            ?? fullPath;
         DirectoryInfo? current = fileExists
-            ? new DirectoryInfo(directoryPath)
+            ? new DirectoryInfo(GetExistingFileDirectory(startPath))
             : new DirectoryInfo(startPath);
         var fallbackFromMissingPath = !fileExists && !current.Exists;
 
@@ -77,6 +74,16 @@ public static partial class PathUtils
         }
 
         return startPath;
+    }
+
+    [ExcludeFromCodeCoverage(
+        Justification = "File.Exists excludes root directories; the fallback preserves defensive handling for unusual path providers.")]
+    private static string GetExistingFileDirectory(string startPath)
+    {
+        var fullPath = Path.GetFullPath(startPath);
+        return Path.GetDirectoryName(fullPath)
+            ?? Path.GetPathRoot(fullPath)
+            ?? fullPath;
     }
 
     [LoggerMessage(

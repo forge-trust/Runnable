@@ -74,6 +74,8 @@ public static class RazorDocsServiceCollectionExtensions
                         options.Routing.DocsRootPath,
                         options.Versioning.Enabled);
                     options.Versioning.CatalogPath = NormalizeOrNull(options.Versioning.CatalogPath);
+                    options.Contributor.SymbolSourceUrlTemplate = NormalizeOrNull(options.Contributor.SymbolSourceUrlTemplate);
+                    options.Contributor.SourceRef = NormalizeOrNull(options.Contributor.SourceRef);
                     options.Sidebar.NamespacePrefixes = options.Sidebar.NamespacePrefixes
                         .Where(prefix => !string.IsNullOrWhiteSpace(prefix))
                         .Select(prefix => prefix.Trim())

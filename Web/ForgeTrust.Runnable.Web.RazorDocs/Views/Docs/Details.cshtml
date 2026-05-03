@@ -27,8 +27,58 @@
     var provenance = Model.ContributorProvenance;
     var sourceHref = string.IsNullOrWhiteSpace(provenance?.SourceHref) ? null : provenance!.SourceHref!.Trim();
     var editHref = string.IsNullOrWhiteSpace(provenance?.EditHref) ? null : provenance!.EditHref!.Trim();
+    var provenanceLabel = string.IsNullOrWhiteSpace(provenance?.Label) ? "Source of truth" : provenance!.Label.Trim();
     var lastUpdatedUtc = provenance?.LastUpdatedUtc?.ToUniversalTime();
     var showContributorProvenance = sourceHref is not null || editHref is not null || lastUpdatedUtc is not null;
+}
+@functions {
+    private static readonly System.Text.RegularExpressions.Regex RootedSymbolSourceLinkRegex = new(
+        """<a\b(?:(?:[^>]*\bhref\s*=\s*"(?<hrefBefore>/[^"]*)"[^>]*\bclass\s*=\s*"(?:doc-symbol-source-link(?:\s[^"]*)?|[^"]*\sdoc-symbol-source-link(?:\s[^"]*)?)")|(?:[^>]*\bclass\s*=\s*"(?:doc-symbol-source-link(?:\s[^"]*)?|[^"]*\sdoc-symbol-source-link(?:\s[^"]*)?)"[^>]*\bhref\s*=\s*"(?<hrefAfter>/[^"]*)"))[^>]*>""",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        | System.Text.RegularExpressions.RegexOptions.NonBacktracking);
+
+    private string ResolveAppHref(string href)
+    {
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return "#";
+        }
+
+        var trimmed = href.Trim();
+        return trimmed.Equals("/docs", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("/docs?", StringComparison.OrdinalIgnoreCase)
+            ? Url.Content($"~{trimmed}")
+            : Url.Content(trimmed);
+    }
+
+    private string ResolveGeneratedContentHrefs(string content)
+    {
+        if (string.IsNullOrEmpty(content)
+            || !Context.Request.PathBase.HasValue
+            || content.IndexOf("doc-symbol-source-link", StringComparison.Ordinal) < 0
+            || !RootedSymbolSourceLinkRegex.IsMatch(content))
+        {
+            return content;
+        }
+
+        return RootedSymbolSourceLinkRegex.Replace(
+            content,
+            match =>
+            {
+                var encodedHref = match.Groups["hrefBefore"].Success
+                    ? match.Groups["hrefBefore"].Value
+                    : match.Groups["hrefAfter"].Value;
+                var href = System.Net.WebUtility.HtmlDecode(encodedHref);
+                if (href.StartsWith("//", StringComparison.Ordinal))
+                {
+                    return match.Value;
+                }
+
+                var resolvedHref = Url.Content($"~{href}");
+                return match.Value.Replace(encodedHref, System.Net.WebUtility.HtmlEncode(resolvedHref), StringComparison.Ordinal);
+            });
+    }
 }
 
 <header class="@(Model.IsCSharpApiDoc ? "mb-5" : "mb-8")">
@@ -102,8 +152,8 @@
 
     @if (showContributorProvenance)
     {
-        <section class="docs-provenance-strip" aria-label="Source of truth">
-            <p class="docs-provenance-label">Source of truth</p>
+        <section class="docs-provenance-strip" aria-label="@provenanceLabel">
+            <p class="docs-provenance-label">@provenanceLabel</p>
             <div class="docs-provenance-items">
                 @if (sourceHref is not null)
                 {
@@ -358,7 +408,7 @@
 
 <div class="docs-content">
     @* Safe: Content is sanitized by DocAggregator before caching. *@
-    @Html.Raw(Model.Document.Content)
+    @Html.Raw(ResolveGeneratedContentHrefs(Model.Document.Content))
 </div>
 
 @if (Model.HasWayfinding)

@@ -2011,6 +2011,31 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderCustomContributorProvenanceLabel()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Web", "Namespaces/ForgeTrust.Web", "<p>Namespace body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                Label = "Namespace intro source",
+                SourceHref = "https://example.com/blob/main/docs/ForgeTrust.Web/README.md"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var provenanceStrip = document.QuerySelector(".docs-provenance-strip");
+        Assert.NotNull(provenanceStrip);
+        Assert.Equal("Namespace intro source", provenanceStrip!.GetAttribute("aria-label"));
+        Assert.Equal("Namespace intro source", provenanceStrip.QuerySelector(".docs-provenance-label")?.TextContent.Trim());
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderPartialContributorProvenance_WhenOnlyOneEvidenceItemExists()
     {
         using var services = CreateServiceProvider(CreateDocs());
@@ -2141,6 +2166,60 @@ public class RazorDocsViewsTests
         Assert.Equal("doc-content", editLink!.GetAttribute("data-turbo-frame"));
         Assert.Equal("advance", editLink.GetAttribute("data-turbo-action"));
         Assert.NotNull(document.QuerySelector("a.docs-trust-bar-link[href='/tenant/docs/releases/unreleased.md.html']"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldPreservePathBase_ForGeneratedLocalSymbolSourceLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Calculator",
+            "Namespaces/Test",
+            """
+            <p>
+                <a aria-label="View source for Test-Calculator" class="chip doc-symbol-source-link" href="/repo/blob/src/Calculator.cs#L12">Source</a>
+            </p>
+            """);
+        var model = CreateDetailsViewModel(doc);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model,
+            configureHttpContext: httpContext => httpContext.Request.PathBase = "/tenant");
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var sourceLink = document.QuerySelector("a.doc-symbol-source-link");
+        Assert.NotNull(sourceLink);
+        Assert.Equal("/tenant/repo/blob/src/Calculator.cs#L12", sourceLink!.GetAttribute("href"));
+        Assert.Equal("View source for Test-Calculator", sourceLink.GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldLeaveProtocolRelativeSymbolSourceLinksUnchanged_WhenPathBaseExists()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Calculator",
+            "Namespaces/Test",
+            """
+            <p>
+                <a aria-label="View source for Test-Calculator" class="chip doc-symbol-source-link" href="//example.com/repo/blob/src/Calculator.cs#L12">Source</a>
+            </p>
+            """);
+        var model = CreateDetailsViewModel(doc);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model,
+            configureHttpContext: httpContext => httpContext.Request.PathBase = "/tenant");
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var sourceLink = document.QuerySelector("a.doc-symbol-source-link");
+        Assert.NotNull(sourceLink);
+        Assert.Equal("//example.com/repo/blob/src/Calculator.cs#L12", sourceLink!.GetAttribute("href"));
+        Assert.Equal("View source for Test-Calculator", sourceLink.GetAttribute("aria-label"));
     }
 
     [Fact]

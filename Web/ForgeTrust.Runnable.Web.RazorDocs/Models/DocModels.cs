@@ -471,6 +471,27 @@ file static class DocTrustMergeHelpers
 }
 
 /// <summary>
+/// Identifies the source declaration that produced one rendered C# API documentation symbol.
+/// </summary>
+public sealed record DocSymbolSourceProvenance
+{
+    /// <summary>
+    /// Gets the rendered HTML anchor ID for the generated API symbol.
+    /// </summary>
+    public string AnchorId { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the repository-relative source file path that contains the documented declaration.
+    /// </summary>
+    public string SourcePath { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the 1-based source declaration line.
+    /// </summary>
+    public int StartLine { get; init; }
+}
+
+/// <summary>
 /// Represents a documentation node within the repository.
 /// </summary>
 /// <param name="Title">The display title of the document.</param>
@@ -481,6 +502,7 @@ file static class DocTrustMergeHelpers
 /// <param name="CanonicalPath">The browser-facing docs route path used for linking and lookup.</param>
 /// <param name="Metadata">Structured metadata associated with the documentation node.</param>
 /// <param name="Outline">Structured in-page outline entries captured during harvesting.</param>
+/// <param name="SymbolSourceProvenance">Optional source declarations keyed by rendered C# API symbol anchor IDs.</param>
 public record DocNode(
     string Title,
     string Path,
@@ -489,7 +511,8 @@ public record DocNode(
     bool IsDirectory = false,
     string? CanonicalPath = null,
     DocMetadata? Metadata = null,
-    IReadOnlyList<DocOutlineItem>? Outline = null);
+    IReadOnlyList<DocOutlineItem>? Outline = null,
+    IReadOnlyList<DocSymbolSourceProvenance>? SymbolSourceProvenance = null);
 
 /// <summary>
 /// Enumerates the built-in public documentation sections used by RazorDocs.
@@ -1194,6 +1217,11 @@ public sealed record DocDetailsViewModel
 /// </summary>
 public sealed record DocContributorProvenanceViewModel
 {
+    /// <summary>
+    /// Gets the reader-facing provenance strip label.
+    /// </summary>
+    public string Label { get; init; } = "Source of truth";
+
     /// <summary>
     /// Gets the browser-facing source URL when one exists.
     /// </summary>

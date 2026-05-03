@@ -246,25 +246,6 @@ internal sealed class TargetAppProcess : ITargetAppProcess
         }
         finally
         {
-            if (_started)
-            {
-                try
-                {
-                    // Use a bounded wait first so disposal cannot hang forever.
-                    // If the process exits in time, call parameterless WaitForExit()
-                    // to flush async output/error callbacks.
-                    if (_process.WaitForExit(ProcessExitTimeoutMilliseconds))
-                    {
-                        _process.WaitForExit();
-                    }
-                }
-                catch (InvalidOperationException)
-                {
-                    // The process was never associated with an operating-system process,
-                    // or it was already released by the time disposal finished.
-                }
-            }
-
             _disposed = true;
             _process.Dispose();
         }

@@ -1596,6 +1596,7 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocDetailsAsync_ShouldRejectRootedContributorSourcePathOverrides()
     {
         var harvester = A.Fake<IDocHarvester>();
+        var expectedLastUpdatedUtc = new DateTimeOffset(2026, 5, 2, 22, 15, 0, TimeSpan.Zero);
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(
             [
@@ -1607,7 +1608,8 @@ public class DocAggregatorTests : IDisposable
                     {
                         Contributor = new DocContributorMetadata
                         {
-                            SourcePathOverride = "/shared/source.md"
+                            SourcePathOverride = "/shared/source.md",
+                            LastUpdatedOverride = expectedLastUpdatedUtc
                         }
                     })
             ]);
@@ -1631,8 +1633,10 @@ public class DocAggregatorTests : IDisposable
 
         var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
 
-        Assert.NotNull(details);
-        Assert.Null(details!.ContributorProvenance);
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Null(details!.ContributorProvenance!.SourceHref);
+        Assert.Null(details.ContributorProvenance.EditHref);
+        Assert.Equal(expectedLastUpdatedUtc, details.ContributorProvenance.LastUpdatedUtc);
         Assert.Equal(0, resolverCalls);
     }
 
@@ -1640,6 +1644,7 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocDetailsAsync_ShouldRejectWhitespacePrefixedWindowsAbsoluteContributorSourcePathOverrides()
     {
         var harvester = A.Fake<IDocHarvester>();
+        var expectedLastUpdatedUtc = new DateTimeOffset(2026, 5, 2, 22, 16, 0, TimeSpan.Zero);
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(
             [
@@ -1651,7 +1656,8 @@ public class DocAggregatorTests : IDisposable
                     {
                         Contributor = new DocContributorMetadata
                         {
-                            SourcePathOverride = " C:\\shared\\source.md "
+                            SourcePathOverride = " C:\\shared\\source.md ",
+                            LastUpdatedOverride = expectedLastUpdatedUtc
                         }
                     })
             ]);
@@ -1675,8 +1681,10 @@ public class DocAggregatorTests : IDisposable
 
         var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
 
-        Assert.NotNull(details);
-        Assert.Null(details!.ContributorProvenance);
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Null(details!.ContributorProvenance!.SourceHref);
+        Assert.Null(details.ContributorProvenance.EditHref);
+        Assert.Equal(expectedLastUpdatedUtc, details.ContributorProvenance.LastUpdatedUtc);
         Assert.Equal(0, resolverCalls);
     }
 
@@ -1684,6 +1692,7 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocDetailsAsync_ShouldRejectWhitespacePrefixedWindowsDriveRelativeContributorSourcePathOverrides()
     {
         var harvester = A.Fake<IDocHarvester>();
+        var expectedLastUpdatedUtc = new DateTimeOffset(2026, 5, 2, 22, 17, 0, TimeSpan.Zero);
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(
             [
@@ -1695,7 +1704,8 @@ public class DocAggregatorTests : IDisposable
                     {
                         Contributor = new DocContributorMetadata
                         {
-                            SourcePathOverride = " C:repo\\source.md "
+                            SourcePathOverride = " C:repo\\source.md ",
+                            LastUpdatedOverride = expectedLastUpdatedUtc
                         }
                     })
             ]);
@@ -1719,8 +1729,10 @@ public class DocAggregatorTests : IDisposable
 
         var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
 
-        Assert.NotNull(details);
-        Assert.Null(details!.ContributorProvenance);
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Null(details!.ContributorProvenance!.SourceHref);
+        Assert.Null(details.ContributorProvenance.EditHref);
+        Assert.Equal(expectedLastUpdatedUtc, details.ContributorProvenance.LastUpdatedUtc);
         Assert.Equal(0, resolverCalls);
     }
 
@@ -1728,6 +1740,7 @@ public class DocAggregatorTests : IDisposable
     public async Task GetDocDetailsAsync_ShouldRejectContributorSourcePathOverrides_ThatEscapeRepoScope()
     {
         var harvester = A.Fake<IDocHarvester>();
+        var expectedLastUpdatedUtc = new DateTimeOffset(2026, 5, 2, 22, 18, 0, TimeSpan.Zero);
         A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
             .Returns(
             [
@@ -1739,7 +1752,8 @@ public class DocAggregatorTests : IDisposable
                     {
                         Contributor = new DocContributorMetadata
                         {
-                            SourcePathOverride = "../../README.md"
+                            SourcePathOverride = "../../README.md",
+                            LastUpdatedOverride = expectedLastUpdatedUtc
                         }
                     })
             ]);
@@ -1763,8 +1777,10 @@ public class DocAggregatorTests : IDisposable
 
         var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
 
-        Assert.NotNull(details);
-        Assert.Null(details!.ContributorProvenance);
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Null(details!.ContributorProvenance!.SourceHref);
+        Assert.Null(details.ContributorProvenance.EditHref);
+        Assert.Equal(expectedLastUpdatedUtc, details.ContributorProvenance.LastUpdatedUtc);
         Assert.Equal(0, resolverCalls);
     }
 

@@ -73,8 +73,8 @@ public class TargetAppProcessTests
     [Fact]
     public async Task DisposeAsync_Should_Swallow_Kill_Failures_During_BestEffort_Cleanup()
     {
-        var waitForExitAsyncCalled = false;
-        var waitForExitCalled = false;
+        var waitForExitAsyncCallCount = 0;
+        var waitForExitCallCount = 0;
 
         await using var process = new TargetAppProcess(
             new ProcessLaunchSpec
@@ -89,10 +89,10 @@ public class TargetAppProcessTests
                 KillProcessOverride = _ => throw new Win32Exception("simulated kill failure"),
                 WaitForExitAsyncOverride = (_, _) =>
                 {
-                    waitForExitAsyncCalled = true;
+                    waitForExitAsyncCallCount++;
                     return Task.CompletedTask;
                 },
-                WaitForExitOverride = _ => waitForExitCalled = true
+                WaitForExitOverride = _ => waitForExitCallCount++
             },
             process: new Process(),
             started: true);
@@ -100,15 +100,15 @@ public class TargetAppProcessTests
         var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
 
         Assert.Null(exception);
-        Assert.True(waitForExitAsyncCalled);
-        Assert.True(waitForExitCalled);
+        Assert.Equal(1, waitForExitAsyncCallCount);
+        Assert.Equal(1, waitForExitCallCount);
     }
 
     [Fact]
     public async Task DisposeAsync_Should_UseWaitHooks_WhenCleanupObservesExit()
     {
-        var waitForExitAsyncCalled = false;
-        var waitForExitCalled = false;
+        var waitForExitAsyncCallCount = 0;
+        var waitForExitCallCount = 0;
 
         await using var process = new TargetAppProcess(
             new ProcessLaunchSpec
@@ -123,11 +123,11 @@ public class TargetAppProcessTests
                 KillProcessOverride = _ => { },
                 WaitForExitAsyncOverride = (_, cancellationToken) =>
                 {
-                    waitForExitAsyncCalled = true;
+                    waitForExitAsyncCallCount++;
                     Assert.False(cancellationToken.IsCancellationRequested);
                     return Task.CompletedTask;
                 },
-                WaitForExitOverride = _ => waitForExitCalled = true
+                WaitForExitOverride = _ => waitForExitCallCount++
             },
             process: new Process(),
             started: true);
@@ -135,15 +135,15 @@ public class TargetAppProcessTests
         var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
 
         Assert.Null(exception);
-        Assert.True(waitForExitAsyncCalled);
-        Assert.True(waitForExitCalled);
+        Assert.Equal(1, waitForExitAsyncCallCount);
+        Assert.Equal(1, waitForExitCallCount);
     }
 
     [Fact]
     public async Task DisposeAsync_Should_Swallow_Timeout_And_Skip_Final_Flush()
     {
-        var waitForExitAsyncCalled = false;
-        var waitForExitCalled = false;
+        var waitForExitAsyncCallCount = 0;
+        var waitForExitCallCount = 0;
 
         await using var process = new TargetAppProcess(
             new ProcessLaunchSpec
@@ -158,10 +158,10 @@ public class TargetAppProcessTests
                 KillProcessOverride = _ => { },
                 WaitForExitAsyncOverride = (_, cancellationToken) =>
                 {
-                    waitForExitAsyncCalled = true;
+                    waitForExitAsyncCallCount++;
                     throw new OperationCanceledException(cancellationToken);
                 },
-                WaitForExitOverride = _ => waitForExitCalled = true
+                WaitForExitOverride = _ => waitForExitCallCount++
             },
             process: new Process(),
             started: true);
@@ -169,15 +169,15 @@ public class TargetAppProcessTests
         var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
 
         Assert.Null(exception);
-        Assert.True(waitForExitAsyncCalled);
-        Assert.False(waitForExitCalled);
+        Assert.Equal(1, waitForExitAsyncCallCount);
+        Assert.Equal(0, waitForExitCallCount);
     }
 
     [Fact]
     public async Task DisposeAsync_ShouldTreat_ObjectDisposedExitProbe_As_ObservedExit()
     {
-        var waitForExitAsyncCalled = false;
-        var waitForExitCalled = false;
+        var waitForExitAsyncCallCount = 0;
+        var waitForExitCallCount = 0;
 
         await using var process = new TargetAppProcess(
             new ProcessLaunchSpec
@@ -191,10 +191,10 @@ public class TargetAppProcessTests
                 HasExitedOverride = _ => throw new ObjectDisposedException(nameof(Process)),
                 WaitForExitAsyncOverride = (_, _) =>
                 {
-                    waitForExitAsyncCalled = true;
+                    waitForExitAsyncCallCount++;
                     return Task.CompletedTask;
                 },
-                WaitForExitOverride = _ => waitForExitCalled = true
+                WaitForExitOverride = _ => waitForExitCallCount++
             },
             process: new Process(),
             started: true);
@@ -202,8 +202,8 @@ public class TargetAppProcessTests
         var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
 
         Assert.Null(exception);
-        Assert.False(waitForExitAsyncCalled);
-        Assert.True(waitForExitCalled);
+        Assert.Equal(0, waitForExitAsyncCallCount);
+        Assert.Equal(1, waitForExitCallCount);
     }
 
     [Fact]

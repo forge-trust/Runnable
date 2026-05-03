@@ -891,8 +891,8 @@
         diagnosticForFailure(detail) {
             const hints = ['Check the response status and whether the server set X-RazorWire-Form-Handled for custom UI.'];
             if (detail.statusCode === 400) {
-                hints.push('For antiforgery failures, verify the form includes a fresh __RequestVerificationToken.');
-                hints.push('If a stream updated the form, prefer ReplacePartial for the whole form or include @Html.AntiForgeryToken().');
+                hints.push('Check server logs or the response body for the Bad Request reason.');
+                hints.push('For expected validation failures, return a handled stream with FormError or FormValidationErrors instead of a bare 400.');
             }
 
             return this.diagnostic(

@@ -44,6 +44,14 @@ public class StartupContextTests
     }
 
     [Fact]
+    public void ApplicationName_CanBeProvidedThroughConstructor()
+    {
+        var context = new StartupContext([], new DummyModule(), "CustomApp");
+
+        Assert.Equal("CustomApp", context.ApplicationName);
+    }
+
+    [Fact]
     public void ApplicationName_CanBeOverriddenWithWithExpression()
     {
         var context = new StartupContext([], new DummyModule());
@@ -52,6 +60,25 @@ public class StartupContextTests
 
         Assert.Equal("CustomApp", renamed.ApplicationName);
         Assert.Equal(context.RootModuleAssembly, renamed.RootModuleAssembly);
+    }
+
+    [Fact]
+    public void HostApplicationName_DefaultsToRootModuleAssemblyName()
+    {
+        var context = new StartupContext([], new DummyModule());
+
+        Assert.Equal(typeof(DummyModule).Assembly.GetName().Name, context.HostApplicationName);
+    }
+
+    [Fact]
+    public void HostApplicationName_UsesOverrideEntryPointAssemblyName()
+    {
+        var context = new StartupContext([], new DummyModule())
+        {
+            OverrideEntryPointAssembly = typeof(string).Assembly
+        };
+
+        Assert.Equal(typeof(string).Assembly.GetName().Name, context.HostApplicationName);
     }
 
     private class DummyModule : IRunnableHostModule

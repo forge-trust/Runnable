@@ -39,15 +39,15 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             "#files-behind-the-hero-flow",
             await page.GetAttributeAsync("#docs-page-outline a[href='#files-behind-the-hero-flow']", "href"));
 
+        const string nextPagePath = "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html";
+        const string nextPageTitle = "Failed Form UX";
+
         Assert.Equal(
             "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/README.md.html",
             await page.GetAttributeAsync("[data-doc-wayfinding='previous']", "href"));
         Assert.Equal(
-            "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html",
+            nextPagePath,
             await page.GetAttributeAsync("[data-doc-wayfinding='next']", "href"));
-
-        const string nextPagePath = "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html";
-        const string nextPageTitle = "Failed Form UX";
 
         await page.ClickAsync("[data-doc-wayfinding='next']");
         await page.WaitForFunctionAsync(

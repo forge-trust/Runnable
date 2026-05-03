@@ -256,7 +256,13 @@ public class RazorWireStreamBuilder
     /// <summary>
     /// Queues a form-local failure summary for an enhanced RazorWire form.
     /// </summary>
-    /// <param name="target">The DOM target that should receive the generated failure block.</param>
+    /// <remarks>
+    /// The <paramref name="target"/> value is emitted as Turbo's <c>target</c> attribute, so it should name the DOM
+    /// element that Turbo will update, usually a form-local error container. Calling this method marks the stream as a
+    /// handled form response; <see cref="BuildResult(int?)"/> will emit <see cref="Forms.RazorWireFormHeaders.FormHandled"/>
+    /// so the browser runtime does not add a second fallback block for the same failed submission.
+    /// </remarks>
+    /// <param name="target">The Turbo target id whose element should receive the generated failure block.</param>
     /// <param name="title">Plain-text failure title. RazorWire HTML-encodes this value.</param>
     /// <param name="message">Plain-text failure message. RazorWire HTML-encodes this value.</param>
     /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
@@ -274,10 +280,19 @@ public class RazorWireStreamBuilder
     /// <summary>
     /// Queues a form-local validation summary from an MVC <see cref="ModelStateDictionary"/>.
     /// </summary>
-    /// <param name="target">The DOM target that should receive the generated validation block.</param>
+    /// <remarks>
+    /// The <paramref name="target"/> value is emitted as Turbo's <c>target</c> attribute, so it should name the DOM
+    /// element that Turbo will update. Calling this method marks the stream as a handled form response;
+    /// <see cref="BuildResult(int?)"/> will emit <see cref="Forms.RazorWireFormHeaders.FormHandled"/> so the browser
+    /// runtime does not render its default fallback UI. <paramref name="maxErrors"/> is clamped to zero or greater.
+    /// RazorWire renders only the first <paramref name="maxErrors"/> collected errors and adds an overflow line when
+    /// more errors were hidden. When the model state has no displayable errors, the provided <paramref name="message"/>
+    /// is rendered as the fallback copy.
+    /// </remarks>
+    /// <param name="target">The Turbo target id whose element should receive the generated validation block.</param>
     /// <param name="modelState">The MVC model state to render into a validation summary.</param>
     /// <param name="title">Plain-text summary title. RazorWire HTML-encodes this value.</param>
-    /// <param name="maxErrors">Maximum number of individual validation errors to show before an overflow line is added.</param>
+    /// <param name="maxErrors">Maximum number of individual validation errors to show before an overflow line is added; values less than zero are treated as zero.</param>
     /// <param name="message">Plain-text fallback message used when the model state contains no displayable errors.</param>
     /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
     public RazorWireStreamBuilder FormValidationErrors(
@@ -369,7 +384,14 @@ public class RazorWireStreamBuilder
     /// <summary>
     /// Creates a <see cref="RazorWireStreamResult"/> containing the builder's queued stream actions and associated controller.
     /// </summary>
+    /// <param name="statusCode">Optional HTTP status code to apply to the response, commonly <c>422</c> for handled validation failures.</param>
     /// <returns>A <see cref="RazorWireStreamResult"/> initialized with a copy of the queued actions and the builder's controller.</returns>
+    /// <remarks>
+    /// If <see cref="FormError(string,string,string)"/> or
+    /// <see cref="FormValidationErrors(string,ModelStateDictionary,string,int,string)"/> was queued, the result also
+    /// emits the <see cref="Forms.RazorWireFormHeaders.FormHandled"/> response header. That header is the runtime
+    /// contract that prevents the package default failed-form fallback from rendering on top of server-authored UI.
+    /// </remarks>
     public RazorWireStreamResult BuildResult(int? statusCode = null)
     {
         return new RazorWireStreamResult(

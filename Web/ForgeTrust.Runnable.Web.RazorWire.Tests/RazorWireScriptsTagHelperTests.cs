@@ -127,6 +127,34 @@ public class RazorWireScriptsTagHelperTests
         Assert.Contains("data-rw-form-failure-mode=\"off\"", content);
     }
 
+    [Fact]
+    public void Process_WhenDevelopmentDiagnosticsDisabled_EmitsFailureUxWithoutDiagnostics()
+    {
+        // Arrange
+        var options = new RazorWireOptions();
+        options.Forms.EnableDevelopmentDiagnostics = false;
+        options.Forms.FailureMode = RazorWireFormFailureMode.Manual;
+        options.Forms.DefaultFailureMessage = "Custom failure";
+        var environment = new TestWebHostEnvironment { EnvironmentName = Environments.Development };
+        var helper = new RazorWireScriptsTagHelper(_fileVersionProvider, options, environment)
+        {
+            ViewContext = _viewContext
+        };
+
+        A.CallTo(() => _fileVersionProvider.AddFileVersionToPath(A<PathString>._, A<string>._))
+            .ReturnsLazily(call => call.GetArgument<string>(1)!);
+
+        // Act
+        helper.Process(_context, _output);
+
+        // Assert
+        var content = _output.Content.GetContent();
+        Assert.Contains("data-rw-development-diagnostics=\"false\"", content);
+        Assert.Contains("data-rw-form-failure-enabled=\"true\"", content);
+        Assert.Contains("data-rw-form-failure-mode=\"manual\"", content);
+        Assert.Contains("data-rw-default-failure-message=\"Custom failure\"", content);
+    }
+
     private sealed class TestWebHostEnvironment : IWebHostEnvironment
     {
         public string EnvironmentName { get; set; } = Environments.Production;

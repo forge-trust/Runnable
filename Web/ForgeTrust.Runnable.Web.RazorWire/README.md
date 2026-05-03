@@ -7,13 +7,13 @@ RazorWire lets ASP.NET Core MVC apps update UI by returning Razor fragments from
 Runnable has not published the public `v0.1` package set yet, so the copy-paste path today is repo-local:
 
 1. Clone this repository and use the .NET 10 SDK.
-2. Run the MVC sample:
+1. Run the MVC sample:
 
 ```bash
 dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
 ```
 
-3. Open the URL printed in the console and navigate to `/Reactivity`.
+1. Open the URL printed in the console and navigate to `/Reactivity`.
 
 Wait for the `Permanent Island` card to load, then click the `+` button. The `Instance Score` and `Session Score` update in place without a full-page reload.
 

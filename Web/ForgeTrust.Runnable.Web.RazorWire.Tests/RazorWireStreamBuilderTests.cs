@@ -226,6 +226,30 @@ public class RazorWireStreamBuilderTests
     }
 
     [Fact]
+    public async Task FormValidationErrors_EncodesVisibleModelStateErrors()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.AddModelError("Message", "<message> is invalid");
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
+        {
+            services.AddSingleton(tempDataFactory);
+        });
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+
+        var result = new RazorWireStreamBuilder()
+            .FormValidationErrors("form-errors", modelState)
+            .BuildResult(StatusCodes.Status422UnprocessableEntity);
+
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
+
+        Assert.Contains("&lt;message&gt; is invalid", rendered);
+        Assert.DoesNotContain("<message> is invalid", rendered);
+        Assert.Equal("true", actionContext.ActionContext.HttpContext.Response.Headers["X-RazorWire-Form-Handled"]);
+    }
+
+    [Fact]
     public async Task FormValidationErrors_WithValidModelState_RendersFallbackMessage()
     {
         var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();

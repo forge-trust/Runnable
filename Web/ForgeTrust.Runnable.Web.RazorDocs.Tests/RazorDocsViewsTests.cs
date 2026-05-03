@@ -1771,10 +1771,8 @@ public class RazorDocsViewsTests
             "Search",
             c => c.Search());
 
-        Assert.Contains("href=\"/docs\"", html);
-        Assert.Contains("data-turbo-frame=\"_top\"", html);
-
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        Assert.Matches("<a[^>]*href=\"/docs\"[^>]*data-turbo-frame=\"_top\"", html);
         Assert.Equal(string.Empty, document.QuerySelector("#docs-search-page-failure")?.TextContent.Trim());
     }
 

@@ -1,3 +1,4 @@
+using System.Net.Mime;
 using System.Text;
 using ForgeTrust.Runnable.Web.RazorWire.Forms;
 using Microsoft.AspNetCore.Hosting;
@@ -75,6 +76,69 @@ public class RazorWireAntiforgeryFailureFilterTests
     }
 
     [Fact]
+    public async Task OnResultExecutionAsync_WhenHtmlIsAccepted_ReturnsHtmlDiagnostic()
+    {
+        var context = CreateResultExecutingContext(
+            accept: "text/html",
+            form: new FormCollection(
+                new Dictionary<string, StringValues>
+                {
+                    [RazorWireFormFields.FormMarker] = "1"
+                }));
+        var filter = CreateFilter(Environments.Development);
+
+        await filter.OnResultExecutionAsync(context, () => CreateExecutedContext(context));
+
+        var contentResult = Assert.IsType<ContentResult>(context.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, contentResult.StatusCode);
+        Assert.Equal(MediaTypeNames.Text.Html, contentResult.ContentType);
+        Assert.Contains("data-rw-form-error-kind=\"antiforgery\"", contentResult.Content);
+        Assert.Contains("Antiforgery token validation failed", contentResult.Content);
+        Assert.DoesNotContain("<turbo-stream", contentResult.Content);
+        Assert.Equal("true", context.HttpContext.Response.Headers[RazorWireFormHeaders.FormHandled]);
+    }
+
+    [Fact]
+    public async Task OnResultExecutionAsync_WhenPlainTextIsAccepted_ReturnsProductionPlainText()
+    {
+        var context = CreateResultExecutingContext(accept: "text/plain");
+        context.HttpContext.Request.Headers[RazorWireFormHeaders.FormRequest] = "true";
+        var filter = CreateFilter(Environments.Production);
+
+        await filter.OnResultExecutionAsync(context, () => CreateExecutedContext(context));
+
+        var contentResult = Assert.IsType<ContentResult>(context.Result);
+        Assert.Equal(StatusCodes.Status400BadRequest, contentResult.StatusCode);
+        Assert.Equal(MediaTypeNames.Text.Plain, contentResult.ContentType);
+        Assert.Contains("We could not submit this form.", contentResult.Content);
+        Assert.Contains("Refresh the page and try again.", contentResult.Content);
+        Assert.DoesNotContain("Antiforgery token validation failed", contentResult.Content);
+        Assert.DoesNotContain("<turbo-stream", contentResult.Content);
+        Assert.Equal("true", context.HttpContext.Response.Headers[RazorWireFormHeaders.FormHandled]);
+    }
+
+    [Fact]
+    public async Task OnResultExecutionAsync_WhenFailureUxDisabled_LeavesResultAlone()
+    {
+        var originalResult = new AntiforgeryValidationFailedResult();
+        var context = CreateResultExecutingContext(
+            accept: "text/vnd.turbo-stream.html",
+            result: originalResult);
+        context.HttpContext.Request.Headers[RazorWireFormHeaders.FormRequest] = "true";
+        var filter = CreateFilter(
+            Environments.Development,
+            options =>
+            {
+                options.Forms.EnableFailureUx = false;
+            });
+
+        await filter.OnResultExecutionAsync(context, () => CreateExecutedContext(context));
+
+        Assert.Same(originalResult, context.Result);
+        Assert.False(context.HttpContext.Response.Headers.ContainsKey(RazorWireFormHeaders.FormHandled));
+    }
+
+    [Fact]
     public async Task OnResultExecutionAsync_WhenRequestIsNotRazorWireForm_LeavesResultAlone()
     {
         var originalResult = new AntiforgeryValidationFailedResult();
@@ -87,10 +151,15 @@ public class RazorWireAntiforgeryFailureFilterTests
         Assert.False(context.HttpContext.Response.Headers.ContainsKey(RazorWireFormHeaders.FormHandled));
     }
 
-    private static RazorWireAntiforgeryFailureFilter CreateFilter(string environmentName)
+    private static RazorWireAntiforgeryFailureFilter CreateFilter(
+        string environmentName,
+        Action<RazorWireOptions>? configureOptions = null)
     {
+        var options = new RazorWireOptions();
+        configureOptions?.Invoke(options);
+
         return new RazorWireAntiforgeryFailureFilter(
-            new RazorWireOptions(),
+            options,
             new RazorWireFormRequestClassifier(NullLogger<RazorWireFormRequestClassifier>.Instance),
             new TestWebHostEnvironment { EnvironmentName = environmentName },
             NullLogger<RazorWireAntiforgeryFailureFilter>.Instance);

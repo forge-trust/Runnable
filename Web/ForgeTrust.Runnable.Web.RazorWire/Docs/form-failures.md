@@ -149,7 +149,7 @@ The runtime dispatches:
 
 `razorwire:form:failure` is cancelable. Call `event.preventDefault()` to suppress the default fallback while still using `FailureMode.Auto`.
 
-The event detail includes `form`, `submitter`, `statusCode`, `handled`, `responseKind`, `target`, `message`, and optional `developmentDiagnostic`.
+The event detail includes `form`, `target`, `message`, and optional `developmentDiagnostic`.
 
 ## Test Workflow
 

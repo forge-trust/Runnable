@@ -41,13 +41,13 @@ public interface ITargetAppProcess : IAsyncDisposable
     /// Cleanup order is:
     /// <list type="number">
     /// <item><description>Check <see cref="HasExited"/> against the underlying process when startup completed.</description></item>
-    /// <item><description>If the process is still running, issue a best-effort <c>Kill(entireProcessTree: true)</c> and wait up to 5 seconds for exit.</description></item>
+    /// <item><description>If the process is still running, issue a best-effort <c>Kill(entireProcessTree: true)</c> and then wait up to 5 seconds for exit, even when kill throws a recoverable cleanup exception.</description></item>
     /// <item><description>After exit is observed, call <c>WaitForExit()</c> to flush redirected stdout and stderr callbacks before returning.</description></item>
     /// </list>
     /// Pitfalls:
     /// <list type="bullet">
     /// <item><description>Short-lived processes can exit before their output callbacks are delivered, so disposal performs the final flush step to improve callback delivery timing.</description></item>
-    /// <item><description>Cleanup swallows <see cref="InvalidOperationException"/>, timeout-driven <see cref="OperationCanceledException"/>, and kill/flush exceptions such as <see cref="Win32Exception"/> or <see cref="NotSupportedException"/> as part of best-effort disposal.</description></item>
+    /// <item><description>Cleanup swallows <see cref="InvalidOperationException"/>, timeout-driven <see cref="OperationCanceledException"/>, and recoverable kill, wait, or flush exceptions such as <see cref="Win32Exception"/> or <see cref="NotSupportedException"/> as part of best-effort disposal.</description></item>
     /// <item><description>Callers must not rely on guaranteed process termination; disposal can return after the 5-second timeout even if the operating system process has not fully exited.</description></item>
     /// </list>
     /// </remarks>
@@ -203,14 +203,26 @@ internal sealed class TargetAppProcess : ITargetAppProcess
                     try
                     {
                         KillProcessTree();
-                        using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                        await WaitForProcessExitAsync(waitCts.Token);
-                        exitObserved = true;
                     }
                     catch (Exception ex) when (IsBestEffortCleanupException(ex))
                     {
-                        // The process may have exited between checks, kill may be unsupported, or cleanup may have timed out.
+                        // The process may have exited between checks or kill may be unsupported.
                         exitObserved = ex is InvalidOperationException;
+                    }
+
+                    if (!exitObserved)
+                    {
+                        try
+                        {
+                            using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                            await WaitForProcessExitAsync(waitCts.Token);
+                            exitObserved = true;
+                        }
+                        catch (Exception ex) when (IsBestEffortCleanupException(ex))
+                        {
+                            // The wait may have timed out, the process may have exited concurrently, or waiting may be unsupported.
+                            exitObserved = ex is InvalidOperationException;
+                        }
                     }
                 }
 

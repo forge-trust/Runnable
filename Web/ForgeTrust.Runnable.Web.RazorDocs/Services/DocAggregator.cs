@@ -590,12 +590,6 @@ public class DocAggregator
 
     private static bool CanAutoResolveContributorSourcePath(DocNode doc)
     {
-        var pageType = NormalizeMetadataText(doc.Metadata?.PageType);
-        if (string.Equals(pageType, "api-reference", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
         return doc.Path.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
     }
 

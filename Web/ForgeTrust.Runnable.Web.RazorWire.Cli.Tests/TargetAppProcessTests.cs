@@ -73,6 +73,9 @@ public class TargetAppProcessTests
     [Fact]
     public async Task DisposeAsync_Should_Swallow_Kill_Failures_During_BestEffort_Cleanup()
     {
+        var waitForExitAsyncCalled = false;
+        var waitForExitCalled = false;
+
         await using var process = new TargetAppProcess(
             new ProcessLaunchSpec
             {
@@ -83,7 +86,13 @@ public class TargetAppProcessTests
             new TargetAppProcessHooks
             {
                 HasExitedOverride = _ => false,
-                KillProcessOverride = _ => throw new Win32Exception("simulated kill failure")
+                KillProcessOverride = _ => throw new Win32Exception("simulated kill failure"),
+                WaitForExitAsyncOverride = (_, _) =>
+                {
+                    waitForExitAsyncCalled = true;
+                    return Task.CompletedTask;
+                },
+                WaitForExitOverride = _ => waitForExitCalled = true
             },
             process: new Process(),
             started: true);
@@ -91,6 +100,8 @@ public class TargetAppProcessTests
         var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
 
         Assert.Null(exception);
+        Assert.True(waitForExitAsyncCalled);
+        Assert.True(waitForExitCalled);
     }
 
     [Fact]

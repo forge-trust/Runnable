@@ -1137,6 +1137,43 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldResolveAutomaticContributorProvenance_ForMarkdownDocs_EvenWhenPageTypeIsApiReference()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Quickstart",
+                    "guides/quickstart.md",
+                    "<p>Guide</p>",
+                    Metadata: new DocMetadata
+                    {
+                        PageType = "api-reference"
+                    })
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                DefaultBranch = "main",
+                SourceUrlTemplate = "https://example.com/blob/{branch}/{path}",
+                EditUrlTemplate = "https://example.com/edit/{branch}/{path}",
+                LastUpdatedMode = RazorDocsLastUpdatedMode.None
+            },
+            resolveGitLastUpdatedUtcAsync: null);
+
+        var details = await aggregator.GetDocDetailsAsync("guides/quickstart.md");
+
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Equal("https://example.com/blob/main/guides/quickstart.md", details!.ContributorProvenance!.SourceHref);
+        Assert.Equal("https://example.com/edit/main/guides/quickstart.md", details.ContributorProvenance.EditHref);
+        Assert.Null(details.ContributorProvenance.LastUpdatedUtc);
+    }
+
+    [Fact]
     public async Task GetDocDetailsAsync_ShouldHonorExplicitContributorOverrides_ForSyntheticDocs()
     {
         var harvester = A.Fake<IDocHarvester>();

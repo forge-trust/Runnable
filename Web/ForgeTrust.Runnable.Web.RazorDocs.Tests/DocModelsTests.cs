@@ -28,12 +28,20 @@ public class DocModelsTests
                 SourcePathOverride = "docs/guide.md",
                 LastUpdatedOverride = new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero)
             },
-            FeaturedPages =
+            FeaturedPageGroups =
             [
-                new DocFeaturedPageDefinition
+                new DocFeaturedPageGroupDefinition
                 {
-                    Question = "What is this for?",
-                    Path = "guides/intro.md"
+                    Intent = "start",
+                    Label = "Start",
+                    Pages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "What is this for?",
+                            Path = "guides/intro.md"
+                        }
+                    ]
                 }
             ],
             Aliases = ["alias-one"],
@@ -71,7 +79,7 @@ public class DocModelsTests
         Assert.Equal("/docs/releases/upgrade-policy.md.html", node.Metadata?.Trust?.Migration?.Href);
         Assert.Equal("docs/guide.md", node.Metadata?.Contributor?.SourcePathOverride);
         Assert.Equal(new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero), node.Metadata?.Contributor?.LastUpdatedOverride);
-        Assert.Single(node.Metadata?.FeaturedPages!);
+        Assert.Single(node.Metadata?.FeaturedPageGroups!);
         Assert.Equal(["alias-one"], node.Metadata?.Aliases);
         Assert.Equal(["legacy/alias"], node.Metadata?.RedirectAliases);
         Assert.Equal("Install", Assert.Single(node.Outline!).Title);
@@ -94,12 +102,20 @@ public class DocModelsTests
             Title = "Fallback Title",
             Summary = "Fallback Summary",
             SummaryIsDerived = true,
-            FeaturedPages =
+            FeaturedPageGroups =
             [
-                new DocFeaturedPageDefinition
+                new DocFeaturedPageGroupDefinition
                 {
-                    Question = "Fallback question",
-                    Path = "guides/fallback.md"
+                    Intent = "fallback",
+                    Label = "Fallback",
+                    Pages =
+                    [
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Fallback question",
+                            Path = "guides/fallback.md"
+                        }
+                    ]
                 }
             ],
             Aliases = ["beta"],
@@ -113,9 +129,10 @@ public class DocModelsTests
         Assert.Equal("Fallback Title", merged!.Title);
         Assert.Equal("Primary", merged.Summary);
         Assert.False(merged.SummaryIsDerived);
-        var featuredPages = Assert.IsAssignableFrom<IReadOnlyList<DocFeaturedPageDefinition>>(merged.FeaturedPages);
-        Assert.Single(featuredPages);
-        Assert.Equal("Fallback question", featuredPages[0].Question);
+        var featuredGroups = Assert.IsAssignableFrom<IReadOnlyList<DocFeaturedPageGroupDefinition>>(merged.FeaturedPageGroups);
+        var featuredGroup = Assert.Single(featuredGroups);
+        var featuredPage = Assert.Single(featuredGroup.Pages);
+        Assert.Equal("Fallback question", featuredPage.Question);
         Assert.Equal(["alpha"], merged.Aliases);
         Assert.Equal(["legacy/primary"], merged.RedirectAliases);
         Assert.Equal("proof-path", merged.SequenceKey);
@@ -264,19 +281,27 @@ public class DocModelsTests
             {
                 Aliases = Array.Empty<string>(),
                 Breadcrumbs = Array.Empty<string>(),
-                FeaturedPages = Array.Empty<DocFeaturedPageDefinition>()
+                FeaturedPageGroups = Array.Empty<DocFeaturedPageGroupDefinition>()
             },
             new DocMetadata
             {
                 Aliases = ["fallback-alias"],
                 Breadcrumbs = ["Namespaces", "Web"],
                 BreadcrumbsMatchPathTargets = true,
-                FeaturedPages =
+                FeaturedPageGroups =
                 [
-                    new DocFeaturedPageDefinition
+                    new DocFeaturedPageGroupDefinition
                     {
-                        Question = "Fallback question",
-                        Path = "guides/fallback.md"
+                        Intent = "fallback",
+                        Label = "Fallback",
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Fallback question",
+                                Path = "guides/fallback.md"
+                            }
+                        ]
                     }
                 ]
             });
@@ -284,7 +309,7 @@ public class DocModelsTests
         Assert.NotNull(merged);
         Assert.Empty(merged!.Aliases!);
         Assert.Empty(merged.Breadcrumbs!);
-        Assert.Empty(merged.FeaturedPages!);
+        Assert.Empty(merged.FeaturedPageGroups!);
         Assert.Null(merged.BreadcrumbsMatchPathTargets);
     }
 

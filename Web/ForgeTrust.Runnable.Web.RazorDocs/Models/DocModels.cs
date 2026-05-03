@@ -106,14 +106,15 @@ public sealed record DocMetadata
     public IReadOnlyList<string>? Breadcrumbs { get; init; }
 
     /// <summary>
-    /// Gets optional landing-page curation entries authored with the documentation page.
+    /// Gets optional landing-page curation groups authored with the documentation page.
     /// </summary>
     /// <remarks>
-    /// RazorDocs parses this metadata on any page so the contract stays page-agnostic. Authors can supply these entries
-    /// either inline in Markdown front matter or through a paired sidecar such as <c>README.md.yml</c>. The built-in docs
-    /// landing consumes these entries only from the repository-root <c>README.md</c> metadata.
+    /// RazorDocs parses this metadata on any page so the contract stays page-agnostic. Authors can supply groups either
+    /// inline in Markdown front matter or through a paired sidecar such as <c>README.md.yml</c>. The built-in docs
+    /// landing consumes the repository-root <c>README.md</c> groups, and section landing docs consume their own groups
+    /// for reader-intent next steps.
     /// </remarks>
-    public IReadOnlyList<DocFeaturedPageDefinition>? FeaturedPages { get; init; }
+    public IReadOnlyList<DocFeaturedPageGroupDefinition>? FeaturedPageGroups { get; init; }
 
     /// <summary>
     /// Gets optional trust and provenance metadata rendered near the top of the page.
@@ -212,7 +213,7 @@ public sealed record DocMetadata
             CanonicalSlug = DocTrustMergeHelpers.PreferNonBlank(primary.CanonicalSlug, fallback.CanonicalSlug),
             Breadcrumbs = breadcrumbs,
             BreadcrumbsMatchPathTargets = breadcrumbsMatchPathTargets,
-            FeaturedPages = MergeLists(primary.FeaturedPages, fallback.FeaturedPages),
+            FeaturedPageGroups = MergeLists(primary.FeaturedPageGroups, fallback.FeaturedPageGroups),
             Trust = DocTrustMetadata.Merge(primary.Trust, fallback.Trust),
             Contributor = DocContributorMetadata.Merge(primary.Contributor, fallback.Contributor)
         };
@@ -563,6 +564,54 @@ public sealed record DocSectionSnapshot
 }
 
 /// <summary>
+/// Defines one authored reader-intent group for a docs landing surface.
+/// </summary>
+public sealed record DocFeaturedPageGroupDefinition
+{
+    /// <summary>
+    /// Gets the stable reader-intent identifier for the group.
+    /// </summary>
+    /// <remarks>
+    /// Authors may omit this value when <see cref="Label"/> is present. RazorDocs derives a normalized intent from the
+    /// label during metadata parsing so downstream resolvers can still identify the group consistently.
+    /// </remarks>
+    public string? Intent { get; init; }
+
+    /// <summary>
+    /// Gets the reader-facing group heading.
+    /// </summary>
+    /// <remarks>
+    /// Authors may omit this value when <see cref="Intent"/> is present. RazorDocs converts the intent into a
+    /// title-cased label during metadata parsing so the landing can still render a useful heading.
+    /// </remarks>
+    public string? Label { get; init; }
+
+    /// <summary>
+    /// Gets optional copy that explains when a reader should choose the group.
+    /// </summary>
+    public string? Summary { get; init; }
+
+    /// <summary>
+    /// Gets the relative display order for the group.
+    /// </summary>
+    public int? Order { get; init; }
+
+    /// <summary>
+    /// Gets the featured destination pages in this group.
+    /// </summary>
+    public IReadOnlyList<DocFeaturedPageDefinition> Pages { get; init; } = [];
+
+    /// <summary>
+    /// Gets the parser-populated metadata field path for group-level diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// This internal value is for diagnostics and source attribution only. Authored metadata and consumers should not
+    /// depend on it as stable content because the parser path format may change.
+    /// </remarks>
+    internal string? SourceFieldPath { get; init; }
+}
+
+/// <summary>
 /// Defines one authored featured-page entry for a docs landing surface.
 /// </summary>
 public sealed record DocFeaturedPageDefinition
@@ -594,6 +643,15 @@ public sealed record DocFeaturedPageDefinition
     /// Gets the relative display order for the featured entry.
     /// </summary>
     public int? Order { get; init; }
+
+    /// <summary>
+    /// Gets the parser-populated metadata field path for page-level diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// This internal value is for diagnostics and source attribution only. Authored metadata and consumers should not
+    /// depend on it as stable content because the parser path format may change.
+    /// </remarks>
+    internal string? SourceFieldPath { get; init; }
 }
 
 /// <summary>
@@ -627,9 +685,9 @@ public sealed record DocLandingViewModel
     public IReadOnlyList<DocNode> VisibleDocs { get; init; } = [];
 
     /// <summary>
-    /// Gets the resolved proof-path rows for the landing experience.
+    /// Gets the resolved proof-path groups for the landing experience.
     /// </summary>
-    public IReadOnlyList<DocLandingFeaturedPageViewModel> FeaturedPages { get; init; } = [];
+    public IReadOnlyList<DocLandingFeaturedPageGroupViewModel> FeaturedPageGroups { get; init; } = [];
 
     /// <summary>
     /// Gets the secondary section summaries shown under the primary <c>Start Here</c> route.
@@ -639,7 +697,47 @@ public sealed record DocLandingViewModel
     /// <summary>
     /// Gets a value indicating whether the landing should render a proof-path lead section.
     /// </summary>
-    public bool HasFeaturedPages => FeaturedPages.Count > 0;
+    public bool HasFeaturedPages => FeaturedPageGroups.Any(group => group.Pages.Count > 0);
+}
+
+/// <summary>
+/// View model for one resolved reader-intent group on a docs landing page.
+/// </summary>
+/// <remarks>
+/// <see cref="Intent"/> and <see cref="Label"/> are normalized by the featured-page resolver before rendering: authored
+/// whitespace is trimmed, missing labels fall back to the resolved intent, and both values are non-null. <see cref="Summary"/>
+/// contains optional group copy and may be <c>null</c>. <see cref="Pages"/> contains the resolved
+/// <see cref="DocLandingFeaturedPageViewModel"/> rows produced by the resolver after it matches authored destinations to
+/// visible docs. Empty <see cref="Pages"/> lists are treated as no featured pages and are suppressed by
+/// <see cref="DocLandingViewModel.HasFeaturedPages"/>, <see cref="DocDetailsViewModel.HasFeaturedPages"/>, and the
+/// RazorDocs views.
+/// </remarks>
+/// <remarks>
+/// Pitfalls: callers should not rely on an empty <see cref="Pages"/> list being rendered, and should expect
+/// <see cref="Intent"/>, <see cref="Label"/>, <see cref="Summary"/>, and <see cref="Pages"/> to reflect resolver output
+/// rather than raw authored front matter.
+/// </remarks>
+public sealed record DocLandingFeaturedPageGroupViewModel
+{
+    /// <summary>
+    /// Gets the stable reader-intent identifier for the group.
+    /// </summary>
+    public string Intent { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the reader-facing group label.
+    /// </summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets optional copy that explains when to choose this group.
+    /// </summary>
+    public string? Summary { get; init; }
+
+    /// <summary>
+    /// Gets the resolved featured-page rows in this group.
+    /// </summary>
+    public IReadOnlyList<DocLandingFeaturedPageViewModel> Pages { get; init; } = [];
 }
 
 /// <summary>
@@ -1027,9 +1125,14 @@ public sealed record DocDetailsViewModel
     public bool IsSectionLanding { get; init; }
 
     /// <summary>
-    /// Gets the curated next-step rows shown by a section landing doc.
+    /// Gets the curated next-step groups shown by a section landing doc.
     /// </summary>
-    public IReadOnlyList<DocLandingFeaturedPageViewModel> FeaturedPages { get; init; } = [];
+    public IReadOnlyList<DocLandingFeaturedPageGroupViewModel> FeaturedPageGroups { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether any curated section-landing group has visible next-step pages.
+    /// </summary>
+    public bool HasFeaturedPages => FeaturedPageGroups.Any(group => group.Pages.Count > 0);
 
     /// <summary>
     /// Gets the grouped <c>In this section</c> lists shown by a section landing doc.

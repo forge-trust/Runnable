@@ -9,9 +9,22 @@ internal static class Program
     private const string VerifyCommand = "verify";
 
     private static readonly string Usage = """
+        ForgeTrust.Runnable.PackageIndex
+
+        Generates and verifies the public Runnable package chooser.
+
         Usage:
-          dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- generate [--repo-root <path>] [--manifest <path>] [--output <path>]
-          dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- verify [--repo-root <path>] [--manifest <path>] [--output <path>]
+          dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- <command> [options]
+
+        Commands:
+          generate    Rewrites packages/README.md from packages/package-index.yml and project metadata.
+          verify      Check that packages/README.md is already up to date.
+
+        Options:
+          --repo-root <path>    Repository root. Defaults to the current directory.
+          --manifest <path>     Package manifest path. Defaults to packages/package-index.yml.
+          --output <path>       Generated chooser path. Defaults to packages/README.md.
+          -h, --help            Show this help.
         """;
 
     /// <summary>
@@ -27,10 +40,14 @@ internal static class Program
     /// <summary>
     /// Runs the package chooser CLI against the supplied IO streams and working directory.
     /// </summary>
-    /// <param name="args">Command-line arguments, including the command and optional path overrides.</param>
-    /// <param name="standardOut">Writer that receives success messages.</param>
-    /// <param name="standardError">Writer that receives usage and failure messages.</param>
-    /// <param name="currentDirectory">Working directory used to resolve default repository-relative paths.</param>
+    /// <param name="args">
+    /// Command-line arguments, including the command and optional path overrides. If any help argument is present,
+    /// this method returns usage output before command or option parsing so help remains available from any working
+    /// directory.
+    /// </param>
+    /// <param name="standardOut">Writer that receives success messages and help/usage output.</param>
+    /// <param name="standardError">Writer that receives invalid invocation usage and failure messages.</param>
+    /// <param name="currentDirectory">Working directory used to resolve default repository-relative paths after help handling.</param>
     /// <param name="cancellationToken">Cancellation token propagated to generator operations.</param>
     /// <returns><c>0</c> when the command succeeds; otherwise a non-zero exit code.</returns>
     internal static async Task<int> RunAsync(
@@ -51,43 +68,59 @@ internal static class Program
             return 1;
         }
 
+        if (IsHelp(args[0]))
+        {
+            await standardOut.WriteLineAsync(Usage);
+            return 0;
+        }
+
         try
         {
             var command = args[0].Trim();
+            if (args.Skip(1).Any(IsHelp))
+            {
+                await standardOut.WriteLineAsync(Usage);
+                return 0;
+            }
+
+            var normalizedCommand = command.ToLowerInvariant();
+            if (normalizedCommand is not GenerateCommand and not VerifyCommand)
+            {
+                await standardError.WriteLineAsync($"Unknown command '{command}'.");
+                await standardError.WriteLineAsync(Usage);
+                return 1;
+            }
+
             var options = CommandLineOptions.Parse(args.Skip(1).ToArray(), currentDirectory);
             var generator = new PackageIndexGenerator(
                 new PackageProjectScanner(),
                 new DotNetProjectMetadataProvider(),
                 new PackageManifestLoader());
 
-            switch (command.ToLowerInvariant())
+            if (normalizedCommand == GenerateCommand)
             {
-                case GenerateCommand:
-                    {
-                        await generator.GenerateToFileAsync(options.Request, cancellationToken);
-                        var outputPath = Path.GetRelativePath(options.Request.RepositoryRoot, options.Request.OutputPath)
-                            .Replace('\\', '/');
-                        await standardOut.WriteLineAsync($"Generated {outputPath}.");
-                        return 0;
-                    }
-
-                case VerifyCommand:
-                    {
-                        await generator.VerifyAsync(options.Request, cancellationToken);
-                        await standardOut.WriteLineAsync("Package chooser is up to date.");
-                        return 0;
-                    }
-
-                default:
-                    await standardError.WriteLineAsync(Usage);
-                    return 1;
+                await generator.GenerateToFileAsync(options.Request, cancellationToken);
+                var outputPath = Path.GetRelativePath(options.Request.RepositoryRoot, options.Request.OutputPath)
+                    .Replace('\\', '/');
+                await standardOut.WriteLineAsync($"Generated {outputPath}.");
+                return 0;
             }
+
+            await generator.VerifyAsync(options.Request, cancellationToken);
+            await standardOut.WriteLineAsync("Package chooser is up to date.");
+            return 0;
         }
         catch (PackageIndexException ex)
         {
             await standardError.WriteLineAsync(ex.Message);
             return 1;
         }
+    }
+
+    private static bool IsHelp(string argument)
+    {
+        return string.Equals(argument, "--help", StringComparison.Ordinal)
+            || string.Equals(argument, "-h", StringComparison.Ordinal);
     }
 }
 

@@ -1,23 +1,38 @@
 title: Runnable
 summary: Runnable gives .NET teams a modular startup pipeline for web, console, and distributed apps. Start with the pillar you need, then drill into concrete examples and API reference.
-featured_pages:
-  - question: Which Runnable package should I install first?
-    path: packages/README.md
-    supporting_copy: Start with the generated package chooser, then add only the optional modules your app actually needs.
+featured_page_groups:
+  - intent: choose-package
+    label: Choose a package
+    summary: Start here when you need the smallest useful install path for a new app.
     order: 5
-  - question: What is shipping next, and how risky is the upgrade?
-    path: releases/README.md
-    supporting_copy: Start with the public release hub, then drill into the unreleased proof artifact, changelog, and pre-1.0 upgrade policy.
+    pages:
+      - question: Which Runnable package should I install first?
+        path: packages/README.md
+        supporting_copy: Start with the generated package chooser, then add only the optional modules your app actually needs.
+        order: 10
+  - intent: evaluate-release
+    label: Evaluate release risk
+    summary: Use these routes when you need to decide whether current changes are safe to adopt.
     order: 10
-  - question: Show me a working app, not just abstractions
-    path: examples/web-app/README.md
-    supporting_copy: Walk through a minimal ASP.NET Core app that uses Runnable modules end to end.
+    pages:
+      - question: What is shipping next, and how risky is the upgrade?
+        path: releases/README.md
+        supporting_copy: Start with the public release hub, then drill into the unreleased proof artifact, changelog, and pre-1.0 upgrade policy.
+        order: 10
+  - intent: see-it-working
+    label: See it working
+    summary: Follow concrete application paths before drilling into reference material.
     order: 20
-  - question: How does this fit distributed systems?
-    path: Aspire/README.md
-    supporting_copy: See how the same modular approach extends into .NET Aspire and service-default composition.
-    order: 30
-  - question: What about CLI and worker flows?
-    path: Console/README.md
-    supporting_copy: Follow the console tooling for commands, critical services, and shared startup patterns.
-    order: 40
+    pages:
+      - question: Show me a working app, not just abstractions
+        path: examples/web-app/README.md
+        supporting_copy: Walk through a minimal ASP.NET Core app that uses Runnable modules end to end.
+        order: 10
+      - question: How does this fit distributed systems?
+        path: Aspire/README.md
+        supporting_copy: See how the same modular approach extends into .NET Aspire and service-default composition.
+        order: 20
+      - question: What about CLI and worker flows?
+        path: Console/README.md
+        supporting_copy: Follow the console tooling for commands, critical services, and shared startup patterns.
+        order: 30

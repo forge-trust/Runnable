@@ -10,7 +10,7 @@ public interface IConfig
     /// <summary>
     /// Initializes the configuration object, resolving its provider or default value and failing fast
     /// with <see cref="ConfigurationValidationException"/> when the resolved value violates
-    /// DataAnnotations validation rules.
+    /// object DataAnnotations rules or scalar value validation rules.
     /// </summary>
     /// <param name="configManager">The configuration manager to use for retrieving values.</param>
     /// <param name="environmentProvider">The environment provider.</param>

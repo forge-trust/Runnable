@@ -125,6 +125,8 @@ dotnet run --project examples/console-app
 dotnet run --project examples/web-app
 ```
 
+For the intentional validation-failure shape, run `dotnet run --project examples/config-validation`.
+
 ## Release notes and upgrade policy
 
 Runnable is preparing to release the entire monorepo in unison. The public release contract now lives in the repository so teams can see what is queued for the next version, how pre-1.0 changes are handled, and where future migration notes will live.
@@ -153,6 +155,8 @@ how to use this project.
   definitions.
 - [Web app example](examples/web-app) – shows a minimal ASP.NET Core app that
   composes middleware and endpoints from modules.
+- [Config validation example](examples/config-validation) – shows scalar
+  validation on a strongly typed config wrapper and the startup failure shape.
 
 ## License
 

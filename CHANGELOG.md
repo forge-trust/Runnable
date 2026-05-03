@@ -23,6 +23,7 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 - RazorDocs now supports metadata-driven page wayfinding: harvested outlines, explicit proof-path previous/next links, related pages, and sidebar anchor navigation.
 - The root README now includes a single hello-world web quickstart with an explicit local port and a concrete expected response.
 - Runnable now ships GitHub issue templates for bug reports and documentation feedback.
+- Runnable Config now supports first-class scalar value validation on `Config<T>` and `ConfigStruct<T>` wrappers with `ConfigValueNotEmpty`, `ConfigValueRange`, `ConfigValueMinLength`, and a `ValidateValue` override for custom rules.
 
 ### Changed
 

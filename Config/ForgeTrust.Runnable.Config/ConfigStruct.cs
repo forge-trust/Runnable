@@ -1,11 +1,13 @@
+using System.ComponentModel.DataAnnotations;
 using ForgeTrust.Runnable.Core;
 
 namespace ForgeTrust.Runnable.Config;
 
 /// <summary>
 /// A base class for strongly-typed configuration objects where the value is a struct.
-/// Values are resolved during <see cref="IConfig.Init"/>, then any DataAnnotations on the
-/// resolved provider value or <see cref="DefaultValue"/> are validated before initialization completes.
+/// Values are resolved during <see cref="IConfig.Init"/>, then object-valued configuration models are
+/// validated with DataAnnotations and scalar values can be validated with Runnable scalar attributes or
+/// <see cref="ValidateValue"/>.
 /// Invalid provider values and invalid defaults fail fast by throwing
 /// <see cref="ConfigurationValidationException"/>, so callers that activate config wrappers can catch
 /// that exception and surface its structured failures. Ensure defaults satisfy the same validation
@@ -37,7 +39,7 @@ public class ConfigStruct<T> : IConfig
 
     /// <summary>
     /// Resolves the configured value for <paramref name="key"/> and validates the resolved provider
-    /// value or <see cref="DefaultValue"/> with DataAnnotations before initialization completes.
+    /// value or <see cref="DefaultValue"/> before initialization completes.
     /// </summary>
     /// <param name="configManager">The configuration manager used to resolve the provider value.</param>
     /// <param name="environmentProvider">The environment provider used to choose the active environment.</param>
@@ -59,5 +61,23 @@ public class ConfigStruct<T> : IConfig
             GetType(),
             typeof(T),
             Value);
+        ConfigScalarValueValidator.Validate(
+            key,
+            this,
+            typeof(T),
+            Value,
+            (value, validationContext) => ValidateValue((T)value, validationContext));
     }
+
+    /// <summary>
+    /// Validates a resolved non-null scalar configuration value.
+    /// Override this method when a scalar rule is too specific for the built-in Runnable scalar attributes.
+    /// </summary>
+    /// <param name="value">The resolved provider or default scalar value.</param>
+    /// <param name="validationContext">The validation context for the concrete configuration wrapper.</param>
+    /// <returns>The validation results for <paramref name="value"/>, or null when validation succeeds.</returns>
+    protected virtual IEnumerable<ValidationResult>? ValidateValue(
+        T value,
+        ValidationContext validationContext) =>
+        [];
 }

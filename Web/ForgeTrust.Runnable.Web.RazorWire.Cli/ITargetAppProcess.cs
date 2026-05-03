@@ -162,6 +162,22 @@ internal sealed class TargetAppProcess : ITargetAppProcess
         }
         finally
         {
+            if (_started)
+            {
+                try
+                {
+                    // WaitForExit() flushes asynchronous output callbacks after
+                    // process exit, which keeps short-lived commands from losing
+                    // their final stdout/stderr lines during disposal.
+                    _process.WaitForExit();
+                }
+                catch (InvalidOperationException)
+                {
+                    // The process was never associated with an operating-system process,
+                    // or it was already released by the time disposal finished.
+                }
+            }
+
             _disposed = true;
             _process.Dispose();
         }

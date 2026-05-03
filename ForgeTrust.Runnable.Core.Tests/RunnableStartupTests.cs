@@ -25,7 +25,7 @@ public class RunnableStartupTests
     }
 
     [Fact]
-    public void CreateHostBuilder_SetsHostApplicationName()
+    public void CreateHostBuilder_KeepsCustomApplicationNameAsDisplayLabel()
     {
         var context = new StartupContext([], new RootModule(), "CustomApp");
         var startup = new TestStartup();
@@ -34,7 +34,31 @@ public class RunnableStartupTests
         using var host = hostBuilder.Build();
 
         var env = host.Services.GetRequiredService<IHostEnvironment>();
-        Assert.Equal("CustomApp", env.ApplicationName);
+        var config = host.Services.GetRequiredService<IConfiguration>();
+        Assert.Equal("CustomApp", context.ApplicationName);
+        Assert.Equal(typeof(RootModule).Assembly.GetName().Name, context.HostApplicationName);
+        Assert.Equal(context.HostApplicationName, env.ApplicationName);
+        Assert.Equal(context.HostApplicationName, config[HostDefaults.ApplicationKey]);
+    }
+
+    [Fact]
+    public void CreateHostBuilder_UsesOverrideEntryPointAssemblyForHostApplicationName()
+    {
+        var context = new StartupContext([], new RootModule(), "CustomApp")
+        {
+            OverrideEntryPointAssembly = typeof(string).Assembly
+        };
+        var startup = new TestStartup();
+
+        var hostBuilder = ((IRunnableStartup)startup).CreateHostBuilder(context);
+        using var host = hostBuilder.Build();
+
+        var env = host.Services.GetRequiredService<IHostEnvironment>();
+        var config = host.Services.GetRequiredService<IConfiguration>();
+        Assert.Equal("CustomApp", context.ApplicationName);
+        Assert.Equal(typeof(string).Assembly.GetName().Name, context.HostApplicationName);
+        Assert.Equal(context.HostApplicationName, env.ApplicationName);
+        Assert.Equal(context.HostApplicationName, config[HostDefaults.ApplicationKey]);
     }
 
     [Fact]

@@ -176,6 +176,11 @@ internal static class DocMetadataFactory
             return DocPublicSection.Internals;
         }
 
+        if (IsReleasePath(normalizedPath))
+        {
+            return DocPublicSection.Releases;
+        }
+
         var fileName = Path.GetFileNameWithoutExtension(normalizedPath);
         if (IsStartHereLikeName(fileName))
         {
@@ -296,6 +301,14 @@ internal static class DocMetadataFactory
                || segment.Contains(".Tests", StringComparison.OrdinalIgnoreCase)
                || segment.EndsWith("Tests", StringComparison.OrdinalIgnoreCase)
                || segment.Contains("Benchmark", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsReleasePath(string path)
+    {
+        var normalizedPath = NormalizePath(path);
+
+        return normalizedPath.StartsWith("releases/", StringComparison.OrdinalIgnoreCase)
+               || normalizedPath.Equals("CHANGELOG.md", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? NormalizeMetadataValue(string? value)

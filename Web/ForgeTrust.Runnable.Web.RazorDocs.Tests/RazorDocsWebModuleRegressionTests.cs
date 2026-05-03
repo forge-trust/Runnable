@@ -21,6 +21,7 @@ public class RazorDocsWebModuleRegressionTests
     private const string PackagedAssetBasePath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/docs";
     private const string PackagedStylesheetPath = "/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css";
     private const string RootStylesheetPath = "/css/site.gen.css";
+    private const string ReferencedRazorWireScriptPath = "/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.js";
 
     [Fact]
     public void ConfigureWebOptions_Issue001_EnablesStaticWebAssets()
@@ -113,7 +114,7 @@ public class RazorDocsWebModuleRegressionTests
     }
 
     [Fact]
-    public async Task ConfigureWebOptions_Issue001_EmitsRootStylesheetPath_WhenApplicationNameIsCustomized()
+    public async Task ConfigureWebOptions_Issue130_ServesRootStylesheet_WhenApplicationNameIsCustomized()
     {
         var module = new RazorDocsWebModule();
         var startup = new TestRazorDocsStartup(module);
@@ -142,6 +143,24 @@ public class RazorDocsWebModuleRegressionTests
             Assert.Equal(HttpStatusCode.OK, docsResponse.StatusCode);
             Assert.Contains("href=\"/css/site.gen.css", html);
             Assert.DoesNotContain("/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css", html);
+
+            using var stylesheetResponse = await client.GetAsync(RootStylesheetPath);
+            var stylesheet = await stylesheetResponse.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, stylesheetResponse.StatusCode);
+            Assert.Equal(RootStylesheetPath, stylesheetResponse.RequestMessage?.RequestUri?.AbsolutePath);
+            Assert.Equal("text/css", stylesheetResponse.Content.Headers.ContentType?.MediaType);
+            Assert.False(string.IsNullOrWhiteSpace(stylesheet));
+            Assert.Contains(".docs-content", stylesheet);
+
+            using var referencedAssetResponse = await client.GetAsync(ReferencedRazorWireScriptPath);
+            var referencedAsset = await referencedAssetResponse.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, referencedAssetResponse.StatusCode);
+            Assert.Equal(ReferencedRazorWireScriptPath, referencedAssetResponse.RequestMessage?.RequestUri?.AbsolutePath);
+            Assert.Equal("text/javascript", referencedAssetResponse.Content.Headers.ContentType?.MediaType);
+            Assert.False(string.IsNullOrWhiteSpace(referencedAsset));
+            Assert.Contains("RazorWire Core Client Runtime", referencedAsset);
         }
         finally
         {

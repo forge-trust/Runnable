@@ -93,7 +93,7 @@ That example is the smallest concrete path through `ForgeTrust.Runnable.Web`: a 
 If you are evaluating packages from your own app project rather than running this repo, start with the generated package chooser:
 
 ```bash
-dotnet package add ForgeTrust.Runnable.Web --project <path-to-your-app.csproj>
+dotnet add package ForgeTrust.Runnable.Web --project <path-to-your-app.csproj>
 ```
 
 Then read [packages/README.md](./packages/README.md) for the package matrix and add optional modules only when your app needs them.

@@ -376,7 +376,9 @@ public class DocsController : Controller
                         Title = item.Page.Title,
                         Href = item.Page.Href,
                         Summary = item.Page.SupportingText,
-                        Eyebrow = !string.IsNullOrWhiteSpace(item.Group.Label) ? item.Group.Label : item.Page.Question,
+                        Eyebrow = string.Equals(item.Group.Label, "Featured", StringComparison.OrdinalIgnoreCase)
+                            ? item.Page.Question
+                            : item.Group.Label,
                         PageTypeBadge = item.Page.PageTypeBadge
                     })
                 .ToList();

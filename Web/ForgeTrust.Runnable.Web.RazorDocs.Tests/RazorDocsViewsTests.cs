@@ -179,6 +179,49 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task IndexView_ShouldPreservePathBase_ForFeaturedAndFallbackLinks()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    FeaturedPageGroups =
+                    [
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "How does composition work?",
+                                Path = "guides/composition.md"
+                            })
+                    ]
+                }),
+            new(
+                "Composition",
+                "guides/composition.md",
+                "<p>Guide body</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Summary = "Destination summary."
+                })
+        };
+        using var services = CreateServiceProvider(docs);
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Index",
+            c => c.Index(),
+            httpContext => httpContext.Request.PathBase = "/tenant");
+
+        Assert.Contains("href=\"/tenant/docs/sections/start-here\"", html);
+        Assert.Contains("href=\"/tenant/docs/guides/composition.md.html\"", html);
+    }
+
+    [Fact]
     public async Task IndexView_ShouldFallbackToDestinationSummary_WhenSupportingCopyIsMissing()
     {
         var docs = new List<DocNode>
@@ -863,6 +906,81 @@ public class RazorDocsViewsTests
         Assert.Contains("In this section", html);
         Assert.Contains("Deep dive summary.", html);
         Assert.Contains("Jump to section", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldPreservePathBase_ForSectionLandingFeaturedLinks()
+    {
+        var landingDoc = new DocNode(
+            "Concept Landing",
+            "concepts/landing.md",
+            "<p>Landing body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts",
+                SectionLanding = true,
+                FeaturedPageGroups =
+                [
+                    FeaturedGroup(
+                        new DocFeaturedPageDefinition
+                        {
+                            Question = "Go deeper",
+                            Path = "concepts/deep-dive.md"
+                        })
+                ]
+            });
+        var deepDive = new DocNode(
+            "Deep Dive",
+            "concepts/deep-dive.md",
+            "<p>Deep dive body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts"
+            });
+        using var services = CreateServiceProvider(CreateDocsWithOverrides([landingDoc, deepDive]));
+
+        var html = await RenderDocsViewAsync(
+            services,
+            "Details",
+            controller => controller.Details(landingDoc.Path),
+            httpContext => httpContext.Request.PathBase = "/tenant");
+
+        Assert.Contains("href=\"/tenant/docs/sections/concepts\"", html);
+        Assert.Contains("href=\"/tenant/docs/concepts/deep-dive.md.html\"", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderNextStepsChrome_WhenFeaturedGroupsAreEmpty()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Concept Landing",
+            "concepts/landing.md",
+            "<p>Landing body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "Concepts",
+                SectionLanding = true
+            });
+        var model = CreateDetailsViewModel(doc) with
+        {
+            IsSectionLanding = true,
+            FeaturedPageGroups =
+            [
+                new DocLandingFeaturedPageGroupViewModel
+                {
+                    Label = "Empty",
+                    Pages = []
+                }
+            ]
+        };
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+
+        Assert.DoesNotContain("Next steps", html);
     }
 
     [Fact]
@@ -2071,7 +2189,8 @@ public class RazorDocsViewsTests
     private static async Task<string> RenderDocsViewAsync(
         ServiceProvider services,
         string actionName,
-        Func<DocsController, Task<IActionResult>> action)
+        Func<DocsController, Task<IActionResult>> action,
+        Action<DefaultHttpContext>? configureHttpContext = null)
     {
         using var scope = services.CreateScope();
         var scopedServices = scope.ServiceProvider;
@@ -2080,6 +2199,7 @@ public class RazorDocsViewsTests
         {
             RequestServices = scopedServices
         };
+        configureHttpContext?.Invoke(httpContext);
         httpContext.Response.Body = new MemoryStream();
 
         var controller = ActivatorUtilities.CreateInstance<DocsController>(scopedServices);

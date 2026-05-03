@@ -110,9 +110,11 @@ public sealed class DocFeaturedPageResolver
             resolvedGroups.Add(
                 new DocLandingFeaturedPageGroupViewModel
                 {
-                    Intent = group.Intent ?? string.Empty,
-                    Label = group.Label ?? group.Intent ?? "Featured",
-                    Summary = group.Summary,
+                    Intent = NormalizeOptionalText(group.Intent) ?? string.Empty,
+                    Label = NormalizeOptionalText(group.Label)
+                            ?? NormalizeOptionalText(group.Intent)
+                            ?? "Featured",
+                    Summary = NormalizeOptionalText(group.Summary),
                     Pages = resolvedPages
                 });
         }
@@ -316,5 +318,10 @@ public sealed class DocFeaturedPageResolver
         return string.IsNullOrWhiteSpace(doc.Metadata?.Title)
             ? doc.Title
             : doc.Metadata!.Title!.Trim();
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }

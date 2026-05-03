@@ -11,8 +11,13 @@ public sealed class DocFeaturedPageResolverTests
     public void ResolveGroups_ShouldThrow_WhenDocsIsNull()
     {
         var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = "guides/intro.md"
+            });
 
-        Assert.Throws<ArgumentNullException>(() => resolver.ResolveGroups(null, null!));
+        Assert.Throws<ArgumentNullException>(() => resolver.ResolveGroups(landing, null!));
     }
 
     [Fact]
@@ -313,6 +318,72 @@ public sealed class DocFeaturedPageResolverTests
             {
                 Assert.Equal("manual-intent", second.Intent);
                 Assert.Equal("manual-intent", second.Label);
+            });
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldTrimGroupFields_WhenMetadataBypassesParserNormalization()
+    {
+        var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+        var landing = new DocNode(
+            "Home",
+            "README.md",
+            "<p>Home</p>",
+            CanonicalPath: "index.html",
+            Metadata: new DocMetadata
+            {
+                FeaturedPageGroups =
+                [
+                    new DocFeaturedPageGroupDefinition
+                    {
+                        Intent = "  custom-intent  ",
+                        Label = "  Custom label  ",
+                        Summary = "  Choose this route.  ",
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/intro.md"
+                            }
+                        ]
+                    },
+                    new DocFeaturedPageGroupDefinition
+                    {
+                        Intent = "  fallback-intent  ",
+                        Label = "   ",
+                        Summary = "   ",
+                        Pages =
+                        [
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/reference.md"
+                            }
+                        ]
+                    }
+                ]
+            });
+        var docs = new[]
+        {
+            landing,
+            new DocNode("Intro", "guides/intro.md", "<p>Intro</p>", CanonicalPath: "guides/intro.md.html"),
+            new DocNode("Reference", "guides/reference.md", "<p>Reference</p>", CanonicalPath: "guides/reference.md.html")
+        };
+
+        var groups = resolver.ResolveGroups(landing, docs);
+
+        Assert.Collection(
+            groups,
+            first =>
+            {
+                Assert.Equal("custom-intent", first.Intent);
+                Assert.Equal("Custom label", first.Label);
+                Assert.Equal("Choose this route.", first.Summary);
+            },
+            second =>
+            {
+                Assert.Equal("fallback-intent", second.Intent);
+                Assert.Equal("fallback-intent", second.Label);
+                Assert.Null(second.Summary);
             });
     }
 

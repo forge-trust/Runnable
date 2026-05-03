@@ -377,6 +377,13 @@ public sealed class MarkdownFrontMatterParserTests
     }
 
     [Fact]
+    public void ParseMetadataYamlWithDiagnostics_ShouldThrow_WhenYamlIsInvalid()
+    {
+        Assert.Throws<YamlException>(
+            () => MarkdownFrontMatterParser.ParseMetadataYamlWithDiagnostics("title: ["));
+    }
+
+    [Fact]
     public void Extract_ShouldParseTrustMetadata_AndPreserveExplicitEmptySourceLists()
     {
         var markdown = """

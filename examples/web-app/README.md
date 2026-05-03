@@ -5,7 +5,7 @@ This example shows how to build a minimal ASP.NET Core application using **Forge
 Run the application:
 
 ```bash
-dotnet run -- --port 5055
+dotnet run --project examples/web-app -- --port 5055
 ```
 
 Then open <http://127.0.0.1:5055> or run:

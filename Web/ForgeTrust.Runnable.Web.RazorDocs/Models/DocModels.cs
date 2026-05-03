@@ -1116,6 +1116,11 @@ public sealed record DocDetailsViewModel
     public IReadOnlyList<DocLandingFeaturedPageGroupViewModel> FeaturedPageGroups { get; init; } = [];
 
     /// <summary>
+    /// Gets a value indicating whether any curated section-landing group has visible next-step pages.
+    /// </summary>
+    public bool HasFeaturedPages => FeaturedPageGroups.Any(group => group.Pages.Count > 0);
+
+    /// <summary>
     /// Gets the grouped <c>In this section</c> lists shown by a section landing doc.
     /// </summary>
     public IReadOnlyList<DocSectionGroupViewModel> SectionGroups { get; init; } = [];

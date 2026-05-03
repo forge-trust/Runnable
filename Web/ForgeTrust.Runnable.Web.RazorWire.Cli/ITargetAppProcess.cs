@@ -59,6 +59,8 @@ public sealed class TargetAppProcessFactory : ITargetAppProcessFactory
 [ExcludeFromCodeCoverage]
 internal sealed class TargetAppProcess : ITargetAppProcess
 {
+    private const int ProcessExitTimeoutMilliseconds = 5000;
+
     private readonly Process _process;
     private bool _started;
     private bool _disposed;
@@ -146,7 +148,8 @@ internal sealed class TargetAppProcess : ITargetAppProcess
                     try
                     {
                         _process.Kill(entireProcessTree: true);
-                        using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var waitCts = new CancellationTokenSource(
+                            TimeSpan.FromMilliseconds(ProcessExitTimeoutMilliseconds));
                         await _process.WaitForExitAsync(waitCts.Token);
                     }
                     catch (InvalidOperationException)
@@ -162,6 +165,25 @@ internal sealed class TargetAppProcess : ITargetAppProcess
         }
         finally
         {
+            if (_started)
+            {
+                try
+                {
+                    // Use a bounded wait first so disposal cannot hang forever.
+                    // If the process exits in time, call parameterless WaitForExit()
+                    // to flush async output/error callbacks.
+                    if (_process.WaitForExit(ProcessExitTimeoutMilliseconds))
+                    {
+                        _process.WaitForExit();
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // The process was never associated with an operating-system process,
+                    // or it was already released by the time disposal finished.
+                }
+            }
+
             _disposed = true;
             _process.Dispose();
         }

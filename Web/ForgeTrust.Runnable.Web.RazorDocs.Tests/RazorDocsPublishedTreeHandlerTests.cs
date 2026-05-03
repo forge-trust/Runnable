@@ -409,6 +409,27 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
         Assert.Contains("\"path\":\"/some-base/docs/v/1.2.3/guide.html\"", ReadBody(searchIndexRequest));
     }
 
+    [Fact]
+    public async Task TryHandleAsync_ShouldPreferLongestMatchingMount_WhenPublishedRootsOverlap()
+    {
+        var stableTree = CreatePublishedTree("stable-overlap");
+        var versionedTree = CreatePublishedTree("versioned-overlap");
+        File.WriteAllText(Path.Combine(stableTree, "search.css"), "body { color: #fff; }");
+        File.WriteAllText(Path.Combine(versionedTree, "search.css"), "body { color: #0ea5e9; }");
+
+        var handler = CreateHandler(
+            [
+                new RazorDocsPublishedTreeMount("/docs", new PhysicalFileProvider(stableTree)),
+                new RazorDocsPublishedTreeMount("/docs/v/1.2.3", new PhysicalFileProvider(versionedTree))
+            ]);
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/search.css");
+
+        Assert.True(await handler.TryHandleAsync(request));
+        Assert.Equal("text/css", request.Response.ContentType);
+        Assert.Contains("#0ea5e9", ReadBody(request));
+        Assert.DoesNotContain("#fff", ReadBody(request));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))
@@ -419,9 +440,16 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
 
     private RazorDocsPublishedTreeHandler CreateHandler(string treePath, string mountRootPath, string previewRootPath = "/docs/next")
     {
-        return new RazorDocsPublishedTreeHandler(
+        return CreateHandler(
             [new RazorDocsPublishedTreeMount(mountRootPath, new PhysicalFileProvider(treePath))],
             previewRootPath);
+    }
+
+    private RazorDocsPublishedTreeHandler CreateHandler(
+        IReadOnlyList<RazorDocsPublishedTreeMount> mounts,
+        string previewRootPath = "/docs/next")
+    {
+        return new RazorDocsPublishedTreeHandler(mounts, previewRootPath);
     }
 
     private string CreatePublishedTree(string name)

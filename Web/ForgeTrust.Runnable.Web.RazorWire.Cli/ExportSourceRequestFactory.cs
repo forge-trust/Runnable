@@ -7,6 +7,11 @@ namespace ForgeTrust.Runnable.Web.RazorWire.Cli;
 /// </summary>
 public class ExportSourceRequestFactory
 {
+    private const string SourceSelectionHint =
+        " Choose one source, for example `razorwire export --project ./MyApp.csproj --output ./dist`; run `razorwire export --help` for all options.";
+
+    private const string HelpHint = " Run `razorwire export --help` for usage.";
+
     internal ExportSourceRequest Create(
         string? baseUrl,
         string? projectPath,
@@ -25,12 +30,12 @@ public class ExportSourceRequestFactory
         var selectedCount = sources.Count(selected => selected);
         if (selectedCount == 0)
         {
-            throw new CommandException("You must specify exactly one source: --url, --project, or --dll.");
+            throw new CommandException("You must specify exactly one source: --url, --project, or --dll." + SourceSelectionHint);
         }
 
         if (selectedCount > 1)
         {
-            throw new CommandException("Source options are mutually exclusive. Specify only one of --url, --project, or --dll.");
+            throw new CommandException("Source options are mutually exclusive. Specify only one of --url, --project, or --dll." + SourceSelectionHint);
         }
 
         if (!string.IsNullOrWhiteSpace(baseUrl))
@@ -38,7 +43,7 @@ public class ExportSourceRequestFactory
             if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)
                 || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                throw new CommandException("--url must be a valid HTTP or HTTPS URL.");
+                throw new CommandException("--url must be a valid HTTP or HTTPS URL." + HelpHint);
             }
 
             return new ExportSourceRequest(
@@ -64,13 +69,13 @@ public class ExportSourceRequestFactory
         if (!Path.HasExtension(filePath)
             || !string.Equals(Path.GetExtension(filePath), extension, StringComparison.OrdinalIgnoreCase))
         {
-            throw new CommandException($"{optionName} must point to a {extension} file.");
+            throw new CommandException($"{optionName} must point to a {extension} file." + HelpHint);
         }
 
         var fullPath = Path.GetFullPath(filePath);
         if (!File.Exists(fullPath))
         {
-            throw new CommandException($"{optionName} file not found: {fullPath}");
+            throw new CommandException($"{optionName} file not found: {fullPath}.{HelpHint}");
         }
 
         return fullPath;

@@ -156,6 +156,28 @@ public sealed class RazorWireMvcPlaywrightTests
     }
 
     [Fact]
+    public async Task IncrementCounter_ButtonHasAccessibleName()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.ReactivityUrl);
+        await WaitForCounterReadyAsync(page);
+
+        var incrementButton = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions
+        {
+            Name = "Increment counter",
+            Exact = true
+        });
+
+        await incrementButton.WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = 30_000
+        });
+    }
+
+    [Fact]
     public async Task IncrementCounter_SingleSession_UpdatesValuesWithoutRefresh()
     {
         await using var context = await _fixture.Browser.NewContextAsync();

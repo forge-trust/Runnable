@@ -28,6 +28,10 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 - Runnable now treats the whole monorepo as one coordinated release surface. Packages, CLI tools, examples, and docs-facing behavior all roll into the same upcoming version.
 - Pull requests are expected to use Conventional Commits titles and to update `releases/unreleased.md` unless maintainers explicitly opt out.
 - Markdown-only changes on `main` now trigger the build-and-export workflow so release-note and policy updates publish with the docs surface.
+- RazorWire CLI validation errors now include a concrete next command and `razorwire export --help` hint so failed exports are easier to recover from.
+- Tailwind development watch mode now logs a warning, not a startup error, when the standalone CLI is unavailable and the app can continue serving existing CSS.
+- RazorDocs search now keeps failure recovery markup out of the active search shell until the index actually fails to load.
+- The RazorWire MVC sample counter button now has an accessible name while preserving the compact icon-only UI.
 
 ### Migration
 

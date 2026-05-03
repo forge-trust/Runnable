@@ -2,13 +2,15 @@
 
 RazorWire-enhanced forms now have a convention for server failures. A form with `rw-active="true"` gets request markers, a default form-local fallback UI for unhandled failures, server-side helpers for high-quality validation errors, and development diagnostics for anti-forgery failures.
 
-The public package install matrix is still being finalized for `v0.1`, so the fastest way to try this today is the in-repo MVC sample:
+Runnable has not published the public `v0.1` package set yet, so the one-copy path today is the in-repo MVC sample:
 
 ```bash
 dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
 ```
 
 Open the printed URL and visit `/Reactivity/FormFailures`.
+
+When consuming package builds from a configured feed, reference `ForgeTrust.Runnable.Web.RazorWire` first and then continue with the form markup below. Public NuGet install commands will replace this repo-local note when publishing is live.
 
 ## Quickstart
 

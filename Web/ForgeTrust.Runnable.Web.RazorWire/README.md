@@ -4,13 +4,20 @@ RazorWire lets ASP.NET Core MVC apps update UI by returning Razor fragments from
 
 ## 60-Second Quickstart
 
-This quickstart assumes you are in a clone of this repository with the .NET 10 SDK installed. The public package install matrix is still being finalized for v0.1, so the fastest way to feel RazorWire today is the in-repo sample.
+Runnable has not published the public `v0.1` package set yet, so the copy-paste path today is repo-local:
+
+1. Clone this repository and use the .NET 10 SDK.
+2. Run the MVC sample:
 
 ```bash
 dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
 ```
 
-Open the URL printed in the console and navigate to `/Reactivity`, wait for the `Permanent Island` card to load, then click the `+` button. The `Instance Score` and `Session Score` update in place without a full-page reload.
+3. Open the URL printed in the console and navigate to `/Reactivity`.
+
+Wait for the `Permanent Island` card to load, then click the `+` button. The `Instance Score` and `Session Score` update in place without a full-page reload.
+
+When consuming package builds from a configured feed, reference `ForgeTrust.Runnable.Web.RazorWire` first and then continue at [Add the Module](#add-the-module). Public NuGet install commands will replace this note when the `v0.1` publishing path is live.
 
 ## Hero Proof
 
@@ -22,7 +29,7 @@ Open the URL printed in the console and navigate to `/Reactivity`, wait for the 
 
 <form asp-controller="Reactivity" asp-action="IncrementCounter" method="post" rw-active="true">
     <input type="hidden" name="clientCount" id="client-count-input" value="0" />
-    <button type="submit">+</button>
+    <button type="submit" aria-label="Increment counter">+</button>
 </form>
 ```
 
@@ -207,7 +214,7 @@ Enhances a normal form so Turbo handles the submission and optional frame target
 ```html
 <form asp-controller="Reactivity" asp-action="IncrementCounter" method="post" rw-active="true">
     <input type="hidden" name="clientCount" value="0" />
-    <button type="submit">+</button>
+    <button type="submit" aria-label="Increment counter">+</button>
 </form>
 ```
 

@@ -57,6 +57,7 @@ Do not combine `--version` and `--prerelease` for exact tool installs on recent 
 
 - Root help (`--help`) and command help (`export --help`) are command-first by design.
 - Validation failures, such as invalid flags or missing source options, should surface actionable CLI output without host startup and shutdown chatter.
+- Source validation failures include a concrete recovery path. When no source or multiple sources are provided, the error points to a single-source example such as `razorwire export --project ./MyApp.csproj --output ./dist` and reminds developers to run `razorwire export --help`.
 - Successful export runs still keep command-owned progress output so long-running work remains understandable.
 
 ### `export`

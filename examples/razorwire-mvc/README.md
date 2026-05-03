@@ -10,7 +10,7 @@ This sample is the concrete proof behind the RazorWire package README. It shows 
    dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
    ```
 
-   This assumes you are in a clone of this repository with the .NET 10 SDK installed.
+   This is the repo-local path while the public `v0.1` package install flow is being finalized. It assumes you are in a clone of this repository with the .NET 10 SDK installed.
 
    If you `cd examples/razorwire-mvc` first, `dotnet run` also works from there.
 
@@ -52,7 +52,7 @@ To inspect failed-submission conventions, navigate to `/Reactivity/FormFailures`
 
 <form asp-controller="Reactivity" asp-action="IncrementCounter" method="post" rw-active="true" data-counter-form>
     <input type="hidden" name="clientCount" id="client-count-input" value="0" />
-    <button type="submit">+</button>
+    <button type="submit" aria-label="Increment counter">+</button>
 </form>
 ```
 

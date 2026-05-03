@@ -1747,6 +1747,7 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-page-starter\"", html);
         Assert.Contains("data-rw-search-suggestion=\"getting started\"", html);
         Assert.Contains("id=\"docs-search-page-failure\"", html);
+        Assert.Contains("id=\"docs-search-page-failure-template\"", html);
         Assert.Contains("id=\"docs-search-page-retry\"", html);
         Assert.Contains("href=\"/docs/search-index.json\"", html);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", html);
@@ -1755,6 +1756,9 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-page-results\"", html);
         Assert.Contains("Search Documentation", html);
         Assert.Contains("id=\"docs-search-input\"", html);
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        Assert.Equal(string.Empty, document.QuerySelector("#docs-search-page-failure")?.TextContent.Trim());
     }
 
     [Fact]
@@ -1767,11 +1771,11 @@ public class RazorDocsViewsTests
             "Search",
             c => c.Search());
 
-        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
-        var recoveryLink = document.QuerySelector("a[href='/docs'][data-turbo-frame='_top']");
+        Assert.Contains("href=\"/docs\"", html);
+        Assert.Contains("data-turbo-frame=\"_top\"", html);
 
-        Assert.NotNull(recoveryLink);
-        Assert.Equal("_top", recoveryLink!.GetAttribute("data-turbo-frame"));
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        Assert.Equal(string.Empty, document.QuerySelector("#docs-search-page-failure")?.TextContent.Trim());
     }
 
     [Fact]

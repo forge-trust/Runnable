@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Web.RazorWire.Bridge;
+using ForgeTrust.Runnable.Web.RazorWire.Forms;
 using ForgeTrust.Runnable.Web.RazorWire.Streams;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -31,6 +32,8 @@ public static class RazorWireServiceCollectionExtensions
         services.TryAddSingleton<IRazorWireStreamHub, InMemoryRazorWireStreamHub>();
         services.TryAddSingleton<IRazorWireChannelAuthorizer, DefaultRazorWireChannelAuthorizer>();
         services.TryAddSingleton<IRazorPartialRenderer, RazorPartialRenderer>();
+        services.TryAddSingleton<RazorWireFormRequestClassifier>();
+        services.TryAddScoped<RazorWireAntiforgeryFailureFilter>();
 
         return services;
     }

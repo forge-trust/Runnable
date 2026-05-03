@@ -50,6 +50,7 @@ public class ExportCommandTests
         var command = CreateCommand(null, null, null);
         var ex = await Assert.ThrowsAsync<CommandException>(async () => await command.ExecuteAsync(A.Fake<IConsole>()));
         Assert.Contains("exactly one source", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -59,6 +60,8 @@ public class ExportCommandTests
 
         var ex = await Assert.ThrowsAsync<CommandException>(async () => await command.ExecuteAsync(A.Fake<IConsole>()));
         Assert.Contains("mutually exclusive", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Choose one source", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("razorwire export --help", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

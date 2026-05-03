@@ -2,6 +2,8 @@
 
 When using RazorWire Turbo Streams to replace or update parts of a page that contain forms, the original Anti-Forgery token hidden input may be lost. To prevent `400 Bad Request` errors on subsequent form submissions, ensure the token is included in your updated HTML.
 
+RazorWire's failed-form convention improves the development experience around this failure. Enhanced forms are marked with `X-RazorWire-Form: true` and `__RazorWireForm=1`; when anti-forgery validation fails for one of those requests, RazorWire can rewrite the failure into a helpful `400` response with safe production text or detailed development diagnostics. See [Failed Form UX](./form-failures.md).
+
 ## Recommended: Use the `<form>` TagHelper with `replace`
 
 If your partial view contains the entire `<form>` element, the ASP.NET Core TagHelper automatically injects the hidden anti-forgery token:
@@ -64,3 +66,11 @@ If `_FormFields.cshtml` is rendered inside an outer `<form asp-action="..." meth
 | `update` / `UpdatePartial` | Replaces inner HTML only | Use `@Html.AntiForgeryToken()` explicitly |
 
 Both methods provide the same security protection when used correctly.
+
+## Symptom: The First Submit Works, The Second Submit Returns 400
+
+The most common cause is a stale or missing anti-forgery token after a stream update. Replace the whole form, or render `@Html.AntiForgeryToken()` inside the updated fragment.
+
+## Symptom: The Anti-Forgery Error Is Helpful In Development But Generic In Production
+
+That is intentional. Development diagnostics are controlled by `RazorWireOptions.Forms.EnableDevelopmentDiagnostics` and `IWebHostEnvironment.IsDevelopment()`. Production responses avoid exposing token details to end users.

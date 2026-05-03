@@ -1,0 +1,135 @@
+@{
+    ViewData["Title"] = "Form Failures";
+}
+
+<div class="space-y-8">
+    <header class="space-y-3">
+        <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">RazorWire forms</p>
+        <div class="max-w-3xl space-y-3">
+            <h1 class="text-3xl font-bold tracking-tight text-slate-950">Failed form UX conventions</h1>
+            <p class="text-base leading-7 text-slate-600">
+                These forms intentionally fail so you can see the default behavior, the server-handled validation path,
+                the anti-forgery diagnostics path in development, and the hooks consumers can use for custom styling.
+            </p>
+        </div>
+    </header>
+
+    <section class="grid gap-5 lg:grid-cols-2">
+        <form asp-controller="Reactivity"
+              asp-action="SubmitValidationFailure"
+              method="post"
+              rw-active="true"
+              data-rw-form-failure-target="validation-errors"
+              class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="space-y-1">
+                <h2 class="text-lg font-semibold text-slate-950">Server-handled validation</h2>
+                <p class="text-sm text-slate-600">Submits to MVC ModelState and returns <code>422</code> with <code>FormValidationErrors</code>.</p>
+            </div>
+
+            <div id="validation-errors" data-rw-form-errors class="mt-4"></div>
+            <div id="validation-result" class="mt-4"></div>
+
+            <label for="failure-display-name" class="mt-4 block text-sm font-medium text-slate-700">Display name</label>
+            <input id="failure-display-name"
+                   name="displayName"
+                   class="mt-2 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                   autocomplete="off" />
+
+            <button type="submit" class="mt-4 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                Submit blank
+            </button>
+        </form>
+
+        <form method="post"
+              action="@Url.Action("AntiforgeryFailureDemo", "Reactivity")"
+              rw-active="true"
+              data-rw-form-failure-target="antiforgery-errors"
+              class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="space-y-1">
+                <h2 class="text-lg font-semibold text-slate-950">Anti-forgery diagnostics</h2>
+                <p class="text-sm text-slate-600">This raw form intentionally omits <code>__RequestVerificationToken</code>.</p>
+            </div>
+
+            <div id="antiforgery-errors" data-rw-form-errors class="mt-4"></div>
+
+            <input type="hidden" name="demo" value="missing-token" />
+            <button type="submit" class="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-700">
+                Trigger missing token
+            </button>
+        </form>
+
+        <form asp-controller="Reactivity"
+              asp-action="AuthorizationFailureDemo"
+              method="post"
+              rw-active="true"
+              data-rw-form-failure-target="authorization-errors"
+              class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="space-y-1">
+                <h2 class="text-lg font-semibold text-slate-950">Default auth fallback</h2>
+                <p class="text-sm text-slate-600">Returns <code>403</code> without a server-handled stream.</p>
+            </div>
+
+            <div id="authorization-errors" data-rw-form-errors class="mt-4"></div>
+
+            <button type="submit" class="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-700">
+                Trigger 403
+            </button>
+        </form>
+
+        <form asp-controller="Reactivity"
+              asp-action="ServerFailureDemo"
+              method="post"
+              rw-active="true"
+              data-rw-form-failure-target="server-errors"
+              class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="space-y-1">
+                <h2 class="text-lg font-semibold text-slate-950">Default server fallback</h2>
+                <p class="text-sm text-slate-600">Returns <code>500</code> so the runtime renders an assertive form-local message.</p>
+            </div>
+
+            <div id="server-errors" data-rw-form-errors class="mt-4"></div>
+
+            <button type="submit" class="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-700">
+                Trigger 500
+            </button>
+        </form>
+
+        <form asp-controller="Reactivity"
+              asp-action="MalformedFailureDemo"
+              method="post"
+              rw-active="true"
+              data-rw-form-failure-target="custom-errors"
+              style="--rw-form-error-border: #0f766e; --rw-form-error-bg: #f0fdfa; --rw-form-error-title: #115e59; --rw-form-error-text: #134e4a;"
+              class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="space-y-1">
+                <h2 class="text-lg font-semibold text-slate-950">Custom default styling</h2>
+                <p class="text-sm text-slate-600">CSS variables on the form tune the generated fallback without replacing the convention.</p>
+            </div>
+
+            <div id="custom-errors" data-rw-form-errors class="mt-4"></div>
+
+            <button type="submit" class="mt-4 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-600">
+                Trigger styled 400
+            </button>
+        </form>
+
+        <form asp-controller="Reactivity"
+              asp-action="ServerFailureDemo"
+              method="post"
+              rw-active="true"
+              data-rw-form-failure="manual"
+              data-demo-manual-target="#manual-errors"
+              class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="space-y-1">
+                <h2 class="text-lg font-semibold text-slate-950">Manual consumer UX</h2>
+                <p class="text-sm text-slate-600">Manual mode dispatches <code>razorwire:form:failure</code> and lets app code render its own UI.</p>
+            </div>
+
+            <div id="manual-errors" class="mt-4"></div>
+
+            <button type="submit" class="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-700">
+                Trigger manual 500
+            </button>
+        </form>
+    </section>
+</div>

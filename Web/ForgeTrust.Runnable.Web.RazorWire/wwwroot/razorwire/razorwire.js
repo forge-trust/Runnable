@@ -513,21 +513,475 @@
 
     }
 
+    class FormFailureManager {
+        constructor(config) {
+            this.config = config;
+            this.state = new WeakMap();
+            this.nextId = 1;
+            this.styleId = 'rw-form-failure-default-styles';
+        }
+
+        start() {
+            if (this.config.failureUxEnabled !== false && (this.config.failureMode || 'auto').toLowerCase() !== 'off') {
+                this.injectStyles();
+            }
+
+            document.addEventListener('turbo:before-fetch-request', event => this.handleBeforeFetchRequest(event));
+            document.addEventListener('turbo:submit-start', event => this.handleSubmitStart(event));
+            document.addEventListener('turbo:submit-end', event => this.handleSubmitEnd(event));
+            document.addEventListener('turbo:fetch-request-error', event => this.handleFetchRequestError(event));
+        }
+
+        handleBeforeFetchRequest(event) {
+            const form = this.getForm(event.target);
+            if (!this.isRazorWireForm(form)) return;
+
+            event.detail.fetchOptions = event.detail.fetchOptions || {};
+            const headers = event.detail.fetchOptions.headers || {};
+            if (typeof headers.set === 'function') {
+                headers.set('X-RazorWire-Form', 'true');
+            } else {
+                headers['X-RazorWire-Form'] = 'true';
+            }
+
+            event.detail.fetchOptions.headers = headers;
+        }
+
+        handleSubmitStart(event) {
+            const form = this.getForm(event.target);
+            if (!this.isRazorWireForm(form)) return;
+
+            const submitter = event.detail?.formSubmission?.submitter || null;
+            this.clearGeneratedFailure(form);
+            form.setAttribute('data-rw-submitting', 'true');
+            form.setAttribute('data-rw-submit-status', 'submitting');
+            form.removeAttribute('data-rw-last-status');
+            form.setAttribute('aria-busy', 'true');
+
+            const formState = { submitter, disabledByRazorWire: false, describedById: null };
+            if (submitter && form.getAttribute('data-rw-disable-submit') !== 'false' && !submitter.disabled) {
+                submitter.disabled = true;
+                submitter.setAttribute('data-rw-submit-disabled-by-razorwire', 'true');
+                formState.disabledByRazorWire = true;
+            }
+
+            this.state.set(form, formState);
+            this.dispatch(form, 'razorwire:form:submit-start', { form, submitter });
+        }
+
+        handleSubmitEnd(event) {
+            const form = this.getForm(event.target);
+            if (!this.isRazorWireForm(form)) return;
+
+            const statusCode = this.getStatusCode(event.detail?.fetchResponse);
+            const handled = this.isHandled(event.detail?.fetchResponse);
+            const responseKind = this.getResponseKind(event.detail?.fetchResponse);
+            const success = event.detail?.success === true;
+            const formState = this.state.get(form) || {};
+            const submitter = formState.submitter || event.detail?.formSubmission?.submitter || null;
+
+            this.finishSubmitting(form, formState);
+
+            if (success) {
+                this.clearGeneratedFailure(form);
+                form.removeAttribute('data-rw-submit-status');
+                form.removeAttribute('data-rw-last-status');
+                this.dispatch(form, 'razorwire:form:submit-end', { form, submitter, success, statusCode, handled });
+                return;
+            }
+
+            form.setAttribute('data-rw-submit-status', 'failed');
+            if (statusCode !== null) {
+                form.setAttribute('data-rw-last-status', String(statusCode));
+            }
+
+            const target = this.resolveTarget(form);
+            const developmentDiagnostic = target.diagnostic
+                || (!handled && this.config.developmentDiagnostics
+                    ? this.diagnosticForFailure({ form, statusCode, responseKind })
+                    : null);
+            const failureDetail = {
+                form,
+                submitter,
+                statusCode,
+                handled,
+                responseKind,
+                target: target.element,
+                message: this.messageForStatus(statusCode, responseKind),
+                developmentDiagnostic
+            };
+
+            const failureEvent = this.dispatch(form, 'razorwire:form:failure', failureDetail, true);
+            if (failureDetail.developmentDiagnostic) {
+                this.dispatch(form, 'razorwire:form:diagnostic', failureDetail.developmentDiagnostic);
+            }
+
+            if (handled) {
+                this.clearGeneratedFailure(form);
+            } else if (!failureEvent.defaultPrevented && this.getMode(form) === 'auto') {
+                this.renderFailure(form, target.element, failureDetail);
+            }
+
+            this.dispatch(form, 'razorwire:form:submit-end', { form, submitter, success, statusCode, handled });
+        }
+
+        handleFetchRequestError(event) {
+            const form = this.getForm(event.target);
+            if (!this.isRazorWireForm(form)) return;
+
+            const formState = this.state.get(form) || {};
+            const submitter = formState.submitter || null;
+            this.finishSubmitting(form, formState);
+            form.setAttribute('data-rw-submit-status', 'failed');
+
+            const target = this.resolveTarget(form);
+            const developmentDiagnostic = target.diagnostic
+                || (this.config.developmentDiagnostics
+                    ? this.diagnosticForFailure({ form, statusCode: null, responseKind: 'network' })
+                    : null);
+            const failureDetail = {
+                form,
+                submitter,
+                statusCode: null,
+                handled: false,
+                responseKind: 'network',
+                target: target.element,
+                message: this.messageForStatus(null, 'network'),
+                developmentDiagnostic
+            };
+
+            const failureEvent = this.dispatch(form, 'razorwire:form:failure', failureDetail, true);
+            if (failureDetail.developmentDiagnostic) {
+                this.dispatch(form, 'razorwire:form:diagnostic', failureDetail.developmentDiagnostic);
+            }
+
+            if (!failureEvent.defaultPrevented && this.getMode(form) === 'auto') {
+                this.renderFailure(form, target.element, failureDetail);
+            }
+
+            this.dispatch(form, 'razorwire:form:submit-end', {
+                form,
+                submitter,
+                success: false,
+                statusCode: null,
+                handled: false
+            });
+        }
+
+        finishSubmitting(form, formState) {
+            form.removeAttribute('data-rw-submitting');
+            form.removeAttribute('aria-busy');
+            if (formState.submitter && formState.disabledByRazorWire) {
+                formState.submitter.disabled = false;
+                formState.submitter.removeAttribute('data-rw-submit-disabled-by-razorwire');
+            }
+        }
+
+        isRazorWireForm(form) {
+            return form instanceof HTMLFormElement
+                && this.config.failureUxEnabled !== false
+                && form.getAttribute('data-rw-form') === 'true'
+                && this.getMode(form) !== 'off';
+        }
+
+        getForm(target) {
+            if (target instanceof HTMLFormElement) return target;
+            if (target instanceof Element) return target.closest('form[data-rw-form="true"]');
+            return null;
+        }
+
+        getMode(form) {
+            return (form.getAttribute('data-rw-form-failure') || this.config.failureMode || 'auto').toLowerCase();
+        }
+
+        getStatusCode(fetchResponse) {
+            const status = fetchResponse?.response?.status;
+            return typeof status === 'number' ? status : null;
+        }
+
+        isHandled(fetchResponse) {
+            const header = fetchResponse?.response?.headers?.get?.('X-RazorWire-Form-Handled');
+            return header === 'true' || header === '1';
+        }
+
+        getResponseKind(fetchResponse) {
+            const contentType = fetchResponse?.response?.headers?.get?.('content-type') || '';
+            if (contentType.includes('text/vnd.turbo-stream.html')) return 'turbo-stream';
+            if (contentType.includes('text/html')) return 'html';
+            if (contentType.includes('application/json')) return 'json';
+            return fetchResponse?.response ? 'unknown' : 'network';
+        }
+
+        resolveTarget(form) {
+            const explicit = form.getAttribute('data-rw-form-failure-target');
+            if (explicit) {
+                const target = this.resolveSelector(form, explicit);
+                if (target.element) return target;
+
+                return {
+                    element: form.querySelector('[data-rw-form-errors]') || form,
+                    diagnostic: this.diagnostic(
+                        form,
+                        null,
+                        'RazorWire form failure target was not found',
+                        `Could not resolve data-rw-form-failure-target="${explicit}".`,
+                        ['Check that the target id or selector exists before the form submits.'])
+                };
+            }
+
+            return { element: form.querySelector('[data-rw-form-errors]') || form, diagnostic: null };
+        }
+
+        resolveSelector(form, value) {
+            if (value.startsWith('#')) {
+                const byId = document.getElementById(value.slice(1));
+                if (byId) return { element: byId, diagnostic: null };
+            } else {
+                const byId = document.getElementById(value);
+                if (byId) return { element: byId, diagnostic: null };
+            }
+
+            try {
+                const scoped = form.querySelector(value);
+                if (scoped) return { element: scoped, diagnostic: null };
+            } catch (error) {
+                return {
+                    element: null,
+                    diagnostic: this.diagnostic(
+                        form,
+                        null,
+                        'RazorWire form failure target selector is invalid',
+                        String(error.message || error),
+                        ['Use a valid CSS selector or a simple element id.'])
+                };
+            }
+
+            try {
+                const global = document.querySelector(value);
+                if (global) return { element: global, diagnostic: null };
+            } catch (error) {
+                return {
+                    element: null,
+                    diagnostic: this.diagnostic(
+                        form,
+                        null,
+                        'RazorWire form failure target selector is invalid',
+                        String(error.message || error),
+                        ['Use a valid CSS selector or a simple element id.'])
+                };
+            }
+
+            return { element: null, diagnostic: null };
+        }
+
+        renderFailure(form, target, detail) {
+            this.injectStyles();
+            this.clearGeneratedFailure(form);
+            const owner = this.ensureFormOwner(form);
+            const role = detail.responseKind === 'network' || (detail.statusCode && detail.statusCode >= 500) ? 'alert' : 'status';
+            const live = role === 'alert' ? 'assertive' : 'polite';
+            const title = this.titleForStatus(detail.statusCode, detail.responseKind);
+            const diagnostic = detail.developmentDiagnostic
+                || (this.config.developmentDiagnostics ? this.diagnosticForFailure(detail) : null);
+            detail.developmentDiagnostic = diagnostic;
+            const block = document.createElement('div');
+            block.id = `rw-form-error-${owner}-${this.nextId++}`;
+            block.setAttribute('data-rw-form-error-generated', 'true');
+            block.setAttribute('data-rw-form-error-owner', owner);
+            block.setAttribute('data-rw-form-error-kind', detail.responseKind || 'unknown');
+            block.setAttribute('role', role);
+            block.setAttribute('aria-live', live);
+            block.setAttribute('tabindex', '-1');
+            block.innerHTML = `
+                <strong data-rw-form-error-title="true"></strong>
+                <p data-rw-form-error-message="true"></p>
+                ${diagnostic ? '<div data-rw-form-error-diagnostic="true"><p data-rw-form-error-detail="true"></p><ul data-rw-form-error-hints="true"></ul></div>' : ''}
+            `;
+            block.querySelector('[data-rw-form-error-title="true"]').textContent = title;
+            block.querySelector('[data-rw-form-error-message="true"]').textContent = detail.message;
+            if (diagnostic) {
+                block.querySelector('[data-rw-form-error-detail="true"]').textContent = diagnostic.detail;
+                const hintList = block.querySelector('[data-rw-form-error-hints="true"]');
+                diagnostic.hints.forEach(hint => {
+                    const item = document.createElement('li');
+                    item.textContent = hint;
+                    hintList.appendChild(item);
+                });
+            }
+
+            if (target === form) {
+                form.prepend(block);
+            } else {
+                target.querySelectorAll(`[data-rw-form-error-generated="true"][data-rw-form-error-owner="${owner}"]`).forEach(el => el.remove());
+                target.appendChild(block);
+            }
+
+            this.linkDescribedBy(form, block.id);
+            if (document.activeElement === form || document.activeElement?.type === 'submit') {
+                block.focus({ preventScroll: true });
+                block.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        clearGeneratedFailure(form) {
+            const owner = form.getAttribute('data-rw-form-owner');
+            if (owner) {
+                document.querySelectorAll(`[data-rw-form-error-generated="true"][data-rw-form-error-owner="${owner}"]`).forEach(el => el.remove());
+            } else {
+                form.querySelectorAll('[data-rw-form-error-generated="true"]').forEach(el => el.remove());
+            }
+
+            this.unlinkDescribedBy(form);
+        }
+
+        ensureFormOwner(form) {
+            let owner = form.getAttribute('data-rw-form-owner');
+            if (!owner) {
+                owner = `form-${this.nextId++}`;
+                form.setAttribute('data-rw-form-owner', owner);
+            }
+
+            return owner;
+        }
+
+        linkDescribedBy(form, id) {
+            this.unlinkDescribedBy(form);
+            const existing = (form.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+            form.setAttribute('aria-describedby', [...existing, id].join(' '));
+            this.state.set(form, { ...(this.state.get(form) || {}), describedById: id });
+        }
+
+        unlinkDescribedBy(form) {
+            const describedById = this.state.get(form)?.describedById;
+            if (!describedById) return;
+
+            const nextValue = (form.getAttribute('aria-describedby') || '')
+                .split(/\s+/)
+                .filter(value => value && value !== describedById)
+                .join(' ');
+            if (nextValue) form.setAttribute('aria-describedby', nextValue);
+            else form.removeAttribute('aria-describedby');
+        }
+
+        injectStyles() {
+            if (document.getElementById(this.styleId)) return;
+
+            const style = document.createElement('style');
+            style.id = this.styleId;
+            style.textContent = `
+:where([data-rw-form-error-generated="true"]) {
+  border: 1px solid var(--rw-form-error-border, #d97706);
+  border-radius: var(--rw-form-error-radius, 6px);
+  background: var(--rw-form-error-bg, #fffbeb);
+  color: var(--rw-form-error-text, #3f3f46);
+  font: var(--rw-form-error-font, inherit);
+  margin-block: var(--rw-form-error-spacing, .75rem);
+  padding: .75rem .875rem;
+  overflow-wrap: anywhere;
+}
+:where([data-rw-form-error-title="true"]) {
+  color: var(--rw-form-error-title, #92400e);
+  display: block;
+  font-weight: 700;
+  margin-block-end: .25rem;
+}
+:where([data-rw-form-error-message="true"], [data-rw-form-error-detail="true"]) {
+  margin: .25rem 0 0;
+}
+:where([data-rw-form-error-hints="true"], [data-rw-form-error-list="true"]) {
+  margin: .5rem 0 0;
+  padding-inline-start: 1.25rem;
+}
+`;
+            document.head.appendChild(style);
+        }
+
+        titleForStatus(statusCode, responseKind) {
+            if (responseKind === 'network') return 'Could not reach the server';
+            if (statusCode === 401 || statusCode === 403) return 'Session may have expired';
+            if (statusCode && statusCode >= 500) return 'Something went wrong';
+            return 'We could not submit this form';
+        }
+
+        messageForStatus(statusCode, responseKind) {
+            if (responseKind === 'network') return 'We could not reach the server. Check your connection and try again.';
+            if (statusCode === 401 || statusCode === 403) return 'You may need to refresh or sign in again before submitting this form.';
+            if (statusCode && statusCode >= 500) return 'Something went wrong while submitting this form. Try again in a moment.';
+            return this.config.defaultFailureMessage;
+        }
+
+        diagnosticForFailure(detail) {
+            const hints = ['Check the response status and whether the server set X-RazorWire-Form-Handled for custom UI.'];
+            if (detail.statusCode === 400) {
+                hints.push('Check server logs or the response body for the Bad Request reason.');
+                hints.push('For expected validation failures, return a handled stream with FormError or FormValidationErrors instead of a bare 400.');
+            }
+
+            return this.diagnostic(
+                detail.form,
+                detail.statusCode,
+                'RazorWire form submission failed',
+                `Response kind: ${detail.responseKind}.`,
+                hints);
+        }
+
+        diagnostic(form, statusCode, title, detail, hints) {
+            return {
+                form,
+                statusCode,
+                title,
+                detail,
+                docsHref: 'Web/ForgeTrust.Runnable.Web.RazorWire/Docs/antiforgery.md',
+                hints
+            };
+        }
+
+        dispatch(form, name, detail, cancelable = false) {
+            const event = new CustomEvent(name, { bubbles: true, cancelable, detail });
+            form.dispatchEvent(event);
+            return event;
+        }
+    }
+
+    function readRuntimeConfig() {
+        const script = document.currentScript || document.querySelector('script[src*="/razorwire/razorwire.js"]');
+        const dataset = script?.dataset || {};
+
+        return {
+            developmentDiagnostics: dataset.rwDevelopmentDiagnostics === 'true',
+            failureUxEnabled: dataset.rwFormFailureEnabled === undefined
+                ? (dataset.rwFormFailureMode || 'auto').toLowerCase() !== 'off'
+                : dataset.rwFormFailureEnabled !== 'false',
+            failureMode: dataset.rwFormFailureMode || 'auto',
+            defaultFailureMessage: dataset.rwDefaultFailureMessage || 'We could not submit this form. Check your input and try again.'
+        };
+    }
+
     // Initialize
+    const runtimeConfig = readRuntimeConfig();
     const connectionManager = new ConnectionManager();
     const localTimeFormatter = new LocalTimeFormatter();
+    const formFailureManager = new FormFailureManager(runtimeConfig);
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             connectionManager.start();
             localTimeFormatter.start();
+            formFailureManager.start();
         });
     } else {
         connectionManager.start();
         localTimeFormatter.start();
+        formFailureManager.start();
     }
 
-    window.RazorWire = { connectionManager, localTimeFormatter };
+    window.RazorWire = {
+        ...(window.RazorWire || {}),
+        config: { ...((window.RazorWire && window.RazorWire.config) || {}), ...runtimeConfig },
+        connectionManager,
+        localTimeFormatter,
+        formFailureManager
+    };
     // Global safeguard: Block clicks on disabled elements or their children even if pointer-events are enabled
     document.addEventListener('click', (e) => {
         const selector = '[disabled], [aria-disabled="true"], [data-rw-requires-stream][disabled]';

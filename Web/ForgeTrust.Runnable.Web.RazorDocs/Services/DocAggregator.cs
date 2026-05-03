@@ -145,7 +145,7 @@ public class DocAggregator
     /// </summary>
     /// <param name="harvesters">Collection of <see cref="IDocHarvester"/> instances used to harvest documentation nodes.</param>
     /// <param name="options">Typed RazorDocs options that determine the active source mode and optional repository root override.</param>
-    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot"/> when options do not provide it.</param>
+    /// <param name="environment">Hosting environment; used to locate the repository root via <see cref="PathUtils.FindRepositoryRoot(string, ILogger)"/> when options do not provide it.</param>
     /// <param name="memo">Memoized cache used to store harvested documentation.</param>
     /// <param name="sanitizer">HTML sanitizer used to clean document content before caching.</param>
     /// <param name="logger">Logger used for recording aggregation events and errors.</param>
@@ -304,7 +304,8 @@ public class DocAggregator
         {
             RazorDocsMode.Source => ResolveRepositoryRoot(
                 options.Source ?? throw new ArgumentNullException(nameof(options.Source)),
-                environment.ContentRootPath),
+                environment.ContentRootPath,
+                logger),
             RazorDocsMode.Bundle => throw new NotSupportedException(
                 "RazorDocs bundle mode is not implemented yet. Use RazorDocs:Mode=Source for Slice 1."),
             _ => throw new NotSupportedException($"Unsupported RazorDocs mode '{options.Mode}'.")
@@ -317,14 +318,18 @@ public class DocAggregator
         }
     }
 
-    private static string ResolveRepositoryRoot(RazorDocsSourceOptions sourceOptions, string contentRootPath)
+    private static string ResolveRepositoryRoot(
+        RazorDocsSourceOptions sourceOptions,
+        string contentRootPath,
+        ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(sourceOptions);
         ArgumentNullException.ThrowIfNull(contentRootPath);
+        ArgumentNullException.ThrowIfNull(logger);
 
         if (sourceOptions.RepositoryRoot is null)
         {
-            return PathUtils.FindRepositoryRoot(contentRootPath);
+            return PathUtils.FindRepositoryRoot(contentRootPath, logger);
         }
 
         var normalizedRepositoryRoot = sourceOptions.RepositoryRoot.Trim();

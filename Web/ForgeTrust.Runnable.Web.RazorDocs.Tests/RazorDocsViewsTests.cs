@@ -2272,6 +2272,7 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-page-starter\"", html);
         Assert.Contains("data-rw-search-suggestion=\"getting started\"", html);
         Assert.Contains("id=\"docs-search-page-failure\"", html);
+        Assert.Contains("id=\"docs-search-page-failure-template\"", html);
         Assert.Contains("id=\"docs-search-page-retry\"", html);
         Assert.Contains("href=\"/docs/search-index.json\"", html);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", html);
@@ -2280,6 +2281,9 @@ public class RazorDocsViewsTests
         Assert.Contains("id=\"docs-search-page-results\"", html);
         Assert.Contains("Search Documentation", html);
         Assert.Contains("id=\"docs-search-input\"", html);
+
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        Assert.Equal(string.Empty, document.QuerySelector("#docs-search-page-failure")?.TextContent.Trim());
     }
 
     [Fact]
@@ -2293,10 +2297,8 @@ public class RazorDocsViewsTests
             c => c.Search());
 
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
-        var recoveryLink = document.QuerySelector("a[href='/docs'][data-turbo-frame='_top']");
-
-        Assert.NotNull(recoveryLink);
-        Assert.Equal("_top", recoveryLink!.GetAttribute("data-turbo-frame"));
+        Assert.Matches("<a[^>]*href=\"/docs\"[^>]*data-turbo-frame=\"_top\"", html);
+        Assert.Equal(string.Empty, document.QuerySelector("#docs-search-page-failure")?.TextContent.Trim());
     }
 
     [Fact]
@@ -2326,12 +2328,12 @@ public class RazorDocsViewsTests
                     new SearchPageFallbackLink("Open exact release", "/docs/v/1.2.3/guides/quickstart", "Leave the live preview surface.")
                 ]));
 
-        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
-        var previewLink = document.QuerySelector("a[href='/docs/next/guides/quickstart']");
-        var exactVersionLink = document.QuerySelector("a[href='/docs/v/1.2.3/guides/quickstart']");
-
-        Assert.Equal("doc-content", previewLink?.GetAttribute("data-turbo-frame"));
-        Assert.Equal("_top", exactVersionLink?.GetAttribute("data-turbo-frame"));
+        Assert.Matches(
+            "href=\"/docs/next/guides/quickstart\"[\\s\\S]*data-turbo-frame=\"doc-content\"",
+            html);
+        Assert.Matches(
+            "href=\"/docs/v/1.2.3/guides/quickstart\"[\\s\\S]*data-turbo-frame=\"_top\"",
+            html);
     }
 
     [Fact]
@@ -2362,12 +2364,12 @@ public class RazorDocsViewsTests
                 ]),
             pathBase: "/some-base");
 
-        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
-        var previewLink = document.QuerySelector("a[href='/some-base/docs/next/guides/quickstart']");
-        var exactVersionLink = document.QuerySelector("a[href='/some-base/docs/v/1.2.3/guides/quickstart']");
-
-        Assert.Equal("doc-content", previewLink?.GetAttribute("data-turbo-frame"));
-        Assert.Equal("_top", exactVersionLink?.GetAttribute("data-turbo-frame"));
+        Assert.Matches(
+            "href=\"/some-base/docs/next/guides/quickstart\"[\\s\\S]*data-turbo-frame=\"doc-content\"",
+            html);
+        Assert.Matches(
+            "href=\"/some-base/docs/v/1.2.3/guides/quickstart\"[\\s\\S]*data-turbo-frame=\"_top\"",
+            html);
     }
 
     [Fact]

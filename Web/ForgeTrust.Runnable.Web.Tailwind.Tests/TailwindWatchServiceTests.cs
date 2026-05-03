@@ -232,6 +232,34 @@ public class TailwindWatchServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteAsync_LogsWarning_WhenTailwindCliIsMissing()
+    {
+        A.CallTo(() => _cliManager.GetTailwindPath()).Throws(new FileNotFoundException("missing tailwind"));
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment);
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.False(service.ProcessExecuted);
+        AssertErrorNotLogged();
+        AssertWarningLogged();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_LogsWarning_WhenResolvedTailwindExecutableIsMissing()
+    {
+        var service = new TestTailwindWatchService(_cliManager, _options, _logger, _environment)
+        {
+            ExceptionToThrow = new FileNotFoundException("missing executable")
+        };
+
+        await service.ExecuteAsyncPublic(CancellationToken.None);
+
+        Assert.True(service.ProcessExecuted);
+        AssertErrorNotLogged();
+        AssertWarningLogged();
+    }
+
+    [Fact]
     public async Task ExecuteAsync_UsesCmdLauncher_ForWindowsCmdShim()
     {
         TailwindCliManager.IsOSPlatformOverride = platform => platform == OSPlatform.Windows;
@@ -336,6 +364,15 @@ public class TailwindWatchServiceTests : IDisposable
                 && call.Arguments.Count > 0
                 && Equals(call.Arguments[0], LogLevel.Error))
             .MustNotHaveHappened();
+    }
+
+    private void AssertWarningLogged()
+    {
+        A.CallTo(_logger)
+            .Where(call => call.Method.Name == "Log"
+                && call.Arguments.Count > 0
+                && Equals(call.Arguments[0], LogLevel.Warning))
+            .MustHaveHappened();
     }
 
     private static (string FileName, IReadOnlyList<string> Args) CreateShellCommand(string windowsScript, string unixScript)

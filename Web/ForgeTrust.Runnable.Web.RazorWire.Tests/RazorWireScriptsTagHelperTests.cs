@@ -1,9 +1,12 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Web.RazorWire.TagHelpers;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Tests;
 
@@ -70,5 +73,100 @@ public class RazorWireScriptsTagHelperTests
         Assert.Contains(
             "src=\"/my-app/_content/ForgeTrust.Runnable.Web.RazorWire/razorwire/razorwire.islands.js?v=456\"",
             content);
+    }
+
+    [Fact]
+    public void Process_InDevelopment_EmitsDiagnosticsConfigOnRuntimeScript()
+    {
+        // Arrange
+        var options = new RazorWireOptions();
+        options.Forms.DefaultFailureMessage = "Custom \"failure\" & retry";
+        var environment = new TestWebHostEnvironment { EnvironmentName = Environments.Development };
+        var helper = new RazorWireScriptsTagHelper(_fileVersionProvider, options, environment)
+        {
+            ViewContext = _viewContext
+        };
+
+        A.CallTo(() => _fileVersionProvider.AddFileVersionToPath(A<PathString>._, A<string>._))
+            .ReturnsLazily(call => call.GetArgument<string>(1)!);
+
+        // Act
+        helper.Process(_context, _output);
+
+        // Assert
+        var content = _output.Content.GetContent();
+        Assert.Contains("data-rw-development-diagnostics=\"true\"", content);
+        Assert.Contains("data-rw-form-failure-enabled=\"true\"", content);
+        Assert.Contains("data-rw-form-failure-mode=\"auto\"", content);
+        Assert.Contains("data-rw-default-failure-message=\"Custom &quot;failure&quot; &amp; retry\"", content);
+    }
+
+    [Fact]
+    public void Process_WhenFailureUxDisabled_EmitsOffRuntimeMode()
+    {
+        // Arrange
+        var options = new RazorWireOptions();
+        options.Forms.EnableFailureUx = false;
+        options.Forms.FailureMode = RazorWireFormFailureMode.Auto;
+        var environment = new TestWebHostEnvironment { EnvironmentName = Environments.Development };
+        var helper = new RazorWireScriptsTagHelper(_fileVersionProvider, options, environment)
+        {
+            ViewContext = _viewContext
+        };
+
+        A.CallTo(() => _fileVersionProvider.AddFileVersionToPath(A<PathString>._, A<string>._))
+            .ReturnsLazily(call => call.GetArgument<string>(1)!);
+
+        // Act
+        helper.Process(_context, _output);
+
+        // Assert
+        var content = _output.Content.GetContent();
+        Assert.Contains("data-rw-development-diagnostics=\"false\"", content);
+        Assert.Contains("data-rw-form-failure-enabled=\"false\"", content);
+        Assert.Contains("data-rw-form-failure-mode=\"off\"", content);
+    }
+
+    [Fact]
+    public void Process_WhenDevelopmentDiagnosticsDisabled_EmitsFailureUxWithoutDiagnostics()
+    {
+        // Arrange
+        var options = new RazorWireOptions();
+        options.Forms.EnableDevelopmentDiagnostics = false;
+        options.Forms.FailureMode = RazorWireFormFailureMode.Manual;
+        options.Forms.DefaultFailureMessage = "Custom failure";
+        var environment = new TestWebHostEnvironment { EnvironmentName = Environments.Development };
+        var helper = new RazorWireScriptsTagHelper(_fileVersionProvider, options, environment)
+        {
+            ViewContext = _viewContext
+        };
+
+        A.CallTo(() => _fileVersionProvider.AddFileVersionToPath(A<PathString>._, A<string>._))
+            .ReturnsLazily(call => call.GetArgument<string>(1)!);
+
+        // Act
+        helper.Process(_context, _output);
+
+        // Assert
+        var content = _output.Content.GetContent();
+        Assert.Contains("data-rw-development-diagnostics=\"false\"", content);
+        Assert.Contains("data-rw-form-failure-enabled=\"true\"", content);
+        Assert.Contains("data-rw-form-failure-mode=\"manual\"", content);
+        Assert.Contains("data-rw-default-failure-message=\"Custom failure\"", content);
+    }
+
+    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Production;
+
+        public string ApplicationName { get; set; } = "TestApp";
+
+        public string WebRootPath { get; set; } = string.Empty;
+
+        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+
+        public string ContentRootPath { get; set; } = string.Empty;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

@@ -2368,6 +2368,25 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSearchIndexPayloadAsync_ShouldUseUntitledFallback_WhenPathHasNoUsableSegment()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "   ",
+                "/",
+                "<p>Guide body</p>")
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var payload = await _aggregator.GetSearchIndexPayloadAsync();
+
+        var indexedDocument = Assert.Single(payload.Documents);
+        Assert.Equal("Untitled document", indexedDocument.Title);
+        Assert.Equal("/docs", indexedDocument.Path);
+    }
+
+    [Fact]
     public async Task GetSearchIndexPayloadAsync_ShouldOmitGeneratedSymbolSourceLinkText()
     {
         var harvester = A.Fake<IDocHarvester>();

@@ -116,6 +116,29 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task TryHandleAsync_ShouldServeExactHtmlFiles()
+    {
+        var tree = CreatePublishedTree("release");
+        File.WriteAllText(Path.Combine(tree, "guide.html"), "<!DOCTYPE html><html><body>guide page</body></html>");
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/guide.html");
+
+        Assert.True(await handler.TryHandleAsync(request));
+        Assert.Equal("text/html", request.Response.ContentType);
+        Assert.Contains("guide page", ReadBody(request));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldReturnFalse_WhenExactHtmlFileIsMissing()
+    {
+        var tree = CreatePublishedTree("release");
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/missing.html");
+
+        Assert.False(await handler.TryHandleAsync(request));
+    }
+
+    [Fact]
     public async Task TryHandleAsync_ShouldRejectUnexpectedExactFiles()
     {
         var tree = CreatePublishedTree("custom-asset");

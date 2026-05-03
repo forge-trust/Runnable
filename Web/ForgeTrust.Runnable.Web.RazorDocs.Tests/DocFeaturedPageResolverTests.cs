@@ -316,6 +316,60 @@ public sealed class DocFeaturedPageResolverTests
     }
 
     [Fact]
+    public void ResolveGroups_ShouldResolveStableRoutePrefixedPaths_WhenCurrentDocsRootIsRootMounted()
+    {
+        var resolver = new DocFeaturedPageResolver(
+            A.Fake<ILogger<DocFeaturedPageResolver>>(),
+            new DocsUrlBuilder(
+                new RazorDocsOptions
+                {
+                    Routing = new RazorDocsRoutingOptions
+                    {
+                        DocsRootPath = "/"
+                    }
+                }));
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = "/docs/guides/intro.md.html"
+            });
+        var intro = Doc("Intro", "guides/intro.md");
+
+        var groups = resolver.ResolveGroups(landing, [landing, intro]);
+
+        var page = Assert.Single(Assert.Single(groups).Pages);
+        Assert.Equal("Intro", page.Title);
+        Assert.Equal("/guides/intro.md.html", page.Href);
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldSkipMissingStableRoutePrefixedDestination_WhenCurrentDocsRootIsRootMounted()
+    {
+        var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();
+        var resolver = new DocFeaturedPageResolver(
+            logger,
+            new DocsUrlBuilder(
+                new RazorDocsOptions
+                {
+                    Routing = new RazorDocsRoutingOptions
+                    {
+                        DocsRootPath = "/"
+                    }
+                }));
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = "/docs/guides/missing.md.html"
+            });
+
+        var groups = resolver.ResolveGroups(landing, [landing]);
+
+        Assert.Empty(groups);
+        AssertWarningLogged(logger, "destination page could not be resolved");
+        AssertWarningLogged(logger, "no visible destination pages resolved");
+    }
+
+    [Fact]
     public void ResolveGroups_ShouldOrderGroupsAndPages_ByOrderThenAuthoredPosition()
     {
         var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());

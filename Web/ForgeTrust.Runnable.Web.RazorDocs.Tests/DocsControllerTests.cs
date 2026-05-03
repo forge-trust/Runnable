@@ -1653,6 +1653,21 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public void VersionEntry_ShouldRedirectToStableDocsHome_WhenUsingAggregatorOnlyConstructor()
+    {
+        var controller = new DocsController(_aggregator, _controllerLoggerFake)
+        {
+            ControllerContext = CreateControllerContext(new DefaultHttpContext())
+        };
+        controller.Url = new UrlHelper(controller.ControllerContext);
+
+        var result = controller.VersionEntry();
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs", redirect.Url);
+    }
+
+    [Fact]
     public async Task Details_ShouldReturnNotFound_WhenPartialSuffixResolvesToWhitespacePath()
     {
         var result = await _controller.Details(".partial.html");
@@ -1946,6 +1961,96 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
         Assert.False(model.TrustMigrationUsesTurbo);
+    }
+
+    [Fact]
+    public async Task Details_ShouldNotMarkUnknownRootMountedContributorLinks_AsDocsFrameLinks()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    Contributor = new DocContributorMetadata
+                    {
+                        SourceUrlOverride = "/missing.html"
+                    }
+                })
+        };
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+        var (controller, cache, memo) = CreateController(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/"
+                }
+            },
+            harvester);
+
+        using (memo)
+        using (cache)
+        {
+            var result = await controller.Details("README.md");
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+            Assert.False(model.ContributorSourceUsesTurbo);
+        }
+    }
+
+    [Fact]
+    public async Task Details_ShouldMarkRootMountedContributorLinks_AsDocsFrameLinks_WhenCanonicalLookupFallsBackToFragments()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    Contributor = new DocContributorMetadata
+                    {
+                        SourceUrlOverride = "/guides.html?view=compact"
+                    }
+                }),
+            new(
+                "Guides",
+                "guides#summary",
+                "<p>Guides summary</p>",
+                CanonicalPath: "guides.html#"),
+            new(
+                "Guides section",
+                "guides#details",
+                "<p>Guides details</p>",
+                CanonicalPath: "guides.html#details")
+        };
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+        var (controller, cache, memo) = CreateController(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/"
+                }
+            },
+            harvester);
+
+        using (memo)
+        using (cache)
+        {
+            var result = await controller.Details("README.md");
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+            Assert.True(model.ContributorSourceUsesTurbo);
+        }
     }
 
     [Fact]

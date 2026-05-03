@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
@@ -8,6 +8,84 @@ using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
+
+/// <summary>
+/// Cached search-index payload for the live source-backed docs surface.
+/// </summary>
+/// <param name="Metadata">Static metadata emitted alongside the indexed documents.</param>
+/// <param name="Documents">Searchable docs entries in the shape consumed by the built-in MiniSearch client.</param>
+internal sealed record DocsSearchIndexPayload(
+    [property: JsonPropertyName("metadata")] DocsSearchIndexMetadata Metadata,
+    [property: JsonPropertyName("documents")] IReadOnlyList<DocsSearchIndexDocument> Documents);
+
+/// <summary>
+/// Metadata emitted with each docs search-index payload.
+/// </summary>
+/// <param name="GeneratedAtUtc">UTC timestamp for when the snapshot was generated.</param>
+/// <param name="Version">Schema version understood by the search client.</param>
+/// <param name="Engine">Client-side search engine identifier.</param>
+internal sealed record DocsSearchIndexMetadata(
+    [property: JsonPropertyName("generatedAtUtc")] string GeneratedAtUtc,
+    [property: JsonPropertyName("version")] string Version,
+    [property: JsonPropertyName("engine")] string Engine);
+
+/// <summary>
+/// Search document entry emitted for the built-in docs search experience.
+/// </summary>
+/// <remarks>
+/// The <see cref="Path" /> value is cached relative to the live docs surface root and can be rebased onto a request
+/// <c>PathBase</c> at response time without rebuilding the full snapshot. Lists are serialized as JSON arrays so the
+/// browser client can preserve exact ordering for headings, aliases, related pages, and breadcrumbs.
+/// </remarks>
+/// <param name="Id">Stable identifier for the indexed document.</param>
+/// <param name="Path">Browser-facing docs URL used for result navigation.</param>
+/// <param name="Title">Display title shown in search results.</param>
+/// <param name="Summary">Summary text favored for recovery and preview UI.</param>
+/// <param name="Headings">Normalized heading titles harvested from the document outline.</param>
+/// <param name="BodyText">Full normalized body text indexed for recall.</param>
+/// <param name="Snippet">Short excerpt shown in search results.</param>
+/// <param name="PageType">Page-type facet value.</param>
+/// <param name="PageTypeLabel">Resolved page-type badge label.</param>
+/// <param name="PageTypeVariant">Resolved page-type badge variant.</param>
+/// <param name="Audience">Audience facet value when explicitly authored.</param>
+/// <param name="Component">Component facet value when explicitly authored.</param>
+/// <param name="Aliases">Alternative phrases that should match the page.</param>
+/// <param name="Keywords">Additional authored search keywords.</param>
+/// <param name="Status">Status facet value.</param>
+/// <param name="NavGroup">Public navigation group label when present.</param>
+/// <param name="PublicSection">Resolved public-section slug when the page participates in a public section.</param>
+/// <param name="PublicSectionLabel">Human-readable public-section label.</param>
+/// <param name="IsSectionLanding">Whether this record is the resolved landing page for its public section.</param>
+/// <param name="Order">Authored order hint used for browse sorting.</param>
+/// <param name="SequenceKey">Optional authored sequence key for related content.</param>
+/// <param name="CanonicalSlug">Optional canonical slug used for route continuity.</param>
+/// <param name="RelatedPages">Authored related-page references used for recovery links.</param>
+/// <param name="Breadcrumbs">Authored breadcrumb labels displayed in result chrome.</param>
+internal sealed record DocsSearchIndexDocument(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("path")] string Path,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("summary")] string Summary,
+    [property: JsonPropertyName("headings")] IReadOnlyList<string> Headings,
+    [property: JsonPropertyName("bodyText")] string BodyText,
+    [property: JsonPropertyName("snippet")] string Snippet,
+    [property: JsonPropertyName("pageType")] string? PageType,
+    [property: JsonPropertyName("pageTypeLabel")] string? PageTypeLabel,
+    [property: JsonPropertyName("pageTypeVariant")] string? PageTypeVariant,
+    [property: JsonPropertyName("audience")] string? Audience,
+    [property: JsonPropertyName("component")] string? Component,
+    [property: JsonPropertyName("aliases")] IReadOnlyList<string> Aliases,
+    [property: JsonPropertyName("keywords")] IReadOnlyList<string> Keywords,
+    [property: JsonPropertyName("status")] string? Status,
+    [property: JsonPropertyName("navGroup")] string? NavGroup,
+    [property: JsonPropertyName("publicSection")] string? PublicSection,
+    [property: JsonPropertyName("publicSectionLabel")] string? PublicSectionLabel,
+    [property: JsonPropertyName("isSectionLanding")] bool IsSectionLanding,
+    [property: JsonPropertyName("order")] int? Order,
+    [property: JsonPropertyName("sequenceKey")] string? SequenceKey,
+    [property: JsonPropertyName("canonicalSlug")] string? CanonicalSlug,
+    [property: JsonPropertyName("relatedPages")] IReadOnlyList<string> RelatedPages,
+    [property: JsonPropertyName("breadcrumbs")] IReadOnlyList<string> Breadcrumbs);
 
 /// <summary>
 /// Service responsible for aggregating documentation from multiple harvesters and caching the results.
@@ -46,7 +124,7 @@ public class DocAggregator
         Dictionary<string, DocNode> DocsByPath,
         Dictionary<string, DocLookupBucket> Lookup,
         IReadOnlyList<DocSectionSnapshot> PublicSections,
-        JsonObject SearchIndexPayload);
+        DocsSearchIndexPayload SearchIndexPayload);
 
     private sealed class DocLookupBucket
     {
@@ -213,8 +291,12 @@ public class DocAggregator
     /// Returns the docs search-index payload generated during docs aggregation.
     /// </summary>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
-    /// <returns>A JSON object containing index metadata and documents.</returns>
-    public async Task<JsonObject> GetSearchIndexPayloadAsync(CancellationToken cancellationToken = default)
+    /// <returns>
+    /// A typed payload containing the search metadata and documents emitted by the live docs surface.
+    /// The payload is cached before response serialization so callers can rebase rooted paths, such as <c>/docs/guide.html</c>,
+    /// onto a request <c>PathBase</c> without reparsing or reserializing an intermediate JSON node graph.
+    /// </returns>
+    internal async Task<DocsSearchIndexPayload> GetSearchIndexPayloadAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
         return snapshot.SearchIndexPayload;
@@ -506,7 +588,7 @@ public class DocAggregator
     /// <param name="docs">The documentation nodes to index.</param>
     /// <param name="publicSections">The resolved public sections used to derive landing winners.</param>
     /// <returns>A tuple containing the serializable payload and the number of records indexed.</returns>
-    private (JsonObject Payload, int RecordCount) BuildSearchIndexPayload(
+    private (DocsSearchIndexPayload Payload, int RecordCount) BuildSearchIndexPayload(
         IEnumerable<DocNode> docs,
         IReadOnlyList<DocSectionSnapshot> publicSections)
     {
@@ -537,56 +619,44 @@ public class DocAggregator
                     var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(d.Metadata?.PageType);
                     var hasPublicSection = DocPublicSectionCatalog.TryResolve(d.Metadata?.NavGroup, out var publicSection);
 
-                    return new
-                    {
-                        id = d.Path,
-                        path = BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, d.Path),
+                    return new DocsSearchIndexDocument(
+                        d.Path,
+                        BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, d.Path),
                         title,
                         summary,
                         headings,
                         bodyText,
                         snippet,
-                        pageType = d.Metadata?.PageType,
-                        pageTypeLabel = pageTypeBadge?.Label,
-                        pageTypeVariant = pageTypeBadge?.Variant,
-                        audience = d.Metadata?.AudienceIsDerived == true ? null : d.Metadata?.Audience,
-                        component = d.Metadata?.ComponentIsDerived == true ? null : d.Metadata?.Component,
-                        aliases = d.Metadata?.Aliases ?? [],
-                        keywords = d.Metadata?.Keywords ?? [],
-                        status = d.Metadata?.Status,
-                        navGroup = d.Metadata?.NavGroup,
-                        publicSection = hasPublicSection ? DocPublicSectionCatalog.GetSlug(publicSection) : null,
-                        publicSectionLabel = hasPublicSection ? DocPublicSectionCatalog.GetLabel(publicSection) : null,
-                        isSectionLanding = resolvedLandingPaths.Contains(d.Path),
-                        order = d.Metadata?.Order,
-                        sequenceKey = d.Metadata?.SequenceKey,
-                        canonicalSlug = d.Metadata?.CanonicalSlug,
-                        relatedPages = d.Metadata?.RelatedPages ?? [],
-                        breadcrumbs = d.Metadata?.Breadcrumbs ?? []
-                    };
+                        d.Metadata?.PageType,
+                        pageTypeBadge?.Label,
+                        pageTypeBadge?.Variant,
+                        d.Metadata?.AudienceIsDerived == true ? null : d.Metadata?.Audience,
+                        d.Metadata?.ComponentIsDerived == true ? null : d.Metadata?.Component,
+                        d.Metadata?.Aliases ?? [],
+                        d.Metadata?.Keywords ?? [],
+                        d.Metadata?.Status,
+                        d.Metadata?.NavGroup,
+                        hasPublicSection ? DocPublicSectionCatalog.GetSlug(publicSection) : null,
+                        hasPublicSection ? DocPublicSectionCatalog.GetLabel(publicSection) : null,
+                        resolvedLandingPaths.Contains(d.Path),
+                        d.Metadata?.Order,
+                        d.Metadata?.SequenceKey,
+                        d.Metadata?.CanonicalSlug,
+                        d.Metadata?.RelatedPages ?? [],
+                        d.Metadata?.Breadcrumbs ?? []);
                 })
-            .Where(r => !string.IsNullOrWhiteSpace(r.title) || !string.IsNullOrWhiteSpace(r.bodyText))
-            .GroupBy(r => r.path, StringComparer.OrdinalIgnoreCase)
+            .Where(r => !string.IsNullOrWhiteSpace(r.Title) || !string.IsNullOrWhiteSpace(r.BodyText))
+            .GroupBy(r => r.Path, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .OrderBy(r => r.path, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(r => r.Path, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var payload = JsonSerializer.SerializeToNode(
-            new
-            {
-                metadata = new
-                {
-                    generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
-                    version = "1",
-                    engine = "minisearch"
-                },
-                documents = records
-            }) as JsonObject;
-
-        if (payload is null)
-        {
-            throw new InvalidOperationException("Failed to materialize the docs search-index payload as a JSON object.");
-        }
+        var payload = new DocsSearchIndexPayload(
+            new DocsSearchIndexMetadata(
+                DateTimeOffset.UtcNow.ToString("O"),
+                "1",
+                "minisearch"),
+            records);
 
         return (payload, records.Count);
     }

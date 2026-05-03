@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using AngleSharp;
 using FakeItEasy;
 using ForgeTrust.Runnable.Caching;
@@ -1683,35 +1682,133 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
-    public void PrefixSearchIndexPathsForPathBase_ShouldLeaveUnsupportedPayloadsAndNonRootedPathsUnchanged()
+    public void PrefixSearchIndexPathsForPathBase_ShouldRewriteOnlyRootedDocumentPaths()
     {
-        var unsupportedPayload = new JsonObject
-        {
-            ["metadata"] = new JsonObject
-            {
-                ["version"] = "1"
-            }
-        };
-        var unexpectedDocumentsPayload = JsonNode.Parse(
-            """
-            {
-              "documents": [
-                { "path": "guide.html", "title": "Relative" },
-                { "path": "", "title": "Blank" },
-                { "title": "Missing" },
-                { "path": "/docs/already", "title": "Rooted" }
-              ]
-            }
-            """)!.AsObject();
+        var payload = new DocsSearchIndexPayload(
+            new DocsSearchIndexMetadata("2026-05-03T00:00:00.0000000+00:00", "1", "minisearch"),
+            [
+                new DocsSearchIndexDocument(
+                    Id: "relative",
+                    Path: "guide.html",
+                    Title: "Relative",
+                    Summary: "Summary",
+                    Headings: [],
+                    BodyText: string.Empty,
+                    Snippet: string.Empty,
+                    PageType: null,
+                    PageTypeLabel: null,
+                    PageTypeVariant: null,
+                    Audience: null,
+                    Component: null,
+                    Aliases: [],
+                    Keywords: [],
+                    Status: null,
+                    NavGroup: null,
+                    PublicSection: null,
+                    PublicSectionLabel: null,
+                    IsSectionLanding: false,
+                    Order: null,
+                    SequenceKey: null,
+                    CanonicalSlug: null,
+                    RelatedPages: [],
+                    Breadcrumbs: []),
+                new DocsSearchIndexDocument(
+                    Id: "blank",
+                    Path: string.Empty,
+                    Title: "Blank",
+                    Summary: "Summary",
+                    Headings: [],
+                    BodyText: string.Empty,
+                    Snippet: string.Empty,
+                    PageType: null,
+                    PageTypeLabel: null,
+                    PageTypeVariant: null,
+                    Audience: null,
+                    Component: null,
+                    Aliases: [],
+                    Keywords: [],
+                    Status: null,
+                    NavGroup: null,
+                    PublicSection: null,
+                    PublicSectionLabel: null,
+                    IsSectionLanding: false,
+                    Order: null,
+                    SequenceKey: null,
+                    CanonicalSlug: null,
+                    RelatedPages: [],
+                    Breadcrumbs: []),
+                new DocsSearchIndexDocument(
+                    Id: "rooted",
+                    Path: "/docs/already",
+                    Title: "Rooted",
+                    Summary: "Summary",
+                    Headings: [],
+                    BodyText: string.Empty,
+                    Snippet: string.Empty,
+                    PageType: null,
+                    PageTypeLabel: null,
+                    PageTypeVariant: null,
+                    Audience: null,
+                    Component: null,
+                    Aliases: [],
+                    Keywords: [],
+                    Status: null,
+                    NavGroup: null,
+                    PublicSection: null,
+                    PublicSectionLabel: null,
+                    IsSectionLanding: false,
+                    Order: null,
+                    SequenceKey: null,
+                    CanonicalSlug: null,
+                    RelatedPages: [],
+                    Breadcrumbs: [])
+            ]);
 
-        var unchangedUnsupported = DocsController.PrefixSearchIndexPathsForPathBase(unsupportedPayload, "/some-base");
-        var rewrittenDocuments = DocsController.PrefixSearchIndexPathsForPathBase(unexpectedDocumentsPayload, "/some-base");
+        var rewritten = DocsController.PrefixSearchIndexPathsForPathBase(payload, "/some-base");
 
-        Assert.Same(unsupportedPayload, unchangedUnsupported);
-        Assert.Equal("guide.html", rewrittenDocuments["documents"]![0]!["path"]!.GetValue<string>());
-        Assert.Equal(string.Empty, rewrittenDocuments["documents"]![1]!["path"]!.GetValue<string>());
-        Assert.Null(rewrittenDocuments["documents"]![2]!["path"]);
-        Assert.Equal("/some-base/docs/already", rewrittenDocuments["documents"]![3]!["path"]!.GetValue<string>());
+        Assert.Equal("guide.html", rewritten.Documents[0].Path);
+        Assert.Equal(string.Empty, rewritten.Documents[1].Path);
+        Assert.Equal("/some-base/docs/already", rewritten.Documents[2].Path);
+    }
+
+    [Fact]
+    public void PrefixSearchIndexPathsForPathBase_ShouldReturnSamePayload_WhenPathBaseIsEmptyOrRoot()
+    {
+        var payload = new DocsSearchIndexPayload(
+            new DocsSearchIndexMetadata("2026-05-03T00:00:00.0000000+00:00", "1", "minisearch"),
+            [
+                new DocsSearchIndexDocument(
+                    Id: "rooted",
+                    Path: "/docs/already",
+                    Title: "Rooted",
+                    Summary: "Summary",
+                    Headings: [],
+                    BodyText: string.Empty,
+                    Snippet: string.Empty,
+                    PageType: null,
+                    PageTypeLabel: null,
+                    PageTypeVariant: null,
+                    Audience: null,
+                    Component: null,
+                    Aliases: [],
+                    Keywords: [],
+                    Status: null,
+                    NavGroup: null,
+                    PublicSection: null,
+                    PublicSectionLabel: null,
+                    IsSectionLanding: false,
+                    Order: null,
+                    SequenceKey: null,
+                    CanonicalSlug: null,
+                    RelatedPages: [],
+                    Breadcrumbs: [])
+            ]);
+
+        var unchangedEmpty = DocsController.PrefixSearchIndexPathsForPathBase(payload, null);
+        var unchangedRoot = DocsController.PrefixSearchIndexPathsForPathBase(payload, "/");
+
+        Assert.Same(payload, unchangedEmpty);
+        Assert.Same(payload, unchangedRoot);
     }
 
     [Fact]

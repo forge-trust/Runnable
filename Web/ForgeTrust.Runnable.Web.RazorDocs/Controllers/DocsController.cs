@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
 using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
@@ -260,15 +259,14 @@ public class DocsController : Controller
     /// <returns>
     /// A JSON result containing searchable document metadata, including normalized page-type badge fields that keep search
     /// result rendering consistent with the built-in landing and details experiences.
-    /// When <see cref="HttpRequest.PathBase" /> is non-empty, rooted <c>documents[*].path</c> values are rebased onto
-    /// that path base before serialization so a mounted app returns links like <c>/some-base/docs/guide.html</c> instead
-    /// of <c>/docs/guide.html</c>.
+    /// When <see cref="HttpRequest.PathBase" /> is non-empty, rooted search-document paths are rebased onto that path
+    /// base before serialization so a mounted app returns links like <c>/some-base/docs/guide.html</c> instead of
+    /// <c>/docs/guide.html</c>.
     /// </returns>
     /// <remarks>
-    /// The path-base rewrite is intentionally narrow. Only rooted <c>documents[*].path</c> strings are prefixed; missing,
-    /// blank, or non-rooted values remain unchanged, and payloads that do not contain a top-level <c>documents</c> array
-    /// pass through untouched. When <see cref="HttpRequest.PathBase" /> is null, empty, or <c>/</c>, the rewrite is
-    /// idempotent and the cached payload is returned unchanged.
+    /// The path-base rewrite is intentionally narrow. Only rooted document paths are prefixed; blank or non-rooted values
+    /// remain unchanged. The rewrite trims trailing slashes from the request path base before concatenation, and it is
+    /// idempotent when <see cref="HttpRequest.PathBase" /> is null, empty, or <c>/</c>.
     /// </remarks>
     [HttpGet]
     public async Task<IActionResult> SearchIndex()
@@ -323,22 +321,24 @@ public class DocsController : Controller
     }
 
     /// <summary>
-    /// Prefixes rooted <c>documents[*].path</c> values in a cached search-index payload for the active request path base.
+    /// Prefixes rooted search-document paths in a cached search-index payload for the active request path base.
     /// </summary>
-    /// <param name="payload">The cached search-index payload whose top-level <c>documents</c> array may need rebased paths.</param>
+    /// <param name="payload">The cached search-index payload whose document paths may need rebasing.</param>
     /// <param name="requestPathBase">The current request path base that should be prepended when it is non-empty and not <c>/</c>.</param>
     /// <returns>
-    /// The original payload when no rewrite is needed or the payload shape is unsupported; otherwise a cloned payload whose
-    /// rooted document paths are prefixed with the normalized path base.
+    /// The original payload when no rewrite is needed; otherwise a cloned payload whose rooted document paths are prefixed
+    /// with the normalized path base.
     /// </returns>
     /// <remarks>
-    /// Only entries shaped like <c>{ "documents": [ { "path": "/docs/guide.html" } ] }</c> are rewritten, and only when
-    /// each <c>path</c> value starts with <c>/</c>. Non-rooted values such as <c>guide.html</c>, missing <c>path</c>
-    /// values, or payloads without a top-level <see cref="JsonArray" /> named <c>documents</c> are returned unchanged.
-    /// The supplied path base is trimmed of trailing slashes before concatenation, and the method is idempotent when
-    /// <paramref name="requestPathBase" /> is null, empty, or <c>/</c>.
+    /// Only rooted <see cref="DocsSearchIndexDocument.Path" /> values are rewritten. Non-rooted values such as
+    /// <c>guide.html</c> remain unchanged, so callers should provide leading-slash browser paths for docs-local
+    /// navigation. For example, rebasing a payload that contains <c>/docs/guide.html</c> with <c>/some-base</c> produces
+    /// <c>/some-base/docs/guide.html</c>. The supplied path base is trimmed of trailing slashes before concatenation, and
+    /// the method is idempotent when <paramref name="requestPathBase" /> is null, empty, or <c>/</c>.
     /// </remarks>
-    internal static JsonObject PrefixSearchIndexPathsForPathBase(JsonObject payload, string? requestPathBase)
+    internal static DocsSearchIndexPayload PrefixSearchIndexPathsForPathBase(
+        DocsSearchIndexPayload payload,
+        string? requestPathBase)
     {
         ArgumentNullException.ThrowIfNull(payload);
 
@@ -349,32 +349,27 @@ public class DocsController : Controller
         }
 
         var normalizedPathBase = requestPathBase.TrimEnd('/');
-        if (payload["documents"] is not JsonArray)
-        {
-            return payload;
-        }
+        var changed = false;
+        var documents = new DocsSearchIndexDocument[payload.Documents.Count];
 
-        var root = payload.DeepClone().AsObject();
-        if (root["documents"] is not JsonArray documents)
+        for (var index = 0; index < payload.Documents.Count; index++)
         {
-            return payload;
-        }
-
-        foreach (var document in documents)
-        {
-            if (document is not JsonObject docObject
-                || docObject["path"] is not JsonValue pathValue
-                || !pathValue.TryGetValue<string>(out var path)
-                || string.IsNullOrWhiteSpace(path)
-                || !path.StartsWith("/", StringComparison.Ordinal))
+            var document = payload.Documents[index];
+            if (string.IsNullOrWhiteSpace(document.Path)
+                || !document.Path.StartsWith("/", StringComparison.Ordinal))
             {
+                documents[index] = document;
                 continue;
             }
 
-            docObject["path"] = normalizedPathBase + path;
+            changed = true;
+            documents[index] = document with
+            {
+                Path = normalizedPathBase + document.Path
+            };
         }
 
-        return root;
+        return changed ? payload with { Documents = documents } : payload;
     }
 
     private DocLandingViewModel BuildLandingViewModel(

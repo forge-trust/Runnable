@@ -89,7 +89,8 @@ internal sealed class RazorDocsPublishedTreeHandler
         }
 
         return DocsUrlBuilder.IsUnderRoot(requestPath, _previewRootPath)
-               || DocsUrlBuilder.IsUnderRoot(requestPath, DocsUrlBuilder.DocsVersionsPath);
+               || DocsUrlBuilder.IsUnderRoot(requestPath, DocsUrlBuilder.DocsVersionsPath)
+               || DocsUrlBuilder.IsUnderRoot(requestPath, DocsUrlBuilder.DocsVersionPrefix);
     }
 
     private static bool IsRequestForMount(string requestPath, string mountRootPath)

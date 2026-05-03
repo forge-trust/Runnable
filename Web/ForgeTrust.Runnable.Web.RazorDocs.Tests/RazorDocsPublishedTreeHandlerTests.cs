@@ -194,16 +194,20 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task TryHandleAsync_ShouldBypassStableAliasForPreviewAndArchivePaths()
+    public async Task TryHandleAsync_ShouldBypassStableAliasForPreviewArchiveAndReservedVersionPaths()
     {
         var tree = CreatePublishedTree("release");
         var handler = CreateHandler(tree, "/docs", previewRootPath: "/docs/preview");
 
         var previewRequest = CreateContext(HttpMethods.Get, "/docs/preview/search.css");
         var archiveRequest = CreateContext(HttpMethods.Get, "/docs/versions");
+        var reservedVersionPrefixRequest = CreateContext(HttpMethods.Get, "/docs/v");
+        var reservedVersionRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3");
 
         Assert.False(await handler.TryHandleAsync(previewRequest));
         Assert.False(await handler.TryHandleAsync(archiveRequest));
+        Assert.False(await handler.TryHandleAsync(reservedVersionPrefixRequest));
+        Assert.False(await handler.TryHandleAsync(reservedVersionRequest));
     }
 
     [Fact]

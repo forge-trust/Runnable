@@ -122,6 +122,61 @@ public class ConfigTests
         public NestedOptions Database => throw new InvalidOperationException("Getter should not run.");
     }
 
+    private sealed class RecursiveFieldOptions
+    {
+        [ValidateObjectMembers]
+        public NestedOptions? Database = new();
+
+        [ValidateEnumeratedItems]
+        public List<EndpointOptions?> Endpoints = [];
+    }
+
+    private sealed class NestedValidatableOptions : IValidatableObject
+    {
+        public bool Invalid { get; init; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (Invalid)
+            {
+                yield return new ValidationResult("Nested object is invalid.");
+            }
+        }
+    }
+
+    private sealed class OptionsWithNestedObjectLevelValidation
+    {
+        [ValidateObjectMembers]
+        public NestedValidatableOptions Child { get; init; } = new();
+    }
+
+    private sealed class OptionsWithNullMarkedMembers
+    {
+        [ValidateObjectMembers]
+        public NestedOptions? Database { get; init; }
+
+        [ValidateEnumeratedItems]
+        public List<EndpointOptions?>? Endpoints { get; init; }
+    }
+
+    private sealed class UnsupportedEnumeratedItemsValidatorOptions
+    {
+        [ValidateEnumeratedItems(typeof(object))]
+        public List<EndpointOptions> Endpoints { get; init; } = [];
+    }
+
+    private readonly struct StructNestedOptions
+    {
+        [Required]
+        public string? Name { get; init; }
+    }
+
+    private sealed class OptionsWithStructNestedObject
+    {
+        [ValidateObjectMembers]
+        public StructNestedOptions Child { get; init; }
+    }
+
     private sealed class RecursiveOptionsConfig : Config<RecursiveOptions>
     {
     }
@@ -131,6 +186,26 @@ public class ConfigTests
     }
 
     private sealed class OptionsWithUnmarkedThrowingGetterConfig : Config<OptionsWithUnmarkedThrowingGetter>
+    {
+    }
+
+    private sealed class RecursiveFieldOptionsConfig : Config<RecursiveFieldOptions>
+    {
+    }
+
+    private sealed class OptionsWithNestedObjectLevelValidationConfig : Config<OptionsWithNestedObjectLevelValidation>
+    {
+    }
+
+    private sealed class OptionsWithNullMarkedMembersConfig : Config<OptionsWithNullMarkedMembers>
+    {
+    }
+
+    private sealed class UnsupportedEnumeratedItemsValidatorOptionsConfig : Config<UnsupportedEnumeratedItemsValidatorOptions>
+    {
+    }
+
+    private sealed class OptionsWithStructNestedObjectConfig : Config<OptionsWithStructNestedObject>
     {
     }
 
@@ -312,6 +387,10 @@ public class ConfigTests
             exception.Failures,
             failure => failure.MemberNames.SequenceEqual(["Name"])
                        && failure.Message.Contains("Name", StringComparison.Ordinal));
+        var nameFailure = Assert.Single(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Name"]));
+        Assert.Equal("App.Settings", nameFailure.Key);
+        Assert.Equal(typeof(AnnotatedOptionsConfig), nameFailure.ConfigType);
+        Assert.Equal(typeof(AnnotatedOptions), nameFailure.ValueType);
         Assert.Contains(
             exception.Failures,
             failure => failure.MemberNames.SequenceEqual(["RetryCount"])
@@ -421,6 +500,79 @@ public class ConfigTests
         Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Database.Host"]));
         Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Endpoints[0].Url"]));
         Assert.DoesNotContain("Endpoints[1]", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Init_WithRecursiveMarkersOnFields_ValidatesNestedObjectAndCollectionItems()
+    {
+        var config = new RecursiveFieldOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(
+                config,
+                new RecursiveFieldOptions
+                {
+                    Database = new NestedOptions(),
+                    Endpoints = [new EndpointOptions()]
+                }));
+
+        Assert.Equal(2, exception.Failures.Count);
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Database.Host"]));
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Endpoints[0].Url"]));
+    }
+
+    [Fact]
+    public void Init_WithNestedObjectLevelValidationFailure_UsesNestedObjectPath()
+    {
+        var config = new OptionsWithNestedObjectLevelValidationConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(
+                config,
+                new OptionsWithNestedObjectLevelValidation
+                {
+                    Child = new NestedValidatableOptions { Invalid = true }
+                }));
+
+        var failure = Assert.Single(exception.Failures);
+        Assert.Equal(["Child"], failure.MemberNames);
+        Assert.Contains("- Child: Nested object is invalid.", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Init_WithNullMarkedMembers_SkipsRecursiveValidation()
+    {
+        var config = new OptionsWithNullMarkedMembersConfig();
+
+        Init(config, new OptionsWithNullMarkedMembers());
+
+        Assert.True(config.HasValue);
+    }
+
+    [Fact]
+    public void Init_WithUnsupportedEnumeratedItemsValidatorType_ReportsFailure()
+    {
+        var config = new UnsupportedEnumeratedItemsValidatorOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, new UnsupportedEnumeratedItemsValidatorOptions()));
+
+        Assert.Contains(
+            exception.Failures,
+            failure => failure.MemberNames.SequenceEqual(["Endpoints"])
+                       && failure.Message.Contains(nameof(ValidateEnumeratedItemsAttribute), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Init_WithRecursiveStructMember_ValidatesBoxedValueType()
+    {
+        var config = new OptionsWithStructNestedObjectConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, new OptionsWithStructNestedObject()));
+
+        var failure = Assert.Single(exception.Failures);
+        Assert.Equal(["Child.Name"], failure.MemberNames);
     }
 
     [Fact]

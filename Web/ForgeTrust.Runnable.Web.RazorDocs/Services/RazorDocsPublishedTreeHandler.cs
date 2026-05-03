@@ -460,17 +460,12 @@ internal static class RazorDocsPublishedTreeContentRewriter
             scriptContent,
             match =>
             {
-                JsonObject? configNode;
+                JsonObject configNode;
                 try
                 {
-                    configNode = JsonNode.Parse(match.Groups[1].Value) as JsonObject;
+                    configNode = JsonNode.Parse(match.Groups[1].Value)!.AsObject();
                 }
                 catch (JsonException)
-                {
-                    return match.Value;
-                }
-
-                if (configNode is null)
                 {
                     return match.Value;
                 }
@@ -578,11 +573,6 @@ internal static class RazorDocsPublishedTreeContentRewriter
         }
 
         var normalizedPathBase = requestPathBase!.Trim();
-        if (!normalizedPathBase.StartsWith("/", StringComparison.Ordinal))
-        {
-            normalizedPathBase = "/" + normalizedPathBase;
-        }
-
         if (normalizedPathBase.Length > 1 && normalizedPathBase.EndsWith("/", StringComparison.Ordinal))
         {
             normalizedPathBase = normalizedPathBase[..^1];

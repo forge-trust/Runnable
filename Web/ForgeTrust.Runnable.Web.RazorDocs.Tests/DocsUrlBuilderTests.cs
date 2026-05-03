@@ -133,4 +133,33 @@ public sealed class DocsUrlBuilderTests
         Assert.False(builder.IsCurrentDocsPath("/privacy.html"));
         Assert.False(builder.IsCurrentDocsPath("guides/start.md.html"));
     }
+
+    [Theory]
+    [InlineData("/docs", "", "/docs")]
+    [InlineData("/", "", "/")]
+    public void BuildDocUrl_ShouldReturnDocsRoot_WhenRelativePathIsBlank(string docsRootPath, string relativePath, string expected)
+    {
+        var builder = new DocsUrlBuilder(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = docsRootPath
+                }
+            });
+
+        var href = builder.BuildDocUrl(relativePath);
+
+        Assert.Equal(expected, href);
+    }
+
+    [Theory]
+    [InlineData("/docs", "", "/docs")]
+    [InlineData("/", "", "/")]
+    public void JoinPath_ShouldReturnDocsRoot_WhenRelativePathIsBlank(string docsRootPath, string relativePath, string expected)
+    {
+        var href = DocsUrlBuilder.JoinPath(docsRootPath, relativePath);
+
+        Assert.Equal(expected, href);
+    }
 }

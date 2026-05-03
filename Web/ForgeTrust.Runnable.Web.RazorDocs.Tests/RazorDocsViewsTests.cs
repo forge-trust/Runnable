@@ -775,6 +775,48 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SidebarView_ShouldRenderBlankAndRelativeLinks_WithoutPathBaseRewriting()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Shared/Components/Sidebar/Default.cshtml",
+            new DocSidebarViewModel
+            {
+                Sections =
+                [
+                    new DocSidebarSectionViewModel
+                    {
+                        Section = DocPublicSection.HowToGuides,
+                        Label = "How-to Guides",
+                        Slug = "how-to-guides",
+                        Href = " ",
+                        IsActive = true,
+                        IsExpanded = true,
+                        Groups =
+                        [
+                            new DocSectionGroupViewModel
+                            {
+                                Links =
+                                [
+                                    new DocSectionLinkViewModel
+                                    {
+                                        Title = "Relative guide",
+                                        Href = "guides/relative"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            pathBase: "/some-base");
+
+        Assert.Contains("href=\"\"", html);
+        Assert.Contains("href=\"guides/relative\"", html);
+    }
+
+    [Fact]
     public void BuildGroups_ShouldSetUseAnchorNavigation_OnTopLevelSectionLinks()
     {
         var snapshot = new DocSectionSnapshot
@@ -911,6 +953,63 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task IndexView_ShouldLeaveRelativeLinksUnchanged_AndSuppressBlankStartHereHref()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Index.cshtml",
+            new DocLandingViewModel
+            {
+                Heading = "Documentation",
+                Description = "Choose a route.",
+                StartHereHref = "   ",
+                FeaturedPages =
+                [
+                    new DocLandingFeaturedPageViewModel
+                    {
+                        Question = "Blank",
+                        Title = "No destination yet",
+                        Href = " "
+                    },
+                    new DocLandingFeaturedPageViewModel
+                    {
+                        Question = "Start",
+                        Title = "Relative guide",
+                        Href = "guides/relative"
+                    }
+                ],
+                SecondarySections =
+                [
+                    new DocHomeSectionViewModel
+                    {
+                        Section = DocPublicSection.Concepts,
+                        Label = "Concepts",
+                        Slug = "concepts",
+                        Href = "sections/concepts",
+                        Purpose = "Learn the model.",
+                        KeyRoutes =
+                        [
+                            new DocSectionLinkViewModel
+                            {
+                                Title = "Relative child",
+                                Href = "guides/child"
+                            }
+                        ]
+                    }
+                ]
+            },
+            pathBase: "/some-base");
+
+        Assert.DoesNotContain("Open Start Here", html);
+        Assert.Contains("href=\"\"", html);
+        Assert.Contains("href=\"guides/relative\"", html);
+        Assert.Contains("href=\"sections/concepts\"", html);
+        Assert.Contains("href=\"guides/child\"", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderSectionLandingChrome_WithFeaturedPagesAndSectionGroups()
     {
         var landingDoc = new DocNode(
@@ -981,6 +1080,38 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SectionView_ShouldLeaveRelativeLinksUnchanged_AndSuppressBlankStartHereHref()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Section.cshtml",
+            new DocSectionPageViewModel
+            {
+                Section = DocPublicSection.Concepts,
+                Heading = "Concepts",
+                Description = "Relative links stay relative.",
+                DocsHomeHref = " ",
+                StartHereHref = " ",
+                IsSparse = true,
+                KeyRoutes =
+                [
+                    new DocSectionLinkViewModel
+                    {
+                        Title = "Relative route",
+                        Href = "guides/relative"
+                    }
+                ]
+            },
+            pathBase: "/some-base");
+
+        Assert.DoesNotContain(">Start Here<", html);
+        Assert.Contains("href=\"\"", html);
+        Assert.Contains("href=\"guides/relative\"", html);
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderSectionLandingGroupTitles_WhenGroupsHaveTitles()
     {
         var landingDoc = new DocNode(
@@ -1034,6 +1165,44 @@ public class RazorDocsViewsTests
 
         Assert.Contains("href=\"/some-base/docs/sections/how-to-guides\"", html);
         Assert.Contains("href=\"/some-base/docs/guides/intro.md.html\"", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderBlankAndRelativeStructuredLinks_WithoutPathBaseRewriting()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Linked Guide",
+            "guides/linked-guide.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                NavGroup = "How-to Guides"
+            });
+        var model = CreateDetailsViewModel(
+            doc,
+            previousPage: new DocPageLinkViewModel
+            {
+                Title = "Relative previous",
+                Href = "guides/relative"
+            },
+            relatedPages:
+            [
+                new DocPageLinkViewModel
+                {
+                    Title = "Blank related",
+                    Href = " "
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model,
+            pathBase: "/some-base");
+
+        Assert.Contains("href=\"guides/relative\"", html);
+        Assert.Contains("href=\"\"", html);
     }
 
     [Fact]
@@ -1833,6 +2002,31 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task SearchView_ShouldLeaveRelativeFallbackLinksUnchanged_AndRenderBlankHrefAsEmpty()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Search.cshtml",
+            new SearchPageViewModel(
+                Title: "Search Documentation",
+                Orientation: "Search across the docs set.",
+                StarterHint: "Try a starter query.",
+                SearchPlaceholder: "Search docs",
+                SuggestedQueries: ["getting started"],
+                FailureFallbackLinks:
+                [
+                    new SearchPageFallbackLink("Relative", "guides/relative", "Stay in the docs.", UsesDocsFrame: true),
+                    new SearchPageFallbackLink("Blank", "   ", "No destination yet.")
+                ]),
+            pathBase: "/some-base");
+
+        Assert.Contains("href=\"guides/relative\"", html);
+        Assert.Contains("href=\"\"", html);
+    }
+
+    [Fact]
     public async Task VersionsView_ShouldUseTopLevelNavigation_ForCrossSurfaceLinks()
     {
         using var services = CreateServiceProvider(
@@ -1915,6 +2109,39 @@ public class RazorDocsViewsTests
         Assert.NotNull(document.QuerySelector("a[href='/some-base/docs/next']"));
         Assert.NotNull(document.QuerySelector("a[href='/some-base/docs/versions']"));
         Assert.NotNull(document.QuerySelector("a[href='/some-base/docs/v/1.2.3']"));
+    }
+
+    [Fact]
+    public async Task VersionsView_ShouldLeaveRelativeLinksUnchanged_AndRenderBlankPreviewHrefAsEmpty()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Versions.cshtml",
+            new RazorDocsVersionArchiveViewModel
+            {
+                Heading = "Documentation versions",
+                Description = "Choose the release you want.",
+                PreviewHref = " ",
+                VersionsHref = "versions-relative",
+                Versions =
+                [
+                    new RazorDocsVersionArchiveEntryViewModel
+                    {
+                        Version = "1.2.3",
+                        Label = "1.2.3",
+                        Href = "release-relative",
+                        IsAvailable = true,
+                        SupportStateLabel = "Current"
+                    }
+                ]
+            },
+            pathBase: "/some-base");
+
+        Assert.Contains("href=\"\"", html);
+        Assert.Contains("href=\"versions-relative\"", html);
+        Assert.Contains("href=\"release-relative\"", html);
     }
 
     [Fact]

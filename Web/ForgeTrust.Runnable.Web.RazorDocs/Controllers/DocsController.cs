@@ -644,11 +644,6 @@ public class DocsController : Controller
         }
 
         var normalizedPathBase = pathBase.TrimEnd('/');
-        if (!normalizedPathBase.StartsWith("/", StringComparison.Ordinal))
-        {
-            normalizedPathBase = "/" + normalizedPathBase;
-        }
-
         return string.Equals(appRelativeUrl, "/", StringComparison.Ordinal)
             ? normalizedPathBase + "/"
             : normalizedPathBase + appRelativeUrl;

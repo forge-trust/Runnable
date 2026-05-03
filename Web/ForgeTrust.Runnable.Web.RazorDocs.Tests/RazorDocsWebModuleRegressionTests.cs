@@ -462,6 +462,123 @@ public class RazorDocsWebModuleRegressionTests
     }
 
     [Fact]
+    public async Task ConfigureEndpoints_Versioning_ReturnsNotFoundForPreviewAssets_WhenWebRootFileProviderIsMissing()
+    {
+        var module = new RazorDocsWebModule();
+        var context = new StartupContext([], module);
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        var environment = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => environment.WebRootFileProvider).Returns(null!);
+        builder.Services.AddSingleton(environment);
+        builder.Services.AddSingleton(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/next"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true
+                }
+            });
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+
+        using var app = builder.Build();
+        module.ConfigureEndpoints(context, app);
+
+        await app.StartAsync();
+
+        try
+        {
+            var server = app.Services.GetRequiredService<IServer>();
+            var addresses = server.Features.Get<IServerAddressesFeature>();
+            var baseAddress = Assert.Single(addresses!.Addresses);
+
+            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            {
+                BaseAddress = new Uri(baseAddress)
+            };
+
+            using var response = await client.GetAsync("/docs/next/search.css");
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfigureEndpoints_Versioning_ReturnsNotFoundForPreviewAssets_WhenWebRootAssetFileIsMissing()
+    {
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-preview-asset-missing-file-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(tempDirectory, "docs"));
+
+        try
+        {
+            var module = new RazorDocsWebModule();
+            var context = new StartupContext([], module);
+            var builder = WebApplication.CreateBuilder(
+                new WebApplicationOptions
+                {
+                    WebRootPath = tempDirectory
+                });
+
+            builder.WebHost.UseUrls("http://127.0.0.1:0");
+            builder.Services.AddSingleton(
+                new RazorDocsOptions
+                {
+                    Routing = new RazorDocsRoutingOptions
+                    {
+                        DocsRootPath = "/docs/next"
+                    },
+                    Versioning = new RazorDocsVersioningOptions
+                    {
+                        Enabled = true
+                    }
+                });
+            builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+
+            using var app = builder.Build();
+            module.ConfigureEndpoints(context, app);
+
+            await app.StartAsync();
+
+            try
+            {
+                var server = app.Services.GetRequiredService<IServer>();
+                var addresses = server.Features.Get<IServerAddressesFeature>();
+                var baseAddress = Assert.Single(addresses!.Addresses);
+
+                using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                {
+                    BaseAddress = new Uri(baseAddress)
+                };
+
+                using var getResponse = await client.GetAsync("/docs/next/search.css");
+                Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+
+                using var headResponse = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/docs/next/search-client.js"));
+                Assert.Equal(HttpStatusCode.NotFound, headResponse.StatusCode);
+            }
+            finally
+            {
+                await app.StopAsync();
+            }
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ConfigureWebApplication_Versioning_KeepsPreviewSearchAssetsAvailable_WhenRecommendedReleaseIsUnavailable()
     {
         var tempDirectory = Path.Combine(

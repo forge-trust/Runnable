@@ -319,6 +319,26 @@ public sealed class DocContentLinkRewriterTests
     }
 
     [Fact]
+    public void PrefixPathBaseForDocsUrls_ShouldNormalizePathBase_AndIgnoreBlankFragmentAndSchemeRelativeLinks()
+    {
+        var html = """
+            <p>
+              <a href="   ">Blank</a>
+              <a href="#migration">Fragment</a>
+              <a href="//example.com/docs">Scheme relative</a>
+              <a href="/docs/guide.html">Guide</a>
+            </p>
+            """;
+
+        var rewritten = DocContentLinkRewriter.PrefixPathBaseForDocsUrls(html, "/docs", "some-base/");
+
+        Assert.Contains("href=\"   \"", rewritten);
+        Assert.Contains("href=\"#migration\"", rewritten);
+        Assert.Contains("href=\"//example.com/docs\"", rewritten);
+        Assert.Contains("href=\"/some-base/docs/guide.html\"", rewritten);
+    }
+
+    [Fact]
     public void RewriteInternalDocLinks_ShouldHandleRootMountedDocsSurface()
     {
         var html = "<p><a href=\"/guides/quickstart.md\">Quickstart</a></p>";

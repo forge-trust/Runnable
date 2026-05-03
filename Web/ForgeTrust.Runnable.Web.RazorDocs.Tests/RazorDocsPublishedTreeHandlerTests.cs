@@ -187,6 +187,32 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task TryHandleAsync_ShouldLeaveNullDocsConfigScriptUnchanged_WhenMountedHtmlContainsNullConfig()
+    {
+        var tree = CreatePublishedTree("null-config");
+        File.WriteAllText(
+            Path.Combine(tree, "index.html"),
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <script>window.__razorDocsConfig = null;</script>
+            </head>
+            <body>
+              <a href="/docs/guide.html">Guide</a>
+            </body>
+            </html>
+            """);
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3");
+
+        Assert.True(await handler.TryHandleAsync(request));
+        var html = ReadBody(request);
+        Assert.Contains("window.__razorDocsConfig = null;", html);
+        Assert.Contains("href=\"/docs/v/1.2.3/guide.html\"", html);
+    }
+
+    [Fact]
     public async Task TryHandleAsync_ShouldHonorHeadRequests_WhenRewritingMountedHtml()
     {
         var tree = CreatePublishedTree("head-rewritten-html");
@@ -281,6 +307,38 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
 
         Assert.True(await handler.TryHandleAsync(searchIndexRequest));
         Assert.Contains("\"path\":\"/some-base/docs/guide.html\"", ReadBody(searchIndexRequest));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldTrimTrailingSlashFromRequestPathBase_WhenRewritingMountedHtmlAndSearchIndex()
+    {
+        var tree = CreatePublishedTree("path-base-with-trailing-slash");
+        File.WriteAllText(
+            Path.Combine(tree, "index.html"),
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json"};</script>
+            </head>
+            <body>
+              <a href="/docs/preview/search?tab=preview#input">Preview</a>
+              <a href="/docs/guide.html">Guide</a>
+            </body>
+            </html>
+            """);
+        var handler = CreateHandler(tree, "/docs/v/1.2.3", previewRootPath: "/docs/preview");
+        var htmlRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3", pathBase: "/some-base/");
+        var searchIndexRequest = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/search-index.json", pathBase: "/some-base/");
+
+        Assert.True(await handler.TryHandleAsync(htmlRequest));
+        var html = ReadBody(htmlRequest);
+        Assert.Contains("href=\"/some-base/docs/preview/search?tab=preview#input\"", html);
+        Assert.Contains("href=\"/some-base/docs/v/1.2.3/guide.html\"", html);
+        Assert.Contains("\"docsSearchIndexUrl\":\"/some-base/docs/v/1.2.3/search-index.json\"", html);
+
+        Assert.True(await handler.TryHandleAsync(searchIndexRequest));
+        Assert.Contains("\"path\":\"/some-base/docs/v/1.2.3/guide.html\"", ReadBody(searchIndexRequest));
     }
 
     public void Dispose()

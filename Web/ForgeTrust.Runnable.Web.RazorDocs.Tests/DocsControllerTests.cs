@@ -365,6 +365,40 @@ public class DocsControllerTests : IDisposable
         Assert.Equal("/some-base/docs", redirect.Url);
     }
 
+    [Fact]
+    public void VersionEntry_ShouldAppendTrailingSlash_WhenRootMountedDocsHomeUsesPathBase()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(new List<DocNode>());
+        var (controller, cache, memo) = CreateController(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = false
+                }
+            },
+            harvester);
+
+        using (memo)
+        using (cache)
+        {
+            var httpContext = new DefaultHttpContext();
+            httpContext.Request.PathBase = "/some-base";
+            controller.ControllerContext = CreateControllerContext(httpContext);
+            controller.Url = new UrlHelper(controller.ControllerContext);
+
+            var result = controller.VersionEntry();
+
+            var redirect = Assert.IsType<RedirectResult>(result);
+            Assert.Equal("/some-base/", redirect.Url);
+        }
+    }
+
     [Theory]
     [InlineData("api")]
     [InlineData("reference")]
@@ -1281,6 +1315,36 @@ public class DocsControllerTests : IDisposable
             var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
             Assert.True(model.TrustMigrationUsesTurbo);
         }
+    }
+
+    [Fact]
+    public async Task Details_ShouldNotMarkDocsHomeMigrationLinks_AsDocsFrameLinks_WhenHrefHasQueryAndFragment()
+    {
+        var docs = new List<DocNode>
+        {
+            new(
+                "Home",
+                "README.md",
+                "<p>Home</p>",
+                Metadata: new DocMetadata
+                {
+                    Trust = new DocTrustMetadata
+                    {
+                        Migration = new DocTrustLink
+                        {
+                            Label = "Open docs home",
+                            Href = "/docs?tab=home#summary"
+                        }
+                    }
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Details("README.md");
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocDetailsViewModel>(viewResult.Model);
+        Assert.False(model.TrustMigrationUsesTurbo);
     }
 
     [Fact]

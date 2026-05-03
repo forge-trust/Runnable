@@ -156,6 +156,28 @@ public sealed class RazorWireMvcPlaywrightTests
     }
 
     [Fact]
+    public async Task IncrementCounter_ButtonHasAccessibleName()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.ReactivityUrl);
+        await WaitForCounterReadyAsync(page);
+
+        var incrementButton = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions
+        {
+            Name = "Increment counter",
+            Exact = true
+        });
+
+        await incrementButton.WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = 30_000
+        });
+    }
+
+    [Fact]
     public async Task IncrementCounter_SingleSession_UpdatesValuesWithoutRefresh()
     {
         await using var context = await _fixture.Browser.NewContextAsync();
@@ -268,6 +290,129 @@ public sealed class RazorWireMvcPlaywrightTests
         await WaitForPathAsync(page, "/");
     }
 
+    [Fact]
+    public async Task FormFailures_ServerValidation_RendersHandledLocalErrorWithoutRefresh()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[action*='SubmitValidationFailure']",
+            "/Reactivity/SubmitValidationFailure");
+
+        Assert.Equal(422, response.Status);
+        Assert.Equal("true", await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
+        await WaitForTextAsync(page, "#validation-errors", "Display name is required.");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
+    [Fact]
+    public async Task FormFailures_ServerValidation_TrimsDisplayNameBeforeLengthValidation()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+        await page.FillAsync("#failure-display-name", "  12345678901234567890  ");
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[action*='SubmitValidationFailure']",
+            "/Reactivity/SubmitValidationFailure");
+
+        Assert.Equal(200, response.Status);
+        await WaitForTextAsync(page, "#validation-result", "Saved 12345678901234567890.");
+        var validationErrors = await page.Locator("#validation-errors").InnerTextAsync();
+        Assert.DoesNotContain("Display name must be 20 characters or fewer.", validationErrors);
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
+    [Fact]
+    public async Task FormFailures_MissingAntiforgery_RendersDevelopmentDiagnosticInLocalTarget()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[action*='AntiforgeryFailureDemo']",
+            "/Reactivity/AntiforgeryFailureDemo");
+
+        Assert.Equal(400, response.Status);
+        Assert.Equal("true", await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
+        await WaitForTextAsync(page, "#antiforgery-errors", "Antiforgery token validation failed");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
+    [Fact]
+    public async Task FormFailures_AuthorizationFailure_RendersRuntimeFallbackWithoutRefresh()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[data-rw-form-failure-target='authorization-errors']",
+            "/Reactivity/AuthorizationFailureDemo");
+
+        Assert.Equal(403, response.Status);
+        Assert.Null(await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
+        await WaitForTextAsync(page, "#authorization-errors", "Session may have expired");
+        await WaitForTextAsync(page, "#authorization-errors", "You may need to refresh or sign in again before submitting this form.");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
+    [Fact]
+    public async Task FormFailures_MalformedFailure_RendersRuntimeFallbackWithoutRefresh()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[data-rw-form-failure-target='custom-errors']",
+            "/Reactivity/MalformedFailureDemo");
+
+        Assert.Equal(400, response.Status);
+        Assert.Null(await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
+        await WaitForTextAsync(page, "#custom-errors", "We could not submit this form");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
+    [Fact]
+    public async Task FormFailures_UnhandledServerFailure_RendersRuntimeFallbackWithoutHandledHeader()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[data-rw-form-failure-target='server-errors']",
+            "/Reactivity/ServerFailureDemo");
+
+        Assert.Equal(500, response.Status);
+        Assert.Null(await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
+        await WaitForTextAsync(page, "#server-errors", "Something went wrong");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
     private static async Task WaitForStreamConnectedAsync(IPage page)
     {
         await page.WaitForFunctionAsync(
@@ -281,6 +426,14 @@ public sealed class RazorWireMvcPlaywrightTests
         await page.WaitForFunctionAsync(
             "args => document.querySelector('#messages')?.innerText?.includes(args.token) === true",
             new { token },
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+    }
+
+    private static async Task WaitForTextAsync(IPage page, string selector, string text)
+    {
+        await page.WaitForFunctionAsync(
+            "args => document.querySelector(args.selector)?.innerText?.includes(args.text) === true",
+            new { selector, text },
             new PageWaitForFunctionOptions { Timeout = 30_000 });
     }
 
@@ -565,6 +718,7 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
     public IBrowser Browser { get; private set; } = null!;
     public string BaseUrl { get; private set; } = string.Empty;
     public string ReactivityUrl { get; private set; } = string.Empty;
+    public string FormFailuresUrl { get; private set; } = string.Empty;
 
     public async Task InitializeAsync()
     {
@@ -580,6 +734,7 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         var baseUrl = await WaitForBoundBaseUrlAsync(TimeSpan.FromSeconds(60));
         BaseUrl = baseUrl;
         ReactivityUrl = $"{baseUrl}/Reactivity";
+        FormFailuresUrl = $"{baseUrl}/Reactivity/FormFailures";
 
         await WaitForAppReadyAsync(baseUrl, TimeSpan.FromSeconds(60));
     }

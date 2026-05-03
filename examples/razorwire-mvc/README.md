@@ -10,7 +10,7 @@ This sample is the concrete proof behind the RazorWire package README. It shows 
    dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
    ```
 
-   This assumes you are in a clone of this repository with the .NET 10 SDK installed.
+   This is the repo-local path while the public `v0.1` package install flow is being finalized. It assumes you are in a clone of this repository with the .NET 10 SDK installed.
 
    If you `cd examples/razorwire-mvc` first, `dotnet run` also works from there.
 
@@ -20,6 +20,8 @@ This sample is the concrete proof behind the RazorWire package README. It shows 
 5. Watch `Instance Score` and `Session Score` update in place without a full page reload.
 
 That is the core RazorWire workflow in one interaction: a normal MVC form posts, the controller returns targeted Razor fragments, and the UI updates only where it needs to.
+
+To inspect failed-submission conventions, navigate to `/Reactivity/FormFailures`. That page intentionally triggers validation, anti-forgery, authorization, malformed request, and server failures so you can compare server-handled errors with the default runtime fallback.
 
 ## What Just Happened
 
@@ -50,7 +52,7 @@ That is the core RazorWire workflow in one interaction: a normal MVC form posts,
 
 <form asp-controller="Reactivity" asp-action="IncrementCounter" method="post" rw-active="true" data-counter-form>
     <input type="hidden" name="clientCount" id="client-count-input" value="0" />
-    <button type="submit">+</button>
+    <button type="submit" aria-label="Increment counter">+</button>
 </form>
 ```
 
@@ -117,6 +119,17 @@ The reactivity page includes two additional form flows:
 - `Views/Reactivity/_MessageForm.cshtml` posts to `PublishMessage` and prepends messages into the live feed.
 
 Those flows are richer than the counter demo, but the counter is the cleanest first proof because it does not depend on stream-hub context to feel convincing.
+
+### Failed Form UX
+
+The sample includes a dedicated `/Reactivity/FormFailures` page that demonstrates:
+
+- `FormValidationErrors` returning a `422` validation stream with `X-RazorWire-Form-Handled: true`.
+- Development anti-forgery diagnostics for a raw form that intentionally omits `__RequestVerificationToken`.
+- Default runtime fallbacks for unhandled `400`, `403`, and `500` responses.
+- Consumer customization with CSS variables and `razorwire:form:failure` in manual mode.
+
+See the package guide for the API contract and troubleshooting notes: [Failed Form UX](../../Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md).
 
 ## Project Structure
 

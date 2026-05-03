@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using FakeItEasy;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,6 +39,16 @@ public class TrackingTestConfig : Config<TrackingTestConfig>
         InitCalled = true;
         base.Init(configManager, environmentProvider, keyPath);
     }
+}
+
+public class InvalidRegisteredOptions
+{
+    [Required]
+    public string? Name { get; init; }
+}
+
+public class InvalidRegisteredConfig : Config<InvalidRegisteredOptions>
+{
 }
 
 public class RunnableConfigModuleTests
@@ -113,5 +124,40 @@ public class RunnableConfigModuleTests
         // Verify Init was called via ConfigManager too
         A.CallTo(() => configManager.GetValue<TrackingTestConfig>(A<string>._, A<string>._))
             .MustHaveHappened();
+    }
+
+    [Fact]
+    public void CustomRegistrationTask_InvalidConfigThrowsDuringServiceActivation()
+    {
+        var services = new ServiceCollection();
+        var rootModule = new TestHostModule();
+
+        var context = new StartupContext([], rootModule)
+        {
+            OverrideEntryPointAssembly = typeof(RunnableConfigModuleTests).Assembly
+        };
+        context.Dependencies.AddModule<TestHostModule>();
+
+        var module = new RunnableConfigModule();
+        module.ConfigureServices(context, services);
+        context.CustomRegistrations[0](services);
+
+        var configManager = A.Fake<IConfigManager>();
+        var envProvider = A.Fake<IEnvironmentProvider>();
+        services.AddSingleton(configManager);
+        services.AddSingleton(envProvider);
+        services.AddSingleton(A.Fake<ILogger<DefaultConfigManager>>());
+
+        A.CallTo(() => envProvider.Environment).Returns("Production");
+        A.CallTo(() => configManager.GetValue<InvalidRegisteredOptions>(A<string>._, A<string>._))
+            .Returns(new InvalidRegisteredOptions());
+
+        var sp = services.BuildServiceProvider();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            sp.GetRequiredService<InvalidRegisteredConfig>());
+
+        Assert.Equal("InvalidRegisteredConfig", exception.Key);
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Name"]));
     }
 }

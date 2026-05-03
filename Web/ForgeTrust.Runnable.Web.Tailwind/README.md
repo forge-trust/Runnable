@@ -39,6 +39,8 @@ package to declare the generated web-root asset explicitly.
 
 Keep `InputPath` and `OutputPath` pointed at different files. The build target and the development watch service both reject configurations where the two paths resolve to the same file, even if one path uses a normalized relative form such as `./wwwroot/css/../css/app.css`.
 
+During development, the watch service is non-blocking. If the Tailwind CLI is not available on the current machine, the app still starts and serves any existing CSS while logging a warning that points developers to the runtime package or `TailwindCliPath` override. Other startup failures still log as errors.
+
 ## CI
 
 `ForgeTrust.Runnable.Web.Tailwind` hooks into the normal `dotnet build` and `dotnet publish` pipeline through MSBuild targets, so the default integration does not require a separate `npm install` or `npm run build` step in CI.

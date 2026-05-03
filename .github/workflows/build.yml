@@ -25,12 +25,24 @@ jobs:
           dotnet-version: |
             10.0.x
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: Web/ForgeTrust.Runnable.Web.RazorWire/package-lock.json
+
       - name: Verify generated package chooser
         run: |
           dotnet run --project tools/ForgeTrust.Runnable.PackageIndex/ForgeTrust.Runnable.PackageIndex.csproj -- verify
 
       - name: Build project
         run: dotnet build --configuration Release
+
+      - name: Run RazorWire runtime tests
+        run: |
+          npm ci --prefix Web/ForgeTrust.Runnable.Web.RazorWire
+          npm test --prefix Web/ForgeTrust.Runnable.Web.RazorWire
 
       - name: Run tests
         run: |

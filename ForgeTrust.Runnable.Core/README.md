@@ -20,9 +20,25 @@ The Core library is designed to be lightweight and implementation-agnostic. It p
 
 `StartupContext.ApplicationName` is a display label. Use it for generated documentation titles, command output, OpenAPI branding, and other user-facing product surfaces.
 
-`StartupContext.HostApplicationName` is the assembly-backed identity assigned to `IHostEnvironment.ApplicationName` and the Generic Host `applicationName` setting. It defaults to the entry point assembly name, or the root module assembly name when no entry point override is configured.
+`StartupContext.HostApplicationName` is the assembly-backed identity assigned to `IHostEnvironment.ApplicationName` and the Generic Host `applicationName` setting. It defaults to the root module assembly name. When `StartupContext.OverrideEntryPointAssembly` is set, it uses that override assembly name instead.
 
 Keep these values separate. ASP.NET static web assets use the host application name to find runtime manifests. Passing a custom display label such as `CustomDocsHost` into the host environment can make static asset requests resolve against a manifest that does not exist. When a test or custom host needs a different manifest identity, set `StartupContext.OverrideEntryPointAssembly` instead of overloading `ApplicationName`.
+
+## Logging in Static Utilities
+
+Core static utilities stay host-agnostic: they do not reach into a global logger, service provider, or ambient startup state. When a public static helper has useful diagnostics, expose an additive overload with an explicit non-null `ILogger` parameter and keep the existing no-logger overload silent. Private shared implementations may accept `ILogger?` only to avoid duplicating logic between the silent and diagnostic paths.
+
+Use this pattern when a helper performs fallback behavior that callers may want to audit. For example, `PathUtils.FindRepositoryRoot(startPath, logger)` logs a warning when `startPath` does not exist and repository-root discovery has to continue from the nearest existing ancestor.
+
+Prefer ordinary dependency injection for services, modules, hosted services, and application-owned classes. The optional logger pattern is only for static helpers where injecting a service instance would make the API harder to use or force unrelated callers to construct infrastructure.
+
+Define static helper log messages with the source-generated `[LoggerMessage]` attribute on private static partial methods. Give each message a stable event ID, level, and template. Do not use ad hoc `logger.Log...` calls for new Core diagnostics when the message is part of an intentional API behavior.
+
+Pitfalls:
+
+- Do not create a static `LoggerFactory` inside a utility. That couples Core to a console/logging policy the host did not choose.
+- Do not throw only because a fallback warning was logged. Keep the documented return behavior unless the input contract itself is invalid.
+- Do not swallow cleanup failures silently when a logger is available. Log them at `Debug` when they are intentionally suppressed to preserve the primary exception or cancellation path.
 
 ## Usage
 

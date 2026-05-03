@@ -94,6 +94,8 @@ public class ProgramEntryPointTests
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("exactly one source", result.AllText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("razorwire export --help", result.AllText, StringComparison.Ordinal);
+        Assert.Contains("--project ./MyApp.csproj", result.AllText, StringComparison.Ordinal);
         Assert.DoesNotContain("Initializing Critical Service", result.AllText, StringComparison.Ordinal);
         Assert.DoesNotContain("Stopping Critical Service", result.AllText, StringComparison.Ordinal);
         Assert.DoesNotContain("Application started", result.AllText, StringComparison.Ordinal);

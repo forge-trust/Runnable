@@ -66,7 +66,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - RazorDocs details pages can now render a `Source of truth` strip with `View source`, `Edit this page`, and relative `Last updated` evidence driven by contributor metadata, configured URL templates, and git freshness when available.
 - The primary RazorDocs Pages deployment now exports with contributor provenance configured and full git history available, so the public docs artifact can show the same `Source of truth` strip as local smoke tests.
 - Contributor provenance now degrades safely: namespace and API pages stay explicit-override-only for the MVP, and missing or slow git history omits only freshness instead of breaking docs rendering.
-- RazorDocs generated C# API references can now render per-type, per-method, and per-property source links that point at the exact source file and line for the code version used to build the docs.
+- RazorDocs generated C# API references can now render per-type, per-method, and per-property source links that point at the exact source file and line, with immutable refs available when hosts want links pinned to the code version used to build the docs.
 - Shared RazorDocs badges, metadata chips, provenance strips, and trust bars now live in the shared package stylesheet while `search.css` stays focused on search-specific UI.
 
 ## Migration watch

@@ -35,6 +35,11 @@
     var showContributorProvenance = sourceHref is not null || editHref is not null || lastUpdatedUtc is not null;
 }
 @functions {
+    private static readonly System.Text.RegularExpressions.Regex RootedSymbolSourceLinkRegex = new(
+        """<a href="(?<href>/[^"]*)" class="doc-symbol-source-link"(?<rest>[^>]*)>""",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        | System.Text.RegularExpressions.RegexOptions.NonBacktracking);
+
     private string ResolveAppHref(string href)
     {
         if (string.IsNullOrWhiteSpace(href))
@@ -48,6 +53,29 @@
                || trimmed.StartsWith("/docs?", StringComparison.OrdinalIgnoreCase)
             ? Url.Content($"~{trimmed}")
             : Url.Content(trimmed);
+    }
+
+    private string ResolveGeneratedContentHrefs(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+        {
+            return content;
+        }
+
+        return RootedSymbolSourceLinkRegex.Replace(
+            content,
+            match =>
+            {
+                var encodedHref = match.Groups["href"].Value;
+                var href = System.Net.WebUtility.HtmlDecode(encodedHref);
+                if (href.StartsWith("//", StringComparison.Ordinal))
+                {
+                    return match.Value;
+                }
+
+                var resolvedHref = Url.Content($"~{href}");
+                return match.Value.Replace(encodedHref, System.Net.WebUtility.HtmlEncode(resolvedHref), StringComparison.Ordinal);
+            });
     }
 }
 
@@ -378,7 +406,7 @@
 
 <div class="docs-content">
     @* Safe: Content is sanitized by DocAggregator before caching. *@
-    @Html.Raw(Model.Document.Content)
+    @Html.Raw(ResolveGeneratedContentHrefs(Model.Document.Content))
 </div>
 
 @if (Model.HasWayfinding)

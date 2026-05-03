@@ -504,6 +504,63 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void Validator_ShouldAllowSymbolSourceTemplate_WhenBranchTokenHasDefaultBranch()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                DefaultBranch = "main",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{branch}/{path}#L{line}"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Fact]
+    public void Validator_ShouldAllowSymbolSourceTemplate_WhenRefTokenHasSourceRef()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                SourceRef = "abc123",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{ref}/{path}#L{line}"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectUnsupportedSymbolSourceTemplateTokens()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Contributor = new RazorDocsContributorOptions
+            {
+                SourceRef = "abc123",
+                SymbolSourceUrlTemplate = "https://example.com/blob/{commit}/{path}#L{linen}"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("unsupported token(s): {commit}, {linen}", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validator_ShouldSkipContributorTemplateValidation_WhenContributorRenderingIsDisabled()
     {
         var validator = new RazorDocsOptionsValidator();

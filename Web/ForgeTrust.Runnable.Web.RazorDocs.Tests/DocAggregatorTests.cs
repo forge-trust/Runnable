@@ -136,6 +136,7 @@ public class DocAggregatorTests : IDisposable
                 {
                     Assert.Contains("href=\"https://example.com/blob/abc123/src/Calculator.cs#L12\"", input);
                     Assert.Contains("doc-symbol-source-link", input);
+                    Assert.Contains("aria-label=\"View source for Test-Calculator\"", input);
                     Assert.DoesNotContain("data-razordocs-symbol-source", input);
                     return input;
                 });
@@ -154,6 +155,7 @@ public class DocAggregatorTests : IDisposable
         var result = Assert.Single((await aggregator.GetDocsAsync()).ToList());
 
         Assert.Contains("href=\"https://example.com/blob/abc123/src/Calculator.cs#L12\"", result.Content);
+        Assert.Contains("aria-label=\"View source for Test-Calculator\"", result.Content);
         Assert.Contains(">Source</a>", result.Content);
         Assert.DoesNotContain("data-razordocs-symbol-source", result.Content);
     }
@@ -258,7 +260,8 @@ public class DocAggregatorTests : IDisposable
 
         var result = Assert.Single((await aggregator.GetDocsAsync()).ToList());
 
-        Assert.Contains("href=\"https://example.com/blob/abc123/src/Duplicate.cs#L7\"", result.Content);
+        Assert.DoesNotContain("doc-symbol-source-link", result.Content);
+        Assert.DoesNotContain("src/Duplicate.cs", result.Content);
         Assert.DoesNotContain("DuplicateReplacement", result.Content);
         Assert.DoesNotContain("Orphan", result.Content);
         Assert.DoesNotContain("data-razordocs-symbol-source", result.Content);

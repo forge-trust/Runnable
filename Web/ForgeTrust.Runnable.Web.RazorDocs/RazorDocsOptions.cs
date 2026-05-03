@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs;
@@ -132,8 +133,9 @@ public sealed class RazorDocsContributorOptions
     /// Gets or sets the source-link template for generated C# API symbols.
     /// Supported tokens are <c>{path}</c>, <c>{line}</c>, <c>{branch}</c>, and <c>{ref}</c>.
     /// Configured templates must include <c>{path}</c> and <c>{line}</c> when <see cref="Enabled"/> is
-    /// <see langword="true" />. Use <c>{ref}</c> when links should prefer a commit SHA supplied through
-    /// <see cref="SourceRef"/> and fall back to <see cref="DefaultBranch"/>.
+    /// <see langword="true" />, and unsupported token placeholders are rejected during startup validation.
+    /// Use <c>{ref}</c> when links should prefer a commit SHA supplied through <see cref="SourceRef"/> and fall back to
+    /// <see cref="DefaultBranch"/>.
     /// </summary>
     public string? SymbolSourceUrlTemplate { get; set; }
 
@@ -176,6 +178,10 @@ public enum RazorDocsLastUpdatedMode
 /// </summary>
 public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOptions>
 {
+    private static readonly Regex SymbolSourceTemplateTokenRegex = new(
+        @"\{[^}]+\}",
+        RegexOptions.Compiled | RegexOptions.NonBacktracking);
+
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, RazorDocsOptions options)
     {
@@ -276,6 +282,24 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             && contributor.SymbolSourceUrlTemplate.Contains("{line}", StringComparison.Ordinal) is false)
         {
             failures.Add("RazorDocs:Contributor:SymbolSourceUrlTemplate must contain the {line} token.");
+        }
+
+        if (contributor is not null
+            && contributor.Enabled
+            && !string.IsNullOrWhiteSpace(contributor.SymbolSourceUrlTemplate))
+        {
+            var unsupportedSymbolSourceTokens = SymbolSourceTemplateTokenRegex
+                .Matches(contributor.SymbolSourceUrlTemplate)
+                .Select(match => match.Value)
+                .Where(token => token is not "{path}" and not "{line}" and not "{branch}" and not "{ref}")
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            if (unsupportedSymbolSourceTokens.Length > 0)
+            {
+                failures.Add(
+                    $"RazorDocs:Contributor:SymbolSourceUrlTemplate contains unsupported token(s): {string.Join(", ", unsupportedSymbolSourceTokens)}.");
+            }
         }
 
         if (contributor is not null

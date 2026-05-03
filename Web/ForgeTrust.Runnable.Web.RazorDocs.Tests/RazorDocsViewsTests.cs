@@ -1819,6 +1819,33 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldPreservePathBase_ForGeneratedLocalSymbolSourceLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Calculator",
+            "Namespaces/Test",
+            """
+            <p>
+                <a href="/repo/blob/src/Calculator.cs#L12" class="doc-symbol-source-link" aria-label="View source for Test-Calculator">Source</a>
+            </p>
+            """);
+        var model = CreateDetailsViewModel(doc);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model,
+            configureHttpContext: httpContext => httpContext.Request.PathBase = "/tenant");
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var sourceLink = document.QuerySelector("a.doc-symbol-source-link");
+        Assert.NotNull(sourceLink);
+        Assert.Equal("/tenant/repo/blob/src/Calculator.cs#L12", sourceLink!.GetAttribute("href"));
+        Assert.Equal("View source for Test-Calculator", sourceLink.GetAttribute("aria-label"));
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldNotRenderContributorProvenance_WhenNoEvidenceExists()
     {
         using var services = CreateServiceProvider(CreateDocs());

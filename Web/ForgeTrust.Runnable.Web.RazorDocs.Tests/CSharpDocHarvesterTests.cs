@@ -281,6 +281,31 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldEmitTypeSourceProvenance_WhenOnlyMembersHaveDocs()
+    {
+        var code = """
+            namespace Test;
+
+            public class Calculator
+            {
+                /// <summary>Add docs.</summary>
+                public int Add(int left, int right) => left + right;
+            }
+            """;
+        await File.WriteAllTextAsync(Path.Combine(_testRoot, "Calculator.cs"), code);
+
+        var results = (await _harvester.HarvestAsync(_testRoot)).ToList();
+        var namespaceNode = results.Single(n => n.Path == "Namespaces/Test");
+
+        Assert.Contains("data-razordocs-symbol-source=\"Test-Calculator\"", namespaceNode.Content);
+        Assert.Contains(
+            namespaceNode.SymbolSourceProvenance!,
+            provenance => provenance.AnchorId == "Test-Calculator"
+                          && provenance.SourcePath == "Calculator.cs"
+                          && provenance.StartLine > 0);
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldHandleMalformedXmlGracefully()
     {
         // Arrange

@@ -49,7 +49,7 @@ public class DocAggregator
         RegexOptions.IgnoreCase | RegexOptions.NonBacktracking);
 
     private static readonly Regex SymbolSourceLinkRegex = new(
-        """<a\s+href="[^"]*"\s+class="doc-symbol-source-link"\s*>Source</a>""",
+        """<a\s+href="[^"]*"\s+class="doc-symbol-source-link"[^>]*>Source</a>""",
         RegexOptions.IgnoreCase | RegexOptions.NonBacktracking);
 
     private sealed record CachedDocsSnapshot(
@@ -529,7 +529,8 @@ public class DocAggregator
                     return string.Empty;
                 }
 
-                return $@"<a href=""{WebUtility.HtmlEncode(href)}"" class=""doc-symbol-source-link"">Source</a>";
+                var label = $"View source for {anchorId}";
+                return $@"<a href=""{WebUtility.HtmlEncode(href)}"" class=""doc-symbol-source-link"" aria-label=""{WebUtility.HtmlEncode(label)}"">Source</a>";
             });
     }
 
@@ -544,6 +545,7 @@ public class DocAggregator
         }
 
         var seenProvenance = new HashSet<string>(StringComparer.Ordinal);
+        var ambiguousAnchors = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var provenance in doc.SymbolSourceProvenance ?? [])
         {
@@ -555,10 +557,17 @@ public class DocAggregator
 
             if (!seenProvenance.Add(anchorId))
             {
+                ambiguousAnchors.Add(anchorId);
+                hrefsByAnchor.Remove(anchorId);
                 _logger.LogDebug(
-                    "Ignoring duplicate RazorDocs symbol source provenance for {AnchorId} in {DocPath}.",
+                    "Omitting RazorDocs symbol source link for {AnchorId} in {DocPath} because multiple provenance entries were rendered.",
                     anchorId,
                     doc.Path);
+                continue;
+            }
+
+            if (ambiguousAnchors.Contains(anchorId))
+            {
                 continue;
             }
 

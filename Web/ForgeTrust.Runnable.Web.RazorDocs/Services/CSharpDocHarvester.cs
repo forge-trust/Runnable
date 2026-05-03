@@ -104,10 +104,7 @@ public class CSharpDocHarvester : IDocHarvester
                             {CreateSymbolSourcePlaceholder(typeId)}
                         </header>");
 
-                    if (doc is not null)
-                    {
-                        AddSymbolSourceProvenance(namespacePage, typeId, relativePath, typeDecl);
-                    }
+                    AddSymbolSourceProvenance(namespacePage, typeId, relativePath, typeDecl);
 
                     if (!string.IsNullOrWhiteSpace(doc))
                     {

@@ -6,8 +6,32 @@ using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Config;
 
+/// <summary>
+/// Validates resolved <see cref="Config{T}"/> and <see cref="ConfigStruct{T}"/> values with DataAnnotations.
+/// The validator returns immediately for null values and scalar primitives, validates object and field
+/// annotations before initialization completes, and traverses nested members only when callers opt in with
+/// <see cref="ValidateObjectMembersAttribute"/> or <see cref="ValidateEnumeratedItemsAttribute"/>. Recursive
+/// traversal tracks the active object path by reference so cycles terminate while shared objects can still be
+/// reported at each reachable path. Runnable owns this traversal and the
+/// <see cref="ConfigurationValidationException"/> shape; the custom validator type overloads on the Microsoft
+/// Options marker attributes are reported as unsupported failures rather than invoked.
+/// </summary>
 internal static class ConfigDataAnnotationsValidator
 {
+    /// <summary>
+    /// Validates a resolved configuration value and throws <see cref="ConfigurationValidationException"/> when
+    /// DataAnnotations failures are found. Call this after provider/default resolution and before config
+    /// initialization is considered complete. Null and scalar values short-circuit, recursive validation is
+    /// marker-gated, and callers should catch <see cref="ConfigurationValidationException"/> to inspect the
+    /// structured failures.
+    /// </summary>
+    /// <param name="key">The configuration key being initialized.</param>
+    /// <param name="configType">The concrete configuration wrapper type being initialized.</param>
+    /// <param name="valueType">The resolved value type that is being validated.</param>
+    /// <param name="value">The resolved provider or default value.</param>
+    /// <exception cref="ConfigurationValidationException">
+    /// Thrown when the resolved value or an opted-in nested value violates DataAnnotations validation rules.
+    /// </exception>
     public static void Validate(
         string key,
         Type configType,
@@ -67,6 +91,8 @@ internal static class ConfigDataAnnotationsValidator
                 failures.Add(ToFailure(key, configType, valueType, path, result));
             }
 
+            ValidateFieldAnnotations(key, configType, valueType, value, path, failures);
+
             foreach (var property in GetValidatableProperties(value.GetType()))
             {
                 ValidateProperty(key, configType, valueType, value, property, path, activePath, failures);
@@ -82,6 +108,41 @@ internal static class ConfigDataAnnotationsValidator
             if (!value.GetType().IsValueType)
             {
                 activePath.Remove(value);
+            }
+        }
+    }
+
+    private static void ValidateFieldAnnotations(
+        string key,
+        Type configType,
+        Type valueType,
+        object parent,
+        string? parentPath,
+        List<ConfigurationValidationFailure> failures)
+    {
+        foreach (var field in GetValidatableFields(parent.GetType()))
+        {
+            var attributes = field.GetCustomAttributes<ValidationAttribute>(inherit: true).ToArray();
+            if (attributes.Length == 0)
+            {
+                continue;
+            }
+
+            var results = new List<ValidationResult>();
+            var context = new ValidationContext(parent)
+            {
+                MemberName = field.Name
+            };
+
+            Validator.TryValidateValue(
+                field.GetValue(parent),
+                context,
+                results,
+                attributes);
+
+            foreach (var result in results)
+            {
+                failures.Add(ToFailure(key, configType, valueType, parentPath, result, field.Name));
             }
         }
     }
@@ -225,9 +286,16 @@ internal static class ConfigDataAnnotationsValidator
         Type configType,
         Type valueType,
         string? path,
-        ValidationResult result)
+        ValidationResult result,
+        string? defaultMemberName = null)
     {
-        var memberNames = result.MemberNames
+        var resultMemberNames = result.MemberNames.ToList();
+        if (resultMemberNames.Count == 0 && defaultMemberName != null)
+        {
+            resultMemberNames.Add(defaultMemberName);
+        }
+
+        var memberNames = resultMemberNames
             .Select(memberName => PrefixMemberName(path, memberName))
             .Where(memberName => !string.IsNullOrWhiteSpace(memberName))
             .ToList();

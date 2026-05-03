@@ -30,6 +30,19 @@ public class ConfigTests
     {
     }
 
+    private sealed class FieldAnnotatedOptions
+    {
+        [Required]
+        public string? Name = null;
+
+        [Range(1, 5)]
+        public int RetryCount;
+    }
+
+    private sealed class FieldAnnotatedOptionsConfig : Config<FieldAnnotatedOptions>
+    {
+    }
+
     private sealed class DefaultAnnotatedOptionsConfig : Config<AnnotatedOptions>
     {
         public override AnnotatedOptions DefaultValue { get; } = new()
@@ -448,6 +461,19 @@ public class ConfigTests
             failure => failure.MemberNames.SequenceEqual(["RetryCount"])
                        && failure.Message.Contains("between 1 and 5", StringComparison.Ordinal));
         Assert.DoesNotContain("7", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Init_WithInvalidPublicFields_ThrowsStructuredValidationException()
+    {
+        var config = new FieldAnnotatedOptionsConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, new FieldAnnotatedOptions { RetryCount = 7 }));
+
+        Assert.Equal(2, exception.Failures.Count);
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["Name"]));
+        Assert.Contains(exception.Failures, failure => failure.MemberNames.SequenceEqual(["RetryCount"]));
     }
 
     [Fact]

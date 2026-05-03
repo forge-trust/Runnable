@@ -54,15 +54,33 @@ internal partial class DefaultConfigManager : IConfigManager
             return envValue;
         }
 
+        T? providerValue = default;
+        string? providerName = null;
         foreach (var provider in _otherProviders)
         {
             var value = provider.GetValue<T>(environment, key);
             if (value != null)
             {
-                LogRetrievedFromEnvironment(key, environment, provider.Name);
+                providerValue = value;
+                providerName = provider.Name;
 
-                return value;
+                break;
             }
+        }
+
+        if (_environmentProvider is IConfigValuePatcher patcher
+            && patcher.TryPatch(environment, key, providerValue, out var patchedValue))
+        {
+            LogRetrievedFromEnvironment(key, environment, "Environment");
+
+            return patchedValue;
+        }
+
+        if (providerValue != null)
+        {
+            LogRetrievedFromEnvironment(key, environment, providerName!);
+
+            return providerValue;
         }
 
         LogKeyNotFound(key, environment);

@@ -89,7 +89,10 @@ Check out the examples to see how modules are composed in practice:
 ```bash
 dotnet run --project examples/console-app
 dotnet run --project examples/web-app
+dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
 ```
+
+The RazorWire MVC example includes a failed-form UX page at `/Reactivity/FormFailures` that shows server-handled validation, development anti-forgery diagnostics, default fallback rendering, and consumer styling hooks.
 
 ## Release notes and upgrade policy
 

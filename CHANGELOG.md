@@ -20,6 +20,7 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 - Runnable now has a repo-level release contract: a public release hub, an unreleased proof artifact, a pre-1.0 upgrade policy, and a tagged-release template for future versioned notes.
 - RazorDocs pages can now render a top-of-page trust bar from structured metadata so release notes and upgrade guidance can show status, safety context, and provenance without custom page code.
 - RazorDocs now supports metadata-driven page wayfinding: harvested outlines, explicit proof-path previous/next links, related pages, and sidebar anchor navigation.
+- RazorWire forms now have convention-based failed-submission UX with default form-local fallbacks, server helpers for handled validation errors, development anti-forgery diagnostics, runtime events, and sample coverage.
 
 ### Changed
 
@@ -31,6 +32,7 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 
 - Runnable has not cut `v0.1.0` yet, so there is no tagged migration guide today.
 - Before `v0.1.0`, any breaking or behavior-changing update should record provisional guidance in [`releases/unreleased.md`](./releases/unreleased.md) and move finalized steps into the tagged release note once the version ships.
+- Existing `rw-active` forms opt into failed-form request markers and automatic fallback UI by default. Set `options.Forms.EnableFailureUx = false`, `options.Forms.FailureMode = RazorWireFormFailureMode.Manual`, or per-form `data-rw-form-failure="off"` if an app already owns all failure rendering.
 
 ## No tagged releases yet
 

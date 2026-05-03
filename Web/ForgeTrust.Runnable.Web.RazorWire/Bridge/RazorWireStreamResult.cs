@@ -1,5 +1,6 @@
 using System.Text;
 using ForgeTrust.Runnable.Core.Extensions;
+using ForgeTrust.Runnable.Web.RazorWire.Forms;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -17,16 +18,26 @@ public class RazorWireStreamResult : IActionResult
 {
     private readonly IEnumerable<IRazorWireStreamAction> _actions;
     private readonly Controller? _controller;
+    private readonly int? _statusCode;
+    private readonly bool _formHandled;
 
     /// <summary>
     /// Initializes a new <see cref="RazorWireStreamResult"/> with the sequence of actions to render and an optional controller whose view context may be reused.
     /// </summary>
     /// <param name="actions">Sequence of IRazorWireStreamAction instances to render and stream as Turbo Stream HTML fragments.</param>
     /// <param name="controller">Optional controller whose ViewData and TempData will be reused during rendering; if null, fresh view and temp data are created.</param>
-    public RazorWireStreamResult(IEnumerable<IRazorWireStreamAction> actions, Controller? controller = null)
+    /// <param name="statusCode">Optional HTTP status code to set before writing stream output.</param>
+    /// <param name="formHandled">Whether this result contains server-rendered failed-form UI.</param>
+    public RazorWireStreamResult(
+        IEnumerable<IRazorWireStreamAction> actions,
+        Controller? controller = null,
+        int? statusCode = null,
+        bool formHandled = false)
     {
         _actions = actions;
         _controller = controller;
+        _statusCode = statusCode;
+        _formHandled = formHandled;
     }
 
     /// <summary>
@@ -59,6 +70,16 @@ public class RazorWireStreamResult : IActionResult
         }
 
         var response = context.HttpContext.Response;
+        if (_statusCode is not null)
+        {
+            response.StatusCode = _statusCode.Value;
+        }
+
+        if (_formHandled)
+        {
+            response.Headers[RazorWireFormHeaders.FormHandled] = "true";
+        }
+
         response.ContentType = "text/vnd.turbo-stream.html";
 
         var viewContext = CreateViewContext(context);

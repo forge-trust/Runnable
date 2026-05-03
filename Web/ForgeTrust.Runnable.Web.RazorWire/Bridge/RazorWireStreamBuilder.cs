@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Bridge;
 
@@ -10,6 +11,7 @@ public class RazorWireStreamBuilder
 {
     private readonly Controller? _controller;
     private readonly List<IRazorWireStreamAction> _actions = new();
+    private bool _hasFormError;
 
     /// <summary>
     /// Initializes a new instance of <see cref="RazorWireStreamBuilder"/> and captures an optional <see cref="Controller"/> for rendering partials or view components.
@@ -252,6 +254,63 @@ public class RazorWireStreamBuilder
     }
 
     /// <summary>
+    /// Queues a form-local failure summary for an enhanced RazorWire form.
+    /// </summary>
+    /// <param name="target">The DOM target that should receive the generated failure block.</param>
+    /// <param name="title">Plain-text failure title. RazorWire HTML-encodes this value.</param>
+    /// <param name="message">Plain-text failure message. RazorWire HTML-encodes this value.</param>
+    /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
+    public RazorWireStreamBuilder FormError(string target, string title, string message)
+    {
+        _hasFormError = true;
+        _actions.Add(new RawHtmlStreamAction(
+            "update",
+            target,
+            BuildGeneratedFormErrorHtml(title, message, [], "server")));
+
+        return this;
+    }
+
+    /// <summary>
+    /// Queues a form-local validation summary from an MVC <see cref="ModelStateDictionary"/>.
+    /// </summary>
+    /// <param name="target">The DOM target that should receive the generated validation block.</param>
+    /// <param name="modelState">The MVC model state to render into a validation summary.</param>
+    /// <param name="title">Plain-text summary title. RazorWire HTML-encodes this value.</param>
+    /// <param name="maxErrors">Maximum number of individual validation errors to show before an overflow line is added.</param>
+    /// <param name="message">Plain-text fallback message used when the model state contains no displayable errors.</param>
+    /// <returns>The current <see cref="RazorWireStreamBuilder"/> instance for fluent chaining.</returns>
+    public RazorWireStreamBuilder FormValidationErrors(
+        string target,
+        ModelStateDictionary modelState,
+        string title = "Please fix the highlighted fields.",
+        int maxErrors = 10,
+        string message = "We could not submit this form. Check your input and try again.")
+    {
+        ArgumentNullException.ThrowIfNull(modelState);
+
+        _hasFormError = true;
+        var errors = CollectModelStateErrors(modelState);
+        var visibleErrors = errors.Take(Math.Max(1, maxErrors)).ToList();
+        var hiddenCount = Math.Max(0, errors.Count - visibleErrors.Count);
+        var fallbackMessage = errors.Count == 0
+            ? message
+            : "Check the validation messages and try again.";
+
+        _actions.Add(new RawHtmlStreamAction(
+            "update",
+            target,
+            BuildGeneratedFormErrorHtml(
+                title,
+                fallbackMessage,
+                visibleErrors,
+                "validation",
+                hiddenCount)));
+
+        return this;
+    }
+
+    /// <summary>
     /// Builds a single concatenated Turbo Stream markup string from the queued raw HTML actions.
     /// </summary>
     /// <returns>The concatenated Turbo Stream markup representing the queued raw HTML actions.</returns>
@@ -310,10 +369,74 @@ public class RazorWireStreamBuilder
     /// Creates a <see cref="RazorWireStreamResult"/> containing the builder's queued stream actions and associated controller.
     /// </summary>
     /// <returns>A <see cref="RazorWireStreamResult"/> initialized with a copy of the queued actions and the builder's controller.</returns>
-    public RazorWireStreamResult BuildResult()
+    public RazorWireStreamResult BuildResult(int? statusCode = null)
     {
-        return new RazorWireStreamResult(_actions.ToList(), _controller);
+        return new RazorWireStreamResult(
+            _actions.ToList(),
+            _controller,
+            statusCode,
+            formHandled: _hasFormError);
     }
+
+    private static string BuildGeneratedFormErrorHtml(
+        string title,
+        string message,
+        IReadOnlyList<RazorWireValidationError> validationErrors,
+        string kind,
+        int hiddenErrorCount = 0)
+    {
+        var encodedTitle = HtmlEncoder.Default.Encode(title);
+        var encodedMessage = HtmlEncoder.Default.Encode(message);
+        var encodedKind = HtmlEncoder.Default.Encode(kind);
+        var validationMarkup = validationErrors.Count == 0
+            ? string.Empty
+            : "<ul data-rw-form-error-list=\"true\">"
+              + string.Concat(validationErrors.Select(RenderValidationError))
+              + "</ul>";
+        var overflowMarkup = hiddenErrorCount <= 0
+            ? string.Empty
+            : $"<p data-rw-form-error-overflow=\"true\">{HtmlEncoder.Default.Encode($"There are {hiddenErrorCount} more validation errors.")}</p>";
+
+        return $"""
+                <div data-rw-form-error-generated="true" data-rw-form-error-kind="{encodedKind}" role="status" aria-live="polite" tabindex="-1">
+                  <strong data-rw-form-error-title="true">{encodedTitle}</strong>
+                  <p data-rw-form-error-message="true">{encodedMessage}</p>
+                  {validationMarkup}
+                  {overflowMarkup}
+                </div>
+                """;
+    }
+
+    private static string RenderValidationError(RazorWireValidationError error)
+    {
+        var fieldAttribute = string.IsNullOrEmpty(error.Key)
+            ? string.Empty
+            : $" data-rw-form-error-field=\"{HtmlEncoder.Default.Encode(error.Key)}\"";
+        var fieldName = string.IsNullOrEmpty(error.Key)
+            ? string.Empty
+            : $"<span data-rw-form-error-field-name=\"true\">{HtmlEncoder.Default.Encode(error.Key)}</span>: ";
+
+        return $"<li{fieldAttribute}>{fieldName}{HtmlEncoder.Default.Encode(error.Message)}</li>";
+    }
+
+    private static List<RazorWireValidationError> CollectModelStateErrors(ModelStateDictionary modelState)
+    {
+        var errors = new List<RazorWireValidationError>();
+        foreach (var entry in modelState)
+        {
+            foreach (var error in entry.Value.Errors)
+            {
+                var message = string.IsNullOrWhiteSpace(error.ErrorMessage)
+                    ? "The value is invalid."
+                    : error.ErrorMessage;
+                errors.Add(new RazorWireValidationError(entry.Key, message));
+            }
+        }
+
+        return errors;
+    }
+
+    private sealed record RazorWireValidationError(string Key, string Message);
 
     private class RawHtmlStreamAction : IRazorWireStreamAction
     {

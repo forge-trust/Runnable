@@ -39,7 +39,7 @@ public class RazorWireWebModuleTests
     }
 
     [Fact]
-    public void ConfigureWebOptions_InProduction_WithSufficientMvc_DoesNotChangeOptions()
+    public void ConfigureWebOptions_InProduction_WithSufficientMvc_PreservesSupportAndAddsConfigureMvc()
     {
         // Arrange
         var module = new RazorWireWebModule();
@@ -59,7 +59,8 @@ public class RazorWireWebModuleTests
 
         // Assert
         Assert.Equal(MvcSupport.Full, options.Mvc.MvcSupportLevel);
-        Assert.Same(configure, options.Mvc.ConfigureMvc);
+        Assert.NotNull(options.Mvc.ConfigureMvc);
+        Assert.NotSame(configure, options.Mvc.ConfigureMvc);
     }
 
     [Fact]

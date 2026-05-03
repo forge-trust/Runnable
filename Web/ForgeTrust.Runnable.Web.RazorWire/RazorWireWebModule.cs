@@ -1,5 +1,6 @@
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorWire.Caching;
+using ForgeTrust.Runnable.Web.RazorWire.Forms;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.OutputCaching;
@@ -24,17 +25,34 @@ public class RazorWireWebModule : IRunnableWebModule
     {
         var needsRuntimeCompilation = context.IsDevelopment;
         var needsMvcUpgrade = options.Mvc.MvcSupportLevel < MvcSupport.ControllersWithViews;
+        Action<IMvcBuilder> configureRazorWireMvc = builder =>
+        {
+            if (needsRuntimeCompilation)
+            {
+                builder.AddRazorRuntimeCompilation();
+            }
 
-        if (needsRuntimeCompilation || needsMvcUpgrade)
+            builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(mvcOptions =>
+            {
+                mvcOptions.Filters.AddService<RazorWireAntiforgeryFailureFilter>(order: int.MaxValue - 100);
+            });
+        };
+
+        if (needsRuntimeCompilation || needsMvcUpgrade || options.Mvc.ConfigureMvc is not null)
         {
             // Even if only 'needsRuntimeCompilation' is true, we recreate the options record
             // to pass both flags. This simplifies the logic by handling all upgrades in one place.
             options.Mvc = options.Mvc with
             {
                 MvcSupportLevel = needsMvcUpgrade ? MvcSupport.ControllersWithViews : options.Mvc.MvcSupportLevel,
-                ConfigureMvc = needsRuntimeCompilation
-                    ? options.Mvc.ConfigureMvc + (builder => builder.AddRazorRuntimeCompilation())
-                    : options.Mvc.ConfigureMvc
+                ConfigureMvc = options.Mvc.ConfigureMvc + configureRazorWireMvc
+            };
+        }
+        else
+        {
+            options.Mvc = options.Mvc with
+            {
+                ConfigureMvc = configureRazorWireMvc
             };
         }
     }

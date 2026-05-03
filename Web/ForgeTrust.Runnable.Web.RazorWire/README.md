@@ -58,6 +58,8 @@ public IActionResult IncrementCounter([FromForm] int clientCount)
 
 Read the [focused proof path](../../examples/razorwire-mvc/README.md#start-here-return-razor-fragments) for the file-by-file walkthrough. If copying this pattern gives you a bare `400 Bad Request`, anti-forgery is the first thing to check. See [Security & Anti-Forgery](Docs/antiforgery.md).
 
+For failed submissions, RazorWire also ships a convention-based form UX stack: default form-local fallbacks for unhandled failures, server helpers for validation errors, anti-forgery diagnostics in development, and styling/event hooks for consumers. See [Failed Form UX](Docs/form-failures.md) or run the sample and visit `/Reactivity/FormFailures`.
+
 ## Add the Module
 
 Once you already reference the RazorWire package in your app, add `RazorWireWebModule` to your root module:
@@ -100,6 +102,8 @@ You can customize RazorWire behavior via `RazorWireOptions`:
 services.AddRazorWire(options =>
 {
     options.Streams.BasePath = "/custom-stream-path";
+    options.Forms.FailureMode = RazorWireFormFailureMode.Auto;
+    options.Forms.DefaultFailureMessage = "We could not submit this form. Check your input and try again.";
 });
 ```
 
@@ -109,6 +113,7 @@ services.AddRazorWire(options =>
 - Push live updates to connected clients with `IRazorWireStreamHub` and `rw:stream-source`.
 - Return form updates from normal MVC controllers with `this.RazorWireStream()`, not a separate JSON API.
 - See the broader [RazorWire MVC Example](../../examples/razorwire-mvc/README.md) for registration, message publishing, islands, and SSE.
+- See [Failed Form UX](Docs/form-failures.md) for server failure conventions, customization, and diagnostics.
 - See [Security & Anti-Forgery](Docs/antiforgery.md) for the form-update patterns that matter in production.
 
 ## Core Concepts
@@ -125,9 +130,13 @@ RazorWire can push Turbo Stream updates to one or more clients over Server-Sent 
 
 Standard HTML forms can return targeted stream updates instead of full reloads or redirect-first flows. The counter example above is the smallest version of that story: submit a normal MVC form, return RazorWire updates, and change only the DOM you care about.
 
+`form[rw-active]` also marks enhanced form posts with `X-RazorWire-Form: true` and `__RazorWireForm=1`. That gives the runtime and server adapters enough context to render useful failed-submission UX without every controller hand-rolling client glue.
+
 ## Security & Anti-Forgery
 
 Handling anti-forgery tokens correctly is critical when updating forms via Turbo Streams. See [Security & Anti-Forgery](Docs/antiforgery.md) for the detailed patterns and recommendations.
+
+Development anti-forgery failures from RazorWire forms are rewritten into helpful form-local diagnostics when possible. Production responses stay safe and generic. See [Failed Form UX](Docs/form-failures.md#development-diagnostics).
 
 ## Development Experience
 
@@ -154,6 +163,9 @@ RazorWire is designed for a fast feedback loop during development:
 - `Replace(target, content)` replaces the target element entirely.
 - `Update(target, content)` replaces the inner content of the target.
 - `Remove(target)` removes the target element.
+- `FormError(target, title, message)` updates the target with an encoded generated error block and marks the response handled.
+- `FormValidationErrors(target, ModelState, title, maxErrors, message)` updates the target with a stable MVC validation summary and marks the response handled.
+- `BuildResult(statusCode)` returns the stream and optionally sets the HTTP status code.
 
 ## TagHelpers
 
@@ -182,6 +194,9 @@ Enhances a normal form so Turbo handles the submission and optional frame target
 
 - `rw-active="true"` enables RazorWire form handling.
 - `rw-target` sets the target frame when you want to constrain the response.
+- `data-rw-form-failure-target` points failed-submission UI at a local error container.
+- `data-rw-form-failure="auto"` uses the default fallback UI, `manual` only dispatches events, and `off` disables the failure convention for that form.
+- Generated hidden fields `__RazorWireForm` and, when possible, `__RazorWireFormFailureTarget` help server-side adapters identify and localize form failures.
 
 ```html
 <form asp-controller="Reactivity" asp-action="IncrementCounter" method="post" rw-active="true">
@@ -228,6 +243,8 @@ Injects the client scripts RazorWire needs, including Turbo and the RazorWire as
 <rw:scripts />
 ```
 
+The script tag also carries failed-form runtime configuration derived from `RazorWireOptions.Forms`; no inline configuration script is required.
+
 ## Utilities
 
 ### `StringUtils`
@@ -261,3 +278,5 @@ For installation, `dnx`, local-package, and source-run examples, see the
 
 - [Focused proof path: return Razor fragments](../../examples/razorwire-mvc/README.md#start-here-return-razor-fragments)
 - [Full RazorWire MVC example](../../examples/razorwire-mvc/README.md)
+- [Failed Form UX guide](Docs/form-failures.md)
+- [Security & Anti-Forgery](Docs/antiforgery.md)

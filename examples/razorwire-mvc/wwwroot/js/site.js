@@ -21,6 +21,28 @@
         }
     });
 
+    document.addEventListener('razorwire:form:failure', (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+
+        const manualTargetSelector = form.getAttribute('data-demo-manual-target');
+        if (!manualTargetSelector) return;
+
+        const target = document.querySelector(manualTargetSelector);
+        if (!target) return;
+
+        event.preventDefault();
+        target.innerHTML = '';
+        const block = document.createElement('div');
+        block.setAttribute('role', 'alert');
+        block.setAttribute('tabindex', '-1');
+        block.className = 'rounded-md border border-fuchsia-300 bg-fuchsia-50 px-3 py-2 text-sm text-fuchsia-950';
+        block.innerHTML = '<strong class="block font-semibold">Manual handler rendered this.</strong><p class="mt-1"></p>';
+        block.querySelector('p').textContent = event.detail?.message || 'The form failed.';
+        target.appendChild(block);
+        block.focus({ preventScroll: true });
+    });
+
     if (!document.startViewTransition) {
         console.warn('⚠️ View Transition API not supported in this browser. Morphing animations will be skipped.');
     } else {

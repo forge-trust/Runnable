@@ -311,6 +311,28 @@ public sealed class RazorWireMvcPlaywrightTests
     }
 
     [Fact]
+    public async Task FormFailures_ServerValidation_TrimsDisplayNameBeforeLengthValidation()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
+        await page.FillAsync("#failure-display-name", "  12345678901234567890  ");
+
+        var response = await SubmitAndWaitForPostAsync(
+            page,
+            "form[action*='SubmitValidationFailure']",
+            "/Reactivity/SubmitValidationFailure");
+
+        Assert.Equal(200, response.Status);
+        await WaitForTextAsync(page, "#validation-result", "Saved 12345678901234567890.");
+        var validationErrors = await page.Locator("#validation-errors").InnerTextAsync();
+        Assert.DoesNotContain("Display name must be 20 characters or fewer.", validationErrors);
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
+    }
+
+    [Fact]
     public async Task FormFailures_MissingAntiforgery_RendersDevelopmentDiagnosticInLocalTarget()
     {
         await using var context = await _fixture.Browser.NewContextAsync();

@@ -186,12 +186,13 @@ public class ReactivityController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult SubmitValidationFailure([FromForm] string? displayName)
     {
-        if (string.IsNullOrWhiteSpace(displayName))
+        var normalizedDisplayName = displayName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedDisplayName))
         {
             ModelState.AddModelError(nameof(displayName), "Display name is required.");
         }
 
-        if (displayName?.Length > 20)
+        if (normalizedDisplayName is { Length: > 20 })
         {
             ModelState.AddModelError(nameof(displayName), "Display name must be 20 characters or fewer.");
         }
@@ -210,7 +211,7 @@ public class ReactivityController : Controller
 
         if (Request.IsTurboRequest())
         {
-            var savedDisplayName = displayName!.Trim();
+            var savedDisplayName = normalizedDisplayName!;
 
             return this.RazorWireStream()
                 .Update(

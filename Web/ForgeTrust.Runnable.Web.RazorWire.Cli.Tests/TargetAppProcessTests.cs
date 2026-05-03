@@ -140,6 +140,40 @@ public class TargetAppProcessTests
     }
 
     [Fact]
+    public async Task DisposeAsync_Should_Swallow_Timeout_And_Skip_Final_Flush()
+    {
+        var waitForExitAsyncCalled = false;
+        var waitForExitCalled = false;
+
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--version"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            new TargetAppProcessHooks
+            {
+                HasExitedOverride = _ => false,
+                KillProcessOverride = _ => { },
+                WaitForExitAsyncOverride = (_, cancellationToken) =>
+                {
+                    waitForExitAsyncCalled = true;
+                    throw new OperationCanceledException(cancellationToken);
+                },
+                WaitForExitOverride = _ => waitForExitCalled = true
+            },
+            process: new Process(),
+            started: true);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
+        Assert.True(waitForExitAsyncCalled);
+        Assert.False(waitForExitCalled);
+    }
+
+    [Fact]
     public void Factory_Should_Create_TargetProcess()
     {
         var factory = new TargetAppProcessFactory();

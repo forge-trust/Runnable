@@ -47,7 +47,7 @@ public interface ITargetAppProcess : IAsyncDisposable
     /// Pitfalls:
     /// <list type="bullet">
     /// <item><description>Short-lived processes can exit before their output callbacks are delivered, so disposal performs the final flush step to improve callback delivery timing.</description></item>
-    /// <item><description>Cleanup swallows <see cref="InvalidOperationException"/>, timeout-driven <see cref="OperationCanceledException"/>, and recoverable kill, wait, or flush exceptions such as <see cref="Win32Exception"/> or <see cref="NotSupportedException"/> as part of best-effort disposal.</description></item>
+    /// <item><description>Cleanup swallows <see cref="InvalidOperationException"/>, timeout-driven <see cref="OperationCanceledException"/>, <see cref="ObjectDisposedException"/>, and recoverable kill, wait, or flush exceptions such as <see cref="Win32Exception"/> or <see cref="NotSupportedException"/> as part of best-effort disposal.</description></item>
     /// <item><description>Callers must not rely on guaranteed process termination; disposal can return after the 5-second timeout even if the operating system process has not fully exited.</description></item>
     /// </list>
     /// </remarks>

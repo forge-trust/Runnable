@@ -61,6 +61,7 @@ public class RazorWireWebModuleTests
         Assert.Equal(MvcSupport.Full, options.Mvc.MvcSupportLevel);
         Assert.NotNull(options.Mvc.ConfigureMvc);
         Assert.NotSame(configure, options.Mvc.ConfigureMvc);
+        Assert.Contains(options.Mvc.ConfigureMvc!.GetInvocationList(), callback => ReferenceEquals(callback, configure));
     }
 
     [Fact]

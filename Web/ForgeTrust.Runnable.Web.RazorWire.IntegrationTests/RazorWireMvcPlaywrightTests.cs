@@ -295,6 +295,7 @@ public sealed class RazorWireMvcPlaywrightTests
         var page = await context.NewPageAsync();
 
         await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
 
         var response = await SubmitAndWaitForPostAsync(
             page,
@@ -304,6 +305,7 @@ public sealed class RazorWireMvcPlaywrightTests
         Assert.Equal(400, response.Status);
         Assert.Equal("true", await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
         await WaitForTextAsync(page, "#antiforgery-errors", "Antiforgery token validation failed");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
     }
 
     [Fact]
@@ -313,6 +315,7 @@ public sealed class RazorWireMvcPlaywrightTests
         var page = await context.NewPageAsync();
 
         await page.GotoAsync(_fixture.FormFailuresUrl);
+        await PlantNoRefreshMarkerAsync(page);
 
         var response = await SubmitAndWaitForPostAsync(
             page,
@@ -322,6 +325,7 @@ public sealed class RazorWireMvcPlaywrightTests
         Assert.Equal(500, response.Status);
         Assert.Null(await response.HeaderValueAsync("X-RazorWire-Form-Handled"));
         await WaitForTextAsync(page, "#server-errors", "Something went wrong");
+        await AssertNoPageRefreshAsync(page, _fixture.FormFailuresUrl);
     }
 
     private static async Task WaitForStreamConnectedAsync(IPage page)

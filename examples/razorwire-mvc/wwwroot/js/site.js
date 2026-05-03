@@ -28,7 +28,13 @@
         const manualTargetSelector = form.getAttribute('data-demo-manual-target');
         if (!manualTargetSelector) return;
 
-        const target = document.querySelector(manualTargetSelector);
+        let target = null;
+        try {
+            target = document.querySelector(manualTargetSelector);
+        } catch {
+            return;
+        }
+
         if (!target) return;
 
         event.preventDefault();

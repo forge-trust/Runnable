@@ -596,6 +596,10 @@
             }
 
             const target = this.resolveTarget(form);
+            const developmentDiagnostic = target.diagnostic
+                || (!handled && this.config.developmentDiagnostics
+                    ? this.diagnosticForFailure({ form, statusCode, responseKind })
+                    : null);
             const failureDetail = {
                 form,
                 submitter,
@@ -604,12 +608,12 @@
                 responseKind,
                 target: target.element,
                 message: this.messageForStatus(statusCode, responseKind),
-                developmentDiagnostic: target.diagnostic
+                developmentDiagnostic
             };
 
             const failureEvent = this.dispatch(form, 'razorwire:form:failure', failureDetail, true);
-            if (target.diagnostic) {
-                this.dispatch(form, 'razorwire:form:diagnostic', target.diagnostic);
+            if (failureDetail.developmentDiagnostic) {
+                this.dispatch(form, 'razorwire:form:diagnostic', failureDetail.developmentDiagnostic);
             }
 
             if (handled) {
@@ -631,6 +635,10 @@
             form.setAttribute('data-rw-submit-status', 'failed');
 
             const target = this.resolveTarget(form);
+            const developmentDiagnostic = target.diagnostic
+                || (this.config.developmentDiagnostics
+                    ? this.diagnosticForFailure({ form, statusCode: null, responseKind: 'network' })
+                    : null);
             const failureDetail = {
                 form,
                 submitter,
@@ -639,13 +647,25 @@
                 responseKind: 'network',
                 target: target.element,
                 message: this.messageForStatus(null, 'network'),
-                developmentDiagnostic: target.diagnostic
+                developmentDiagnostic
             };
 
             const failureEvent = this.dispatch(form, 'razorwire:form:failure', failureDetail, true);
+            if (failureDetail.developmentDiagnostic) {
+                this.dispatch(form, 'razorwire:form:diagnostic', failureDetail.developmentDiagnostic);
+            }
+
             if (!failureEvent.defaultPrevented && this.getMode(form) === 'auto') {
                 this.renderFailure(form, target.element, failureDetail);
             }
+
+            this.dispatch(form, 'razorwire:form:submit-end', {
+                form,
+                submitter,
+                success: false,
+                statusCode: null,
+                handled: false
+            });
         }
 
         finishSubmitting(form, formState) {
@@ -761,7 +781,9 @@
             const role = detail.responseKind === 'network' || (detail.statusCode && detail.statusCode >= 500) ? 'alert' : 'status';
             const live = role === 'alert' ? 'assertive' : 'polite';
             const title = this.titleForStatus(detail.statusCode, detail.responseKind);
-            const diagnostic = this.config.developmentDiagnostics ? this.diagnosticForFailure(detail) : null;
+            const diagnostic = detail.developmentDiagnostic
+                || (this.config.developmentDiagnostics ? this.diagnosticForFailure(detail) : null);
+            detail.developmentDiagnostic = diagnostic;
             const block = document.createElement('div');
             block.id = `rw-form-error-${owner}-${this.nextId++}`;
             block.setAttribute('data-rw-form-error-generated', 'true');
@@ -785,7 +807,6 @@
                     item.textContent = hint;
                     hintList.appendChild(item);
                 });
-                this.dispatch(form, 'razorwire:form:diagnostic', diagnostic);
             }
 
             if (target === form) {

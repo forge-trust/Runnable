@@ -198,8 +198,6 @@ public class ReactivityController : Controller
 
         if (!ModelState.IsValid)
         {
-            Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
-
             if (Request.IsTurboRequest())
             {
                 return this.RazorWireStream()

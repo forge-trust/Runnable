@@ -1,3 +1,4 @@
+using System.Text;
 using ForgeTrust.Runnable.Web.RazorWire.Forms;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -50,8 +51,27 @@ public class RazorWireAntiforgeryFailureFilterTests
 
         var contentResult = Assert.IsType<ContentResult>(context.Result);
         Assert.Contains("targets=\"body\"", contentResult.Content);
+        Assert.Contains("action=\"remove\"", contentResult.Content);
         Assert.Contains("Refresh the page and try again.", contentResult.Content);
         Assert.DoesNotContain("Antiforgery token validation failed", contentResult.Content);
+        Assert.Equal("true", context.HttpContext.Response.Headers[RazorWireFormHeaders.FormHandled]);
+    }
+
+    [Fact]
+    public async Task OnResultExecutionAsync_WhenFailureTargetBodyLengthUnknown_DoesNotReadTargetFromBody()
+    {
+        var body = "__RazorWireForm=1&__RazorWireFormFailureTarget=form-errors";
+        var context = CreateResultExecutingContext(accept: "text/vnd.turbo-stream.html");
+        context.HttpContext.Request.Headers[RazorWireFormHeaders.FormRequest] = "true";
+        context.HttpContext.Request.ContentType = "application/x-www-form-urlencoded";
+        context.HttpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
+        var filter = CreateFilter(Environments.Development);
+
+        await filter.OnResultExecutionAsync(context, () => CreateExecutedContext(context));
+
+        var contentResult = Assert.IsType<ContentResult>(context.Result);
+        Assert.Contains("targets=\"body\"", contentResult.Content);
+        Assert.DoesNotContain("target=\"form-errors\"", contentResult.Content);
     }
 
     [Fact]

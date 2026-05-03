@@ -36,6 +36,20 @@ public class RazorWireFormRequestClassifierTests
     }
 
     [Fact]
+    public async Task IsRazorWireFormRequestAsync_WithUnknownContentLength_ReturnsFalse()
+    {
+        var context = new DefaultHttpContext();
+        var body = "__RazorWireForm=1&name=value";
+        context.Request.ContentType = "application/x-www-form-urlencoded";
+        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
+        var classifier = CreateClassifier();
+
+        var result = await classifier.IsRazorWireFormRequestAsync(context.Request);
+
+        Assert.False(result);
+    }
+
+    [Fact]
     public async Task IsRazorWireFormRequestAsync_WithAlreadyParsedForm_ReturnsTrue()
     {
         var context = new DefaultHttpContext();

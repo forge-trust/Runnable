@@ -246,6 +246,31 @@ public class RazorWireStreamBuilderTests
         Assert.DoesNotContain("data-rw-form-error-list", rendered);
     }
 
+    [Fact]
+    public async Task FormValidationErrors_WithZeroMaxErrors_RendersOnlyOverflow()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.AddModelError("Name", "Name is required");
+        modelState.AddModelError("Email", "Email is required");
+        var tempDataFactory = A.Fake<ITempDataDictionaryFactory>();
+        using var actionContext = RazorWireTestContext.CreateActionContext(services =>
+        {
+            services.AddSingleton(tempDataFactory);
+        });
+        A.CallTo(() => tempDataFactory.GetTempData(A<HttpContext>._)).Returns(A.Fake<ITempDataDictionary>());
+
+        var result = new RazorWireStreamBuilder()
+            .FormValidationErrors("form-errors", modelState, maxErrors: 0)
+            .BuildResult(StatusCodes.Status422UnprocessableEntity);
+
+        await result.ExecuteResultAsync(actionContext.ActionContext);
+        var rendered = await RazorWireTestContext.ReadBodyAsync(actionContext.ActionContext.HttpContext.Response);
+
+        Assert.DoesNotContain("data-rw-form-error-list", rendered);
+        Assert.DoesNotContain("Name is required", rendered);
+        Assert.Contains("There are 2 more validation errors.", rendered);
+    }
+
     private static ViewContext CreateViewContext()
     {
         var httpContext = new DefaultHttpContext

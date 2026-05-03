@@ -129,18 +129,85 @@ test('handled failures clear generated fallback instead of duplicating server UI
   form.setAttribute('data-rw-form-failure', 'auto');
   document.body.appendChild(form);
 
+  assert.equal(windowHandled(response(422, { 'X-RazorWire-Form-Handled': 'true' })), true);
+  assert.equal(windowHandled(response(422, { 'X-RazorWire-Form-Handled': '1' })), true);
+
   document.dispatchEvent({
     type: 'turbo:submit-end',
     target: form,
     detail: {
       success: false,
       formSubmission: { submitter: null },
-      fetchResponse: response(422, { 'X-RazorWire-Form-Handled': 'true', 'content-type': 'text/vnd.turbo-stream.html' })
+      fetchResponse: response(500, { 'content-type': 'text/html' })
+    }
+  });
+
+  assert.equal(form.querySelectorAll('[data-rw-form-error-generated="true"]').length, 1);
+
+  document.dispatchEvent({
+    type: 'turbo:submit-end',
+    target: form,
+    detail: {
+      success: false,
+      formSubmission: { submitter: null },
+      fetchResponse: response(422, { 'X-RazorWire-Form-Handled': '1', 'content-type': 'text/vnd.turbo-stream.html' })
     }
   });
 
   assert.equal(form.querySelectorAll('[data-rw-form-error-generated="true"]').length, 0);
   assert.equal(form.getAttribute('data-rw-submit-status'), 'failed');
+});
+
+test('manual failures expose development diagnostic without rendering fallback', () => {
+  const { document } = loadRuntime();
+  const events = [];
+  const form = new FakeForm();
+  form.setAttribute('data-rw-form', 'true');
+  form.setAttribute('data-rw-form-failure', 'manual');
+  form.dispatchEvent = event => {
+    events.push(event);
+    return !event.defaultPrevented;
+  };
+  document.body.appendChild(form);
+
+  document.dispatchEvent({
+    type: 'turbo:submit-end',
+    target: form,
+    detail: {
+      success: false,
+      formSubmission: { submitter: null },
+      fetchResponse: response(500, { 'content-type': 'text/html' })
+    }
+  });
+
+  const failure = events.find(event => event.type === 'razorwire:form:failure');
+  assert.equal(failure.detail.developmentDiagnostic.title, 'RazorWire form submission failed');
+  assert.equal(failure.detail.developmentDiagnostic.statusCode, 500);
+  assert.equal(form.querySelectorAll('[data-rw-form-error-generated="true"]').length, 0);
+});
+
+test('network failures dispatch submit end lifecycle event', () => {
+  const { document } = loadRuntime();
+  const events = [];
+  const form = new FakeForm();
+  form.setAttribute('data-rw-form', 'true');
+  form.setAttribute('data-rw-form-failure', 'auto');
+  form.dispatchEvent = event => {
+    events.push(event);
+    return !event.defaultPrevented;
+  };
+  document.body.appendChild(form);
+
+  document.dispatchEvent({
+    type: 'turbo:fetch-request-error',
+    target: form,
+    detail: {}
+  });
+
+  const submitEnd = events.find(event => event.type === 'razorwire:form:submit-end');
+  assert.equal(submitEnd.detail.success, false);
+  assert.equal(submitEnd.detail.statusCode, null);
+  assert.equal(submitEnd.detail.handled, false);
 });
 
 test('global disabled failure UX ignores stale form-level auto markup', () => {
@@ -228,6 +295,12 @@ function response(status, headers) {
       }
     }
   };
+}
+
+function windowHandled(fetchResponse) {
+  const { context } = loadRuntime();
+
+  return context.window.RazorWire.formFailureManager.isHandled(fetchResponse);
 }
 
 class FakeCustomEvent {

@@ -80,7 +80,7 @@ public class RazorWireScriptsTagHelperTests
     {
         // Arrange
         var options = new RazorWireOptions();
-        options.Forms.DefaultFailureMessage = "Custom failure";
+        options.Forms.DefaultFailureMessage = "Custom \"failure\" & retry";
         var environment = new TestWebHostEnvironment { EnvironmentName = Environments.Development };
         var helper = new RazorWireScriptsTagHelper(_fileVersionProvider, options, environment)
         {
@@ -98,7 +98,7 @@ public class RazorWireScriptsTagHelperTests
         Assert.Contains("data-rw-development-diagnostics=\"true\"", content);
         Assert.Contains("data-rw-form-failure-enabled=\"true\"", content);
         Assert.Contains("data-rw-form-failure-mode=\"auto\"", content);
-        Assert.Contains("data-rw-default-failure-message=\"Custom failure\"", content);
+        Assert.Contains("data-rw-default-failure-message=\"Custom &quot;failure&quot; &amp; retry\"", content);
     }
 
     [Fact]

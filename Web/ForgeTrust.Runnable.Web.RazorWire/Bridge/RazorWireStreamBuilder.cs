@@ -291,7 +291,8 @@ public class RazorWireStreamBuilder
 
         _hasFormError = true;
         var errors = CollectModelStateErrors(modelState);
-        var visibleErrors = errors.Take(Math.Max(1, maxErrors)).ToList();
+        var normalizedMaxErrors = Math.Max(0, maxErrors);
+        var visibleErrors = errors.Take(normalizedMaxErrors).ToList();
         var hiddenCount = Math.Max(0, errors.Count - visibleErrors.Count);
         var fallbackMessage = errors.Count == 0
             ? message

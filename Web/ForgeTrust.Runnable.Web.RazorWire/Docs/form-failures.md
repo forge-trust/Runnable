@@ -123,7 +123,7 @@ services.AddRazorWire(options =>
 - `FailureMode.Manual` dispatches failure events but does not render fallback UI.
 - `FailureMode.Off` disables the failure convention by default.
 - `EnableDevelopmentDiagnostics` controls detailed diagnostics in development only.
-- `DefaultFailureMessage` is the generic fallback message for unhandled client-rendered failures.
+- `DefaultFailureMessage` is the generic fallback message for unhandled client-rendered failures. Null, empty, or whitespace-only values fall back to RazorWire's safe default.
 
 When `EnableFailureUx` is `true`, per-form `data-rw-form-failure="auto"`, `manual`, or `off` overrides the global failure mode.
 

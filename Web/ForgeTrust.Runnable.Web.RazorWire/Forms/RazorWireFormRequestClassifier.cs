@@ -5,17 +5,36 @@ using Microsoft.Extensions.Primitives;
 
 namespace ForgeTrust.Runnable.Web.RazorWire.Forms;
 
+/// <summary>
+/// Detects whether an incoming request originated from a RazorWire-enhanced form.
+/// </summary>
 internal sealed class RazorWireFormRequestClassifier
 {
+    /// <summary>
+    /// Maximum URL-encoded form body size the classifier will read when the durable request header is absent.
+    /// </summary>
     private const long MaxFallbackFormBytes = 64 * 1024;
 
     private readonly ILogger<RazorWireFormRequestClassifier> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RazorWireFormRequestClassifier"/> class.
+    /// </summary>
+    /// <param name="logger">Logger used when fallback form parsing fails.</param>
     public RazorWireFormRequestClassifier(ILogger<RazorWireFormRequestClassifier> logger)
     {
         _logger = logger;
     }
 
+    /// <summary>
+    /// Determines whether a request carries RazorWire form markers.
+    /// </summary>
+    /// <param name="request">The HTTP request to inspect.</param>
+    /// <param name="cancellationToken">Token used when fallback URL-encoded form parsing is required.</param>
+    /// <returns>
+    /// <c>true</c> when the request has the RazorWire form header, an already-parsed marker field, or a safely readable
+    /// URL-encoded marker field; otherwise <c>false</c>.
+    /// </returns>
     public async ValueTask<bool> IsRazorWireFormRequestAsync(
         HttpRequest request,
         CancellationToken cancellationToken = default)
@@ -47,7 +66,7 @@ internal sealed class RazorWireFormRequestClassifier
             return false;
         }
 
-        if (request.ContentLength is > MaxFallbackFormBytes)
+        if (request.ContentLength is null or > MaxFallbackFormBytes)
         {
             return false;
         }

@@ -61,6 +61,9 @@ public class RazorWireCacheOptions
 /// </summary>
 public class RazorWireFormOptions
 {
+    private const string DefaultFailureMessageFallback = "We could not submit this form. Check your input and try again.";
+    private string _defaultFailureMessage = DefaultFailureMessageFallback;
+
     /// <summary>
     /// Gets or sets a value indicating whether RazorWire emits failed-form request markers,
     /// lifecycle hooks, and default failure behavior.
@@ -83,7 +86,13 @@ public class RazorWireFormOptions
     /// <summary>
     /// Gets or sets the safe default message used for generic failed form submissions.
     /// </summary>
-    public string DefaultFailureMessage { get; set; } = "We could not submit this form. Check your input and try again.";
+    public string DefaultFailureMessage
+    {
+        get => _defaultFailureMessage;
+        set => _defaultFailureMessage = string.IsNullOrWhiteSpace(value)
+            ? DefaultFailureMessageFallback
+            : value;
+    }
 }
 
 /// <summary>

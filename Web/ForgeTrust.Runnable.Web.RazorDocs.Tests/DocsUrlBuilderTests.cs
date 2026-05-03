@@ -134,6 +134,26 @@ public sealed class DocsUrlBuilderTests
         Assert.False(builder.IsCurrentDocsPath("guides/start.md.html"));
     }
 
+    [Fact]
+    public void IsCurrentDocsPath_ShouldMatchPathsUnderConfiguredRoot()
+    {
+        var builder = new DocsUrlBuilder(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/next"
+                }
+            });
+
+        Assert.True(builder.IsCurrentDocsPath("/docs/next"));
+        Assert.True(builder.IsCurrentDocsPath("/docs/next/guides/start.md.html"));
+        Assert.True(builder.IsCurrentDocsPath("/DOCS/NEXT/search"));
+        Assert.False(builder.IsCurrentDocsPath("/docs"));
+        Assert.False(builder.IsCurrentDocsPath("/docs/v/1.0"));
+        Assert.False(builder.IsCurrentDocsPath(null));
+    }
+
     [Theory]
     [InlineData("/docs", "", "/docs")]
     [InlineData("/", "", "/")]

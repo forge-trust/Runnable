@@ -111,7 +111,12 @@ internal sealed class RazorDocsPublishedTreeHandler
             ? string.Empty
             : requestPath[mount.MountRootPath.Length..];
         var trimmed = relativeRequestPath.TrimStart('/');
-        if (!string.IsNullOrEmpty(trimmed)
+        if (HasHiddenPathSegment(trimmed))
+        {
+            return false;
+        }
+
+        if (IsAllowedExactFilePath(trimmed)
             && !relativeRequestPath.EndsWith("/", StringComparison.Ordinal))
         {
             var exactFile = mount.FileProvider.GetFileInfo(trimmed);
@@ -139,6 +144,29 @@ internal sealed class RazorDocsPublishedTreeHandler
         return false;
     }
 
+    private static bool IsAllowedExactFilePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || HasHiddenPathSegment(path))
+        {
+            return false;
+        }
+
+        if (path.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(path, "search.css", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "search-client.js", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "minisearch.min.js", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "search-index.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return HasAllowedEmbeddedAssetExtension(path);
+    }
+
     private static IEnumerable<string> BuildCandidatePaths(string relativeRequestPath)
     {
         var trimmed = relativeRequestPath.TrimStart('/');
@@ -154,7 +182,7 @@ internal sealed class RazorDocsPublishedTreeHandler
             yield break;
         }
 
-        if (ShouldTreatAsExactAssetRequest(trimmed))
+        if (IsAllowedExactFilePath(trimmed))
         {
             yield break;
         }
@@ -163,7 +191,7 @@ internal sealed class RazorDocsPublishedTreeHandler
         yield return trimmed + "/index.html";
     }
 
-    private static bool ShouldTreatAsExactAssetRequest(string path)
+    private static bool HasAllowedEmbeddedAssetExtension(string path)
     {
         var extension = Path.GetExtension(path);
         if (string.IsNullOrWhiteSpace(extension))
@@ -171,12 +199,7 @@ internal sealed class RazorDocsPublishedTreeHandler
             return false;
         }
 
-        return extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".css", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".js", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".map", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".svg", StringComparison.OrdinalIgnoreCase)
+        return extension.Equals(".svg", StringComparison.OrdinalIgnoreCase)
                || extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
                || extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
                || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
@@ -186,10 +209,14 @@ internal sealed class RazorDocsPublishedTreeHandler
                || extension.Equals(".woff", StringComparison.OrdinalIgnoreCase)
                || extension.Equals(".woff2", StringComparison.OrdinalIgnoreCase)
                || extension.Equals(".ttf", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".eot", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".xml", StringComparison.OrdinalIgnoreCase)
-               || extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
+               || extension.Equals(".eot", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasHiddenPathSegment(string path)
+    {
+        return !string.IsNullOrWhiteSpace(path)
+               && path.Split('/', StringSplitOptions.RemoveEmptyEntries)
+                   .Any(segment => segment.StartsWith(".", StringComparison.Ordinal));
     }
 
     private static async Task WriteResponseAsync(
@@ -390,13 +417,29 @@ internal static class RazorDocsPublishedTreeContentRewriter
     }
 
     /// <summary>
-    /// Rewrites the published search-index payload so document URLs stay inside the mounted root.
+    /// Rewrites a published search-index payload so mounted document URLs stay inside the active docs surface.
     /// </summary>
     /// <param name="json">The exported search-index payload.</param>
     /// <param name="mountRootPath">The request-path root where the tree is being served.</param>
     /// <param name="previewRootPath">The live preview docs root that should stay untouched when encountered.</param>
     /// <param name="requestPathBase">The current host path base that should prefix rewritten app-relative docs URLs.</param>
-    /// <returns>The rewritten JSON payload.</returns>
+    /// <returns>
+    /// The original payload when the mount is the stable <c>/docs</c> surface without a non-empty path base, when the
+    /// payload is not a JSON object with a top-level <c>documents</c> array, or when no eligible
+    /// <c>documents[*].path</c> values require rewriting; otherwise a payload whose rewritten document paths stay
+    /// inside the mounted docs root.
+    /// </returns>
+    /// <remarks>
+    /// Only <c>documents[*].path</c> values are rewritten. Other JSON fields, including titles, metadata, and facet
+    /// payloads, are preserved exactly as exported. Stable mounts rooted at <c>/docs</c> are a no-op unless
+    /// <paramref name="requestPathBase" /> is non-empty, because the exported payload already points at the stable
+    /// surface. Preview-root paths such as <c>/docs/next</c>, archive paths such as <c>/docs/versions</c>, and
+    /// already-versioned exact routes such as <c>/docs/v/1.2.3/guide.html</c> are preserved rather than rebased.
+    /// When a rewrite does occur, the helper prepends the normalized request path base to eligible app-relative URLs,
+    /// so <c>/docs/guide.html</c> becomes <c>/some-base/docs/v/1.2.3/guide.html</c> for an exact mount at
+    /// <c>/docs/v/1.2.3</c>. Callers should not expect other JSON fields to change, and they must supply a non-empty
+    /// <paramref name="requestPathBase" /> if stable mounts need virtual-directory rebasing.
+    /// </remarks>
     internal static string RewriteSearchIndexJson(
         string json,
         string mountRootPath,

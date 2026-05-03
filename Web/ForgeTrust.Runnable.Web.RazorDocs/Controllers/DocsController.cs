@@ -1009,7 +1009,7 @@ public class DocsController : Controller
                 ? "The stable docs entry is waiting for a healthy recommended release tree. You can keep reading the preview surface or open an exact published version below."
                 : "Choose the exact release you want to read, or keep using the current preview surface for unreleased work.",
             AvailabilityMessage = entryFallback
-                ? "No healthy recommended release tree is currently mounted at /docs."
+                ? $"No healthy recommended release tree is currently mounted at {PathBaseAware(DocsUrlBuilder.DocsEntryPath)}."
                 : null,
             PreviewHref = _docsUrlBuilder.BuildHomeUrl(),
             VersionsHref = _docsUrlBuilder.BuildVersionsUrl(),

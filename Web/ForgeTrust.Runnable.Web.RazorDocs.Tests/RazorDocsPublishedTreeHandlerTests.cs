@@ -116,16 +116,62 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task TryHandleAsync_ShouldFallbackToOctetStream_ForUnknownExtensions()
+    public async Task TryHandleAsync_ShouldRejectUnexpectedExactFiles()
     {
         var tree = CreatePublishedTree("custom-asset");
         File.WriteAllText(Path.Combine(tree, "asset.weird"), "custom-asset");
         var handler = CreateHandler(tree, "/docs/v/1.2.3");
         var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/asset.weird");
 
+        Assert.False(await handler.TryHandleAsync(request));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldRejectExactFilesUnderDotSegments()
+    {
+        var tree = CreatePublishedTree("dot-segment-asset");
+        Directory.CreateDirectory(Path.Combine(tree, ".private"));
+        File.WriteAllText(Path.Combine(tree, ".private", "search.css"), "body { color: red; }");
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/.private/search.css");
+
+        Assert.False(await handler.TryHandleAsync(request));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldRejectHiddenDirectoriesThroughIndexFallback()
+    {
+        var tree = CreatePublishedTree("dot-segment-index");
+        Directory.CreateDirectory(Path.Combine(tree, ".private"));
+        File.WriteAllText(Path.Combine(tree, ".private", "index.html"), "<html>secret</html>");
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/.private/");
+
+        Assert.False(await handler.TryHandleAsync(request));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldRejectNonContractTextArtifacts()
+    {
+        var tree = CreatePublishedTree("text-artifact");
+        File.WriteAllText(Path.Combine(tree, "notes.txt"), "notes");
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/notes.txt");
+
+        Assert.False(await handler.TryHandleAsync(request));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldServeEmbeddedImageAssets()
+    {
+        var tree = CreatePublishedTree("embedded-image");
+        Directory.CreateDirectory(Path.Combine(tree, "img"));
+        File.WriteAllBytes(Path.Combine(tree, "img", "hero.png"), [0x89, 0x50, 0x4E, 0x47]);
+        var handler = CreateHandler(tree, "/docs/v/1.2.3");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/img/hero.png");
+
         Assert.True(await handler.TryHandleAsync(request));
-        Assert.Equal("application/octet-stream", request.Response.ContentType);
-        Assert.Contains("custom-asset", ReadBody(request));
+        Assert.Equal("image/png", request.Response.ContentType);
     }
 
     [Fact]
@@ -272,6 +318,28 @@ public sealed class RazorDocsPublishedTreeHandlerTests : IDisposable
 
         Assert.True(await handler.TryHandleAsync(searchIndexRequest));
         Assert.Contains("\"path\":\"/some-base/docs/v/1.2.3/guide.html\"", ReadBody(searchIndexRequest));
+    }
+
+    [Fact]
+    public async Task TryHandleAsync_ShouldPreferLongestMatchingMount_WhenMountRootsOverlap()
+    {
+        var stableTree = CreatePublishedTree("stable");
+        var versionedTree = CreatePublishedTree("versioned");
+        File.WriteAllText(Path.Combine(stableTree, "search.css"), "body { color: #fff; }");
+        File.WriteAllText(Path.Combine(versionedTree, "search.css"), "body { color: #0ea5e9; }");
+
+        var handler = new RazorDocsPublishedTreeHandler(
+            [
+                new RazorDocsPublishedTreeMount("/docs", new PhysicalFileProvider(stableTree)),
+                new RazorDocsPublishedTreeMount("/docs/v/1.2.3", new PhysicalFileProvider(versionedTree))
+            ],
+            "/docs/next");
+        var request = CreateContext(HttpMethods.Get, "/docs/v/1.2.3/search.css");
+
+        Assert.True(await handler.TryHandleAsync(request));
+        Assert.Equal("text/css", request.Response.ContentType);
+        Assert.Contains("#0ea5e9", ReadBody(request));
+        Assert.DoesNotContain("#fff", ReadBody(request));
     }
 
     [Fact]

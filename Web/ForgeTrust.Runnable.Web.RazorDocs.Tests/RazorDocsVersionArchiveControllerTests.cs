@@ -91,6 +91,35 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
     }
 
     [Fact]
+    public void VersionEntry_ShouldRenderPathBaseAwareAvailabilityMessage_WhenRecommendedVersionIsUnavailable()
+    {
+        var brokenTree = Path.Combine(_tempDirectory, "broken-path-base");
+        Directory.CreateDirectory(brokenTree);
+        File.WriteAllText(Path.Combine(brokenTree, "index.html"), "<html>broken</html>");
+        var catalogPath = WriteCatalog(
+            new RazorDocsVersionCatalog
+            {
+                RecommendedVersion = "2.0.0",
+                Versions =
+                [
+                    new RazorDocsPublishedVersion
+                    {
+                        Version = "2.0.0",
+                        ExactTreePath = brokenTree,
+                        SupportState = RazorDocsVersionSupportState.Current
+                    }
+                ]
+            });
+        var controller = CreateController(catalogPath, pathBase: "/some-base");
+
+        var result = controller.VersionEntry();
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<RazorDocsVersionArchiveViewModel>(view.Model);
+        Assert.Contains("/some-base/docs", model.AvailabilityMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void VersionEntry_ShouldRedirectToLiveHome_WhenVersioningIsDisabled()
     {
         var controller = CreateController(catalogPath: null, versioningEnabled: false, docsRootPath: "/docs");
@@ -205,7 +234,11 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
         }
     }
 
-    private DocsController CreateController(string? catalogPath, bool versioningEnabled = true, string docsRootPath = "/docs/next")
+    private DocsController CreateController(
+        string? catalogPath,
+        bool versioningEnabled = true,
+        string docsRootPath = "/docs/next",
+        string pathBase = "")
     {
         var docsOptions = new RazorDocsOptions
         {
@@ -241,7 +274,13 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext()
+                HttpContext = new DefaultHttpContext
+                {
+                    Request =
+                    {
+                        PathBase = pathBase
+                    }
+                }
             }
         };
     }

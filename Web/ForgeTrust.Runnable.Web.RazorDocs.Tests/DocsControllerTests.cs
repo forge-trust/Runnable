@@ -1038,7 +1038,7 @@ public class DocsControllerTests : IDisposable
             () => new DocsController(
                 _aggregator,
                 null!,
-                CreateDefaultVersionCatalogService(),
+                CreateDefaultVersionCatalogService(new RazorDocsOptions()),
                 _controllerLoggerFake));
     }
 
@@ -2140,7 +2140,7 @@ public class DocsControllerTests : IDisposable
             sanitizer,
             aggregatorLogger);
         var docsUrlBuilder = new DocsUrlBuilder(options);
-        var versionCatalogService = CreateDefaultVersionCatalogService();
+        var versionCatalogService = CreateDefaultVersionCatalogService(options);
 
         var controller = new DocsController(aggregator, docsUrlBuilder, versionCatalogService, controllerLogger)
         {
@@ -2167,13 +2167,13 @@ public class DocsControllerTests : IDisposable
         return message?.Contains(expectedMessageFragment, StringComparison.OrdinalIgnoreCase) == true;
     }
 
-    private static RazorDocsVersionCatalogService CreateDefaultVersionCatalogService()
+    private static RazorDocsVersionCatalogService CreateDefaultVersionCatalogService(RazorDocsOptions options)
     {
         var environment = A.Fake<IWebHostEnvironment>();
         A.CallTo(() => environment.ContentRootPath).Returns(Path.GetTempPath());
 
         return new RazorDocsVersionCatalogService(
-            new RazorDocsOptions(),
+            options,
             environment,
             NullLogger<RazorDocsVersionCatalogService>.Instance);
     }

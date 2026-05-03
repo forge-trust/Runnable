@@ -61,6 +61,13 @@ public class TargetAppProcessTests
             await Task.WhenAny(outputReceived.Task, Task.Delay(TimeSpan.FromSeconds(2)));
         }
 
+        if (!exitedSignal.Task.IsCompleted)
+        {
+            var exitTimeout = Task.Delay(TimeSpan.FromSeconds(10));
+            var exitSignal = await Task.WhenAny(exitedSignal.Task, exitTimeout);
+            Assert.NotSame(exitTimeout, exitSignal);
+        }
+
         await process.DisposeAsync();
 
         Assert.True(exitedSignal.Task.IsCompleted);

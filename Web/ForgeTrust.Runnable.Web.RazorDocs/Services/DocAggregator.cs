@@ -1056,7 +1056,7 @@ public class DocAggregator
             .Select(
                 d =>
                 {
-                    var content = d.Content;
+                    var content = d.Content ?? string.Empty;
                     var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(content, string.Empty), " "));
                     var snippet = TruncateSnippetAtWordBoundary(bodyText, SearchSnippetMaxLength);
                     var title = string.IsNullOrWhiteSpace(d.Metadata?.Title)

@@ -119,6 +119,7 @@ public class RazorDocsViewsTests
         Assert.Contains("return root === '/' ? `/${normalizedLeaf}` : `${root}/${normalizedLeaf}`;", searchClient);
         Assert.Contains("docsByPath: new Set()", searchClient);
         Assert.Contains("function isKnownRootMountedDocsNavigationPath(path)", searchClient);
+        Assert.Contains("normalizeComparablePath(toUrl(doc.path)?.pathname ?? doc.path)", searchClient);
         Assert.Contains("return searchData.docsByPath.has(normalizedPath)", searchClient);
         Assert.Contains("normalizeComparablePath(searchUrl?.pathname)", searchClient);
         Assert.Contains("return isKnownRootMountedDocsNavigationPath(normalizedPath);", searchClient);

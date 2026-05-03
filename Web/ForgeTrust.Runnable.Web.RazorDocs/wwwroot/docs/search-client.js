@@ -1302,7 +1302,9 @@
     searchData.index = index;
     searchData.docs = docs;
     searchData.docsById = new Map(docs.map((doc) => [doc.id, doc]));
-    searchData.docsByPath = new Set(docs.map((doc) => normalizeComparablePath(doc.path)));
+    searchData.docsByPath = new Set(
+      docs.map((doc) => normalizeComparablePath(toUrl(doc.path)?.pathname ?? doc.path))
+    );
     searchData.facetValues = deriveFacetValues(docs);
   }
 

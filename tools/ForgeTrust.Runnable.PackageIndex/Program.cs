@@ -79,35 +79,32 @@ internal static class Program
                 return 0;
             }
 
+            var normalizedCommand = command.ToLowerInvariant();
+            if (normalizedCommand is not GenerateCommand and not VerifyCommand)
+            {
+                await standardError.WriteLineAsync($"Unknown command '{command}'.");
+                await standardError.WriteLineAsync(Usage);
+                return 1;
+            }
+
             var options = CommandLineOptions.Parse(args.Skip(1).ToArray(), currentDirectory);
             var generator = new PackageIndexGenerator(
                 new PackageProjectScanner(),
                 new DotNetProjectMetadataProvider(),
                 new PackageManifestLoader());
 
-            switch (command.ToLowerInvariant())
+            if (normalizedCommand == GenerateCommand)
             {
-                case GenerateCommand:
-                    {
-                        await generator.GenerateToFileAsync(options.Request, cancellationToken);
-                        var outputPath = Path.GetRelativePath(options.Request.RepositoryRoot, options.Request.OutputPath)
-                            .Replace('\\', '/');
-                        await standardOut.WriteLineAsync($"Generated {outputPath}.");
-                        return 0;
-                    }
-
-                case VerifyCommand:
-                    {
-                        await generator.VerifyAsync(options.Request, cancellationToken);
-                        await standardOut.WriteLineAsync("Package chooser is up to date.");
-                        return 0;
-                    }
-
-                default:
-                    await standardError.WriteLineAsync($"Unknown command '{command}'.");
-                    await standardError.WriteLineAsync(Usage);
-                    return 1;
+                await generator.GenerateToFileAsync(options.Request, cancellationToken);
+                var outputPath = Path.GetRelativePath(options.Request.RepositoryRoot, options.Request.OutputPath)
+                    .Replace('\\', '/');
+                await standardOut.WriteLineAsync($"Generated {outputPath}.");
+                return 0;
             }
+
+            await generator.VerifyAsync(options.Request, cancellationToken);
+            await standardOut.WriteLineAsync("Package chooser is up to date.");
+            return 0;
         }
         catch (PackageIndexException ex)
         {

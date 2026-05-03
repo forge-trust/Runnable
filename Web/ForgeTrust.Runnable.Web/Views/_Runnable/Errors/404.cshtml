@@ -5,7 +5,8 @@
     var missingPath = string.IsNullOrWhiteSpace(Model.OriginalPath)
         ? "the requested page"
         : Model.OriginalPath;
-    var isDocsPath = missingPath.StartsWith("/docs", StringComparison.OrdinalIgnoreCase);
+    var isDocsPath = missingPath.Equals("/docs", StringComparison.OrdinalIgnoreCase)
+        || missingPath.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -98,10 +99,10 @@
     <h1>Page not found</h1>
     <p>We couldn't find <code>@missingPath</code>. The route may have moved, the link may be stale, or this app may not expose that page.</p>
     <div class="actions" aria-label="Recovery actions">
-        <a class="recovery-link" href="/">Return home</a>
+        <a class="recovery-link" href="@Url.Content("~/")">Return home</a>
         @if (isDocsPath)
         {
-            <a class="recovery-link secondary" href="/docs/search">Search documentation</a>
+            <a class="recovery-link secondary" href="@Url.Content("~/docs/search")">Search documentation</a>
         }
     </div>
     <p class="developer-note">App owners can replace this fallback with <code>@ConventionalNotFoundPageDefaults.AppViewPath</code>. Keep the page useful for users first: show recovery links, explain what happened, and preserve the 404 status.</p>

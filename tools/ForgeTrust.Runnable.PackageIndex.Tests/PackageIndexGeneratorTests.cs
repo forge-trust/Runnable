@@ -897,6 +897,20 @@ public sealed class PackageIndexGeneratorTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_WritesUnknownCommandBeforeParsingOptions()
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exitCode = await Program.RunAsync(["mystery", "--bogus"], stdout, stderr, _repositoryRoot);
+
+        Assert.Equal(1, exitCode);
+        Assert.Equal(string.Empty, stdout.ToString());
+        Assert.Contains("Unknown command 'mystery'.", stderr.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Unknown option '--bogus'.", stderr.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Main_DelegatesToRunAsync()
     {
         var exitCode = await Program.Main([]);

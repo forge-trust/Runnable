@@ -27,11 +27,16 @@ public sealed class DocFeaturedPageResolver
     /// <summary>
     /// Resolves grouped featured-page metadata from <paramref name="landingDoc"/> against the harvested docs corpus.
     /// </summary>
-    /// <param name="landingDoc">The root or section landing document that owns the curation metadata.</param>
+    /// <param name="landingDoc">
+    /// The root or section landing document that owns the curation metadata, or <c>null</c> when the caller has no
+    /// landing page to resolve.
+    /// </param>
     /// <param name="docs">The harvested docs corpus used for destination lookup.</param>
     /// <returns>
-    /// A list of resolved featured-page groups ordered by authored group order, then authored position. Groups with no
-    /// visible destinations after validation are omitted.
+    /// A list of resolved featured-page groups ordered by authored group order, then authored position. The method returns
+    /// an empty list when <paramref name="landingDoc"/> is <c>null</c>, when the landing doc has no
+    /// <c>featured_page_groups</c>, or when every authored group is filtered out during resolution. Groups with no visible
+    /// destinations after validation are omitted.
     /// </returns>
     public IReadOnlyList<DocLandingFeaturedPageGroupViewModel> ResolveGroups(
         DocNode? landingDoc,

@@ -22,6 +22,102 @@ public sealed class DocFeaturedPageResolverTests
     }
 
     [Fact]
+    public void ResolveGroups_ShouldReturnEmpty_WhenLandingDocIsNull()
+    {
+        var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+
+        var groups = resolver.ResolveGroups(null, []);
+
+        Assert.Empty(groups);
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldSkipBlankDestinationPath_AndLogWarnings()
+    {
+        var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();
+        var resolver = new DocFeaturedPageResolver(logger);
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = "   "
+            });
+
+        var groups = resolver.ResolveGroups(landing, [landing]);
+
+        Assert.Empty(groups);
+        AssertWarningLogged(logger, "has no destination path");
+        AssertWarningLogged(logger, "no visible destination pages resolved");
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldSkipMissingDestination_AndLogWarnings()
+    {
+        var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();
+        var resolver = new DocFeaturedPageResolver(logger);
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = "guides/missing.md"
+            });
+
+        var groups = resolver.ResolveGroups(landing, [landing]);
+
+        Assert.Empty(groups);
+        AssertWarningLogged(logger, "destination page could not be resolved");
+        AssertWarningLogged(logger, "no visible destination pages resolved");
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldSkipHiddenDestination_AndLogWarnings()
+    {
+        var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();
+        var resolver = new DocFeaturedPageResolver(logger);
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Path = "guides/hidden.md"
+            });
+        var hidden = Doc(
+            "Hidden",
+            "guides/hidden.md",
+            metadata: new DocMetadata
+            {
+                HideFromPublicNav = true
+            });
+
+        var groups = resolver.ResolveGroups(landing, [landing, hidden]);
+
+        Assert.Empty(groups);
+        AssertWarningLogged(logger, "destination page is hidden from public navigation");
+        AssertWarningLogged(logger, "no visible destination pages resolved");
+    }
+
+    [Fact]
+    public void ResolveGroups_ShouldSkipDuplicateDestination_AndKeepFirstPage()
+    {
+        var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();
+        var resolver = new DocFeaturedPageResolver(logger);
+        var landing = Landing(
+            new DocFeaturedPageDefinition
+            {
+                Question = "First",
+                Path = "guides/intro.md"
+            },
+            new DocFeaturedPageDefinition
+            {
+                Question = "Duplicate",
+                Path = "guides/intro.md.html"
+            });
+        var intro = Doc("Intro", "guides/intro.md");
+
+        var groups = resolver.ResolveGroups(landing, [landing, intro]);
+
+        var page = Assert.Single(Assert.Single(groups).Pages);
+        Assert.Equal("First", page.Question);
+        AssertWarningLogged(logger, "destination is already featured");
+    }
+
+    [Fact]
     public void ResolveGroups_ShouldOrderGroupsAndPages_ByOrderThenAuthoredPosition()
     {
         var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
@@ -189,5 +285,49 @@ public sealed class DocFeaturedPageResolverTests
         var error = Assert.Throws<InvalidOperationException>(() => resolver.ResolveGroups(landing, docs));
 
         Assert.Contains("missing CanonicalPath", error.Message, StringComparison.Ordinal);
+    }
+
+    private static DocNode Landing(params DocFeaturedPageDefinition[] pages)
+    {
+        return new DocNode(
+            "Home",
+            "README.md",
+            "<p>Home</p>",
+            CanonicalPath: "index.html",
+            Metadata: new DocMetadata
+            {
+                FeaturedPageGroups =
+                [
+                    new DocFeaturedPageGroupDefinition
+                    {
+                        Label = "Start",
+                        Pages = pages
+                    }
+                ]
+            });
+    }
+
+    private static DocNode Doc(string title, string path, DocMetadata? metadata = null)
+    {
+        return new DocNode(title, path, $"<p>{title}</p>", CanonicalPath: $"{path}.html", Metadata: metadata);
+    }
+
+    private static void AssertWarningLogged(ILogger<DocFeaturedPageResolver> logger, string expectedMessageFragment)
+    {
+        var logged = Fake.GetCalls(logger)
+            .Any(call => IsWarningLog(call, expectedMessageFragment));
+
+        Assert.True(logged, $"Expected warning log containing '{expectedMessageFragment}'.");
+    }
+
+    private static bool IsWarningLog(FakeItEasy.Core.IFakeObjectCall call, string expectedMessageFragment)
+    {
+        if (call.Method.Name != nameof(ILogger.Log) || call.GetArgument<LogLevel>(0) != LogLevel.Warning)
+        {
+            return false;
+        }
+
+        var message = call.GetArgument<object>(2)?.ToString();
+        return message?.Contains(expectedMessageFragment, StringComparison.OrdinalIgnoreCase) == true;
     }
 }

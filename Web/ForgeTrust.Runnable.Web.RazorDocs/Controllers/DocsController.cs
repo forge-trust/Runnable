@@ -303,6 +303,7 @@ public class DocsController : Controller
 
         var candidates = startHereSection.VisiblePages
             .Where(doc => !string.Equals(doc.Path, RootLandingSourcePath, StringComparison.OrdinalIgnoreCase))
+            .Where(doc => !string.Equals(doc.Path, startHereSection.LandingDoc?.Path, StringComparison.OrdinalIgnoreCase))
             .Where(doc => !SidebarDisplayHelper.IsTypeAnchorNode(doc))
             .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
             .ThenBy(doc => doc.Title, StringComparer.OrdinalIgnoreCase)

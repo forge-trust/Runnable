@@ -18,6 +18,21 @@ internal static class MarkdownFrontMatterParser
         return (body, result.Metadata);
     }
 
+    /// <summary>
+    /// Extracts inline Markdown front matter and returns the remaining Markdown with diagnostics-aware metadata.
+    /// </summary>
+    /// <param name="markdown">The Markdown source that may begin with YAML front matter.</param>
+    /// <returns>
+    /// A tuple containing the Markdown body and a <see cref="MarkdownMetadataParseResult"/> whose
+    /// <see cref="MarkdownMetadataParseResult.Metadata"/> contains parsed <see cref="DocMetadata"/> when present.
+    /// </returns>
+    /// <remarks>
+    /// This is the authoritative internal entry point for inline metadata parsing. Missing front matter returns the
+    /// original Markdown and an empty diagnostic list. Invalid inline YAML returns a <see cref="RazorDocsMetadataDiagnostic"/>
+    /// instead of throwing, and deliberately preserves the original Markdown so a malformed header remains visible to the
+    /// reader. Callers should inspect <see cref="MarkdownMetadataParseResult.Diagnostics"/> for authoring warnings instead
+    /// of relying on exceptions for inline metadata failures.
+    /// </remarks>
     internal static (string Markdown, MarkdownMetadataParseResult Result) ExtractWithDiagnostics(string markdown)
     {
         if (string.IsNullOrEmpty(markdown))
@@ -69,6 +84,21 @@ internal static class MarkdownFrontMatterParser
         return ParseMetadataYamlWithDiagnostics(yaml).Metadata;
     }
 
+    /// <summary>
+    /// Parses a YAML metadata document into a diagnostics-aware metadata result.
+    /// </summary>
+    /// <param name="yaml">The raw YAML metadata document to deserialize.</param>
+    /// <returns>
+    /// A <see cref="MarkdownMetadataParseResult"/> containing optional normalized <see cref="DocMetadata"/> plus any
+    /// <see cref="RazorDocsMetadataDiagnostic"/> warnings produced while normalizing supported metadata fields.
+    /// </returns>
+    /// <remarks>
+    /// This is the authoritative internal entry point for metadata documents that are already known to be YAML, including
+    /// sidecar files. Empty or explicitly null YAML maps to a result with <c>null</c> metadata and no diagnostics. YAML
+    /// syntax errors still throw <see cref="YamlException"/> so sidecar callers can report the sidecar file failure through
+    /// their existing error path; schema and migration warnings are returned through
+    /// <see cref="MarkdownMetadataParseResult.Diagnostics"/>.
+    /// </remarks>
     internal static MarkdownMetadataParseResult ParseMetadataYamlWithDiagnostics(string yaml)
     {
         ArgumentNullException.ThrowIfNull(yaml);

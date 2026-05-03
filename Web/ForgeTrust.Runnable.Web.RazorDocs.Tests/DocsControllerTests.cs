@@ -317,6 +317,55 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public async Task Index_ShouldNotUseStartHereLandingDocAsFallbackFeaturedPage()
+    {
+        var docs = new List<DocNode>
+        {
+            new("Home", "README.md", "<p>Home</p>"),
+            new(
+                "Start Here",
+                "guides/start-here.md",
+                "<p>Start here landing</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Order = 0,
+                    SectionLanding = true,
+                    Summary = "Section wrapper."
+                }),
+            new(
+                "Install",
+                "guides/install.md",
+                "<p>Install</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Order = 10,
+                    Summary = "Install first."
+                }),
+            new(
+                "Build",
+                "guides/build.md",
+                "<p>Build</p>",
+                Metadata: new DocMetadata
+                {
+                    NavGroup = "Start Here",
+                    Order = 20,
+                    Summary = "Build next."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(docs);
+
+        var result = await _controller.Index();
+
+        var viewResult = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
+        var group = Assert.Single(model.FeaturedPageGroups);
+        Assert.Equal(["Install", "Build"], group.Pages.Select(page => page.Title).ToArray());
+        Assert.DoesNotContain(group.Pages, page => page.Title == "Start Here");
+    }
+
+    [Fact]
     public async Task Section_ShouldNotExposeStartHereHref_WhenStartHereSectionIsUnavailable()
     {
         var docs = new List<DocNode>

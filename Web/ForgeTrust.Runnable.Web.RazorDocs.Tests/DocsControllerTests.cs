@@ -1812,6 +1812,69 @@ public class DocsControllerTests : IDisposable
     }
 
     [Fact]
+    public void PrefixSearchIndexPathsForPathBase_ShouldReturnSamePayload_WhenNoRootedPathsNeedRewrite()
+    {
+        var payload = new DocsSearchIndexPayload(
+            new DocsSearchIndexMetadata("2026-05-03T00:00:00.0000000+00:00", "1", "minisearch"),
+            [
+                new DocsSearchIndexDocument(
+                    Id: "relative",
+                    Path: "guide.html",
+                    Title: "Relative",
+                    Summary: "Summary",
+                    Headings: [],
+                    BodyText: string.Empty,
+                    Snippet: string.Empty,
+                    PageType: null,
+                    PageTypeLabel: null,
+                    PageTypeVariant: null,
+                    Audience: null,
+                    Component: null,
+                    Aliases: [],
+                    Keywords: [],
+                    Status: null,
+                    NavGroup: null,
+                    PublicSection: null,
+                    PublicSectionLabel: null,
+                    IsSectionLanding: false,
+                    Order: null,
+                    SequenceKey: null,
+                    CanonicalSlug: null,
+                    RelatedPages: [],
+                    Breadcrumbs: []),
+                new DocsSearchIndexDocument(
+                    Id: "blank",
+                    Path: string.Empty,
+                    Title: "Blank",
+                    Summary: "Summary",
+                    Headings: [],
+                    BodyText: string.Empty,
+                    Snippet: string.Empty,
+                    PageType: null,
+                    PageTypeLabel: null,
+                    PageTypeVariant: null,
+                    Audience: null,
+                    Component: null,
+                    Aliases: [],
+                    Keywords: [],
+                    Status: null,
+                    NavGroup: null,
+                    PublicSection: null,
+                    PublicSectionLabel: null,
+                    IsSectionLanding: false,
+                    Order: null,
+                    SequenceKey: null,
+                    CanonicalSlug: null,
+                    RelatedPages: [],
+                    Breadcrumbs: [])
+            ]);
+
+        var unchanged = DocsController.PrefixSearchIndexPathsForPathBase(payload, "/some-base");
+
+        Assert.Same(payload, unchanged);
+    }
+
+    [Fact]
     public async Task SearchIndex_ShouldTruncateSnippetAtWordBoundary()
     {
         var longWordyContent = "<p>" + string.Join(" ", Enumerable.Repeat("word", 80)) + "</p>";

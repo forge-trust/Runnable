@@ -897,6 +897,31 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSearchIndexPayloadAsync_ShouldUseEmptyBodyText_WhenContentIsNull()
+    {
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Guide",
+                "guides/guide.md",
+                null!,
+                Metadata: new DocMetadata
+                {
+                    Summary = "Guide summary."
+                })
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var payload = await _aggregator.GetSearchIndexPayloadAsync();
+
+        var indexedDocument = Assert.Single(payload.Documents);
+        Assert.Equal("/docs/guides/guide.md", indexedDocument.Path);
+        Assert.Equal(string.Empty, indexedDocument.BodyText);
+        Assert.Equal(string.Empty, indexedDocument.Snippet);
+        Assert.Equal("Guide summary.", indexedDocument.Summary);
+    }
+
+    [Fact]
     public async Task GetDocsAsync_ShouldSkipCanceledHarvester_AndContinue()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))

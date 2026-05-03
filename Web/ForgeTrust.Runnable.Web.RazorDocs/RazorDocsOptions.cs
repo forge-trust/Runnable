@@ -41,17 +41,22 @@ public sealed class RazorDocsOptions
 /// <summary>
 /// Enumerates the supported RazorDocs content source modes.
 /// </summary>
+/// <remarks>
+/// Numeric values are part of the public configuration and serialization contract. Do not reorder or renumber existing
+/// members; changing these assignments can break persisted configuration, serialized payloads, and consumers. Add new
+/// modes by appending members with new explicit values.
+/// </remarks>
 public enum RazorDocsMode
 {
     /// <summary>
     /// Harvest docs from source files at runtime.
     /// </summary>
-    Source,
+    Source = 0,
 
     /// <summary>
     /// Load docs from a prebuilt bundle. Reserved for a later implementation slice.
     /// </summary>
-    Bundle
+    Bundle = 1
 }
 
 /// <summary>
@@ -140,18 +145,23 @@ public sealed class RazorDocsContributorOptions
 /// <summary>
 /// Enumerates the supported contributor freshness modes for RazorDocs details pages.
 /// </summary>
+/// <remarks>
+/// Numeric values are part of the public configuration and serialization contract. Do not reorder or renumber existing
+/// members; changing these assignments can break persisted configuration, serialized payloads, and consumers. Add new
+/// modes by appending members with new explicit values.
+/// </remarks>
 public enum RazorDocsLastUpdatedMode
 {
     /// <summary>
     /// Do not render automatic contributor freshness.
     /// </summary>
-    None,
+    None = 0,
 
     /// <summary>
     /// Resolve contributor freshness from local git history when a trustworthy source path exists.
     /// Hosts should expect graceful omission when git history is unavailable, shallow, or not trustworthy for the page.
     /// </summary>
-    Git
+    Git = 1
 }
 
 /// <summary>

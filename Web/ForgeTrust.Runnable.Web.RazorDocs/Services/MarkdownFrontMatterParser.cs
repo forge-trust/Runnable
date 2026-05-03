@@ -82,11 +82,14 @@ internal static class MarkdownFrontMatterParser
     /// Parses a YAML metadata document into normalized documentation metadata.
     /// </summary>
     /// <param name="yaml">The raw YAML content to deserialize.</param>
-    /// <returns>The normalized metadata model, or <c>null</c> when the YAML document is explicitly empty or null.</returns>
+    /// <returns>The normalized metadata model, or <c>null</c> when the YAML document is empty or explicitly null.</returns>
     /// <remarks>
-    /// This entry point is shared by inline Markdown front matter and paired sidecar metadata files so both authoring styles
-    /// normalize through the same schema, defaults, and empty-list handling. Nested metadata such as <c>featured_page_groups</c>
-    /// and <c>trust</c> is normalized here as well.
+    /// This compatibility wrapper is shared by inline Markdown front matter and paired sidecar metadata files so both
+    /// authoring styles normalize through the same schema, defaults, and empty-list handling. It returns only the
+    /// <see cref="MarkdownMetadataParseResult.Metadata"/> value from
+    /// <see cref="ParseMetadataYamlWithDiagnostics(string)"/> and intentionally discards schema, migration, and authoring
+    /// diagnostics. Call <see cref="ParseMetadataYamlWithDiagnostics(string)"/> when callers need those warnings in addition
+    /// to normalized <see cref="DocMetadata"/>.
     /// </remarks>
     /// <exception cref="YamlException">Thrown when <paramref name="yaml"/> cannot be parsed as YAML.</exception>
     internal static DocMetadata? ParseMetadataYaml(string yaml)
@@ -104,9 +107,10 @@ internal static class MarkdownFrontMatterParser
     /// </returns>
     /// <remarks>
     /// This is the authoritative internal entry point for metadata documents that are already known to be YAML, including
-    /// sidecar files. Empty or explicitly null YAML maps to a result with <c>null</c> metadata and no diagnostics. YAML
-    /// syntax errors still throw <see cref="YamlException"/> so sidecar callers can report the sidecar file failure through
-    /// their existing error path; schema and migration warnings are returned through
+    /// sidecar files. Empty documents and explicit YAML <c>null</c> values return <c>null</c> metadata and no diagnostics.
+    /// An empty mapping literal such as <c>{}</c> still produces a normalized <see cref="DocMetadata"/> instance whose
+    /// fields may all be <c>null</c>. YAML syntax errors still throw <see cref="YamlException"/> so sidecar callers can
+    /// report the sidecar file failure through their existing error path; schema and migration warnings are returned through
     /// <see cref="MarkdownMetadataParseResult.Diagnostics"/>.
     /// </remarks>
     internal static MarkdownMetadataParseResult ParseMetadataYamlWithDiagnostics(string yaml)

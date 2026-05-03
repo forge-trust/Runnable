@@ -170,6 +170,7 @@ public class RazorDocsViewsTests
 
         Assert.Contains(">Runnable</h1>", html);
         Assert.Contains("Proof before promises.", html);
+        Assert.Contains(">Test</h3>", html);
         Assert.Contains("How does composition work?", html);
         Assert.Contains(">Composition</h4>", html);
         Assert.Contains("Follow the composition model.", html);
@@ -900,6 +901,7 @@ public class RazorDocsViewsTests
         Assert.Contains("Use this section as the entry point.", html);
         Assert.Contains("href=\"/docs/sections/concepts\"", html);
         Assert.Contains("Next steps", html);
+        Assert.Contains(">Test</h3>", html);
         Assert.Contains("Choose this path when you need section context.", html);
         Assert.Contains("Go deeper", html);
         Assert.Contains("Follow the next route.", html);

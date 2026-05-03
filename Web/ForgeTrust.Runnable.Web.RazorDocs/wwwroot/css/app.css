@@ -278,6 +278,207 @@ body {
     gap: 0.35rem;
 }
 
+.docs-detail-layout {
+    display: grid;
+    gap: 2rem;
+}
+
+.docs-detail-primary {
+    min-width: 0;
+}
+
+.docs-outline-shell {
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    border: 1px solid rgba(30, 41, 59, 0.95);
+    border-radius: 0.75rem;
+    background: rgba(2, 6, 23, 0.26);
+}
+
+.docs-outline-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.85rem;
+    border: 0;
+    background: transparent;
+    color: #e2e8f0;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-align: left;
+    transition: color 140ms ease, background-color 140ms ease;
+}
+
+.docs-outline-toggle:hover {
+    color: #cffafe;
+    background: rgba(15, 23, 42, 0.52);
+}
+
+.docs-outline-toggle:focus-visible {
+    outline: 2px solid #22d3ee;
+    outline-offset: -2px;
+}
+
+.docs-outline-toggle::after {
+    content: "";
+    width: 0.45rem;
+    height: 0.45rem;
+    flex: 0 0 auto;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 140ms ease;
+}
+
+.docs-outline-shell[data-outline-expanded="true"] .docs-outline-toggle::after {
+    transform: translateY(0.12rem) rotate(225deg);
+}
+
+.docs-outline-toggle-current {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    color: #67e8f9;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.docs-outline-panel {
+    padding: 0.25rem 0.45rem 0.7rem;
+}
+
+.docs-outline-label {
+    display: none;
+    margin: 0 0 0.85rem;
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.docs-outline-list {
+    display: grid;
+    gap: 0.16rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.docs-outline-link {
+    position: relative;
+    display: block;
+    max-width: 100%;
+    min-height: 2rem;
+    padding: 0.38rem 0.65rem 0.38rem 0.8rem;
+    overflow-wrap: anywhere;
+    border-radius: 0.45rem;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.35;
+    text-decoration: none;
+    transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.docs-outline-link:hover {
+    color: #cffafe;
+    background: rgba(15, 23, 42, 0.54);
+}
+
+.docs-outline-link:focus-visible {
+    outline: 2px solid #22d3ee;
+    outline-offset: 2px;
+}
+
+.docs-outline-link--level-3 {
+    margin-left: 0.75rem;
+    color: #94a3b8;
+    font-size: 0.84rem;
+    font-weight: 500;
+}
+
+.docs-outline-link[aria-current="location"],
+.docs-outline-link--active {
+    color: #67e8f9;
+    background: linear-gradient(90deg, rgba(8, 47, 73, 0.62), rgba(15, 23, 42, 0.28));
+}
+
+.docs-outline-link[aria-current="location"]::before,
+.docs-outline-link--active::before {
+    content: "";
+    position: absolute;
+    top: 0.38rem;
+    bottom: 0.38rem;
+    left: 0;
+    width: 2px;
+    border-radius: 9999px;
+    background: #22d3ee;
+}
+
+.docs-outline-shell[data-outline-enhanced="true"][data-outline-expanded="false"] .docs-outline-panel {
+    display: none;
+}
+
+@media (min-width: 80rem) {
+    .docs-detail-layout--with-outline {
+        grid-template-columns: minmax(0, 80ch) minmax(14rem, 16rem);
+        gap: 3rem;
+        align-items: start;
+    }
+
+    .docs-detail-layout--with-outline .docs-detail-primary {
+        order: 1;
+    }
+
+    .docs-outline-shell {
+        position: sticky;
+        top: 2rem;
+        order: 2;
+        max-height: calc(100vh - 6rem);
+        margin-bottom: 0;
+        overflow-y: auto;
+        border: 0;
+        border-left: 1px solid rgba(51, 65, 85, 0.88);
+        border-radius: 0;
+        background: transparent;
+        padding-left: 1.15rem;
+        scrollbar-width: thin;
+    }
+
+    .docs-outline-toggle {
+        display: none;
+    }
+
+    .docs-outline-panel {
+        display: block !important;
+        padding: 0;
+    }
+
+    .docs-outline-label {
+        display: block;
+    }
+
+    .docs-outline-link {
+        min-height: 0;
+        padding: 0.42rem 0.7rem 0.42rem 0.8rem;
+        font-size: 0.86rem;
+    }
+
+    .docs-outline-link--level-3 {
+        margin-left: 0.7rem;
+        font-size: 0.8rem;
+    }
+}
+
 .docs-content {
     max-width: 80ch;
     color: #cbd5e1;

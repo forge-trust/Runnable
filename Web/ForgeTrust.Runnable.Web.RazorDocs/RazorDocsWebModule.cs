@@ -100,6 +100,7 @@ public class RazorDocsWebModule : IRunnableWebModule
         MapLegacyAssetRedirect(endpoints, "/docs/search.css", $"{RazorDocsStaticAssetBasePath}/search.css");
         MapLegacyAssetRedirect(endpoints, "/docs/minisearch.min.js", $"{RazorDocsStaticAssetBasePath}/minisearch.min.js");
         MapLegacyAssetRedirect(endpoints, "/docs/search-client.js", $"{RazorDocsStaticAssetBasePath}/search-client.js");
+        MapLegacyAssetRedirect(endpoints, "/docs/outline-client.js", $"{RazorDocsStaticAssetBasePath}/outline-client.js");
 
         // Index route MUST come before catch-all to be matched first
         endpoints.MapControllerRoute(

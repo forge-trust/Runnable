@@ -243,15 +243,22 @@ public class RazorDocsWebModuleRegressionTests
             await AssertRedirectAsync(client, "/docs/search.css", $"{PackagedAssetBasePath}/search.css");
             await AssertRedirectAsync(client, "/docs/minisearch.min.js", $"{PackagedAssetBasePath}/minisearch.min.js");
             await AssertRedirectAsync(client, "/docs/search-client.js", $"{PackagedAssetBasePath}/search-client.js");
+            await AssertRedirectAsync(client, "/docs/outline-client.js", $"{PackagedAssetBasePath}/outline-client.js");
             await AssertRedirectAsync(client, "/docs/search.css?v=42", $"{PackagedAssetBasePath}/search.css?v=42");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/search.css", $"{PackagedAssetBasePath}/search.css");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/minisearch.min.js", $"{PackagedAssetBasePath}/minisearch.min.js");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/search-client.js", $"{PackagedAssetBasePath}/search-client.js");
+            await AssertRedirectAsync(client, HttpMethod.Head, "/docs/outline-client.js", $"{PackagedAssetBasePath}/outline-client.js");
             await AssertRedirectAsync(
                 client,
                 HttpMethod.Head,
                 "/docs/search-client.js?cache=abc",
                 $"{PackagedAssetBasePath}/search-client.js?cache=abc");
+            await AssertRedirectAsync(
+                client,
+                HttpMethod.Head,
+                "/docs/outline-client.js?cache=abc",
+                $"{PackagedAssetBasePath}/outline-client.js?cache=abc");
         }
         finally
         {
@@ -295,6 +302,11 @@ public class RazorDocsWebModuleRegressionTests
                 HttpMethod.Head,
                 "/some-base/docs/search-client.js?cache=abc",
                 $"/some-base{PackagedAssetBasePath}/search-client.js?cache=abc");
+            await AssertRedirectAsync(
+                client,
+                HttpMethod.Head,
+                "/some-base/docs/outline-client.js?cache=abc",
+                $"/some-base{PackagedAssetBasePath}/outline-client.js?cache=abc");
         }
         finally
         {

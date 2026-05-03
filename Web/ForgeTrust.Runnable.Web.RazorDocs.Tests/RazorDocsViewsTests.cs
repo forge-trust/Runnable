@@ -37,6 +37,7 @@ public class RazorDocsViewsTests
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", layout);
         Assert.Contains("src=\"~/docs/search-client.js\"", layout);
+        Assert.Contains("src=\"~/docs/outline-client.js\"", layout);
     }
 
     [Fact]
@@ -89,12 +90,29 @@ public class RazorDocsViewsTests
         Assert.Contains(".docs-page-meta", tailwindEntryStylesheet);
         Assert.Contains(".docs-provenance-strip", tailwindEntryStylesheet);
         Assert.Contains(".docs-trust-bar", tailwindEntryStylesheet);
+        Assert.Contains(".docs-outline-shell", tailwindEntryStylesheet);
+        Assert.Contains(".docs-outline-link", tailwindEntryStylesheet);
 
         Assert.DoesNotContain(".docs-page-badge", searchStylesheet);
         Assert.DoesNotContain(".docs-metadata-chip", searchStylesheet);
         Assert.DoesNotContain(".docs-page-meta", searchStylesheet);
         Assert.DoesNotContain(".docs-provenance-strip", searchStylesheet);
         Assert.DoesNotContain(".docs-trust-bar", searchStylesheet);
+        Assert.DoesNotContain(".docs-outline-shell", searchStylesheet);
+        Assert.DoesNotContain(".docs-outline-link", searchStylesheet);
+    }
+
+    [Fact]
+    public void OutlineClient_ShouldUseMainContentRoot_AndRebindAfterFrameNavigation()
+    {
+        var outlineClient = ReadOutlineClientMarkup();
+
+        Assert.Contains("const outlineSelector = \"#docs-page-outline\"", outlineClient);
+        Assert.Contains("const mainContent = document.getElementById(\"main-content\")", outlineClient);
+        Assert.Contains("root: mainContent", outlineClient);
+        Assert.Contains("document.addEventListener(\"turbo:frame-load\"", outlineClient);
+        Assert.Contains("activeObserver?.disconnect()", outlineClient);
+        Assert.Contains("aria-current", outlineClient);
     }
 
     [Fact]
@@ -1470,11 +1488,20 @@ public class RazorDocsViewsTests
             services,
             "/Views/Docs/Details.cshtml",
             model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
 
         Assert.Contains("id=\"docs-page-outline\"", html);
         Assert.Contains("href=\"#install\"", html);
         Assert.Contains("data-doc-outline-link=\"true\"", html);
         Assert.Contains("href=\"#verify\"", html);
+        Assert.Contains("docs-detail-layout--with-outline", html);
+        Assert.NotNull(document.QuerySelector("#docs-page-outline.docs-outline-shell"));
+        Assert.NotNull(document.QuerySelector(".docs-outline-toggle[aria-controls='docs-page-outline-panel']"));
+        Assert.NotNull(document.QuerySelector("#docs-page-outline-panel[aria-label='On this page']"));
+        Assert.NotNull(document.QuerySelector("a.docs-outline-link[href='#install']"));
+        Assert.NotNull(document.QuerySelector("a.docs-outline-link--level-3[href='#verify']"));
+        Assert.Single(document.QuerySelectorAll("#docs-page-outline nav"));
+        Assert.DoesNotContain("rounded-2xl border border-slate-800 bg-slate-900/60", html);
     }
 
     [Fact]
@@ -2043,6 +2070,7 @@ public class RazorDocsViewsTests
         Assert.DoesNotContain("href=\"/docs/search-index.json\"", html);
         Assert.DoesNotContain("data-rw-search-runtime=\"minisearch\"", html);
         Assert.Contains("src=\"/docs/search-client.js\"", html);
+        Assert.Contains("src=\"/docs/outline-client.js\"", html);
         Assert.Contains("id=\"docs-search-input\"", html);
     }
 
@@ -2325,6 +2353,20 @@ public class RazorDocsViewsTests
             "search-client.js");
 
         return File.ReadAllText(searchClientPath);
+    }
+
+    private static string ReadOutlineClientMarkup()
+    {
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        var outlineClientPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "wwwroot",
+            "docs",
+            "outline-client.js");
+
+        return File.ReadAllText(outlineClientPath);
     }
 
     private static string ReadTailwindEntryStylesheetMarkup()

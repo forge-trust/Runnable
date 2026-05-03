@@ -69,6 +69,96 @@ public sealed class RazorDocsWayfindingPlaywrightTests
     }
 
     [Fact]
+    public async Task DesktopOutline_StaysInRightRail_AndMarksActiveSection()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize
+            {
+                Width = 1440,
+                Height = 900
+            }
+        });
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/examples/razorwire-mvc/README.md.html");
+        await page.WaitForSelectorAsync("#docs-page-outline", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        Assert.Equal(1, await page.Locator("#docs-page-outline").CountAsync());
+        Assert.False(await page.Locator("#docs-page-outline .docs-outline-toggle").IsVisibleAsync());
+        Assert.Equal(
+            "sticky",
+            await page.Locator("#docs-page-outline").EvaluateAsync<string>("element => getComputedStyle(element).position"));
+
+        await page.ClickAsync("#docs-page-outline a[href='#files-behind-the-hero-flow']");
+        await page.WaitForFunctionAsync(
+            """
+            () => document
+              .querySelector("#docs-page-outline a[href='#files-behind-the-hero-flow']")
+              ?.getAttribute("aria-current") === "location"
+            """,
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+    }
+
+    [Fact]
+    public async Task MobileOutline_CollapsesByDefault_AndClosesAfterAnchorNavigation()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize
+            {
+                Width = 390,
+                Height = 844
+            }
+        });
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/examples/razorwire-mvc/README.md.html");
+        await page.WaitForSelectorAsync("#docs-page-outline", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        Assert.Equal(1, await page.Locator("#docs-page-outline").CountAsync());
+        await page.WaitForFunctionAsync(
+            "() => document.querySelector('#docs-page-outline [data-doc-outline-toggle]')?.getAttribute('aria-expanded') === 'false'",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        Assert.False(await page.Locator("#docs-page-outline-panel").IsVisibleAsync());
+
+        await page.ClickAsync("#docs-page-outline [data-doc-outline-toggle]");
+        await page.WaitForFunctionAsync(
+            "() => document.querySelector('#docs-page-outline [data-doc-outline-toggle]')?.getAttribute('aria-expanded') === 'true'",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        Assert.True(await page.Locator("#docs-page-outline-panel").IsVisibleAsync());
+
+        await page.ClickAsync("#docs-page-outline a[href='#files-behind-the-hero-flow']");
+        await page.WaitForFunctionAsync(
+            """
+            () => {
+              const target = document.getElementById('files-behind-the-hero-flow');
+              const toggle = document.querySelector('#docs-page-outline [data-doc-outline-toggle]');
+              if (!target || window.location.hash !== '#files-behind-the-hero-flow') {
+                return false;
+              }
+
+              const rect = target.getBoundingClientRect();
+              return rect.top >= 0 && rect.top <= 220 && toggle?.getAttribute('aria-expanded') === 'false';
+            }
+            """,
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        Assert.False(await page.Locator("#docs-page-outline-panel").IsVisibleAsync());
+    }
+
+    [Fact]
     public async Task MobileSidebar_NavigatesToNeighborPage_AndRestoresOpenButtonFocusOnEscape()
     {
         await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions

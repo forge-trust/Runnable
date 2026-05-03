@@ -2434,10 +2434,13 @@ public class RazorDocsViewsTests
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
         var previewLink = document.QuerySelectorAll("a[href='/docs/next']")
             .Single(link => link.TextContent.Contains("Open preview docs", StringComparison.Ordinal));
+        var archiveLink = document.QuerySelectorAll("a[href='/docs/versions']")
+            .Single(link => link.TextContent.Contains("Refresh archive", StringComparison.Ordinal));
         var exactVersionLink = document.QuerySelectorAll("a[href='/docs/v/1.2.3']")
             .Single(link => link.TextContent.Contains("Open 1.2.3", StringComparison.Ordinal));
 
         Assert.Equal("_top", previewLink.GetAttribute("data-turbo-frame"));
+        Assert.Equal("_top", archiveLink.GetAttribute("data-turbo-frame"));
         Assert.Equal("_top", exactVersionLink.GetAttribute("data-turbo-frame"));
     }
 
@@ -2599,7 +2602,7 @@ public class RazorDocsViewsTests
             });
 
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
-        Assert.NotNull(document.QuerySelector("a[href='/docs/versions'][target='_top']"));
+        Assert.NotNull(document.QuerySelector("a[href='/docs/versions'][data-turbo-frame='_top']"));
         Assert.Null(document.QuerySelector("a[href='/docs/v/1.2.3']"));
         var unavailableMessage = document.QuerySelector("p.text-amber-200");
         Assert.NotNull(unavailableMessage);

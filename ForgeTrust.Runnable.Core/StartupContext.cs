@@ -57,10 +57,26 @@ public record StartupContext(
     public bool IsDevelopment => EnvironmentProvider.IsDevelopment;
 
     /// <summary>
-    /// Gets the name of the application.
+    /// Gets the user-facing name of the application.
     /// </summary>
+    /// <remarks>
+    /// This value is intended for product surfaces such as generated OpenAPI titles, command output, and other places
+    /// where callers need a readable application label. It is intentionally separate from <see cref="HostApplicationName"/>,
+    /// which must stay aligned with the assembly identity used by the .NET Generic Host and ASP.NET static web asset
+    /// manifest discovery.
+    /// </remarks>
     public string ApplicationName { get; } =
         ApplicationName ?? RootModule.GetType().Assembly.GetName().Name ?? "RunnableApp";
+
+    /// <summary>
+    /// Gets the assembly-backed application identity assigned to <see cref="Microsoft.Extensions.Hosting.IHostEnvironment.ApplicationName"/>.
+    /// </summary>
+    /// <remarks>
+    /// ASP.NET static web assets resolve runtime manifests by host application name. Custom display names should not be
+    /// written into the host environment because they can point static web asset discovery at a non-existent manifest.
+    /// Override <see cref="OverrideEntryPointAssembly"/> when a test or host needs to select a different manifest identity.
+    /// </remarks>
+    public string HostApplicationName => EntryPointAssembly.GetName().Name ?? "RunnableApp";
 
     /// <summary>
     /// Gets the list of modules that the application depends on.

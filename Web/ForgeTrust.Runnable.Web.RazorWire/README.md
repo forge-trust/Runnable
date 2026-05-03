@@ -10,7 +10,7 @@ This quickstart assumes you are in a clone of this repository with the .NET 10 S
 dotnet run --project examples/razorwire-mvc/RazorWireWebExample.csproj
 ```
 
-Open `http://localhost:5233/Reactivity` (or use the URL printed in the console if the port differs), wait for the `Permanent Island` card to load, then click the `+` button. The `Instance Score` and `Session Score` update in place without a full-page reload.
+Open the URL printed in the console and navigate to `/Reactivity`, wait for the `Permanent Island` card to load, then click the `+` button. The `Instance Score` and `Session Score` update in place without a full-page reload.
 
 ## Hero Proof
 
@@ -57,6 +57,12 @@ public IActionResult IncrementCounter([FromForm] int clientCount)
 ```
 
 Read the [focused proof path](../../examples/razorwire-mvc/README.md#start-here-return-razor-fragments) for the file-by-file walkthrough. If copying this pattern gives you a bare `400 Bad Request`, anti-forgery is the first thing to check. See [Security & Anti-Forgery](Docs/antiforgery.md).
+
+## Generated UI Design Contract
+
+RazorWire should feel like a quiet enhancement inside the host application, not like a separate visual product placed on top of it. Package-owned generated UI follows the [RazorWire generated UI design contract](DESIGN.md).
+
+Use that contract when adding or styling RazorWire-generated nodes such as form feedback, stream status affordances, or package-owned fallback UI. It defines the scope boundary, data-attribute and CSS custom-property styling surface, accessibility baseline, override model, and anti-patterns. It does not apply to app-authored forms, partials, layouts, or RazorDocs chrome.
 
 ## Add the Module
 
@@ -248,7 +254,14 @@ RazorWire also supports hybrid islands where a server-rendered region mounts a c
 
 ## Static Export
 
-RazorWire can generate static or hybrid sites. For more details, see the [RazorWire CLI](../../Web/ForgeTrust.Runnable.Web.RazorWire.Cli/README.md).
+RazorWire can generate static or hybrid sites with the installable `razorwire`
+.NET tool, or with the short-lived `dnx` tool execution path. Those
+package-based commands require a published package or an explicit local package
+source; public package publishing is still manual until the coordinated release
+automation tracked in #161 lands.
+
+For installation, `dnx`, local-package, and source-run examples, see the
+[RazorWire CLI](../../Web/ForgeTrust.Runnable.Web.RazorWire.Cli/README.md).
 
 ## Examples
 

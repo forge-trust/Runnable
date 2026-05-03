@@ -5,6 +5,8 @@
 
 ForgeTrust.Runnable is a collection of .NET libraries designed to provide a lightweight, modular startup pipeline for both console and web applications.
 
+If you are deciding which package to install first, start with the [Runnable v0.1 package chooser](./packages/README.md).
+
 ## Vision
 
 The primary vision of Runnable is to simplify application bootstrapping by encouraging **composition through small, focused modules**. Instead of monolithic startup classes or scattered configuration logic, Runnable allows developers to encapsulate features into reusable modules that handle:
@@ -38,6 +40,10 @@ This approach aims to:
 
 ## Project Structure
 
+### [Packages](./packages/README.md)
+
+- [**Runnable v0.1 package chooser**](./packages/README.md) - the generated install map for direct-install packages, support/runtime packages, and proof-host surfaces.
+
 ### [Core](./ForgeTrust.Runnable.Core/README.md)
 - [**ForgeTrust.Runnable.Core**](./ForgeTrust.Runnable.Core/README.md) – Core abstractions for defining modules and starting an application via `RunnableStartup` and `StartupContext`.
 
@@ -48,7 +54,7 @@ This approach aims to:
 - [**ForgeTrust.Runnable.Web**](./Web/ForgeTrust.Runnable.Web/README.md) – Bootstraps ASP.NET Core minimal API apps and lets modules register middleware, endpoints, and perform additional host configuration.
 - [**ForgeTrust.Runnable.Web.OpenApi**](./Web/ForgeTrust.Runnable.Web.OpenApi/README.md) – Optional module that adds OpenAPI generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
 - [**ForgeTrust.Runnable.Web.RazorWire**](./Web/ForgeTrust.Runnable.Web.RazorWire/README.md) – Adds reactive Razor-based streaming, islands, and export tooling for server-rendered web apps.
-- [**ForgeTrust.Runnable.Web.RazorDocs**](./Web/ForgeTrust.Runnable.Web.RazorDocs/README.md) – Reusable Razor Class Library package that serves harvested source docs with section-first landing, sidebar, search, and optional published-version archive surfaces.
+- [**ForgeTrust.Runnable.Web.RazorDocs**](./Web/ForgeTrust.Runnable.Web.RazorDocs/README.md) – Reusable Razor Class Library package that serves harvested source docs with section-first landing, sidebar, search, built-in trust plus contributor-provenance details, and optional published-version archive surfaces.
 - [**ForgeTrust.Runnable.Web.RazorDocs.Standalone**](./Web/ForgeTrust.Runnable.Web.RazorDocs.Standalone/README.md) – Thin runnable host for exporting or serving RazorDocs as an application.
 - [**ForgeTrust.Runnable.Web.Scalar**](./Web/ForgeTrust.Runnable.Web.Scalar/README.md) – Optional module that serves the Scalar API reference UI and depends on the OpenAPI module.
 
@@ -95,11 +101,19 @@ dotnet run --project examples/web-app
 
 Runnable is preparing to release the entire monorepo in unison. The public release contract now lives in the repository so teams can see what is queued for the next version, how pre-1.0 changes are handled, and where future migration notes will live.
 
+- [Package chooser](./packages/README.md) - the generated first-install map for web, console, Aspire, and optional package add-ons.
 - [Release hub](./releases/README.md) - start here for the narrative release surface.
 - [Unreleased proof artifact](./releases/unreleased.md) - the living notes for the next coordinated version.
 - [Changelog](./CHANGELOG.md) - the compact ledger for tagged and in-flight changes.
 - [Pre-1.0 upgrade policy](./releases/upgrade-policy.md) - the stability and migration contract before `v1.0.0`.
 - [Contribution and release entry rules](./CONTRIBUTING.md) - how PR titles and unreleased entries feed the release surface.
+
+## Feedback and contributing
+
+Runnable uses GitHub issue forms to keep bug reports and docs/developer-experience feedback concrete enough to reproduce. If an example, README, quickstart, or package API leaves you stuck, start with the [contribution guide](./CONTRIBUTING.md), [choose an issue template](https://github.com/forge-trust/Runnable/issues/new/choose), and file the form that matches the problem.
+
+Use docs/DX feedback for confusing guidance, missing concepts, broken links, snippet drift, or first-run friction. Use bug reports when runtime behavior, generated output, or package APIs do something unexpected.
+Do not file suspected vulnerabilities, leaked secrets, or exploit details in public issues; follow the [security policy](./SECURITY.md) instead.
 
 ## Examples
 

@@ -590,7 +590,7 @@ public class EnumerableExtensionsTests
         // Arrange
         var input = Enumerable.Range(1, 10);
         using var cts = new CancellationTokenSource();
-        
+
         // Act & Assert
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {

@@ -1,8 +1,8 @@
 ﻿using DependencyInjectionControllers;
+using ManyDependencyInjectionControllers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using SimpleApiController;
-using ManyDependencyInjectionControllers;
 
 namespace RunnableBenchmarks.Web.NativeDotnet;
 

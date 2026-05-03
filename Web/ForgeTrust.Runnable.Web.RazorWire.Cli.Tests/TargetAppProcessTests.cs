@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using System.Diagnostics;
+
 namespace ForgeTrust.Runnable.Web.RazorWire.Cli.Tests;
 
 public class TargetAppProcessTests
@@ -77,6 +80,179 @@ public class TargetAppProcessTests
         });
 
         await process.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Should_Swallow_Kill_Failures_During_BestEffort_Cleanup()
+    {
+        var waitForExitAsyncCallCount = 0;
+        var waitForExitCallCount = 0;
+
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--version"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            new TargetAppProcessHooks
+            {
+                HasExitedOverride = _ => false,
+                KillProcessOverride = _ => throw new Win32Exception("simulated kill failure"),
+                WaitForExitAsyncOverride = (_, _) =>
+                {
+                    waitForExitAsyncCallCount++;
+                    return Task.CompletedTask;
+                },
+                WaitForExitOverride = _ => waitForExitCallCount++
+            },
+            process: new Process(),
+            started: true);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
+        Assert.Equal(1, waitForExitAsyncCallCount);
+        Assert.Equal(1, waitForExitCallCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Should_UseWaitHooks_WhenCleanupObservesExit()
+    {
+        var waitForExitAsyncCallCount = 0;
+        var waitForExitCallCount = 0;
+
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--version"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            new TargetAppProcessHooks
+            {
+                HasExitedOverride = _ => false,
+                KillProcessOverride = _ => { },
+                WaitForExitAsyncOverride = (_, cancellationToken) =>
+                {
+                    waitForExitAsyncCallCount++;
+                    Assert.False(cancellationToken.IsCancellationRequested);
+                    return Task.CompletedTask;
+                },
+                WaitForExitOverride = _ => waitForExitCallCount++
+            },
+            process: new Process(),
+            started: true);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
+        Assert.Equal(1, waitForExitAsyncCallCount);
+        Assert.Equal(1, waitForExitCallCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Should_Swallow_Timeout_And_Skip_Final_Flush()
+    {
+        var waitForExitAsyncCallCount = 0;
+        var waitForExitCallCount = 0;
+
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--version"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            new TargetAppProcessHooks
+            {
+                HasExitedOverride = _ => false,
+                KillProcessOverride = _ => { },
+                WaitForExitAsyncOverride = (_, cancellationToken) =>
+                {
+                    waitForExitAsyncCallCount++;
+                    throw new OperationCanceledException(cancellationToken);
+                },
+                WaitForExitOverride = _ => waitForExitCallCount++
+            },
+            process: new Process(),
+            started: true);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
+        Assert.Equal(1, waitForExitAsyncCallCount);
+        Assert.Equal(0, waitForExitCallCount);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_ShouldTreat_ObjectDisposedExitProbe_As_ObservedExit()
+    {
+        var waitForExitAsyncCallCount = 0;
+        var waitForExitCallCount = 0;
+
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--version"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            new TargetAppProcessHooks
+            {
+                HasExitedOverride = _ => throw new ObjectDisposedException(nameof(Process)),
+                WaitForExitAsyncOverride = (_, _) =>
+                {
+                    waitForExitAsyncCallCount++;
+                    return Task.CompletedTask;
+                },
+                WaitForExitOverride = _ => waitForExitCallCount++
+            },
+            process: new Process(),
+            started: true);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
+        Assert.Equal(0, waitForExitAsyncCallCount);
+        Assert.Equal(1, waitForExitCallCount);
+    }
+
+    [Fact]
+    public async Task Constructor_ShouldAllow_InjectedStartedProcess_WithoutMutatingLaunchConfiguration()
+    {
+        var spec = new ProcessLaunchSpec
+        {
+            FileName = "dotnet",
+            Arguments = ["--info"],
+            WorkingDirectory = Directory.GetCurrentDirectory()
+        };
+
+        using var associatedProcess = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                WorkingDirectory = Directory.GetCurrentDirectory(),
+                UseShellExecute = false
+            }
+        };
+        associatedProcess.StartInfo.ArgumentList.Add("--version");
+        associatedProcess.Start();
+
+        await using var process = new TargetAppProcess(
+            spec,
+            hooks: null,
+            process: associatedProcess,
+            started: true);
+
+        Assert.Contains("--version", associatedProcess.StartInfo.ArgumentList);
+        Assert.DoesNotContain("--info", associatedProcess.StartInfo.ArgumentList);
+        Assert.Equal(["--info"], spec.Arguments);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
     }
 
     [Fact]

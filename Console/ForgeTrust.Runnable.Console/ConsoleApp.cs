@@ -14,9 +14,13 @@ public static class ConsoleApp<TStartup, TModule>
     /// Runs the console application asynchronously using a custom startup class.
     /// </summary>
     /// <param name="args">Command-line arguments.</param>
+    /// <param name="configureOptions">An optional delegate to customize <see cref="ConsoleOptions"/> before startup.</param>
     /// <returns>A task representing the run operation.</returns>
-    public static Task RunAsync(string[] args) =>
+    public static Task RunAsync(
+        string[] args,
+        Action<ConsoleOptions>? configureOptions = null) =>
         new TStartup()
+            .WithOptions(configureOptions)
             .RunAsync(args);
 }
 
@@ -31,9 +35,13 @@ public static class ConsoleApp<TModule>
     /// Runs the console application asynchronously with a generic startup.
     /// </summary>
     /// <param name="args">Command-line arguments.</param>
+    /// <param name="configureOptions">An optional delegate to customize <see cref="ConsoleOptions"/> before startup.</param>
     /// <returns>A task representing the run operation.</returns>
-    public static Task RunAsync(string[] args) =>
+    public static Task RunAsync(
+        string[] args,
+        Action<ConsoleOptions>? configureOptions = null) =>
         new GenericConsoleStartup()
+            .WithOptions(configureOptions)
             .RunAsync(args);
 
     private class GenericConsoleStartup : ConsoleStartup<TModule>

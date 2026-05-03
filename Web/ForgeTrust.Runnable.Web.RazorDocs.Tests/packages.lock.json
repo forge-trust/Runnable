@@ -441,13 +441,12 @@
         "type": "Project",
         "dependencies": {
           "ForgeTrust.Runnable.Caching": "[1.0.0, )",
-          "ForgeTrust.Runnable.Web": "[1.0.0, )",
           "ForgeTrust.Runnable.Web.RazorWire": "[1.0.0, )",
           "ForgeTrust.Runnable.Web.Tailwind": "[1.0.0, )",
           "HtmlSanitizer": "[9.0.892, )",
           "Markdig": "[0.44.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.0.0, )",
-          "YamlDotNet": "[16.3.0, )"
+          "YamlDotNet": "[17.0.1, )"
         }
       },
       "forgetrust.runnable.web.razorwire": {
@@ -601,9 +600,9 @@
       },
       "YamlDotNet": {
         "type": "CentralTransitive",
-        "requested": "[16.3.0, )",
-        "resolved": "16.3.0",
-        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
+        "requested": "[17.0.1, )",
+        "resolved": "17.0.1",
+        "contentHash": "qVir5fehR/W5nTJyoJUibypETXaW4iRAF9cQa0FQIC9TJ3VC0qDOwm4o/RxANewj8KzPF8WMF2abBfUgi6LC4w=="
       }
     }
   }

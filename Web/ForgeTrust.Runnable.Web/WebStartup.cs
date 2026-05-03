@@ -1,13 +1,13 @@
 using ForgeTrust.Runnable.Core;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Routing;
 
 namespace ForgeTrust.Runnable.Web;
 
@@ -34,6 +34,56 @@ public abstract class WebStartup<TModule> : RunnableStartup<TModule>
         _configureOptions = configureOptions;
 
         return this;
+    }
+
+    /// <summary>
+    /// Starts the web host with Runnable Web's deterministic development-port fallback when the caller has not
+    /// explicitly configured an endpoint through command-line arguments, environment variables, or appsettings.
+    /// </summary>
+    /// <param name="args">The command-line arguments supplied by the caller.</param>
+    /// <returns>A task that completes when the web host run exits.</returns>
+    public new Task RunAsync(string[] args)
+    {
+        var resolution = ResolveDevelopmentPortDefaults(args);
+
+        if (resolution.AppliedPort is not null)
+        {
+            GetStartupLogger()
+                .LogInformation(
+                    "No explicit development web endpoint was configured. Defaulting to deterministic localhost port {Port} for '{SeedPath}'. Override with --port, --urls, ASPNETCORE_URLS, or ASPNETCORE_HTTP_PORTS.",
+                    resolution.AppliedPort.Value,
+                    resolution.SeedPath);
+        }
+
+        return RunResolvedAsync(resolution.Args);
+    }
+
+    /// <summary>
+    /// Resolves the effective command-line arguments before the web host starts.
+    /// </summary>
+    /// <param name="args">The command-line arguments supplied by the caller.</param>
+    /// <returns>The resolved startup arguments and any deterministic development-port metadata.</returns>
+    internal virtual RunnableWebDevelopmentPortResolution ResolveDevelopmentPortDefaults(string[] args)
+    {
+        return RunnableWebDevelopmentPortDefaults.Resolve(
+            args,
+            Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory,
+            Environment.GetEnvironmentVariable,
+            Environment
+                .GetEnvironmentVariables()
+                .Keys
+                .Cast<string>());
+    }
+
+    /// <summary>
+    /// Runs the base host startup path with arguments after Runnable Web development defaults have been resolved.
+    /// </summary>
+    /// <param name="args">The effective command-line arguments to pass into the host.</param>
+    /// <returns>A task that completes when the web host run exits.</returns>
+    internal virtual Task RunResolvedAsync(string[] args)
+    {
+        return base.RunAsync(args);
     }
 
     /// <summary>

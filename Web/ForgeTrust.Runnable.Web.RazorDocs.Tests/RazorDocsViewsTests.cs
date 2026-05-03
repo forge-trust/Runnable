@@ -1791,6 +1791,149 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsView_ShouldRenderContributorProvenanceStrip_AboveTrustBar()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode(
+            "Unreleased",
+            "releases/unreleased.md",
+            "<p>Guide body</p>",
+            Metadata: new DocMetadata
+            {
+                Trust = new DocTrustMetadata
+                {
+                    Status = "Unreleased",
+                    Summary = "This page is provisional until the tag is cut."
+                }
+            });
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                SourceHref = "https://example.com/blob/main/releases/unreleased.md",
+                EditHref = "https://example.com/edit/main/releases/unreleased.md",
+                LastUpdatedUtc = new DateTimeOffset(2026, 4, 22, 23, 19, 0, TimeSpan.Zero)
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var provenanceStrip = document.QuerySelector(".docs-provenance-strip");
+        var trustBar = document.QuerySelector(".docs-trust-bar");
+
+        Assert.NotNull(provenanceStrip);
+        Assert.NotNull(trustBar);
+        Assert.Equal("Source of truth", provenanceStrip!.QuerySelector(".docs-provenance-label")?.TextContent.Trim());
+        Assert.NotNull(provenanceStrip.QuerySelector("a.docs-provenance-link--primary[href='https://example.com/blob/main/releases/unreleased.md']"));
+        Assert.NotNull(provenanceStrip.QuerySelector("a.docs-provenance-link--secondary[href='https://example.com/edit/main/releases/unreleased.md']"));
+
+        var timestamp = provenanceStrip.QuerySelector("time.docs-provenance-time");
+        Assert.NotNull(timestamp);
+        Assert.Equal("relative", timestamp!.GetAttribute("data-rw-time-display"));
+        Assert.Equal("2026-04-22T23:19:00.0000000+00:00", timestamp.GetAttribute("datetime"));
+
+        Assert.True(provenanceStrip.CompareDocumentPosition(trustBar!).HasFlag(DocumentPositions.Following));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderPartialContributorProvenance_WhenOnlyOneEvidenceItemExists()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                EditHref = "https://example.com/edit/main/guides/quickstart.md"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var provenanceStrip = document.QuerySelector(".docs-provenance-strip");
+        Assert.NotNull(provenanceStrip);
+        Assert.NotNull(provenanceStrip!.QuerySelector("a.docs-provenance-link--secondary[href='https://example.com/edit/main/guides/quickstart.md']"));
+        Assert.Null(provenanceStrip.QuerySelector(".docs-provenance-link--primary"));
+        Assert.Null(provenanceStrip.QuerySelector("time.docs-provenance-time"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderPartialContributorProvenance_WhenOnlySourceEvidenceExists()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                SourceHref = "https://example.com/blob/main/guides/quickstart.md"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var provenanceStrip = document.QuerySelector(".docs-provenance-strip");
+        Assert.NotNull(provenanceStrip);
+        Assert.NotNull(provenanceStrip!.QuerySelector("a.docs-provenance-link--primary[href='https://example.com/blob/main/guides/quickstart.md']"));
+        Assert.Null(provenanceStrip.QuerySelector(".docs-provenance-link--secondary"));
+        Assert.Null(provenanceStrip.QuerySelector("time.docs-provenance-time"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldUseTurboNavigation_ForLocalContributorProvenanceLinks()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+        var model = CreateDetailsViewModel(
+            doc,
+            contributorProvenance: new DocContributorProvenanceViewModel
+            {
+                SourceHref = "/docs/guides/quickstart.md.html",
+                EditHref = "/docs/guides/quickstart.edit.md.html"
+            });
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var sourceLink = document.QuerySelector("a.docs-provenance-link--primary[href='/docs/guides/quickstart.md.html']");
+        var editLink = document.QuerySelector("a.docs-provenance-link--secondary[href='/docs/guides/quickstart.edit.md.html']");
+
+        Assert.NotNull(sourceLink);
+        Assert.NotNull(editLink);
+        Assert.Equal("doc-content", sourceLink!.GetAttribute("data-turbo-frame"));
+        Assert.Equal("advance", sourceLink.GetAttribute("data-turbo-action"));
+        Assert.Equal("doc-content", editLink!.GetAttribute("data-turbo-frame"));
+        Assert.Equal("advance", editLink.GetAttribute("data-turbo-action"));
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldNotRenderContributorProvenance_WhenNoEvidenceExists()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<p>Guide body</p>");
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/Details.cshtml",
+            CreateDetailsViewModel(doc));
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        Assert.Null(document.QuerySelector(".docs-provenance-strip"));
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderExternalMigrationAndFilteredSources()
     {
         var doc = new DocNode(
@@ -2746,7 +2889,8 @@ public class RazorDocsViewsTests
         IReadOnlyList<DocOutlineItem>? outline = null,
         DocPageLinkViewModel? previousPage = null,
         DocPageLinkViewModel? nextPage = null,
-        IReadOnlyList<DocPageLinkViewModel>? relatedPages = null)
+        IReadOnlyList<DocPageLinkViewModel>? relatedPages = null,
+        DocContributorProvenanceViewModel? contributorProvenance = null)
     {
         var metadata = doc.Metadata;
 
@@ -2767,7 +2911,8 @@ public class RazorDocsViewsTests
             Outline = outline ?? doc.Outline ?? [],
             PreviousPage = previousPage,
             NextPage = nextPage,
-            RelatedPages = relatedPages ?? []
+            RelatedPages = relatedPages ?? [],
+            ContributorProvenance = contributorProvenance
         };
     }
 

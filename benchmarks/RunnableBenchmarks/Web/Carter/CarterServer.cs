@@ -1,12 +1,12 @@
 ﻿#if CARTER_WEB
 using Carter;
 using DependencyInjectionControllers;
+using ManyDependencyInjectionControllers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using SimpleApiController;
 using RunnableBenchmarks.Web;
-using ManyDependencyInjectionControllers;
+using SimpleApiController;
 
 namespace RunnableBenchmarks.Web.Carter;
 

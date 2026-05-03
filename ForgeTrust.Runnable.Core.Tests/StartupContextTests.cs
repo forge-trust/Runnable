@@ -16,6 +16,25 @@ public class StartupContextTests
         Assert.IsType<DummyModule>(deps[0]);
     }
 
+    [Fact]
+    public void ConsoleOutputMode_DefaultsToDefault()
+    {
+        var context = new StartupContext([], new DummyModule());
+
+        Assert.Equal(ConsoleOutputMode.Default, context.ConsoleOutputMode);
+    }
+
+    [Fact]
+    public void ConsoleOutputMode_CanBeConfigured()
+    {
+        var context = new StartupContext([], new DummyModule())
+        {
+            ConsoleOutputMode = ConsoleOutputMode.CommandFirst
+        };
+
+        Assert.Equal(ConsoleOutputMode.CommandFirst, context.ConsoleOutputMode);
+    }
+
     private class DummyModule : IRunnableHostModule
     {
         public void ConfigureServices(StartupContext context, IServiceCollection services)

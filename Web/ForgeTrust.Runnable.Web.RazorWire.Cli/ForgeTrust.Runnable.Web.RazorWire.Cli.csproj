@@ -5,6 +5,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>razorwire</ToolCommandName>
+    <PackageId>ForgeTrust.Runnable.Web.RazorWire.Cli</PackageId>
+    <PackageDescription>Command-line export tooling for RazorWire applications.</PackageDescription>
+    <PackageTags>runnable;razorwire;static-site;cli;dotnet-tool</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

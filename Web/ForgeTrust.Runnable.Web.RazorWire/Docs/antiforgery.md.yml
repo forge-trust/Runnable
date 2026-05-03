@@ -4,3 +4,4 @@ sequence_key: razorwire-proof
 order: 30
 related_pages:
   - Web/ForgeTrust.Runnable.Web.RazorWire/README.md
+  - Web/ForgeTrust.Runnable.Web.RazorWire/DESIGN.md

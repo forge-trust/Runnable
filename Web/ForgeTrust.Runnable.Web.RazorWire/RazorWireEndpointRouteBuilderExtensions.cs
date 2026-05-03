@@ -1,9 +1,9 @@
+using System.Threading.Channels;
+using ForgeTrust.Runnable.Web.RazorWire.Streams;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using ForgeTrust.Runnable.Web.RazorWire.Streams;
-using System.Threading.Channels;
 
 namespace ForgeTrust.Runnable.Web.RazorWire;
 

@@ -1,13 +1,13 @@
 ﻿#if ABP_WEB
 using AbpSimpleController;
 using DependencyInjectionControllers;
+using ManyDependencyInjectionControllers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using RunnableBenchmarks.Web;
 using SimpleApiController;
 using Volo.Abp.AspNetCore;
 using Volo.Abp.Modularity;
-using RunnableBenchmarks.Web;
-using ManyDependencyInjectionControllers;
 
 namespace RunnableBenchmarks.Web.Abp;
 

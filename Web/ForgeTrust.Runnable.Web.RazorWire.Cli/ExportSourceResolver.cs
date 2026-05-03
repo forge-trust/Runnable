@@ -204,6 +204,8 @@ public sealed class ExportSourceResolver
             {
                 "publish",
                 projectPath,
+                // Captured CLI executions should not leave reusable build servers holding inherited pipes open.
+                "--disable-build-servers",
                 "-c",
                 "Release",
                 "-o",
@@ -547,6 +549,8 @@ public sealed class ExportSourceResolver
                 projectPath,
                 "-getProperty:AssemblyName",
                 "-nologo",
+                // Keep MSBuild property probes one-shot for the same reason as publish.
+                "-nodeReuse:false",
                 "-p:Configuration=Release"
             };
 

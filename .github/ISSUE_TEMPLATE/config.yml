@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private vulnerability report
+    url: https://github.com/forge-trust/Runnable/blob/main/SECURITY.md
+    about: Report suspected vulnerabilities privately instead of opening a public issue.
+  - name: Runnable contribution guide
+    url: https://github.com/forge-trust/Runnable/blob/main/CONTRIBUTING.md
+    about: Read how to file focused feedback, propose docs changes, and prepare pull requests.

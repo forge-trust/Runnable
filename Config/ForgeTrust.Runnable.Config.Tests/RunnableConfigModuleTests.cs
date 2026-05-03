@@ -1,8 +1,8 @@
 using FakeItEasy;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace ForgeTrust.Runnable.Config.Tests;
 

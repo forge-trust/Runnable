@@ -26,6 +26,7 @@ public static class RazorDocsServiceCollectionExtensions
                     options.Source ??= new RazorDocsSourceOptions();
                     options.Bundle ??= new RazorDocsBundleOptions();
                     options.Sidebar ??= new RazorDocsSidebarOptions();
+                    options.Contributor ??= new RazorDocsContributorOptions();
                     options.Routing ??= new RazorDocsRoutingOptions();
                     options.Versioning ??= new RazorDocsVersioningOptions();
                     options.Sidebar.NamespacePrefixes ??= [];
@@ -40,6 +41,9 @@ public static class RazorDocsServiceCollectionExtensions
                     }
 
                     options.Bundle.Path = NormalizeOrNull(options.Bundle.Path);
+                    options.Contributor.DefaultBranch = NormalizeOrNull(options.Contributor.DefaultBranch);
+                    options.Contributor.SourceUrlTemplate = NormalizeOrNull(options.Contributor.SourceUrlTemplate);
+                    options.Contributor.EditUrlTemplate = NormalizeOrNull(options.Contributor.EditUrlTemplate);
                     options.Routing.DocsRootPath = DocsUrlBuilder.NormalizeDocsRootPath(
                         options.Routing.DocsRootPath,
                         options.Versioning.Enabled);

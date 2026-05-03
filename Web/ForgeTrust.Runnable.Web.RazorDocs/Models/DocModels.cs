@@ -601,6 +601,13 @@ public sealed record DocFeaturedPageGroupDefinition
     /// </summary>
     public IReadOnlyList<DocFeaturedPageDefinition> Pages { get; init; } = [];
 
+    /// <summary>
+    /// Gets the parser-populated metadata field path for group-level diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// This internal value is for diagnostics and source attribution only. Authored metadata and consumers should not
+    /// depend on it as stable content because the parser path format may change.
+    /// </remarks>
     internal string? SourceFieldPath { get; init; }
 }
 
@@ -637,6 +644,13 @@ public sealed record DocFeaturedPageDefinition
     /// </summary>
     public int? Order { get; init; }
 
+    /// <summary>
+    /// Gets the parser-populated metadata field path for page-level diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// This internal value is for diagnostics and source attribution only. Authored metadata and consumers should not
+    /// depend on it as stable content because the parser path format may change.
+    /// </remarks>
     internal string? SourceFieldPath { get; init; }
 }
 

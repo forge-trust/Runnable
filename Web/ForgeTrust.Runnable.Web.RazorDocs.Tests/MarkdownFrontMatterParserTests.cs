@@ -201,6 +201,38 @@ public sealed class MarkdownFrontMatterParserTests
         Assert.Equal("featured_page_groups[0].pages", diagnostic.FieldPath);
     }
 
+    [Fact]
+    public void ExtractWithDiagnostics_ShouldSkipFeaturedPageEntriesWithoutPath_AndWarn()
+    {
+        var markdown = """
+            ---
+            featured_page_groups:
+              - label: Broken group
+                pages:
+                  - question: "Where should I go?"
+                    supporting_copy: "This row has no destination."
+                    order: 10
+            ---
+            # Hello
+            """;
+
+        var (_, result) = MarkdownFrontMatterParser.ExtractWithDiagnostics(markdown);
+
+        Assert.Empty(result.Metadata!.FeaturedPageGroups!);
+        Assert.Collection(
+            result.Diagnostics,
+            missingPath =>
+            {
+                Assert.Equal("missing-featured-group-page-path", missingPath.Code);
+                Assert.Equal("featured_page_groups[0].pages[0].path", missingPath.FieldPath);
+            },
+            emptyGroup =>
+            {
+                Assert.Equal("empty-featured-group-page-entries", emptyGroup.Code);
+                Assert.Equal("featured_page_groups[0].pages", emptyGroup.FieldPath);
+            });
+    }
+
     [Theory]
     [InlineData("!!!", "featured", "!!!")]
     [InlineData("---", "featured", "---")]
@@ -322,6 +354,26 @@ public sealed class MarkdownFrontMatterParserTests
         var diagnostic = Assert.Single(result.Diagnostics);
         Assert.Equal("flat-looking-featured-group", diagnostic.Code);
         Assert.Equal("featured_page_groups[0]", diagnostic.FieldPath);
+    }
+
+    [Fact]
+    public void ExtractWithDiagnostics_ShouldReturnInvalidYamlDiagnostic_WhenFrontMatterIsInvalid()
+    {
+        var markdown = """
+            ---
+            title: [
+            summary: Broken
+            ---
+            # Hello
+            """;
+
+        var (body, result) = MarkdownFrontMatterParser.ExtractWithDiagnostics(markdown);
+
+        Assert.Equal(markdown.Replace("\r\n", "\n", StringComparison.Ordinal), body);
+        Assert.Null(result.Metadata);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("invalid-yaml", diagnostic.Code);
+        Assert.Equal("$", diagnostic.FieldPath);
     }
 
     [Fact]

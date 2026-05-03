@@ -64,8 +64,17 @@ public sealed class DocFeaturedPageResolver
         {
             var groupPath = group.SourceFieldPath ?? $"featured_page_groups[{groupIndex}]";
             var resolvedPages = new List<DocLandingFeaturedPageViewModel>();
+            var authoredPages = group.Pages;
+            if (authoredPages is null || authoredPages.Count == 0)
+            {
+                _logger.LogWarning(
+                    "Skipping featured docs landing group on {LandingPath} at {FieldPath} because it has no pages.",
+                    landingDoc.Path,
+                    groupPath);
+                continue;
+            }
 
-            foreach (var (definition, pageIndex) in group.Pages
+            foreach (var (definition, pageIndex) in authoredPages
                          .Select((definition, index) => (definition, index))
                          .OrderBy(item => item.definition.Order ?? int.MaxValue)
                          .ThenBy(item => item.index))

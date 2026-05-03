@@ -68,6 +68,35 @@ public sealed class DocFeaturedPageResolverTests
     }
 
     [Fact]
+    public void ResolveGroups_ShouldSkipGroupsWithNullPages_AndLogWarnings()
+    {
+        var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();
+        var resolver = new DocFeaturedPageResolver(logger);
+        var landing = new DocNode(
+            "Home",
+            "README.md",
+            "<p>Home</p>",
+            CanonicalPath: "index.html",
+            Metadata: new DocMetadata
+            {
+                FeaturedPageGroups =
+                [
+                    new DocFeaturedPageGroupDefinition
+                    {
+                        Label = "Broken",
+                        Pages = null!
+                    }
+                ]
+            });
+
+        var groups = resolver.ResolveGroups(landing, [landing]);
+
+        Assert.Empty(groups);
+        AssertWarningLogged(logger, "has no pages");
+        AssertWarningLogged(logger, "no visible destination pages resolved");
+    }
+
+    [Fact]
     public void ResolveGroups_ShouldSkipHiddenDestination_AndLogWarnings()
     {
         var logger = A.Fake<ILogger<DocFeaturedPageResolver>>();

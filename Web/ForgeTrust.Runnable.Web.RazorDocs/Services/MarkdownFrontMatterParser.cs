@@ -303,8 +303,20 @@ internal static class MarkdownFrontMatterParser
                 var question = Normalize(page.Question);
                 var path = Normalize(page.Path);
                 var supportingCopy = Normalize(page.SupportingCopy);
-                if (question is null && path is null && supportingCopy is null && page.Order is null)
+                var pagePath = $"{groupPath}.pages[{pageIndex}]";
+                if (path is null)
                 {
+                    if (question is not null || supportingCopy is not null || page.Order is not null)
+                    {
+                        diagnostics.Add(
+                            new RazorDocsMetadataDiagnostic(
+                                "missing-featured-group-page-path",
+                                $"{pagePath}.path",
+                                "A featured page entry has no path.",
+                                "Featured landing rows need a destination page to resolve.",
+                                "Add a non-empty path, or remove the page entry."));
+                    }
+
                     continue;
                 }
 
@@ -315,7 +327,7 @@ internal static class MarkdownFrontMatterParser
                         Path = path,
                         SupportingCopy = supportingCopy,
                         Order = page.Order,
-                        SourceFieldPath = $"{groupPath}.pages[{pageIndex}]"
+                        SourceFieldPath = pagePath
                     });
             }
 

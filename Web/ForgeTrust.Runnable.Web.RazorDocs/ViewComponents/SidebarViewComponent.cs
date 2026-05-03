@@ -84,6 +84,8 @@ public class SidebarViewComponent : ViewComponent
             return (null, null);
         }
 
+        requestPath = NormalizeRequestPath(requestPath);
+
         var isRootMounted = string.Equals(_docsUrlBuilder.CurrentDocsRootPath, "/", StringComparison.Ordinal);
 
         if (string.Equals(requestPath, _docsUrlBuilder.CurrentDocsRootPath, StringComparison.OrdinalIgnoreCase))
@@ -126,5 +128,12 @@ public class SidebarViewComponent : ViewComponent
         }
 
         return (null, requestPath);
+    }
+
+    private static string NormalizeRequestPath(string requestPath)
+    {
+        return requestPath.Length > 1
+            ? requestPath.TrimEnd('/')
+            : requestPath;
     }
 }

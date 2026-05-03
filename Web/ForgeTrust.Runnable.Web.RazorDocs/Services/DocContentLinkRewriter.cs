@@ -17,22 +17,6 @@ internal static class DocContentLinkRewriter
     /// </summary>
     /// <param name="sourcePath">The harvested source path whose content is being rewritten.</param>
     /// <param name="html">The rendered and sanitized HTML fragment to rewrite.</param>
-    /// <param name="targetManifest">Manifest of harvested documentation targets that may be rewritten to docs routes.</param>
-    /// <returns>The rewritten HTML fragment.</returns>
-    internal static string RewriteInternalDocLinks(
-        string sourcePath,
-        string html,
-        DocLinkTargetManifest targetManifest)
-    {
-        return RewriteInternalDocLinks(sourcePath, html, "/docs", targetManifest);
-    }
-
-    /// <summary>
-    /// Rewrites internal documentation anchors in rendered HTML so they point at canonical RazorDocs routes and carry
-    /// Turbo navigation attributes that keep browser history aligned with frame navigation.
-    /// </summary>
-    /// <param name="sourcePath">The harvested source path whose content is being rewritten.</param>
-    /// <param name="html">The rendered and sanitized HTML fragment to rewrite.</param>
     /// <param name="docsRootPath">The app-relative docs root path that should own rewritten links.</param>
     /// <param name="targetManifest">Manifest of harvested documentation targets that may be rewritten to docs routes.</param>
     /// <returns>The rewritten HTML fragment.</returns>

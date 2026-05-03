@@ -545,31 +545,33 @@ public class RazorDocsWebModuleRegressionTests
                 });
             builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
 
-            using var app = builder.Build();
-            module.ConfigureEndpoints(context, app);
-
-            await app.StartAsync();
-
-            try
+            using (var app = builder.Build())
             {
-                var server = app.Services.GetRequiredService<IServer>();
-                var addresses = server.Features.Get<IServerAddressesFeature>();
-                var baseAddress = Assert.Single(addresses!.Addresses);
+                module.ConfigureEndpoints(context, app);
 
-                using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                await app.StartAsync();
+
+                try
                 {
-                    BaseAddress = new Uri(baseAddress)
-                };
+                    var server = app.Services.GetRequiredService<IServer>();
+                    var addresses = server.Features.Get<IServerAddressesFeature>();
+                    var baseAddress = Assert.Single(addresses!.Addresses);
 
-                using var getResponse = await client.GetAsync("/docs/next/search.css");
-                Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+                    using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                    {
+                        BaseAddress = new Uri(baseAddress)
+                    };
 
-                using var headResponse = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/docs/next/search-client.js"));
-                Assert.Equal(HttpStatusCode.NotFound, headResponse.StatusCode);
-            }
-            finally
-            {
-                await app.StopAsync();
+                    using var getResponse = await client.GetAsync("/docs/next/search.css");
+                    Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+
+                    using var headResponse = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, "/docs/next/search-client.js"));
+                    Assert.Equal(HttpStatusCode.NotFound, headResponse.StatusCode);
+                }
+                finally
+                {
+                    await app.StopAsync();
+                }
             }
         }
         finally

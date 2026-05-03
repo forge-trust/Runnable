@@ -106,6 +106,47 @@ public sealed class RazorDocsWayfindingPlaywrightTests
     }
 
     [Fact]
+    public async Task DesktopOutline_KeepsClickedAdjacentHeadingActiveAfterHashNavigation()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize
+            {
+                Width = 1440,
+                Height = 900
+            }
+        });
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync($"{_fixture.DocsUrl}/Web/ForgeTrust.Runnable.Web/README.md.html");
+        await page.WaitForSelectorAsync("#docs-page-outline", new PageWaitForSelectorOptions
+        {
+            Timeout = 30_000,
+            State = WaitForSelectorState.Visible
+        });
+
+        await page.ClickAsync("#docs-page-outline a[href='#endpoint-routing']");
+        await page.WaitForFunctionAsync(
+            """
+            () => {
+              const target = document.getElementById('endpoint-routing');
+              return window.location.hash === '#endpoint-routing'
+                && target
+                && target.getBoundingClientRect().top >= 0
+                && target.getBoundingClientRect().top <= 140;
+            }
+            """,
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        await page.WaitForTimeoutAsync(750);
+
+        Assert.Equal(
+            "location",
+            await page.GetAttributeAsync("#docs-page-outline a[href='#endpoint-routing']", "aria-current"));
+        Assert.Null(await page.GetAttributeAsync("#docs-page-outline a[href='#conventional-404-pages']", "aria-current"));
+    }
+
+    [Fact]
     public async Task MobileOutline_CollapsesByDefault_AndClosesAfterAnchorNavigation()
     {
         await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions

@@ -63,6 +63,12 @@
         return links.find(link => getLinkTargetId(link) === targetId) ?? null;
     }
 
+    function refreshHashActiveLink(links, expectedLink, currentLabel) {
+        if (getActiveLinkFromHash(links) === expectedLink) {
+            setActiveLink(links, expectedLink, currentLabel);
+        }
+    }
+
     function getOutlineEntries(links) {
         return links
             .map(link => {
@@ -71,6 +77,22 @@
                 return target ? { link, target } : null;
             })
             .filter(entry => entry !== null);
+    }
+
+    function getActiveEntryFromScrollPosition(entries, root) {
+        const rootTop = root.getBoundingClientRect().top;
+        const activationTop = rootTop + 64;
+        let activeEntry = entries[0];
+
+        for (const entry of entries) {
+            if (entry.target.getBoundingClientRect().top > activationTop) {
+                break;
+            }
+
+            activeEntry = entry;
+        }
+
+        return activeEntry;
     }
 
     function disconnectActiveObserver() {
@@ -124,6 +146,10 @@
                 if (compactMedia?.matches) {
                     setExpanded(shell, toggle, false);
                 }
+
+                for (const delay of [120, 360, 720]) {
+                    window.setTimeout(() => refreshHashActiveLink(links, link, currentLabel), delay);
+                }
             }, { signal: controller.signal });
         }
 
@@ -144,16 +170,11 @@
 
         activeObserver = new IntersectionObserver(
             observedEntries => {
-                const visibleEntries = observedEntries
-                    .filter(entry => entry.isIntersecting)
-                    .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top);
-
-                const visibleEntry = visibleEntries[0];
-                if (!visibleEntry) {
+                if (!observedEntries.some(entry => entry.isIntersecting)) {
                     return;
                 }
 
-                const activeEntry = entries.find(entry => entry.target === visibleEntry.target);
+                const activeEntry = getActiveEntryFromScrollPosition(entries, mainContent);
                 if (activeEntry) {
                     setActiveLink(links, activeEntry.link, currentLabel);
                 }

@@ -1518,6 +1518,81 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldHideContributorProvenance_WhenProtocolRelativeHrefValuesAreOnlyEvidence()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Web",
+                    "Namespaces/ForgeTrust.Runnable.Web",
+                    "<p>Namespace page</p>",
+                    Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web") with
+                    {
+                        Contributor = new DocContributorMetadata
+                        {
+                            SourceUrlOverride = "//evil.example/source.md",
+                            EditUrlOverride = "//evil.example/edit.md"
+                        }
+                    })
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                LastUpdatedMode = RazorDocsLastUpdatedMode.None
+            },
+            resolveGitLastUpdatedUtcAsync: null);
+
+        var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.Null(details?.ContributorProvenance);
+    }
+
+    [Fact]
+    public async Task GetDocDetailsAsync_ShouldDropProtocolRelativeHrefValues_WhenExplicitTimestampKeepsContributorProvenanceVisible()
+    {
+        var expectedLastUpdatedUtc = new DateTimeOffset(2026, 5, 1, 12, 34, 56, TimeSpan.Zero);
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Web",
+                    "Namespaces/ForgeTrust.Runnable.Web",
+                    "<p>Namespace page</p>",
+                    Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web") with
+                    {
+                        Contributor = new DocContributorMetadata
+                        {
+                            SourceUrlOverride = "//evil.example/source.md",
+                            EditUrlOverride = "//evil.example/edit.md",
+                            LastUpdatedOverride = expectedLastUpdatedUtc
+                        }
+                    })
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                LastUpdatedMode = RazorDocsLastUpdatedMode.None
+            },
+            resolveGitLastUpdatedUtcAsync: null);
+
+        var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Null(details!.ContributorProvenance!.SourceHref);
+        Assert.Null(details.ContributorProvenance.EditHref);
+        Assert.Equal(expectedLastUpdatedUtc, details.ContributorProvenance.LastUpdatedUtc);
+    }
+
+    [Fact]
     public async Task GetDocDetailsAsync_ShouldRejectRootedContributorSourcePathOverrides()
     {
         var harvester = A.Fake<IDocHarvester>();

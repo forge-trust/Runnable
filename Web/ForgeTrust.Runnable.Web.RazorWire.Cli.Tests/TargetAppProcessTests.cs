@@ -209,6 +209,13 @@ public class TargetAppProcessTests
     [Fact]
     public async Task Constructor_ShouldAllow_InjectedStartedProcess_WithoutMutatingLaunchConfiguration()
     {
+        var spec = new ProcessLaunchSpec
+        {
+            FileName = "dotnet",
+            Arguments = ["--info"],
+            WorkingDirectory = Directory.GetCurrentDirectory()
+        };
+
         using var associatedProcess = new Process
         {
             StartInfo = new ProcessStartInfo
@@ -222,15 +229,14 @@ public class TargetAppProcessTests
         associatedProcess.Start();
 
         await using var process = new TargetAppProcess(
-            new ProcessLaunchSpec
-            {
-                FileName = "dotnet",
-                Arguments = ["--info"],
-                WorkingDirectory = Directory.GetCurrentDirectory()
-            },
+            spec,
             hooks: null,
             process: associatedProcess,
             started: true);
+
+        Assert.Contains("--version", associatedProcess.StartInfo.ArgumentList);
+        Assert.DoesNotContain("--info", associatedProcess.StartInfo.ArgumentList);
+        Assert.Equal(["--info"], spec.Arguments);
 
         var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
 

@@ -1,0 +1,83 @@
+name: Bug report
+description: Report a reproducible problem in Runnable packages, examples, docs, or tooling.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Concrete reproduction steps help us decide whether the fix belongs in a package, an example, the docs, or a release note. Do not use this public form for suspected vulnerabilities; use the private security path in SECURITY.md instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behavior and what you expected instead.
+      placeholder: "I expected ..., but ..."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: Include commands, code snippets, request paths, or sample app steps.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Pick the closest package or repo surface.
+      options:
+        - Core startup pipeline
+        - Console
+        - Web
+        - RazorWire
+        - RazorDocs
+        - Caching
+        - Config
+        - Dependency injection
+        - Aspire
+        - Examples
+        - Documentation
+        - Release tooling
+        - Unsure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Runnable version or commit
+      description: Use a package version, tag, branch name, or commit SHA.
+      placeholder: "v0.1.0, main@abcdef0, or package version"
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, .NET SDK version, hosting target, browser, or CI runner when relevant.
+      placeholder: |
+        - OS:
+        - dotnet --version:
+        - Browser:
+        - Host/CI:
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste relevant output, stack traces, screenshots, or links to failing runs. If none are available, say so.
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Filing checklist
+      options:
+        - label: I included the smallest reproduction I can provide.
+          required: true
+        - label: I checked whether the behavior is already described in the package README or release notes.
+          required: false

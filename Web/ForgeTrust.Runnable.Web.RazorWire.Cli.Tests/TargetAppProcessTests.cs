@@ -174,6 +174,39 @@ public class TargetAppProcessTests
     }
 
     [Fact]
+    public async Task DisposeAsync_ShouldTreat_ObjectDisposedExitProbe_As_ObservedExit()
+    {
+        var waitForExitAsyncCalled = false;
+        var waitForExitCalled = false;
+
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--version"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            new TargetAppProcessHooks
+            {
+                HasExitedOverride = _ => throw new ObjectDisposedException(nameof(Process)),
+                WaitForExitAsyncOverride = (_, _) =>
+                {
+                    waitForExitAsyncCalled = true;
+                    return Task.CompletedTask;
+                },
+                WaitForExitOverride = _ => waitForExitCalled = true
+            },
+            process: new Process(),
+            started: true);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
+        Assert.False(waitForExitAsyncCalled);
+        Assert.True(waitForExitCalled);
+    }
+
+    [Fact]
     public async Task Constructor_ShouldAllow_InjectedStartedProcess_WithoutMutatingLaunchConfiguration()
     {
         using var associatedProcess = new Process

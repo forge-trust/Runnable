@@ -193,10 +193,10 @@ internal sealed class TargetAppProcess : ITargetAppProcess
                 {
                     exitObserved = GetHasExited();
                 }
-                catch (InvalidOperationException)
+                catch (Exception ex) when (IsBestEffortCleanupException(ex))
                 {
-                    // The process is no longer associated with a running process.
-                    exitObserved = true;
+                    // The process is no longer associated with a running process, or state retrieval is unavailable.
+                    exitObserved = ex is InvalidOperationException or ObjectDisposedException;
                 }
 
                 if (!exitObserved)

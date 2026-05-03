@@ -32,6 +32,149 @@ body {
     scrollbar-color: #334155 #0f172a;
 }
 
+.docs-page-badge,
+.docs-metadata-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    border: 1px solid #334155;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.25;
+    background: rgba(15, 23, 42, 0.72);
+}
+
+.docs-page-badge {
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #cbd5e1;
+}
+
+.docs-page-badge--guide,
+.docs-page-badge--how-to,
+.docs-page-badge--start-here {
+    border-color: rgba(34, 211, 238, 0.35);
+    background: rgba(34, 211, 238, 0.12);
+    color: #a5f3fc;
+}
+
+.docs-page-badge--example {
+    border-color: rgba(16, 185, 129, 0.35);
+    background: rgba(16, 185, 129, 0.12);
+    color: #a7f3d0;
+}
+
+.docs-page-badge--api-reference,
+.docs-page-badge--glossary,
+.docs-page-badge--faq {
+    border-color: rgba(99, 102, 241, 0.38);
+    background: rgba(99, 102, 241, 0.12);
+    color: #c7d2fe;
+}
+
+.docs-page-badge--internals,
+.docs-page-badge--troubleshooting {
+    border-color: rgba(251, 191, 36, 0.4);
+    background: rgba(251, 191, 36, 0.12);
+    color: #fde68a;
+}
+
+.docs-page-badge--neutral {
+    color: #cbd5e1;
+}
+
+.docs-metadata-chip {
+    color: #cbd5e1;
+}
+
+.docs-page-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.docs-trust-bar {
+    margin-top: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 0.9rem;
+    border: 1px solid rgba(34, 211, 238, 0.18);
+    border-radius: 1rem;
+    background:
+        linear-gradient(180deg, rgba(8, 47, 73, 0.22), rgba(2, 6, 23, 0.78)),
+        rgba(2, 6, 23, 0.9);
+    padding: 1rem;
+}
+
+.docs-trust-bar-section {
+    display: grid;
+    gap: 0.55rem;
+    align-content: start;
+    min-width: 0;
+}
+
+.docs-trust-bar-label {
+    margin: 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #67e8f9;
+    font-weight: 700;
+}
+
+.docs-trust-bar-status-row,
+.docs-trust-bar-value {
+    margin: 0;
+}
+
+.docs-trust-bar-status-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    background: rgba(34, 211, 238, 0.12);
+    color: #a5f3fc;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.docs-trust-bar-value {
+    color: #dbeafe;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.docs-trust-bar-key {
+    color: #e2e8f0;
+    font-weight: 700;
+}
+
+.docs-trust-bar-link {
+    color: #67e8f9;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: rgba(103, 232, 249, 0.45);
+    text-underline-offset: 0.18em;
+}
+
+.docs-trust-bar-link:hover {
+    color: #cffafe;
+    text-decoration-color: rgba(207, 250, 254, 0.7);
+}
+
+.docs-trust-bar-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #cbd5e1;
+    display: grid;
+    gap: 0.35rem;
+}
+
 .docs-content {
     max-width: 80ch;
     color: #cbd5e1;

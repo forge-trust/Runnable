@@ -79,6 +79,23 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public void Stylesheets_ShouldKeepSharedDocsPrimitivesOutOfSearchStylesheet()
+    {
+        var appStylesheet = ReadPackageStylesheetMarkup();
+        var searchStylesheet = ReadSearchStylesheetMarkup();
+
+        Assert.Contains(".docs-page-badge", appStylesheet);
+        Assert.Contains(".docs-metadata-chip", appStylesheet);
+        Assert.Contains(".docs-page-meta", appStylesheet);
+        Assert.Contains(".docs-trust-bar", appStylesheet);
+
+        Assert.DoesNotContain(".docs-page-badge", searchStylesheet);
+        Assert.DoesNotContain(".docs-metadata-chip", searchStylesheet);
+        Assert.DoesNotContain(".docs-page-meta", searchStylesheet);
+        Assert.DoesNotContain(".docs-trust-bar", searchStylesheet);
+    }
+
+    [Fact]
     public void Layout_ShouldKeepSidebarVisibleByDefault_ForNoScriptFallback()
     {
         var layout = ReadLayoutMarkup();
@@ -1907,6 +1924,34 @@ public class RazorDocsViewsTests
             "search-client.js");
 
         return File.ReadAllText(searchClientPath);
+    }
+
+    private static string ReadPackageStylesheetMarkup()
+    {
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        var stylesheetPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "wwwroot",
+            "css",
+            "app.css");
+
+        return File.ReadAllText(stylesheetPath);
+    }
+
+    private static string ReadSearchStylesheetMarkup()
+    {
+        var repoRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        var stylesheetPath = Path.Combine(
+            repoRoot,
+            "Web",
+            "ForgeTrust.Runnable.Web.RazorDocs",
+            "wwwroot",
+            "docs",
+            "search.css");
+
+        return File.ReadAllText(stylesheetPath);
     }
 
     private static async Task<string> RenderDocsViewAsync(

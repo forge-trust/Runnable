@@ -285,9 +285,10 @@ public class RazorWireStreamBuilder
     /// element that Turbo will update. Calling this method marks the stream as a handled form response;
     /// <see cref="BuildResult(int?)"/> will emit <see cref="Forms.RazorWireFormHeaders.FormHandled"/> so the browser
     /// runtime does not render its default fallback UI. <paramref name="maxErrors"/> is clamped to zero or greater.
-    /// RazorWire renders only the first <paramref name="maxErrors"/> collected errors and adds an overflow line when
-    /// more errors were hidden. When the model state has no displayable errors, the provided <paramref name="message"/>
-    /// is rendered as the fallback copy.
+    /// RazorWire orders collected errors by <c>error.Key</c> using <see cref="StringComparer.Ordinal"/>, then renders
+    /// only the first <paramref name="maxErrors"/> errors and adds an overflow line when more errors were hidden. For
+    /// errors that share the same field key, original model-state insertion order is preserved. When the model state
+    /// has no displayable errors, the provided <paramref name="message"/> is rendered as the fallback copy.
     /// </remarks>
     /// <param name="target">The Turbo target id whose element should receive the generated validation block.</param>
     /// <param name="modelState">The MVC model state to render into a validation summary.</param>

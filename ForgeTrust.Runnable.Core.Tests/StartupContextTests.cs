@@ -60,6 +60,7 @@ public class StartupContextTests
 
         Assert.Equal("CustomApp", renamed.ApplicationName);
         Assert.Equal(context.RootModuleAssembly, renamed.RootModuleAssembly);
+        Assert.Equal(context.HostApplicationName, renamed.HostApplicationName);
     }
 
     [Fact]

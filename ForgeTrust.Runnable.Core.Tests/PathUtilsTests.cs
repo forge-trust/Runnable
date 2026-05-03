@@ -45,7 +45,7 @@ public class PathUtilsTests : IDisposable
     }
 
     [Fact]
-    public void FindRepositoryRoot_ShouldReturnRootPath_WhenRootHasNoGitFolder()
+    public void FindRepositoryRoot_ShouldReturnRootPath_ForRootInput()
     {
         var rootPath = Path.GetPathRoot(Path.GetTempPath());
         Assert.False(string.IsNullOrEmpty(rootPath));

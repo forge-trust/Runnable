@@ -106,8 +106,9 @@ internal sealed class TargetAppProcess : ITargetAppProcess
     /// process semantics.
     /// </param>
     /// <param name="process">
-    /// Optional process instance to wrap instead of constructing a new one. When supplied, this wrapper still applies
-    /// the launch spec's start info and event subscriptions.
+    /// Optional process instance to wrap instead of constructing a new one. When supplied in an unstarted state, this
+    /// wrapper applies the launch spec's start info and event subscriptions. Already-started injected processes keep
+    /// their existing launch configuration so tests can wrap a live associated process without mutating it.
     /// </param>
     /// <param name="started">
     /// Whether the wrapped process should be treated as already started when the wrapper is created. Tests can use this
@@ -142,7 +143,7 @@ internal sealed class TargetAppProcess : ITargetAppProcess
         }
 
         _process = process ?? new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        if (process is not null)
+        if (process is not null && !started)
         {
             _process.StartInfo = startInfo;
             _process.EnableRaisingEvents = true;

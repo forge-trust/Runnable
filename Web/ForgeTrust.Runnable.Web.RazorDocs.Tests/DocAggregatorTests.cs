@@ -1480,6 +1480,44 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldDropContributorOverrides_WithUnsafeEditHrefSchemes()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Web",
+                    "Namespaces/ForgeTrust.Runnable.Web",
+                    "<p>Namespace page</p>",
+                    Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.Runnable.Web") with
+                    {
+                        Contributor = new DocContributorMetadata
+                        {
+                            SourceUrlOverride = "https://example.com/source",
+                            EditUrlOverride = "javascript:alert('xss')"
+                        }
+                    })
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new RazorDocsContributorOptions
+            {
+                Enabled = true,
+                LastUpdatedMode = RazorDocsLastUpdatedMode.None
+            },
+            resolveGitLastUpdatedUtcAsync: null);
+
+        var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.Runnable.Web");
+
+        Assert.NotNull(details?.ContributorProvenance);
+        Assert.Equal("https://example.com/source", details!.ContributorProvenance!.SourceHref);
+        Assert.Null(details.ContributorProvenance.EditHref);
+        Assert.Null(details.ContributorProvenance.LastUpdatedUtc);
+    }
+
+    [Fact]
     public async Task GetDocDetailsAsync_ShouldRejectRootedContributorSourcePathOverrides()
     {
         var harvester = A.Fake<IDocHarvester>();

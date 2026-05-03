@@ -46,7 +46,7 @@ If you want the live standalone host to exercise the full `Source of truth` stri
 - Slash-separated refs such as `feature/issue-143` are preserved in the generated GitHub-style URLs while still escaping special characters inside each segment.
 - For local forks or branch previews, do not reuse upstream `main` unless that is truly the page's source of truth.
 - Set `LastUpdatedMode` to `Git` when you want the standalone host to exercise relative freshness too. The package default is `None`, so git-backed timestamps stay opt-in.
-- If you cannot provide a trustworthy source or edit destination, leave the templates unset. RazorDocs will still omit unsafe links instead of guessing, and it will omit `Last updated` unless you explicitly opt into git freshness.
+- If you cannot provide a trustworthy source or edit destination, leave the templates unset. RazorDocs will still omit unsafe links instead of guessing, and it will omit git-backed `Last updated` unless you explicitly opt into git freshness. Page-level `last_updated_override` metadata can still supply an explicit timestamp.
 - The Playwright integration suite launches the standalone host with explicit contributor settings so this runtime configuration seam stays covered.
 
 ## Related Projects

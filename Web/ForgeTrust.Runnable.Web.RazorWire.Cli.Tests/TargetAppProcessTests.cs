@@ -174,6 +174,37 @@ public class TargetAppProcessTests
     }
 
     [Fact]
+    public async Task Constructor_ShouldAllow_InjectedStartedProcess_WithoutMutatingLaunchConfiguration()
+    {
+        using var associatedProcess = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                WorkingDirectory = Directory.GetCurrentDirectory(),
+                UseShellExecute = false
+            }
+        };
+        associatedProcess.StartInfo.ArgumentList.Add("--version");
+        associatedProcess.Start();
+
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--info"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            hooks: null,
+            process: associatedProcess,
+            started: true);
+
+        var exception = await Record.ExceptionAsync(async () => await process.DisposeAsync());
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public void Factory_Should_Create_TargetProcess()
     {
         var factory = new TargetAppProcessFactory();

@@ -52,6 +52,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Runnable's own release pages now double as a working RazorDocs example for consumers who want better release notes.
 - RazorDocs pages can now expose typed `On this page` outlines, explicit proof-path previous/next links, related-page cards, and sidebar anchor navigation from harvested metadata instead of scraping rendered HTML.
 - Public docs navigation now groups pages by intent-first sections, preserves authored editorial breadcrumbs, and keeps Start Here recovery links hidden when that section is unavailable.
+- RazorDocs landing curation now uses `featured_page_groups`, so root and section landing pages can organize next-step links by reader intent instead of rendering one flat list.
 - The release contract is designed so future tooling can generate both a changelog entry and a blog-style tagged release note from the same underlying signals.
 - RazorDocs now rewrites authored doc links from a harvested target manifest instead of broad suffix heuristics, so normal site links such as `../privacy.html` stay untouched and missing doc targets do not become broken `/docs/...` routes.
 
@@ -63,6 +64,7 @@ There is no tagged migration guide yet because Runnable has not cut `v0.1.0`. Un
 - the stable policy lives in [Pre-1.0 upgrade policy](./upgrade-policy.md)
 - finalized migration steps move into the tagged release note when the version ships
 - custom RazorDocs harvesters that want detail-page outlines and search heading metadata should populate `DocNode.Outline`; pages without outline metadata continue to render without the optional outline section
+- RazorDocs authors should migrate flat `featured_pages` metadata to `featured_page_groups`. The old field is ignored and logs a warning; each group needs at least `label` or `intent`, plus a `pages` list containing the existing `question`, `path`, `supporting_copy`, and `order` entries.
 
 ## Proof artifacts
 

@@ -25,6 +25,7 @@ public class DocsControllerTests : IDisposable
     private readonly IMemoryCache _cache;
     private readonly IMemo _memo;
     private readonly ILogger<DocsController> _controllerLoggerFake;
+    private readonly ILogger<DocFeaturedPageResolver> _featuredPageResolverLoggerFake;
     private readonly IRazorDocsHtmlSanitizer _sanitizerFake;
 
     public DocsControllerTests()
@@ -33,6 +34,7 @@ public class DocsControllerTests : IDisposable
         _harvesterFake = A.Fake<IDocHarvester>();
         var loggerFake = A.Fake<ILogger<DocAggregator>>();
         _controllerLoggerFake = A.Fake<ILogger<DocsController>>();
+        _featuredPageResolverLoggerFake = A.Fake<ILogger<DocFeaturedPageResolver>>();
         var options = new RazorDocsOptions();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var envFake = A.Fake<IWebHostEnvironment>();
@@ -53,7 +55,10 @@ public class DocsControllerTests : IDisposable
             loggerFake
         );
 
-        _controller = new DocsController(_aggregator, _controllerLoggerFake)
+        _controller = new DocsController(
+            _aggregator,
+            new DocFeaturedPageResolver(_featuredPageResolverLoggerFake),
+            _controllerLoggerFake)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -72,14 +77,15 @@ public class DocsControllerTests : IDisposable
                 {
                     Title = "Runnable",
                     Summary = "Start with the proof paths that matter most.",
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "How does composition work?",
-                            Path = "guides/composition.md",
-                            Order = 10
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "How does composition work?",
+                                Path = "guides/composition.md",
+                                Order = 10
+                            })
                     ]
                 }),
             new(
@@ -101,7 +107,7 @@ public class DocsControllerTests : IDisposable
         Assert.True(model.HasFeaturedPages);
         Assert.Equal("Runnable", model.Heading);
         Assert.Equal("Start with the proof paths that matter most.", model.Description);
-        var featuredPage = Assert.Single(model.FeaturedPages);
+        var featuredPage = SingleFeaturedPage(model);
         Assert.Equal("How does composition work?", featuredPage.Question);
         Assert.Equal("Composition", featuredPage.Title);
         Assert.Equal("/docs/guides/composition.md.html", featuredPage.Href);
@@ -120,12 +126,13 @@ public class DocsControllerTests : IDisposable
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Path = "guides/composition.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/composition.md"
+                            })
                     ]
                 }),
             new("Composition", "guides/composition.md", "<p>Guide body</p>")
@@ -254,7 +261,7 @@ public class DocsControllerTests : IDisposable
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
         Assert.False(model.HasFeaturedPages);
-        Assert.Empty(model.FeaturedPages);
+        Assert.Empty(model.FeaturedPageGroups);
     }
 
     [Fact]
@@ -384,13 +391,14 @@ public class DocsControllerTests : IDisposable
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "How does composition work?",
-                            Path = "guides/composition.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "How does composition work?",
+                                Path = "guides/composition.md"
+                            })
                     ]
                 }),
             new(
@@ -424,12 +432,13 @@ public class DocsControllerTests : IDisposable
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Where do I start?"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Where do I start?"
+                            })
                     ]
                 }),
             new("Guide", "guides/intro.md", "<p>Guide body</p>")
@@ -455,13 +464,14 @@ public class DocsControllerTests : IDisposable
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Show me an example",
-                            Path = "examples/missing.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Show me an example",
+                                Path = "examples/missing.md"
+                            })
                     ]
                 }),
             new("Guide", "guides/intro.md", "<p>Guide body</p>")
@@ -488,18 +498,19 @@ public class DocsControllerTests : IDisposable
                 Metadata: new DocMetadata
                 {
                     Title = "Runnable",
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Start here",
-                            Path = "guides/composition.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Duplicate",
-                            Path = "guides/composition.md.html"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Start here",
+                                Path = "guides/composition.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Duplicate",
+                                Path = "guides/composition.md.html"
+                            })
                     ]
                 }),
             new(
@@ -517,7 +528,7 @@ public class DocsControllerTests : IDisposable
 
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
-        var featuredPage = Assert.Single(model.FeaturedPages);
+        var featuredPage = SingleFeaturedPage(model);
         Assert.Equal("Start here", featuredPage.Question);
         AssertWarningLogged("destination is already featured");
     }
@@ -561,13 +572,14 @@ public class DocsControllerTests : IDisposable
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Path = "guides/composition.md.html",
-                            SupportingCopy = "Authored copy wins."
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/composition.md.html",
+                                SupportingCopy = "Authored copy wins."
+                            })
                     ]
                 }),
             new(
@@ -586,7 +598,7 @@ public class DocsControllerTests : IDisposable
 
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
-        var featuredPage = Assert.Single(model.FeaturedPages);
+        var featuredPage = SingleFeaturedPage(model);
         Assert.Equal("Composition", featuredPage.Question);
         Assert.Equal("Authored copy wins.", featuredPage.SupportingText);
     }
@@ -604,12 +616,13 @@ public class DocsControllerTests : IDisposable
                 {
                     Title = " Home ",
                     Summary = "   ",
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Path = "guides/composition.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/composition.md"
+                            })
                     ]
                 }),
             new(
@@ -629,7 +642,7 @@ public class DocsControllerTests : IDisposable
 
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
-        var featuredPage = Assert.Single(model.FeaturedPages);
+        var featuredPage = SingleFeaturedPage(model);
         Assert.Equal("Documentation", model.Heading);
         Assert.Equal(
             "Start with the proof path that answers the first evaluator questions, then move into the sections that fit your next decision.",
@@ -650,12 +663,13 @@ public class DocsControllerTests : IDisposable
                 Metadata: new DocMetadata
                 {
                     Title = "   ",
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Path = "guides/composition.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/composition.md"
+                            })
                     ]
                 }),
             new("Composition", "guides/composition.md", "<p>Guide body</p>")
@@ -681,12 +695,13 @@ public class DocsControllerTests : IDisposable
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Path = "\\guides\\composition.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "\\guides\\composition.md"
+                            })
                     ]
                 }),
             new("Composition", "guides/composition.md", "<p>Guide body</p>")
@@ -697,7 +712,7 @@ public class DocsControllerTests : IDisposable
 
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
-        var featuredPage = Assert.Single(model.FeaturedPages);
+        var featuredPage = SingleFeaturedPage(model);
         Assert.Equal("/docs/guides/composition.md.html", featuredPage.Href);
     }
 
@@ -712,12 +727,13 @@ public class DocsControllerTests : IDisposable
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Path = "guides/intro.md#missing-fragment"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/intro.md#missing-fragment"
+                            })
                     ]
                 }),
             new("Guide Root", "guides/intro.md", "<p>Root body</p>"),
@@ -730,7 +746,7 @@ public class DocsControllerTests : IDisposable
 
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
-        var featuredPage = Assert.Single(model.FeaturedPages);
+        var featuredPage = SingleFeaturedPage(model);
         Assert.Equal("Guide Root", featuredPage.Question);
         Assert.Equal("Guide Root", featuredPage.Title);
         Assert.Equal("/docs/guides/intro.md.html", featuredPage.Href);
@@ -747,12 +763,13 @@ public class DocsControllerTests : IDisposable
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Path = "guides/advanced.md#missing-fragment"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Path = "guides/advanced.md#missing-fragment"
+                            })
                     ]
                 }),
             new("Guide Empty Fragment", "guides/advanced.md#details", "   "),
@@ -764,7 +781,7 @@ public class DocsControllerTests : IDisposable
 
         var viewResult = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<DocLandingViewModel>(viewResult.Model);
-        var featuredPage = Assert.Single(model.FeaturedPages);
+        var featuredPage = SingleFeaturedPage(model);
         Assert.Equal("Guide Rich Fragment", featuredPage.Question);
         Assert.Equal("Guide Rich Fragment", featuredPage.Title);
         Assert.Equal("/docs/guides/advanced.md.html#setup", featuredPage.Href);
@@ -921,13 +938,22 @@ public class DocsControllerTests : IDisposable
     public void Constructor_ShouldThrow_WhenAggregatorIsNull()
     {
         var logger = A.Fake<ILogger<DocsController>>();
-        Assert.Throws<ArgumentNullException>(() => new DocsController(null!, logger));
+        var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+        Assert.Throws<ArgumentNullException>(() => new DocsController(null!, resolver, logger));
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenFeaturedPageResolverIsNull()
+    {
+        var logger = A.Fake<ILogger<DocsController>>();
+        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, null!, logger));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, null!));
+        var resolver = new DocFeaturedPageResolver(A.Fake<ILogger<DocFeaturedPageResolver>>());
+        Assert.Throws<ArgumentNullException>(() => new DocsController(_aggregator, resolver, null!));
     }
 
     [Fact]
@@ -1579,18 +1605,39 @@ public class DocsControllerTests : IDisposable
         _cache.Dispose();
     }
 
-    private void AssertWarningLogged(string expectedMessageFragment)
+    private static DocFeaturedPageGroupDefinition FeaturedGroup(params DocFeaturedPageDefinition[] pages)
     {
-        A.CallTo(_controllerLoggerFake)
-            .Where(
-                call => call.Method.Name == nameof(ILogger.Log)
-                        && call.GetArgument<LogLevel>(0) == LogLevel.Warning
-                        && LoggedMessageContains(call, expectedMessageFragment))
-            .MustHaveHappened();
+        return new DocFeaturedPageGroupDefinition
+        {
+            Intent = "test",
+            Label = "Test",
+            Pages = pages
+        };
     }
 
-    private static bool LoggedMessageContains(FakeItEasy.Core.IFakeObjectCall call, string expectedMessageFragment)
+    private static DocLandingFeaturedPageViewModel SingleFeaturedPage(DocLandingViewModel model)
     {
+        var group = Assert.Single(model.FeaturedPageGroups);
+        return Assert.Single(group.Pages);
+    }
+
+    private void AssertWarningLogged(string expectedMessageFragment)
+    {
+        var controllerLogged = Fake.GetCalls(_controllerLoggerFake)
+            .Any(call => IsWarningLog(call, expectedMessageFragment));
+        var resolverLogged = Fake.GetCalls(_featuredPageResolverLoggerFake)
+            .Any(call => IsWarningLog(call, expectedMessageFragment));
+
+        Assert.True(controllerLogged || resolverLogged, $"Expected warning log containing '{expectedMessageFragment}'.");
+    }
+
+    private static bool IsWarningLog(FakeItEasy.Core.IFakeObjectCall call, string expectedMessageFragment)
+    {
+        if (call.Method.Name != nameof(ILogger.Log) || call.GetArgument<LogLevel>(0) != LogLevel.Warning)
+        {
+            return false;
+        }
+
         var message = call.GetArgument<object>(2)?.ToString();
         return message?.Contains(expectedMessageFragment, StringComparison.OrdinalIgnoreCase) == true;
     }

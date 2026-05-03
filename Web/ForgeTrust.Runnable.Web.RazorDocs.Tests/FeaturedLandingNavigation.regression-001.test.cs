@@ -34,12 +34,20 @@ public class FeaturedLandingNavigationRegressionTests
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
+                        new DocFeaturedPageGroupDefinition
                         {
-                            Question = "Open Web docs",
-                            Path = "Web/README.md"
+                            Intent = "open",
+                            Label = "Open",
+                            Pages =
+                            [
+                                new DocFeaturedPageDefinition
+                                {
+                                    Question = "Open Web docs",
+                                    Path = "Web/README.md"
+                                }
+                            ]
                         }
                     ]
                 }),

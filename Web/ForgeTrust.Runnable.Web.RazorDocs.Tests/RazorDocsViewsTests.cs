@@ -142,15 +142,16 @@ public class RazorDocsViewsTests
                 {
                     Title = "Runnable",
                     Summary = "Proof before promises.",
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "How does composition work?",
-                            Path = "guides/composition.md",
-                            SupportingCopy = "Follow the composition model.",
-                            Order = 10
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "How does composition work?",
+                                Path = "guides/composition.md",
+                                SupportingCopy = "Follow the composition model.",
+                                Order = 10
+                            })
                     ]
                 }),
             new(
@@ -170,7 +171,7 @@ public class RazorDocsViewsTests
         Assert.Contains(">Runnable</h1>", html);
         Assert.Contains("Proof before promises.", html);
         Assert.Contains("How does composition work?", html);
-        Assert.Contains(">Composition</h3>", html);
+        Assert.Contains(">Composition</h4>", html);
         Assert.Contains("Follow the composition model.", html);
         Assert.Contains("Guide", html);
         Assert.Contains("docs-page-badge--guide", html);
@@ -188,13 +189,14 @@ public class RazorDocsViewsTests
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Show me an example",
-                            Path = "examples/hello.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Show me an example",
+                                Path = "examples/hello.md"
+                            })
                     ]
                 }),
             new(
@@ -227,33 +229,34 @@ public class RazorDocsViewsTests
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "API card",
-                            Path = "guides/api.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "How-to card",
-                            Path = "guides/how-to.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Start card",
-                            Path = "guides/start.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Untyped card",
-                            Path = "guides/plain.md"
-                        },
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Custom card",
-                            Path = "guides/custom.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "API card",
+                                Path = "guides/api.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "How-to card",
+                                Path = "guides/how-to.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Start card",
+                                Path = "guides/start.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Untyped card",
+                                Path = "guides/plain.md"
+                            },
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Custom card",
+                                Path = "guides/custom.md"
+                            })
                     ]
                 }),
             new("API Page", "guides/api.md", "<p>API body</p>", Metadata: new DocMetadata { PageType = "api-reference" }),
@@ -300,13 +303,14 @@ public class RazorDocsViewsTests
                 "<p>Home</p>",
                 Metadata: new DocMetadata
                 {
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Show me internals",
-                            Path = "guides/hidden.md"
-                        }
+                        FeaturedGroup(
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Show me internals",
+                                Path = "guides/hidden.md"
+                            })
                     ]
                 }),
             new(
@@ -351,13 +355,15 @@ public class RazorDocsViewsTests
                 {
                     NavGroup = "Concepts",
                     SectionLanding = true,
-                    FeaturedPages =
+                    FeaturedPageGroups =
                     [
-                        new DocFeaturedPageDefinition
-                        {
-                            Question = "Learn the mental model",
-                            Path = "concepts/deep-dive.md"
-                        }
+                        FeaturedGroup(
+                            "Learn the mental model",
+                            new DocFeaturedPageDefinition
+                            {
+                                Question = "Learn the mental model",
+                                Path = "concepts/deep-dive.md"
+                            })
                     ]
                 }),
             new(
@@ -806,14 +812,15 @@ public class RazorDocsViewsTests
                 NavGroup = "Concepts",
                 SectionLanding = true,
                 Summary = "Landing summary.",
-                FeaturedPages =
+                FeaturedPageGroups =
                 [
-                    new DocFeaturedPageDefinition
+                    FeaturedGroup(
+                        new DocFeaturedPageDefinition
                     {
                         Question = "Go deeper",
                         Path = "concepts/deep-dive.md",
                         SupportingCopy = "Follow the next route."
-                    }
+                    })
                 ]
             });
         var deepDive = new DocNode(
@@ -2215,6 +2222,21 @@ public class RazorDocsViewsTests
         }
 
         return docs;
+    }
+
+    private static DocFeaturedPageGroupDefinition FeaturedGroup(params DocFeaturedPageDefinition[] pages)
+    {
+        return FeaturedGroup("Test", pages);
+    }
+
+    private static DocFeaturedPageGroupDefinition FeaturedGroup(string label, params DocFeaturedPageDefinition[] pages)
+    {
+        return new DocFeaturedPageGroupDefinition
+        {
+            Intent = label.ToLowerInvariant().Replace(' ', '-'),
+            Label = label,
+            Pages = pages
+        };
     }
 
     private sealed class StaticDocHarvester : IDocHarvester

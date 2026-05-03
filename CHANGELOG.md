@@ -26,11 +26,13 @@ This changelog is the compact release ledger for Runnable. The monorepo ships in
 - Runnable now treats the whole monorepo as one coordinated release surface. Packages, CLI tools, examples, and docs-facing behavior all roll into the same upcoming version.
 - Pull requests are expected to use Conventional Commits titles and to update `releases/unreleased.md` unless maintainers explicitly opt out.
 - Markdown-only changes on `main` now trigger the build-and-export workflow so release-note and policy updates publish with the docs surface.
+- RazorDocs landing curation now renders reader-intent `featured_page_groups` instead of one flat featured list.
 
 ### Migration
 
 - Runnable has not cut `v0.1.0` yet, so there is no tagged migration guide today.
 - Before `v0.1.0`, any breaking or behavior-changing update should record provisional guidance in [`releases/unreleased.md`](./releases/unreleased.md) and move finalized steps into the tagged release note once the version ships.
+- RazorDocs authors using `featured_pages` should migrate to `featured_page_groups`; the old flat field now logs a warning and no longer renders.
 
 ## No tagged releases yet
 

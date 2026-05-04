@@ -20,19 +20,34 @@ public sealed class ConfigValidationExampleSmokeTests
         };
         process.StartInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
         process.StartInfo.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+        process.StartInfo.Environment["DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE"] = "1";
         process.StartInfo.Environment["DOTNET_NOLOGO"] = "1";
+        process.StartInfo.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
 
         process.Start();
 
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        var waitForExit = process.WaitForExitAsync();
-        var completed = await Task.WhenAny(waitForExit, Task.Delay(TimeSpan.FromSeconds(30)));
+        var timedOut = false;
+        using var timeoutSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
-        if (completed != waitForExit)
+        try
         {
-            process.Kill(entireProcessTree: true);
-            throw new TimeoutException("The config validation example did not finish within 30 seconds.");
+            await process.WaitForExitAsync(timeoutSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            timedOut = true;
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // The process can exit naturally between cancellation and kill.
+            }
+
+            await process.WaitForExitAsync();
         }
 
         var outputTask = Task.WhenAll(stdout, stderr);
@@ -43,6 +58,10 @@ public sealed class ConfigValidationExampleSmokeTests
         }
 
         var output = string.Concat(await stdout, await stderr);
+        if (timedOut)
+        {
+            throw new TimeoutException("The config validation example did not finish within 30 seconds.");
+        }
 
         Assert.NotEqual(0, process.ExitCode);
         Assert.Contains("Configuration validation failed for key 'PortConfig'", output);

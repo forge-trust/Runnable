@@ -67,6 +67,13 @@ public class ConfigValueValidationAttributeTests
     }
 
     [Fact]
+    public void Range_ConstructorsRejectInvertedBounds()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ConfigValueRangeAttribute(5, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ConfigValueRangeAttribute(5.5, 1.5));
+    }
+
+    [Fact]
     public void MinLength_ValidatesStringValues()
     {
         var attribute = new ConfigValueMinLengthAttribute(3);

@@ -17,7 +17,7 @@ This package provides the configuration layer for Runnable modules. It combines 
 - **`ConfigValueNotEmptyAttribute`**: Validates that a resolved scalar `string` or `Guid` value is not empty.
 - **`ConfigValueRangeAttribute`**: Validates that a resolved scalar `int` or `double` value is within an inclusive range.
 - **`ConfigValueMinLengthAttribute`**: Validates that a resolved scalar `string` value meets a minimum length.
-- **`ConfigurationValidationException`**: Startup-time exception that reports DataAnnotations failures for a resolved config value.
+- **`ConfigurationValidationException`**: Startup-time exception that reports object DataAnnotations and scalar validation failures for a resolved config value.
 - **`ConfigurationValidationFailure`**: Structured validation failure details for logging and tests.
 
 ## Usage

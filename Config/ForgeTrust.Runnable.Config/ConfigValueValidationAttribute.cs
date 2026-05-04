@@ -77,9 +77,19 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
     /// </summary>
     /// <param name="minimum">The inclusive minimum allowed value.</param>
     /// <param name="maximum">The inclusive maximum allowed value.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="minimum"/> is greater than <paramref name="maximum"/>.
+    /// </exception>
     public ConfigValueRangeAttribute(int minimum, int maximum)
         : base("The configuration value must be between {0} and {1}.")
     {
+        if (minimum > maximum)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(minimum),
+                "Minimum must be less than or equal to maximum.");
+        }
+
         _kind = RangeKind.Int32;
         Minimum = minimum;
         Maximum = maximum;
@@ -90,9 +100,19 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
     /// </summary>
     /// <param name="minimum">The inclusive minimum allowed value.</param>
     /// <param name="maximum">The inclusive maximum allowed value.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="minimum"/> is greater than <paramref name="maximum"/>.
+    /// </exception>
     public ConfigValueRangeAttribute(double minimum, double maximum)
         : base("The configuration value must be between {0} and {1}.")
     {
+        if (minimum > maximum)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(minimum),
+                "Minimum must be less than or equal to maximum.");
+        }
+
         _kind = RangeKind.Double;
         Minimum = minimum;
         Maximum = maximum;

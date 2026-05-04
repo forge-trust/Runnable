@@ -51,7 +51,7 @@ public class Config<T> : IConfig
     /// <param name="environmentProvider">The environment provider used to choose the active environment.</param>
     /// <param name="key">The configuration key to resolve.</param>
     /// <exception cref="ConfigurationValidationException">
-    /// Thrown when the provider value or default value violates DataAnnotations validation rules.
+    /// Thrown when the provider value or default value violates object DataAnnotations or scalar validation rules.
     /// </exception>
     internal virtual void Init(
         IConfigManager configManager,
@@ -81,7 +81,10 @@ public class Config<T> : IConfig
     /// </summary>
     /// <param name="value">The resolved provider or default scalar value.</param>
     /// <param name="validationContext">The validation context for the concrete configuration wrapper.</param>
-    /// <returns>The validation results for <paramref name="value"/>, or null when validation succeeds.</returns>
+    /// <returns>
+    /// The validation results for <paramref name="value"/>. Return <see langword="null"/>, an empty sequence,
+    /// <see cref="ValidationResult.Success"/>, or null entries when validation succeeds.
+    /// </returns>
     protected virtual IEnumerable<ValidationResult>? ValidateValue(
         T value,
         ValidationContext validationContext) =>

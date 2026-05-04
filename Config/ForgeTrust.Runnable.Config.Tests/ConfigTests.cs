@@ -345,6 +345,12 @@ public class ConfigTests
     {
     }
 
+    [ConfigValueNotEmpty]
+    private sealed class DefaultInvalidNotEmptyStringConfig : Config<string>
+    {
+        public override string DefaultValue => string.Empty;
+    }
+
     [ConfigValueMinLength(3)]
     private sealed class MinLengthStringConfig : Config<string>
     {
@@ -353,6 +359,12 @@ public class ConfigTests
     [ConfigValueRange(1, 5)]
     private sealed class RangedIntConfig : ConfigStruct<int>
     {
+    }
+
+    [ConfigValueRange(1, 5)]
+    private sealed class DefaultInvalidRangedIntConfig : ConfigStruct<int>
+    {
+        public override int? DefaultValue => 6;
     }
 
     [ConfigValueRange(1.5, 5.5)]
@@ -966,6 +978,20 @@ public class ConfigTests
     }
 
     [Fact]
+    public void Init_WithScalarClassDefaultValue_ValidatesDefault()
+    {
+        var config = new DefaultInvalidNotEmptyStringConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, null));
+
+        Assert.True(config.HasValue);
+        Assert.True(config.IsDefaultValue);
+        Assert.Equal(string.Empty, config.Value);
+        Assert.Contains("must not be empty", Assert.Single(exception.Failures).Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Init_WithConfigValueMinLength_RejectsShortString()
     {
         var exception = Assert.Throws<ConfigurationValidationException>(() =>
@@ -984,6 +1010,20 @@ public class ConfigTests
 
         Assert.Contains("between 1 and 5", Assert.Single(intException.Failures).Message, StringComparison.Ordinal);
         Assert.Contains("between 1.5 and 5.5", Assert.Single(doubleException.Failures).Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Struct_Init_WithScalarDefaultValue_ValidatesDefault()
+    {
+        var config = new DefaultInvalidRangedIntConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            InitStruct(config, null));
+
+        Assert.True(config.HasValue);
+        Assert.True(config.IsDefaultValue);
+        Assert.Equal(6, config.Value);
+        Assert.Contains("between 1 and 5", Assert.Single(exception.Failures).Message, StringComparison.Ordinal);
     }
 
     [Fact]

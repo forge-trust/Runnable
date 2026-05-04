@@ -232,6 +232,10 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// When versioning is enabled, this hook also reserves the stable version entry route at <c>/docs</c>, adds the
     /// archive surface at <c>/docs/versions</c>, and serves preview-surface assets from either the live web root or the
     /// packaged Razor Class Library depending on whether published-tree mounts can shadow the stable docs root.
+    /// Asset routes are built with <see cref="DocsUrlBuilder.BuildAssetUrl(string)"/> for <c>search.css</c>,
+    /// <c>minisearch.min.js</c>, <c>search-client.js</c>, and the page-local <c>outline-client.js</c>. Preview hosts can
+    /// serve those files directly from the web root; otherwise the current-surface URLs redirect through
+    /// <see cref="ResolveLegacySearchAssetBasePath"/> to the packaged RazorDocs assets.
     /// Route ordering matters: index, search, search-index, section, and catch-all routes are registered from most to
     /// least specific so the live preview root continues to behave correctly even when the current docs root is
     /// root-mounted or overlaps published exact-version aliases.

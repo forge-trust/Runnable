@@ -481,7 +481,7 @@
                  aria-label="On this page">
                 <div class="docs-outline-label">On this page</div>
                 <ol class="docs-outline-list">
-                    @foreach (var item in Model.Outline)
+                    @foreach (var item in Model.Outline.Where(item => !string.IsNullOrWhiteSpace(item.Id) && !string.IsNullOrWhiteSpace(item.Title)))
                     {
                         var linkClass = item.Level > 2
                             ? "docs-outline-link docs-outline-link--level-3"

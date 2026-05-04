@@ -1830,6 +1830,18 @@ public class RazorDocsViewsTests
                     Title = "Verify",
                     Id = "verify",
                     Level = 3
+                },
+                new DocOutlineItem
+                {
+                    Title = "Missing fragment",
+                    Id = " ",
+                    Level = 2
+                },
+                new DocOutlineItem
+                {
+                    Title = " ",
+                    Id = "missing-title",
+                    Level = 2
                 }
             ]);
 
@@ -1849,6 +1861,8 @@ public class RazorDocsViewsTests
         Assert.NotNull(document.QuerySelector("#docs-page-outline-panel[aria-label='On this page']"));
         Assert.NotNull(document.QuerySelector("a.docs-outline-link[href='#install']"));
         Assert.NotNull(document.QuerySelector("a.docs-outline-link--level-3[href='#verify']"));
+        Assert.Null(document.QuerySelector("a.docs-outline-link[href='#missing-title']"));
+        Assert.DoesNotContain("Missing fragment", html);
         Assert.Single(document.QuerySelectorAll("#docs-page-outline nav"));
         Assert.True(
             document.QuerySelector(".docs-detail-primary")!.CompareDocumentPosition(document.QuerySelector("#docs-page-outline")!)

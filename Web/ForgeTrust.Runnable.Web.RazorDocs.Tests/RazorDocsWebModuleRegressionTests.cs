@@ -453,6 +453,7 @@ public class RazorDocsWebModuleRegressionTests
             File.WriteAllText(Path.Combine(tempDirectory, "docs", "search.css"), "body { background: #111827; }");
             File.WriteAllText(Path.Combine(tempDirectory, "docs", "minisearch.min.js"), "window.MiniSearch = {};");
             File.WriteAllText(Path.Combine(tempDirectory, "docs", "search-client.js"), "window.__previewAsset = true;");
+            File.WriteAllText(Path.Combine(tempDirectory, "docs", "outline-client.js"), "window.__outlineAsset = true;");
 
             var module = new RazorDocsWebModule();
             var context = new StartupContext([], module);
@@ -504,6 +505,12 @@ public class RazorDocsWebModuleRegressionTests
                     var jsBody = await jsResponse.Content.ReadAsStringAsync();
                     Assert.Equal(HttpStatusCode.OK, jsResponse.StatusCode);
                     Assert.Contains("window.__previewAsset = true;", jsBody);
+
+                    using var outlineResponse = await client.GetAsync("/docs/next/outline-client.js");
+                    var outlineBody = await outlineResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, outlineResponse.StatusCode);
+                    Assert.Contains("window.__outlineAsset = true;", outlineBody);
+                    Assert.Equal("/docs/next/outline-client.js", outlineResponse.RequestMessage?.RequestUri?.AbsolutePath);
 
                     using var headResponse = await client.SendAsync(
                         new HttpRequestMessage(HttpMethod.Head, "/docs/next/minisearch.min.js?cache=abc"));

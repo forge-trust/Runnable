@@ -329,8 +329,8 @@ body {
     width: 0.45rem;
     height: 0.45rem;
     flex: 0 0 auto;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
+    border-right: 1.5px solid currentcolor;
+    border-bottom: 1.5px solid currentcolor;
     transform: rotate(45deg);
     transition: transform 140ms ease;
 }

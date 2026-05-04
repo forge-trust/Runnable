@@ -138,7 +138,14 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             """,
             null,
             new PageWaitForFunctionOptions { Timeout = 15_000 });
-        await page.WaitForTimeoutAsync(750);
+        await page.WaitForFunctionAsync(
+            """
+            () => document
+              .querySelector("#docs-page-outline a[href='#endpoint-routing']")
+              ?.getAttribute("aria-current") === "location"
+            """,
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
 
         Assert.Equal(
             "location",

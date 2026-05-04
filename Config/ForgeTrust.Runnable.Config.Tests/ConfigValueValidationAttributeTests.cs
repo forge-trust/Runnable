@@ -46,7 +46,9 @@ public class ConfigValueValidationAttributeTests
         Assert.Equal(1, attribute.Minimum);
         Assert.Equal(5, attribute.Maximum);
         AssertValid(attribute, null);
+        AssertValid(attribute, attribute.Minimum);
         AssertValid(attribute, 3);
+        AssertValid(attribute, attribute.Maximum);
         AssertInvalid(attribute, 0, "between 1 and 5");
         AssertInvalid(attribute, 6, "between 1 and 5");
         AssertInvalid(attribute, 3.0, "configured for Int32 values");
@@ -60,7 +62,9 @@ public class ConfigValueValidationAttributeTests
         Assert.Equal(1.5, attribute.Minimum);
         Assert.Equal(5.5, attribute.Maximum);
         AssertValid(attribute, null);
+        AssertValid(attribute, attribute.Minimum);
         AssertValid(attribute, 3.5);
+        AssertValid(attribute, attribute.Maximum);
         AssertInvalid(attribute, 1.0, "between 1.5 and 5.5");
         AssertInvalid(attribute, 6.0, "between 1.5 and 5.5");
         AssertInvalid(attribute, 3, "configured for Double values");

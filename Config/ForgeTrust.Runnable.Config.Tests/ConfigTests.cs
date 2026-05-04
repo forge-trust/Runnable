@@ -411,6 +411,21 @@ public class ConfigTests
         }
     }
 
+    private sealed class HookDefaultFailureConfig : Config<string>
+    {
+        public override string DefaultValue => "fallback";
+
+        protected override IEnumerable<ValidationResult> ValidateValue(
+            string value,
+            ValidationContext validationContext)
+        {
+            if (value == DefaultValue)
+            {
+                yield return new ValidationResult("Default hook failure.");
+            }
+        }
+    }
+
     private sealed class HookSuccessNoiseConfig : Config<string>
     {
         protected override IEnumerable<ValidationResult>? ValidateValue(
@@ -989,6 +1004,20 @@ public class ConfigTests
         Assert.True(config.IsDefaultValue);
         Assert.Equal(string.Empty, config.Value);
         Assert.Contains("must not be empty", Assert.Single(exception.Failures).Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Init_WithScalarClassDefaultValue_RunsValidateValueHook()
+    {
+        var config = new HookDefaultFailureConfig();
+
+        var exception = Assert.Throws<ConfigurationValidationException>(() =>
+            Init(config, null));
+
+        Assert.True(config.HasValue);
+        Assert.True(config.IsDefaultValue);
+        Assert.Equal("fallback", config.Value);
+        Assert.Contains("Default hook failure.", Assert.Single(exception.Failures).Message, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -174,13 +174,25 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
     }
 
     /// <summary>
-    /// Gets the inclusive minimum allowed value.
+    /// Gets the inclusive minimum allowed value as a boxed <see cref="int"/> or <see cref="double"/>,
+    /// matching the constructor overload used to create the attribute.
     /// </summary>
+    /// <remarks>
+    /// The integer constructor stores a boxed <see cref="int"/>, and the double constructor stores a boxed
+    /// <see cref="double"/>. Callers should unbox this value according to the constructor overload they used.
+    /// The attribute also compares values using that same numeric type and treats the bound as inclusive.
+    /// </remarks>
     public object Minimum { get; }
 
     /// <summary>
-    /// Gets the inclusive maximum allowed value.
+    /// Gets the inclusive maximum allowed value as a boxed <see cref="int"/> or <see cref="double"/>,
+    /// matching the constructor overload used to create the attribute.
     /// </summary>
+    /// <remarks>
+    /// The integer constructor stores a boxed <see cref="int"/>, and the double constructor stores a boxed
+    /// <see cref="double"/>. Callers should unbox this value according to the constructor overload they used.
+    /// The attribute also compares values using that same numeric type and treats the bound as inclusive.
+    /// </remarks>
     public object Maximum { get; }
 
     /// <inheritdoc />

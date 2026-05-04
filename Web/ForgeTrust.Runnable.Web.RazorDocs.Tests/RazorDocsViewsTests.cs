@@ -1510,6 +1510,36 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
+    public async Task DetailsFrame_ShouldUseWideContainer_ForOutlineRail()
+    {
+        using var services = CreateServiceProvider(CreateDocs());
+        var doc = new DocNode("Quickstart", "guides/quickstart.md", "<h2 id='install'>Install</h2>");
+        var model = CreateDetailsViewModel(
+            doc,
+            outline:
+            [
+                new DocOutlineItem
+                {
+                    Title = "Install",
+                    Id = "install",
+                    Level = 2
+                }
+            ]);
+
+        var html = await RenderViewAsync(
+            services,
+            "/Views/Docs/DetailsFrame.cshtml",
+            model);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var frameShell = document.QuerySelector("div.max-w-6xl");
+        Assert.NotNull(frameShell);
+        Assert.Contains("max-w-6xl", frameShell!.ClassList);
+        Assert.DoesNotContain("max-w-4xl", frameShell.ClassList);
+        Assert.NotNull(document.QuerySelector(".docs-detail-layout--with-outline #docs-page-outline"));
+    }
+
+    [Fact]
     public async Task DetailsView_ShouldRenderWayfindingSections_WhenLinksExist()
     {
         using var services = CreateServiceProvider(CreateDocs());

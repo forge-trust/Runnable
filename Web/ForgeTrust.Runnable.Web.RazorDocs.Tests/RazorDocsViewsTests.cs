@@ -37,7 +37,7 @@ public class RazorDocsViewsTests
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
         Assert.Contains("data-rw-search-runtime=\"minisearch\"", layout);
         Assert.Contains("src=\"~/docs/search-client.js\"", layout);
-        Assert.Contains("src=\"~/docs/outline-client.js\"", layout);
+        Assert.DoesNotContain("src=\"~/docs/outline-client.js\"", layout);
     }
 
     [Fact]
@@ -1501,6 +1501,11 @@ public class RazorDocsViewsTests
         Assert.NotNull(document.QuerySelector("a.docs-outline-link[href='#install']"));
         Assert.NotNull(document.QuerySelector("a.docs-outline-link--level-3[href='#verify']"));
         Assert.Single(document.QuerySelectorAll("#docs-page-outline nav"));
+        Assert.True(
+            document.QuerySelector(".docs-detail-primary")!.CompareDocumentPosition(document.QuerySelector("#docs-page-outline")!)
+                .HasFlag(DocumentPositions.Following));
+        Assert.Contains("src=\"/docs/outline-client.js\"", html);
+        Assert.Contains("data-doc-outline-client=\"true\"", html);
         Assert.DoesNotContain("rounded-2xl border border-slate-800 bg-slate-900/60", html);
     }
 
@@ -2058,7 +2063,7 @@ public class RazorDocsViewsTests
     }
 
     [Fact]
-    public async Task IndexView_ShouldNotRenderSearchWorkspaceOnlyAssets()
+    public async Task IndexView_ShouldNotRenderSearchWorkspaceOrOutlineOnlyAssets()
     {
         using var services = CreateServiceProvider(CreateDocs());
 
@@ -2070,7 +2075,7 @@ public class RazorDocsViewsTests
         Assert.DoesNotContain("href=\"/docs/search-index.json\"", html);
         Assert.DoesNotContain("data-rw-search-runtime=\"minisearch\"", html);
         Assert.Contains("src=\"/docs/search-client.js\"", html);
-        Assert.Contains("src=\"/docs/outline-client.js\"", html);
+        Assert.DoesNotContain("src=\"/docs/outline-client.js\"", html);
         Assert.Contains("id=\"docs-search-input\"", html);
     }
 

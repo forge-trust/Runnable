@@ -435,14 +435,9 @@ body {
         align-items: start;
     }
 
-    .docs-detail-layout--with-outline .docs-detail-primary {
-        order: 1;
-    }
-
     .docs-outline-shell {
         position: sticky;
         top: 2rem;
-        order: 2;
         max-height: calc(100vh - 6rem);
         margin-bottom: 0;
         overflow-y: auto;

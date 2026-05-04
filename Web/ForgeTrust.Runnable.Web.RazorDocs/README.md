@@ -394,7 +394,7 @@ The outline client enhances the server-rendered links by:
 - initializing from the current URL hash
 - rebinding after RazorWire/Turbo frame navigation replaces `rw:island id="doc-content"`
 - collapsing the mobile outline after an outline link is chosen
-- skipping missing heading targets for active-state tracking while leaving their normal hash links intact
+- skipping missing heading targets for active-state tracking while leaving their normal hash links intact instead of marking stale entries current or closing the drawer
 
 If JavaScript is unavailable, the server-rendered outline remains a normal list of hash links. If `IntersectionObserver` is unavailable, RazorDocs keeps static and hash-based behavior rather than adding a scroll polling fallback.
 

@@ -89,6 +89,14 @@ public sealed class RazorDocsWayfindingPlaywrightTests
         });
 
         Assert.Equal(1, await page.Locator("#docs-page-outline").CountAsync());
+        Assert.True(await page.Locator(".docs-detail-layout").EvaluateAsync<bool>(
+            """
+            layout => {
+              const primary = layout.querySelector(".docs-detail-primary");
+              const outline = layout.querySelector("#docs-page-outline");
+              return Boolean(primary && outline && primary.compareDocumentPosition(outline) & Node.DOCUMENT_POSITION_FOLLOWING);
+            }
+            """));
         Assert.False(await page.Locator("#docs-page-outline .docs-outline-toggle").IsVisibleAsync());
         Assert.Equal(
             "sticky",
@@ -151,6 +159,75 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             "location",
             await page.GetAttributeAsync("#docs-page-outline a[href='#endpoint-routing']", "aria-current"));
         Assert.Null(await page.GetAttributeAsync("#docs-page-outline a[href='#conventional-404-pages']", "aria-current"));
+    }
+
+    [Fact]
+    public async Task OutlineClient_IgnoresStaleHeadingTargets_ForHashAndClickActiveState()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize
+            {
+                Width = 390,
+                Height = 844
+            }
+        });
+        var page = await context.NewPageAsync();
+
+        await page.SetContentAsync(
+            """
+            <main id="main-content">
+              <div class="docs-detail-layout docs-detail-layout--with-outline">
+                <div class="docs-detail-primary">
+                  <h2 id="real-section">Real Section</h2>
+                  <p>Body</p>
+                </div>
+                <aside id="docs-page-outline" data-outline-expanded="true">
+                  <button type="button" aria-expanded="true" data-doc-outline-toggle="true">
+                    <span>On this page</span>
+                    <span data-doc-outline-current></span>
+                  </button>
+                  <nav id="docs-page-outline-panel" aria-label="On this page">
+                    <ol>
+                      <li><a href="#missing-section" data-doc-outline-link="true">Missing Section</a></li>
+                      <li><a href="#real-section" data-doc-outline-link="true">Real Section</a></li>
+                    </ol>
+                  </nav>
+                </aside>
+              </div>
+            </main>
+            """);
+        await page.EvaluateAsync("() => history.replaceState(null, '', '#missing-section')");
+
+        await page.AddScriptTagAsync(new PageAddScriptTagOptions
+        {
+            Url = $"{_fixture.DocsUrl}/outline-client.js"
+        });
+        await page.WaitForFunctionAsync(
+            "() => document.getElementById('docs-page-outline')?.dataset.outlineEnhanced === 'true'",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+
+        Assert.Null(await page.GetAttributeAsync("#docs-page-outline a[href='#missing-section']", "aria-current"));
+        Assert.Null(await page.GetAttributeAsync("#docs-page-outline a[href='#real-section']", "aria-current"));
+
+        await page.ClickAsync("#docs-page-outline [data-doc-outline-toggle]");
+        await page.WaitForFunctionAsync(
+            "() => document.querySelector('#docs-page-outline [data-doc-outline-toggle]')?.getAttribute('aria-expanded') === 'true'",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+
+        await page.ClickAsync("#docs-page-outline a[href='#missing-section']");
+        await page.WaitForFunctionAsync(
+            """
+            () => window.location.hash === '#missing-section'
+              && !document.querySelector("#docs-page-outline a[href='#missing-section']")?.hasAttribute("aria-current")
+              && !document.querySelector("#docs-page-outline a[href='#real-section']")?.hasAttribute("aria-current")
+            """,
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+
+        Assert.Equal("true", await page.GetAttributeAsync("#docs-page-outline [data-doc-outline-toggle]", "aria-expanded"));
     }
 
     [Fact]

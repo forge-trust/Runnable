@@ -1,7 +1,13 @@
 (() => {
+    const clientKey = "__razorDocsOutlineClient";
+    if (window[clientKey]?.init) {
+        window[clientKey].init();
+        return;
+    }
+
     const outlineSelector = "#docs-page-outline";
     const outlineLinkSelector = "a[data-doc-outline-link='true']";
-    const compactMediaQuery = "(max-width: 1279px)";
+    const compactMediaQuery = "(max-width: 79.999rem)";
 
     let lifecycleController = null;
     let activeObserver = null;
@@ -52,21 +58,37 @@
                 candidate.removeAttribute("aria-current");
             }
         }
+
+        if (!link && currentLabel) {
+            currentLabel.textContent = "";
+        }
     }
 
-    function getActiveLinkFromHash(links) {
+    function getActiveEntryFromHash(entries) {
         const targetId = decodeHash(window.location.hash);
         if (!targetId) {
             return null;
         }
 
-        return links.find(link => getLinkTargetId(link) === targetId) ?? null;
+        return entries.find(entry => getLinkTargetId(entry.link) === targetId) ?? null;
     }
 
-    function refreshHashActiveLink(links, expectedLink, currentLabel) {
-        if (getActiveLinkFromHash(links) === expectedLink) {
+    function refreshHashActiveLink(entries, links, expectedLink, currentLabel) {
+        if (getActiveEntryFromHash(entries)?.link === expectedLink) {
             setActiveLink(links, expectedLink, currentLabel);
         }
+    }
+
+    function getEntryForLink(entries, link) {
+        return entries.find(entry => entry.link === link) ?? null;
+    }
+
+    function getInitialActiveLink(entries) {
+        if (decodeHash(window.location.hash)) {
+            return getActiveEntryFromHash(entries)?.link ?? null;
+        }
+
+        return entries[0]?.link ?? null;
     }
 
     function getOutlineEntries(links) {
@@ -100,6 +122,25 @@
         activeObserver = null;
     }
 
+    function syncOutlinePlacement(shell, primary, compact) {
+        const layout = shell.parentElement;
+        if (!layout || !primary || primary.parentElement !== layout) {
+            return;
+        }
+
+        if (compact) {
+            if (shell.nextElementSibling !== primary) {
+                layout.insertBefore(shell, primary);
+            }
+
+            return;
+        }
+
+        if (primary.nextElementSibling !== shell) {
+            primary.after(shell);
+        }
+    }
+
     function teardown() {
         disconnectActiveObserver();
         lifecycleController?.abort();
@@ -115,6 +156,7 @@
         }
 
         const mainContent = document.getElementById("main-content");
+        const primary = shell.parentElement?.querySelector(".docs-detail-primary");
         const toggle = shell.querySelector("[data-doc-outline-toggle='true']");
         const currentLabel = shell.querySelector("[data-doc-outline-current]");
         const links = Array.from(shell.querySelectorAll(outlineLinkSelector))
@@ -124,13 +166,16 @@
             return;
         }
 
+        const entries = getOutlineEntries(links);
         const controller = new AbortController();
         lifecycleController = controller;
         shell.dataset.outlineEnhanced = "true";
 
         const compactMedia = window.matchMedia ? window.matchMedia(compactMediaQuery) : null;
         const syncViewportState = () => {
-            setExpanded(shell, toggle, !(compactMedia?.matches ?? false));
+            const compact = compactMedia?.matches ?? false;
+            syncOutlinePlacement(shell, primary, compact);
+            setExpanded(shell, toggle, !compact);
         };
 
         syncViewportState();
@@ -142,28 +187,27 @@
 
         for (const link of links) {
             link.addEventListener("click", () => {
+                if (!getEntryForLink(entries, link)) {
+                    return;
+                }
+
                 setActiveLink(links, link, currentLabel);
                 if (compactMedia?.matches) {
                     setExpanded(shell, toggle, false);
                 }
 
                 for (const delay of [120, 360, 720]) {
-                    window.setTimeout(() => refreshHashActiveLink(links, link, currentLabel), delay);
+                    window.setTimeout(() => refreshHashActiveLink(entries, links, link, currentLabel), delay);
                 }
             }, { signal: controller.signal });
         }
 
-        const initialActiveLink = getActiveLinkFromHash(links) ?? links[0];
-        setActiveLink(links, initialActiveLink, currentLabel);
+        setActiveLink(links, getInitialActiveLink(entries), currentLabel);
 
         window.addEventListener("hashchange", () => {
-            const hashActiveLink = getActiveLinkFromHash(links);
-            if (hashActiveLink) {
-                setActiveLink(links, hashActiveLink, currentLabel);
-            }
+            setActiveLink(links, getActiveEntryFromHash(entries)?.link ?? null, currentLabel);
         }, { signal: controller.signal });
 
-        const entries = getOutlineEntries(links);
         if (entries.length === 0 || !("IntersectionObserver" in window) || !mainContent) {
             return;
         }
@@ -190,11 +234,18 @@
         }
     }
 
-    document.addEventListener("DOMContentLoaded", initOutline);
+    window[clientKey] = { init: initOutline };
+
     document.addEventListener("turbo:load", initOutline);
     document.addEventListener("turbo:frame-load", event => {
         if (event.target?.id === "doc-content") {
             initOutline();
         }
     });
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initOutline);
+    } else {
+        initOutline();
+    }
 })();

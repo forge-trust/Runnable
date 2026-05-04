@@ -262,43 +262,6 @@
 </header>
 
 <div class="docs-detail-layout @(Model.HasOutline ? "docs-detail-layout--with-outline" : null)">
-    @if (Model.HasOutline)
-    {
-        <aside id="docs-page-outline"
-               class="docs-outline-shell"
-               data-doc-outline="true"
-               data-outline-expanded="true">
-            <button class="docs-outline-toggle"
-                    type="button"
-                    aria-expanded="true"
-                    aria-controls="docs-page-outline-panel"
-                    data-doc-outline-toggle="true">
-                <span>On this page</span>
-                <span class="docs-outline-toggle-current" data-doc-outline-current aria-hidden="true"></span>
-            </button>
-            <nav id="docs-page-outline-panel"
-                 class="docs-outline-panel"
-                 aria-label="On this page">
-                <div class="docs-outline-label">On this page</div>
-                <ol class="docs-outline-list">
-                    @foreach (var item in Model.Outline)
-                    {
-                        var linkClass = item.Level > 2
-                            ? "docs-outline-link docs-outline-link--level-3"
-                            : "docs-outline-link";
-                        <li>
-                            <a href="#@item.Id"
-                               data-doc-outline-link="true"
-                               class="@linkClass">
-                                @item.Title
-                            </a>
-                        </li>
-                    }
-                </ol>
-            </nav>
-        </aside>
-    }
-
     <div class="docs-detail-primary">
         @if (Model.IsSectionLanding)
         {
@@ -510,4 +473,46 @@
             </section>
         }
     </div>
+
+    @if (Model.HasOutline)
+    {
+        <aside id="docs-page-outline"
+               class="docs-outline-shell"
+               data-doc-outline="true"
+               data-outline-expanded="true">
+            <button class="docs-outline-toggle"
+                    type="button"
+                    aria-expanded="true"
+                    aria-controls="docs-page-outline-panel"
+                    data-doc-outline-toggle="true">
+                <span>On this page</span>
+                <span class="docs-outline-toggle-current" data-doc-outline-current aria-hidden="true"></span>
+            </button>
+            <nav id="docs-page-outline-panel"
+                 class="docs-outline-panel"
+                 aria-label="On this page">
+                <div class="docs-outline-label">On this page</div>
+                <ol class="docs-outline-list">
+                    @foreach (var item in Model.Outline)
+                    {
+                        var linkClass = item.Level > 2
+                            ? "docs-outline-link docs-outline-link--level-3"
+                            : "docs-outline-link";
+                        <li>
+                            <a href="#@item.Id"
+                               data-doc-outline-link="true"
+                               class="@linkClass">
+                                @item.Title
+                            </a>
+                        </li>
+                    }
+                </ol>
+            </nav>
+        </aside>
+    }
 </div>
+
+@if (Model.HasOutline)
+{
+    <script src="~/docs/outline-client.js" defer data-doc-outline-client="true"></script>
+}

@@ -1831,6 +1831,7 @@ public class RazorDocsViewsTests
                     Id = "verify",
                     Level = 3
                 },
+                null!,
                 new DocOutlineItem
                 {
                     Title = "Missing fragment",

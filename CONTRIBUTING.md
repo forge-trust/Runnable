@@ -8,12 +8,24 @@ Runnable treats docs and onboarding feedback as product input, not as a second-c
 For quick access, use GitHub's issue template chooser: [choose an issue template](https://github.com/forge-trust/Runnable/issues/new/choose).
 
 - Use the [**Bug report** issue form](https://github.com/forge-trust/Runnable/issues/new?template=bug_report.yml) when behavior is broken or surprising.
+- Use the [**Feature request** issue form](https://github.com/forge-trust/Runnable/issues/new?template=feature_request.yml) when you can name a focused product capability, API shape, workflow, or example that would remove friction.
 - Use the [**Docs or developer experience feedback** issue form](https://github.com/forge-trust/Runnable/issues/new?template=docs_dx_feedback.yml) when the code may work, but the route to understanding it is unclear.
 - Do not use public issue forms for suspected vulnerabilities, leaked secrets, or exploit details. Use the [security policy](./SECURITY.md) and report sensitive findings privately.
 - Include the command, page, example, package, or API where the confusion started. The sharpest reports name the exact step that failed and the next thing you expected to see.
-- If you are unsure whether something is a bug or a docs gap, file the docs/DX form and explain the behavior you expected.
+- If you are unsure whether something is a bug, feature request, or docs gap, file the docs/DX form and explain the behavior you expected.
 
 Avoid broad requests such as "improve the docs" without a concrete page, task, or decision point. Narrow feedback is easier to verify and much more likely to turn into a useful change.
+
+## Local setup
+
+Use a current .NET SDK supported by this repository, then restore and build from the repository root before opening a pull request:
+
+```bash
+dotnet restore
+dotnet build
+```
+
+Run the sample or package-specific command you changed, and include that command in your pull request notes. For broad changes, also run the full test suite and coverage command listed in [Local verification](#local-verification).
 
 ## Working on docs
 

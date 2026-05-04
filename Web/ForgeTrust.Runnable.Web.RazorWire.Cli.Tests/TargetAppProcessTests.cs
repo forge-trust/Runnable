@@ -77,6 +77,65 @@ public class TargetAppProcessTests
     }
 
     [Fact]
+    public async Task Start_ShouldHandle_ExitBeforeOutput_Deterministically()
+    {
+        var outputLines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var errorLines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var outputReceived = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var exitedSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var process = new TargetAppProcess(
+            new ProcessLaunchSpec
+            {
+                FileName = "dotnet",
+                Arguments = ["--version"],
+                WorkingDirectory = Directory.GetCurrentDirectory()
+            },
+            new TargetAppProcessHooks
+            {
+                StartOverride = target =>
+                {
+                    target.RaiseExitedForTesting();
+                    Task.Run(
+                        async () =>
+                        {
+                            await Task.Yield();
+                            target.RaiseOutputLineForTesting("9.9.9-test");
+                        });
+                },
+                HasExitedOverride = _ => true
+            },
+            process: new Process(),
+            started: false);
+
+        process.OutputLineReceived += line =>
+        {
+            outputLines.Enqueue(line);
+            outputReceived.TrySetResult(line);
+        };
+        process.ErrorLineReceived += line => errorLines.Enqueue(line);
+        process.Exited += () => exitedSignal.TrySetResult();
+
+        process.Start();
+
+        var timeout = Task.Delay(TimeSpan.FromSeconds(2));
+        var firstSignal = await Task.WhenAny(outputReceived.Task, exitedSignal.Task, timeout);
+        Assert.NotSame(timeout, firstSignal);
+        Assert.Same(exitedSignal.Task, firstSignal);
+
+        var outputTimeout = Task.Delay(TimeSpan.FromSeconds(2));
+        var outputSignal = await Task.WhenAny(outputReceived.Task, outputTimeout);
+        Assert.NotSame(outputTimeout, outputSignal);
+
+        await process.DisposeAsync();
+
+        Assert.True(exitedSignal.Task.IsCompleted);
+        Assert.Empty(errorLines);
+        Assert.Equal("9.9.9-test", await outputReceived.Task);
+        Assert.NotEmpty(outputLines);
+    }
+
+    [Fact]
     public async Task DisposeAsync_Should_Not_Throw_When_Not_Started()
     {
         await using var process = new TargetAppProcess(new ProcessLaunchSpec

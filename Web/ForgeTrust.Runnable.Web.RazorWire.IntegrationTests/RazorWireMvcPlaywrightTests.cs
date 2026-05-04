@@ -751,6 +751,9 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
     private static readonly SemaphoreSlim PlaywrightInstallLock = new(1, 1);
     private static bool _playwrightInstalled;
     private static readonly Regex ListeningUrlRegex = new(@"Now listening on:\s*(https?://\S+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex EmptyUserCountRegex = new(
+        "id=\"user-count\"[^>]*>\\s*0(?:\\s|<)",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
     private readonly ConcurrentQueue<string> _appLogs = new();
     private readonly TaskCompletionSource<string> _boundBaseUrlSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -940,33 +943,96 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
             BaseAddress = new Uri(baseUrl, UriKind.Absolute)
         };
 
-        using var reactivityResponse = await client.GetAsync("/Reactivity", timeoutCts.Token);
-        if (reactivityResponse.StatusCode != HttpStatusCode.OK)
+        using var _ = await WaitForOkAsync(client, "/Reactivity", timeoutCts.Token);
+        await WaitForEmptyUserListAsync(client, "/Reactivity/UserList", timeoutCts.Token);
+        using var __ = await WaitForOkAsync(client, "/Reactivity/FormFailures", timeoutCts.Token);
+    }
+
+    private async Task<HttpResponseMessage> WaitForOkAsync(HttpClient client, string path, CancellationToken token)
+    {
+        while (true)
         {
-            throw new InvalidOperationException(
-                $"RazorWire MVC example did not warm /Reactivity successfully. Expected 200 but received {(int)reactivityResponse.StatusCode}.{Environment.NewLine}{GetRecentLogs()}");
+            try
+            {
+                var response = await client.GetAsync(path, token);
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    return response;
+                }
+
+                response.Dispose();
+            }
+            catch (HttpRequestException)
+            {
+                // Application is still starting.
+            }
+            catch (TaskCanceledException) when (!token.IsCancellationRequested)
+            {
+                // Retry until the overall warm-up timeout expires.
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            await DelayWarmupRetryAsync(token);
         }
 
-        using var userListResponse = await client.GetAsync("/Reactivity/UserList", timeoutCts.Token);
-        if (userListResponse.StatusCode != HttpStatusCode.OK)
+        throw new TimeoutException($"RazorWire MVC warm-up timed out waiting for '{path}'.{Environment.NewLine}{GetRecentLogs()}");
+    }
+
+    private async Task WaitForEmptyUserListAsync(HttpClient client, string path, CancellationToken token)
+    {
+        while (true)
         {
-            throw new InvalidOperationException(
-                $"RazorWire MVC example did not warm /Reactivity/UserList successfully. Expected 200 but received {(int)userListResponse.StatusCode}.{Environment.NewLine}{GetRecentLogs()}");
+            try
+            {
+                using var response = await client.GetAsync(path, token);
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    var html = await response.Content.ReadAsStringAsync(token);
+                    if (IsEmptyUserListMarkup(html))
+                    {
+                        return;
+                    }
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // Application is still starting.
+            }
+            catch (TaskCanceledException) when (!token.IsCancellationRequested)
+            {
+                // Retry until the overall warm-up timeout expires.
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            await DelayWarmupRetryAsync(token);
         }
 
-        var userListHtml = await userListResponse.Content.ReadAsStringAsync(timeoutCts.Token);
-        if (!userListHtml.Contains("0 ONLINE", StringComparison.Ordinal)
-            || !userListHtml.Contains("No companions nearby", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"RazorWire MVC warm-up expected an empty presence surface but observed active users.{Environment.NewLine}{GetRecentLogs()}");
-        }
+        throw new TimeoutException($"RazorWire MVC warm-up timed out waiting for an empty '{path}' surface.{Environment.NewLine}{GetRecentLogs()}");
+    }
 
-        using var formFailuresResponse = await client.GetAsync("/Reactivity/FormFailures", timeoutCts.Token);
-        if (formFailuresResponse.StatusCode != HttpStatusCode.OK)
+    private static bool IsEmptyUserListMarkup(string html)
+    {
+        return html.Contains("id=\"active-user-list\"", StringComparison.Ordinal)
+               && html.Contains("id=\"user-list-items\"", StringComparison.Ordinal)
+               && html.Contains("id=\"user-list-empty\"", StringComparison.Ordinal)
+               && EmptyUserCountRegex.IsMatch(html);
+    }
+
+    private async Task DelayWarmupRetryAsync(CancellationToken token)
+    {
+        try
         {
-            throw new InvalidOperationException(
-                $"RazorWire MVC example did not warm /Reactivity/FormFailures successfully. Expected 200 but received {(int)formFailuresResponse.StatusCode}.{Environment.NewLine}{GetRecentLogs()}");
+            await Task.Delay(250, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // Caller converts cancellation into a timeout with recent logs.
         }
     }
 

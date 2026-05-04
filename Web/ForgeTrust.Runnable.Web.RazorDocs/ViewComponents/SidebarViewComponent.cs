@@ -17,6 +17,12 @@ public class SidebarViewComponent : ViewComponent
     /// <summary>
     /// Initializes a new instance of the <see cref="SidebarViewComponent"/> class.
     /// </summary>
+    /// <remarks>
+    /// This is the convenience overload for callers that only have <see cref="RazorDocsOptions" /> available. It
+    /// creates a fresh <see cref="DocsUrlBuilder"/> from those options, which is suitable for direct construction in
+    /// tests or ad hoc usage but does not reuse any shared builder instance already registered in dependency
+    /// injection.
+    /// </remarks>
     /// <param name="aggregator">The documentation aggregator used to retrieve document nodes.</param>
     /// <param name="options">Typed RazorDocs options used for optional namespace prefix simplification settings.</param>
     public SidebarViewComponent(DocAggregator aggregator, RazorDocsOptions options)
@@ -27,6 +33,12 @@ public class SidebarViewComponent : ViewComponent
     /// <summary>
     /// Initializes a new instance of the <see cref="SidebarViewComponent"/> class.
     /// </summary>
+    /// <remarks>
+    /// This is the dependency-injection-preferred overload. The shared <paramref name="docsUrlBuilder"/> should stay
+    /// aligned with <paramref name="options"/> so route detection, search-path checks, and generated sidebar links all
+    /// describe the same docs surface. Prefer this overload whenever a host already registered a shared or
+    /// preconfigured <see cref="DocsUrlBuilder"/> instance.
+    /// </remarks>
     /// <param name="aggregator">The documentation aggregator used to retrieve document nodes.</param>
     /// <param name="options">Typed RazorDocs options used for optional namespace prefix simplification settings.</param>
     /// <param name="docsUrlBuilder">Shared URL builder for the live source-backed docs surface.</param>

@@ -308,7 +308,7 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
-    public void ConfigureWebApplication_ShouldFallbackToConstructedDocsUrlBuilder_WhenServiceIsMissing()
+    public async Task ConfigureWebApplication_ShouldFallbackToConstructedDocsUrlBuilder_WhenServiceIsMissing()
     {
         var tempDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -321,6 +321,8 @@ public class RazorDocsWebModuleTests
             var treePath = Path.Combine(tempDirectory, "1.2.3");
             Directory.CreateDirectory(treePath);
             File.WriteAllText(Path.Combine(treePath, "index.html"), "<html>ok</html>");
+            Directory.CreateDirectory(Path.Combine(treePath, "next"));
+            File.WriteAllText(Path.Combine(treePath, "next", "index.html"), "<html>published-collision</html>");
             File.WriteAllText(Path.Combine(treePath, "search.html"), "<html>search</html>");
             File.WriteAllText(Path.Combine(treePath, "search-index.json"), "{\"documents\":[]}");
             File.WriteAllText(Path.Combine(treePath, "search.css"), "body { color: #fff; }");
@@ -372,6 +374,27 @@ public class RazorDocsWebModuleTests
             _module.ConfigureWebApplication(context, recordingBuilder);
 
             Assert.Equal(1, recordingBuilder.UseCallCount);
+
+            var pipeline = recordingBuilder.Build(
+                async httpContext =>
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status200OK;
+                    await httpContext.Response.WriteAsync("<html>preview-surface</html>");
+                });
+            var httpContext = new DefaultHttpContext
+            {
+                RequestServices = recordingBuilder.ApplicationServices
+            };
+            httpContext.Request.Path = "/docs/next";
+            httpContext.Response.Body = new MemoryStream();
+
+            await pipeline(httpContext);
+
+            httpContext.Response.Body.Position = 0;
+            using var reader = new StreamReader(httpContext.Response.Body);
+            var responseBody = reader.ReadToEnd();
+            Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+            Assert.Equal("<html>preview-surface</html>", responseBody);
         }
         finally
         {
@@ -558,7 +581,12 @@ public class RazorDocsWebModuleTests
 
         public RequestDelegate Build()
         {
-            RequestDelegate app = _ => Task.CompletedTask;
+            return Build(_ => Task.CompletedTask);
+        }
+
+        public RequestDelegate Build(RequestDelegate terminal)
+        {
+            RequestDelegate app = terminal;
             foreach (var component in _components.Reverse())
             {
                 app = component(app);

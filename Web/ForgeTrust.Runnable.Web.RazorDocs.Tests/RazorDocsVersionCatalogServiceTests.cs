@@ -372,6 +372,40 @@ public sealed class RazorDocsVersionCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetCatalog_ShouldSkipEntriesWithInvalidEnumValues_AndContinueResolvingHealthyVersions()
+    {
+        var stableTree = CreateExactTree("invalid-enum-stable");
+        var catalogPath = WriteRawCatalogJson(
+            $$"""
+            {
+              "recommendedVersion": "1.2.3",
+              "versions": [
+                {
+                  "version": "9.9.9",
+                  "exactTreePath": "{{EscapeJson(Path.GetRelativePath(_tempDirectory, stableTree))}}",
+                  "supportState": "NotARealSupportState"
+                },
+                {
+                  "version": "1.2.3",
+                  "exactTreePath": "{{EscapeJson(Path.GetRelativePath(_tempDirectory, stableTree))}}",
+                  "supportState": "Current",
+                  "visibility": "Public",
+                  "advisoryState": "None"
+                }
+              ]
+            }
+            """);
+        var service = CreateCatalogService(catalogPath);
+
+        var catalog = service.GetCatalog();
+
+        var version = Assert.Single(catalog.PublicVersions);
+        Assert.Equal("1.2.3", version.Version);
+        Assert.True(version.IsAvailable);
+        Assert.NotNull(catalog.RecommendedVersion);
+    }
+
+    [Fact]
     public void GetCatalog_ShouldReturnDisabled_WhenVersioningIsOff()
     {
         var service = CreateCatalogService(catalogPath: null, versioningEnabled: false);

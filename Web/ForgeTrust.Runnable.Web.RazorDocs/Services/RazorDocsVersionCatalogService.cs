@@ -1,6 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
-
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
 
 /// <summary>
@@ -28,12 +26,10 @@ public sealed class RazorDocsVersionCatalogService
         "minisearch.min.js"
     ];
 
-    private static readonly JsonSerializerOptions CatalogJsonOptions = new()
+    private static readonly JsonDocumentOptions CatalogDocumentOptions = new()
     {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-        Converters = { new JsonStringEnumConverter() }
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
     };
 
     private readonly RazorDocsOptions _options;
@@ -110,11 +106,12 @@ public sealed class RazorDocsVersionCatalogService
             return RazorDocsResolvedVersionCatalog.CreateUnavailable(catalogPath);
         }
 
-        RazorDocsVersionCatalog rawCatalog;
+        JsonElement root;
         try
         {
             var json = File.ReadAllText(catalogPath);
-            rawCatalog = JsonSerializer.Deserialize<RazorDocsVersionCatalog>(json, CatalogJsonOptions) ?? new RazorDocsVersionCatalog();
+            using var document = JsonDocument.Parse(json, CatalogDocumentOptions);
+            root = document.RootElement.Clone();
         }
         catch (Exception ex)
         {
@@ -125,13 +122,40 @@ public sealed class RazorDocsVersionCatalogService
             return RazorDocsResolvedVersionCatalog.CreateUnavailable(catalogPath);
         }
 
+        if (root.ValueKind is not (JsonValueKind.Object or JsonValueKind.Null))
+        {
+            _logger.LogWarning(
+                "RazorDocs version catalog {CatalogPath} must be a JSON object or null. Versioned release trees will stay unavailable.",
+                catalogPath);
+            return RazorDocsResolvedVersionCatalog.CreateUnavailable(catalogPath);
+        }
+
         var catalogDirectory = Path.GetDirectoryName(catalogPath) ?? _environment.ContentRootPath;
         var seenVersions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var versions = new List<RazorDocsResolvedVersion>();
-
-        foreach (var version in rawCatalog.Versions ?? [])
+        string? recommendedVersion;
+        IEnumerable<JsonElement> versionEntries;
+        try
         {
-            if (version is null)
+            recommendedVersion = root.ValueKind == JsonValueKind.Null
+                ? null
+                : TryReadOptionalTrimmedString(root, "recommendedVersion", out var recommendedVersionValue, out var recommendedVersionIssue)
+                    ? recommendedVersionValue
+                    : LogAndIgnoreInvalidRecommendedVersion(catalogPath, recommendedVersionIssue!);
+            versionEntries = GetVersionEntries(root, catalogPath);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "RazorDocs version catalog {CatalogPath} has an invalid top-level payload. Versioned release trees will stay unavailable.",
+                catalogPath);
+            return RazorDocsResolvedVersionCatalog.CreateUnavailable(catalogPath);
+        }
+
+        foreach (var versionEntry in versionEntries)
+        {
+            if (versionEntry.ValueKind == JsonValueKind.Null)
             {
                 _logger.LogWarning(
                     "Skipping one RazorDocs catalog version entry from {CatalogPath} because the entry itself is null.",
@@ -139,15 +163,20 @@ public sealed class RazorDocsVersionCatalogService
                 continue;
             }
 
-            var normalizedVersion = version.Version?.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedVersion))
+            if (versionEntry.ValueKind != JsonValueKind.Object)
             {
                 _logger.LogWarning(
-                    "Skipping one RazorDocs catalog version entry from {CatalogPath} because it has no version identifier.",
+                    "Skipping one RazorDocs catalog version entry from {CatalogPath} because the entry is not a JSON object.",
                     catalogPath);
                 continue;
             }
 
+            if (!TryParseVersionEntry(versionEntry, catalogPath, out var version))
+            {
+                continue;
+            }
+
+            var normalizedVersion = version.Version.Trim();
             if (!seenVersions.Add(normalizedVersion))
             {
                 _logger.LogWarning(
@@ -161,8 +190,200 @@ public sealed class RazorDocsVersionCatalogService
             versions.Add(resolved);
         }
 
-        var recommendedVersion = ResolveRecommendedVersion(rawCatalog.RecommendedVersion, versions, catalogPath);
-        return new RazorDocsResolvedVersionCatalog(RazorDocsResolvedVersionCatalogStatus.Resolved, catalogPath, versions, recommendedVersion);
+        var recommendedVersionEntry = ResolveRecommendedVersion(recommendedVersion, versions, catalogPath);
+        return new RazorDocsResolvedVersionCatalog(RazorDocsResolvedVersionCatalogStatus.Resolved, catalogPath, versions, recommendedVersionEntry);
+    }
+
+    private string? LogAndIgnoreInvalidRecommendedVersion(string catalogPath, string issue)
+    {
+        _logger.LogWarning(
+            "Ignoring RazorDocs recommended version metadata from {CatalogPath} because {Issue}",
+            catalogPath,
+            issue);
+        return null;
+    }
+
+    private static IEnumerable<JsonElement> GetVersionEntries(JsonElement root, string catalogPath)
+    {
+        if (root.ValueKind == JsonValueKind.Null || !TryGetPropertyIgnoreCase(root, "versions", out var versionsElement))
+        {
+            return [];
+        }
+
+        if (versionsElement.ValueKind == JsonValueKind.Null)
+        {
+            return [];
+        }
+
+        if (versionsElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException($"RazorDocs version catalog '{catalogPath}' has a non-array versions payload.");
+        }
+
+        return versionsElement.EnumerateArray().ToArray();
+    }
+
+    private bool TryParseVersionEntry(JsonElement versionEntry, string catalogPath, out RazorDocsPublishedVersion version)
+    {
+        version = new RazorDocsPublishedVersion();
+
+        if (!TryReadOptionalTrimmedString(versionEntry, "version", out var versionIdentifier, out var versionIssue)
+            || string.IsNullOrWhiteSpace(versionIdentifier))
+        {
+            _logger.LogWarning(
+                "Skipping one RazorDocs catalog version entry from {CatalogPath} because {Issue}",
+                catalogPath,
+                versionIssue ?? "it has no version identifier.");
+            return false;
+        }
+
+        if (!TryReadOptionalTrimmedString(versionEntry, "label", out var label, out var labelIssue))
+        {
+            LogInvalidVersionEntry(versionIdentifier, catalogPath, labelIssue!);
+            return false;
+        }
+
+        if (!TryReadOptionalTrimmedString(versionEntry, "summary", out var summary, out var summaryIssue))
+        {
+            LogInvalidVersionEntry(versionIdentifier, catalogPath, summaryIssue!);
+            return false;
+        }
+
+        if (!TryReadOptionalTrimmedString(versionEntry, "exactTreePath", out var exactTreePath, out var exactTreePathIssue))
+        {
+            LogInvalidVersionEntry(versionIdentifier, catalogPath, exactTreePathIssue!);
+            return false;
+        }
+
+        if (!TryReadEnum(versionEntry, "supportState", RazorDocsVersionSupportState.Current, out var supportState, out var supportStateIssue))
+        {
+            LogInvalidVersionEntry(versionIdentifier, catalogPath, supportStateIssue!);
+            return false;
+        }
+
+        if (!TryReadEnum(versionEntry, "visibility", RazorDocsVersionVisibility.Public, out var visibility, out var visibilityIssue))
+        {
+            LogInvalidVersionEntry(versionIdentifier, catalogPath, visibilityIssue!);
+            return false;
+        }
+
+        if (!TryReadEnum(versionEntry, "advisoryState", RazorDocsVersionAdvisoryState.None, out var advisoryState, out var advisoryStateIssue))
+        {
+            LogInvalidVersionEntry(versionIdentifier, catalogPath, advisoryStateIssue!);
+            return false;
+        }
+
+        version = new RazorDocsPublishedVersion
+        {
+            Version = versionIdentifier,
+            Label = label,
+            Summary = summary,
+            ExactTreePath = exactTreePath,
+            SupportState = supportState,
+            Visibility = visibility,
+            AdvisoryState = advisoryState
+        };
+        return true;
+    }
+
+    private void LogInvalidVersionEntry(string versionIdentifier, string catalogPath, string issue)
+    {
+        _logger.LogWarning(
+            "Skipping RazorDocs catalog entry for version {Version} from {CatalogPath} because {Issue}",
+            versionIdentifier,
+            catalogPath,
+            issue);
+    }
+
+    private static bool TryReadOptionalTrimmedString(
+        JsonElement element,
+        string propertyName,
+        out string? value,
+        out string? issue)
+    {
+        value = null;
+        issue = null;
+
+        if (!TryGetPropertyIgnoreCase(element, propertyName, out var propertyValue)
+            || propertyValue.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (propertyValue.ValueKind != JsonValueKind.String)
+        {
+            issue = $"property '{propertyName}' must be a JSON string or null.";
+            return false;
+        }
+
+        value = propertyValue.GetString()?.Trim();
+        return true;
+    }
+
+    private static bool TryReadEnum<TEnum>(
+        JsonElement element,
+        string propertyName,
+        TEnum defaultValue,
+        out TEnum value,
+        out string? issue)
+        where TEnum : struct, Enum
+    {
+        issue = null;
+        value = defaultValue;
+
+        if (!TryGetPropertyIgnoreCase(element, propertyName, out var propertyValue)
+            || propertyValue.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (propertyValue.ValueKind != JsonValueKind.String)
+        {
+            if (propertyValue.ValueKind == JsonValueKind.Number
+                && propertyValue.TryGetInt32(out var numericValue)
+                && Enum.IsDefined(typeof(TEnum), numericValue))
+            {
+                value = (TEnum)Enum.ToObject(typeof(TEnum), numericValue);
+                return true;
+            }
+
+            issue = $"property '{propertyName}' must be a supported JSON string or number when present.";
+            return false;
+        }
+
+        var rawValue = propertyValue.GetString()?.Trim();
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            issue = $"property '{propertyName}' cannot be blank when present.";
+            return false;
+        }
+
+        if (!Enum.TryParse<TEnum>(rawValue, ignoreCase: true, out value)
+            || !Enum.IsDefined(value))
+        {
+            issue = $"property '{propertyName}' value '{rawValue}' is not a supported {typeof(TEnum).Name} value.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement propertyValue)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    propertyValue = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        propertyValue = default;
+        return false;
     }
 
     private RazorDocsResolvedVersion ResolveVersion(
@@ -399,8 +620,11 @@ public enum RazorDocsResolvedVersionCatalogStatus
 /// three sentinel states where versioning is disabled, missing a catalog path, or configured but unavailable.
 /// </param>
 /// <param name="CatalogPath">
-/// The absolute catalog path when a catalog was configured and resolved. This stays <see langword="null" /> for the
-/// <see cref="Disabled" /> and <see cref="EnabledWithoutCatalog" /> sentinels.
+/// The catalog path associated with the resolved state. This stays <see langword="null" /> for the
+/// <see cref="Disabled" /> and <see cref="EnabledWithoutCatalog" /> sentinels, is typically an absolute filesystem
+/// path after successful resolution or file-based unavailability checks, and can remain the normalized configured
+/// value when <see cref="Status" /> is <see cref="RazorDocsResolvedVersionCatalogStatus.Unavailable" /> because
+/// absolute resolution failed before <see cref="CreateUnavailable(string?)" /> was created.
 /// </param>
 /// <param name="Versions">
 /// The resolved catalog entries in authored catalog order. Entries stay present even when a published tree is
@@ -459,7 +683,11 @@ public sealed record RazorDocsResolvedVersionCatalog(
     /// <summary>
     /// Creates an enabled catalog result with no available versions because the backing catalog could not be used.
     /// </summary>
-    /// <param name="catalogPath">The configured absolute catalog path.</param>
+    /// <param name="catalogPath">
+    /// The resolved catalog path to surface with the unavailable sentinel. This is usually an absolute filesystem path,
+    /// but can also be the normalized configured value when resolution failed before an absolute path could be
+    /// constructed.
+    /// </param>
     /// <returns>An enabled-but-unavailable catalog result.</returns>
     public static RazorDocsResolvedVersionCatalog CreateUnavailable(string? catalogPath)
     {

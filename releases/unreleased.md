@@ -73,6 +73,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 
 - Runnable's own release pages now double as a working RazorDocs example for consumers who want better release notes.
 - RazorDocs pages can now expose typed `On this page` outlines, explicit proof-path previous/next links, related-page cards, and sidebar anchor navigation from harvested metadata instead of scraping rendered HTML.
+- RazorDocs details pages now render those `On this page` outlines as a page-local navigation surface, using a sticky desktop rail, a compact narrow-viewport drawer, and active-section state that keeps the reader oriented without competing with the global sidebar.
 - Public docs navigation now groups pages by intent-first sections, preserves authored editorial breadcrumbs, and keeps Start Here recovery links hidden when that section is unavailable.
 - RazorDocs landing curation now uses `featured_page_groups`, so root and section landing pages can organize next-step links by reader intent instead of rendering one flat list.
 - The release contract is designed so future tooling can generate both a changelog entry and a blog-style tagged release note from the same underlying signals.

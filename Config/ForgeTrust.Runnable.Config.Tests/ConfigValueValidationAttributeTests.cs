@@ -74,6 +74,13 @@ public class ConfigValueValidationAttributeTests
     }
 
     [Fact]
+    public void Range_DoubleConstructorRejectsNaNBounds()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ConfigValueRangeAttribute(double.NaN, 1.5));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ConfigValueRangeAttribute(1.5, double.NaN));
+    }
+
+    [Fact]
     public void MinLength_ValidatesStringValues()
     {
         var attribute = new ConfigValueMinLengthAttribute(3);

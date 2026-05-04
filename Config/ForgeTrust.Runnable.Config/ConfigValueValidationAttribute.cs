@@ -145,11 +145,22 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
     /// <param name="minimum">The inclusive minimum allowed value.</param>
     /// <param name="maximum">The inclusive maximum allowed value.</param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when <paramref name="minimum"/> is greater than <paramref name="maximum"/>.
+    /// Thrown when either bound is <see cref="double.NaN"/> or <paramref name="minimum"/>
+    /// is greater than <paramref name="maximum"/>.
     /// </exception>
     public ConfigValueRangeAttribute(double minimum, double maximum)
         : base("The configuration value must be between {0} and {1}.")
     {
+        if (double.IsNaN(minimum))
+        {
+            throw new ArgumentOutOfRangeException(nameof(minimum), "Minimum must be a valid number.");
+        }
+
+        if (double.IsNaN(maximum))
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), "Maximum must be a valid number.");
+        }
+
         if (minimum > maximum)
         {
             throw new ArgumentOutOfRangeException(

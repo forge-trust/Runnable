@@ -81,6 +81,17 @@ public class ConfigValueValidationAttributeTests
     }
 
     [Fact]
+    public void Range_CustomErrorMessagePreservesDisplayNamePlaceholder()
+    {
+        var attribute = new ConfigValueRangeAttribute(1, 5)
+        {
+            ErrorMessage = "{0} must be between {1} and {2}."
+        };
+
+        AssertInvalid(attribute, 0, "Test must be between 1 and 5.");
+    }
+
+    [Fact]
     public void MinLength_ValidatesStringValues()
     {
         var attribute = new ConfigValueMinLengthAttribute(3);
@@ -96,6 +107,17 @@ public class ConfigValueValidationAttributeTests
     public void MinLength_RejectsNegativeLength()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new ConfigValueMinLengthAttribute(-1));
+    }
+
+    [Fact]
+    public void MinLength_CustomErrorMessagePreservesDisplayNamePlaceholder()
+    {
+        var attribute = new ConfigValueMinLengthAttribute(3)
+        {
+            ErrorMessage = "{0} must be at least {1} characters."
+        };
+
+        AssertInvalid(attribute, "ab", "Test must be at least 3 characters.");
     }
 
     private static void AssertValid(ValidationAttribute attribute, object? value)

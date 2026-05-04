@@ -125,7 +125,7 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
     /// Thrown when <paramref name="minimum"/> is greater than <paramref name="maximum"/>.
     /// </exception>
     public ConfigValueRangeAttribute(int minimum, int maximum)
-        : base("The configuration value must be between {0} and {1}.")
+        : base("The configuration value must be between {1} and {2}.")
     {
         if (minimum > maximum)
         {
@@ -149,7 +149,7 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
     /// is greater than <paramref name="maximum"/>.
     /// </exception>
     public ConfigValueRangeAttribute(double minimum, double maximum)
-        : base("The configuration value must be between {0} and {1}.")
+        : base("The configuration value must be between {1} and {2}.")
     {
         if (double.IsNaN(minimum))
         {
@@ -188,6 +188,7 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
         string.Format(
             System.Globalization.CultureInfo.InvariantCulture,
             ErrorMessageString,
+            name,
             Minimum,
             Maximum);
 
@@ -201,13 +202,13 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
 
         return _kind switch
         {
-            RangeKind.Int32 => ValidateInt32(value),
-            RangeKind.Double => ValidateDouble(value),
+            RangeKind.Int32 => ValidateInt32(value, validationContext.DisplayName),
+            RangeKind.Double => ValidateDouble(value, validationContext.DisplayName),
             _ => ValidationResult.Success
         };
     }
 
-    private ValidationResult? ValidateInt32(object value)
+    private ValidationResult? ValidateInt32(object value, string displayName)
     {
         if (value is not int typedValue)
         {
@@ -219,10 +220,10 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
 
         return typedValue >= minimum && typedValue <= maximum
             ? ValidationResult.Success
-            : new ValidationResult(FormatErrorMessage(string.Empty));
+            : new ValidationResult(FormatErrorMessage(displayName));
     }
 
-    private ValidationResult? ValidateDouble(object value)
+    private ValidationResult? ValidateDouble(object value, string displayName)
     {
         if (value is not double typedValue)
         {
@@ -234,7 +235,7 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
 
         return typedValue >= minimum && typedValue <= maximum
             ? ValidationResult.Success
-            : new ValidationResult(FormatErrorMessage(string.Empty));
+            : new ValidationResult(FormatErrorMessage(displayName));
     }
 
     private static string CreateUnsupportedTypeMessage(Type type, string supportedType) =>
@@ -273,7 +274,7 @@ public sealed class ConfigValueMinLengthAttribute : ConfigValueValidationAttribu
     /// Thrown when <paramref name="length"/> is less than zero.
     /// </exception>
     public ConfigValueMinLengthAttribute(int length)
-        : base("The configuration value must be at least {0} character(s) long.")
+        : base("The configuration value must be at least {1} character(s) long.")
     {
         if (length < 0)
         {
@@ -293,6 +294,7 @@ public sealed class ConfigValueMinLengthAttribute : ConfigValueValidationAttribu
         string.Format(
             System.Globalization.CultureInfo.InvariantCulture,
             ErrorMessageString,
+            name,
             Length);
 
     /// <inheritdoc />

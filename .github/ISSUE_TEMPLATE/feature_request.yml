@@ -1,0 +1,83 @@
+name: Feature request
+description: Propose a focused product capability, API shape, workflow, or example.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a change. Focused feature requests are easiest to evaluate when they name the current limitation, the user job, and the smallest useful outcome. Use the docs/DX form instead when the main problem is confusing guidance, broken links, missing explanations, or first-run friction.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+      description: Describe the developer task, product gap, or repeated workaround that motivated the request.
+      placeholder: "I am trying to ..., but today I have to ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: Describe the API, command, package behavior, example, or workflow you expected.
+      placeholder: "It would help if Runnable provided ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Pick the closest package or repo surface.
+      options:
+        - Core startup pipeline
+        - Console
+        - Web
+        - RazorWire
+        - RazorDocs
+        - Caching
+        - Config
+        - Dependency injection
+        - Aspire
+        - Examples
+        - Release tooling
+        - Repository workflow
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Share current workarounds, other libraries, or narrower designs that might solve the same job.
+      placeholder: "I can work around this by ..., but ..."
+    validations:
+      required: false
+  - type: textarea
+    id: usage
+    attributes:
+      label: Expected usage
+      description: Include a small code sample, command, page outline, or workflow sketch when that would clarify the request.
+      placeholder: |
+        ```csharp
+        // Example shape, if relevant.
+        ```
+    validations:
+      required: false
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints or pitfalls
+      description: Name compatibility, security, performance, hosting, documentation, or migration concerns that should shape the design.
+      placeholder: "This should preserve ..., avoid ..., and document ..."
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Filing checklist
+      options:
+        - label: I described the user job or limitation instead of only naming an implementation.
+          required: true
+        - label: I checked the relevant package README, examples, or release notes for existing guidance.
+          required: false

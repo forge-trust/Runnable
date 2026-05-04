@@ -23,6 +23,7 @@
     <Project Path="Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj" />
   </Folder>
   <Folder Name="/Dependency/">
+    <Project Path="Dependency/ForgeTrust.Runnable.Dependency.Autofac.Tests/ForgeTrust.Runnable.Dependency.Autofac.Tests.csproj" />
     <Project Path="Dependency/ForgeTrust.Runnable.Dependency.Autofac/ForgeTrust.Runnable.Dependency.Autofac.csproj" />
   </Folder>
   <Folder Name="/Examples/">

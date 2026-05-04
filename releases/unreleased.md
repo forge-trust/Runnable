@@ -50,6 +50,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 ### Dependency maintenance
 
 - The centrally managed `YamlDotNet` dependency now targets `17.0.1`, and the affected PackageIndex, RazorDocs, and Aspire lock files have been regenerated.
+- The Autofac dependency package now has dedicated test coverage for Runnable module integration, host container setup, dependent module loading, and implementation scanning.
 
 ### Configuration validation
 

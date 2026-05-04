@@ -200,7 +200,7 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
     }
 
     [Fact]
-    public void Versions_ShouldSurfaceKnownAndFallbackSupportAndAdvisoryLabels()
+    public void Versions_ShouldSurfaceKnownSupportAndAdvisoryLabels_AndSkipInvalidCatalogEntries()
     {
         var deprecatedTree = CreateExactTree("1.1.0");
         var archivedTree = CreateExactTree("1.0.0");
@@ -250,12 +250,8 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
             {
                 Assert.Equal("Archived", archived.SupportStateLabel);
                 Assert.Equal("Security risk", archived.AdvisoryLabel);
-            },
-            custom =>
-            {
-                Assert.Equal("999", custom.SupportStateLabel);
-                Assert.Equal("999", custom.AdvisoryLabel);
             });
+        Assert.DoesNotContain(model.Versions, version => version.Version == "0.9.0");
     }
 
     public void Dispose()

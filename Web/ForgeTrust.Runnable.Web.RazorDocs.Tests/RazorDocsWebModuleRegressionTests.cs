@@ -1008,7 +1008,7 @@ public class RazorDocsWebModuleRegressionTests
         Directory.CreateDirectory(root);
         File.WriteAllText(
             Path.Combine(root, "index.html"),
-            """
+            $$"""
             <!DOCTYPE html>
             <html>
             <head>
@@ -1017,7 +1017,7 @@ public class RazorDocsWebModuleRegressionTests
               <script>window.__razorDocsConfig = {"docsRootPath":"/docs","docsSearchUrl":"/docs/search","docsSearchIndexUrl":"/docs/search-index.json"};</script>
               <script src="/docs/search-client.js"></script>
             </head>
-            <body data-tree="release-1.2.3">
+            <body data-tree="release-{{version}}">
               <a id="home" href="/docs">Home</a>
               <a id="guide" href="/docs/guide.html">Guide</a>
               <a id="search" href="/docs/search">Search</a>

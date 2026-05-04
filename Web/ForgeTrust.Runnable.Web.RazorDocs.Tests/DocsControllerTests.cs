@@ -2545,6 +2545,10 @@ public class DocsControllerTests : IDisposable
 
         var rewritten = DocsController.PrefixSearchIndexPathsForPathBase(payload, "/some-base");
 
+        Assert.NotSame(payload, rewritten);
+        Assert.Equal("guide.html", payload.Documents[0].Path);
+        Assert.Equal(string.Empty, payload.Documents[1].Path);
+        Assert.Equal("/docs/already", payload.Documents[2].Path);
         Assert.Equal("guide.html", rewritten.Documents[0].Path);
         Assert.Equal(string.Empty, rewritten.Documents[1].Path);
         Assert.Equal("/some-base/docs/already", rewritten.Documents[2].Path);

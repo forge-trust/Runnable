@@ -94,25 +94,33 @@ public class RazorDocsWebModule : IRunnableWebModule
         var docsUrlBuilder = app.ApplicationServices.GetService(typeof(DocsUrlBuilder)) as DocsUrlBuilder
                              ?? new DocsUrlBuilder(options);
         var catalog = catalogService.GetCatalog();
+        var mountedProviders = new List<PhysicalFileProvider>();
         var mounts = catalog.PublicVersions
             .Where(version => version.IsAvailable && version.ExactTreePath is not null)
             .Select(
-                version => new RazorDocsPublishedTreeMount(
-                    version.ExactRootUrl,
-                    new PhysicalFileProvider(version.ExactTreePath!)))
+                version =>
+                {
+                    var provider = new PhysicalFileProvider(version.ExactTreePath!);
+                    mountedProviders.Add(provider);
+                    return new RazorDocsPublishedTreeMount(version.ExactRootUrl, provider);
+                })
             .ToList();
         if (catalog.RecommendedVersion is { IsAvailable: true, ExactTreePath: not null } recommendedVersion)
         {
+            var provider = new PhysicalFileProvider(recommendedVersion.ExactTreePath);
+            mountedProviders.Add(provider);
             mounts.Add(
                 new RazorDocsPublishedTreeMount(
                     DocsUrlBuilder.DocsEntryPath,
-                    new PhysicalFileProvider(recommendedVersion.ExactTreePath)));
+                    provider));
         }
 
         if (mounts.Count == 0)
         {
             return;
         }
+
+        RegisterMountedProviderDisposal(app.ApplicationServices, mountedProviders);
 
         var publishedTreeHandler = new RazorDocsPublishedTreeHandler(mounts, docsUrlBuilder.CurrentDocsRootPath);
         app.Use(
@@ -125,6 +133,29 @@ public class RazorDocsWebModule : IRunnableWebModule
 
                 await next();
             });
+    }
+
+    private static void RegisterMountedProviderDisposal(IServiceProvider services, IReadOnlyList<PhysicalFileProvider> providers)
+    {
+        if (providers.Count == 0)
+        {
+            return;
+        }
+
+        if (services.GetService(typeof(IHostApplicationLifetime)) is not IHostApplicationLifetime lifetime)
+        {
+            return;
+        }
+
+        lifetime.ApplicationStopping.Register(
+            static state =>
+            {
+                foreach (var provider in (IReadOnlyList<PhysicalFileProvider>)state!)
+                {
+                    provider.Dispose();
+                }
+            },
+            providers);
     }
 
     /// <summary>

@@ -165,9 +165,17 @@ public class DocsController : Controller
     /// <summary>
     /// Displays the public docs version archive.
     /// </summary>
-    /// <returns>A view result that lists the published versions described by the configured version catalog.</returns>
+    /// <returns>
+    /// A view result that lists the published versions described by the configured version catalog, or a redirect to
+    /// the live docs home when versioning is disabled.
+    /// </returns>
     public IActionResult Versions()
     {
+        if (!_docsUrlBuilder.VersioningEnabled)
+        {
+            return Redirect(PathBaseAware(_docsUrlBuilder.BuildHomeUrl()));
+        }
+
         return View(BuildVersionArchiveViewModel(entryFallback: false));
     }
 

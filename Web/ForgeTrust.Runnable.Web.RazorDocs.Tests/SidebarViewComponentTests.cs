@@ -555,6 +555,7 @@ public sealed class SidebarViewComponentTests
 
     [Theory]
     [InlineData("/search")]
+    [InlineData("/search/")]
     [InlineData("/search-index.json")]
     public async Task InvokeAsync_ShouldKeepSectionsInactive_ForRootMountedSearchRoutes(string requestPath)
     {

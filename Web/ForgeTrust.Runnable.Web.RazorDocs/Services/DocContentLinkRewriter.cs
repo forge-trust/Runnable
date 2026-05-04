@@ -103,6 +103,9 @@ internal static class DocContentLinkRewriter
         }
 
         anchor.SetAttribute("href", docsHref);
+        // These markers are intentionally shared with IsRootMountedDecoratedDocsLink and
+        // PrefixPathBaseForDocsUrls so root-mounted docs links rewritten here can be detected later without reparsing
+        // authored source context. DocsFrameId remains the canonical in-frame target.
         anchor.SetAttribute("data-turbo-frame", DocsFrameId);
         anchor.SetAttribute("data-turbo-action", "advance");
 

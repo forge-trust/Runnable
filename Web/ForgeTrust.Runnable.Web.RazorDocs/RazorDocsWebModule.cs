@@ -13,6 +13,21 @@ namespace ForgeTrust.Runnable.Web.RazorDocs;
 /// <summary>
 /// Web module configuration for the RazorDocs documentation system.
 /// </summary>
+/// <remarks>
+/// This module owns both the live source-backed RazorDocs surface and the optional published-version overlay used when
+/// <see cref="RazorDocsVersioningOptions.Enabled" /> is turned on. Service registration wires up harvesting,
+/// aggregation, sanitization, URL generation, and version-catalog resolution through <c>services.AddRazorDocs()</c>,
+/// while endpoint and middleware hooks decide whether the host behaves like a plain live docs site or a mixed
+/// live-plus-archive experience.
+/// </remarks>
+/// <remarks>
+/// When versioning is enabled and the resolved catalog exposes available published trees, the module can mount those
+/// exact-version exports into the request pipeline, reserve the stable entry surface at <c>/docs</c> for the
+/// recommended release alias, short-circuit matching requests through <see cref="RazorDocsPublishedTreeHandler" />,
+/// and register disposal for any mounted <see cref="PhysicalFileProvider" /> instances when the host stops. Hosts that
+/// leave versioning disabled, omit the catalog service, or resolve an empty/unavailable catalog skip those mounts and
+/// continue serving only the live source-backed preview surface.
+/// </remarks>
 public class RazorDocsWebModule : IRunnableWebModule
 {
     private static readonly FileExtensionContentTypeProvider ContentTypeProvider = new();
@@ -75,6 +90,20 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <summary>
     /// Configures the application's request pipeline and middleware for this module.
     /// </summary>
+    /// <remarks>
+    /// This hook only mutates the pipeline when versioning is enabled and the resolved
+    /// <see cref="RazorDocsVersionCatalogService" /> yields at least one available published tree. In that case the
+    /// module mounts exact-version exports, optionally adds the stable <c>/docs</c> alias for the recommended release,
+    /// and inserts a short-circuiting middleware branch that lets <see cref="RazorDocsPublishedTreeHandler" /> serve
+    /// matching requests before the live preview surface sees them.
+    /// </remarks>
+    /// <remarks>
+    /// The middleware registration is intentionally skipped when versioning is disabled, when the catalog service is
+    /// absent, when the configured catalog resolves no healthy trees, or when the recommended release is unavailable.
+    /// Mounted <see cref="PhysicalFileProvider" /> instances are shared across mounts that point at the same exact tree
+    /// path and are disposed on <see cref="IHostApplicationLifetime.ApplicationStopping" />. Call this hook before
+    /// terminal middleware so mounted published-tree requests can short-circuit correctly.
+    /// </remarks>
     /// <param name="context">The startup context for the module invocation.</param>
     /// <param name="app">The application builder used to configure middleware and endpoints.</param>
     public void ConfigureWebApplication(StartupContext context, IApplicationBuilder app)
@@ -94,26 +123,7 @@ public class RazorDocsWebModule : IRunnableWebModule
         var docsUrlBuilder = app.ApplicationServices.GetService(typeof(DocsUrlBuilder)) as DocsUrlBuilder
                              ?? new DocsUrlBuilder(options);
         var catalog = catalogService.GetCatalog();
-        var mountedProviders = new List<PhysicalFileProvider>();
-        var mounts = catalog.PublicVersions
-            .Where(version => version.IsAvailable && version.ExactTreePath is not null)
-            .Select(
-                version =>
-                {
-                    var provider = new PhysicalFileProvider(version.ExactTreePath!);
-                    mountedProviders.Add(provider);
-                    return new RazorDocsPublishedTreeMount(version.ExactRootUrl, provider);
-                })
-            .ToList();
-        if (catalog.RecommendedVersion is { IsAvailable: true, ExactTreePath: not null } recommendedVersion)
-        {
-            var provider = new PhysicalFileProvider(recommendedVersion.ExactTreePath);
-            mountedProviders.Add(provider);
-            mounts.Add(
-                new RazorDocsPublishedTreeMount(
-                    DocsUrlBuilder.DocsEntryPath,
-                    provider));
-        }
+        var (mounts, mountedProviders) = BuildPublishedTreeMounts(catalog);
 
         if (mounts.Count == 0)
         {
@@ -133,6 +143,56 @@ public class RazorDocsWebModule : IRunnableWebModule
 
                 await next();
             });
+    }
+
+    /// <summary>
+    /// Builds the published-tree mount table for the current resolved version catalog.
+    /// </summary>
+    /// <remarks>
+    /// Public exact-version mounts always preserve the authored catalog order. When the recommended release points at a
+    /// public exact tree, this helper adds the stable <c>/docs</c> alias as an extra mount root that reuses the same
+    /// <see cref="PhysicalFileProvider" /> instance instead of duplicating file watchers for the same export path.
+    /// </remarks>
+    /// <param name="catalog">The resolved version catalog that describes available published trees.</param>
+    /// <returns>
+    /// The ordered mount list plus the unique provider instances that should be disposed with the host lifetime.
+    /// </returns>
+    internal static (IReadOnlyList<RazorDocsPublishedTreeMount> Mounts, IReadOnlyList<PhysicalFileProvider> Providers) BuildPublishedTreeMounts(
+        RazorDocsResolvedVersionCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        var providersByPath = new Dictionary<string, PhysicalFileProvider>(StringComparer.OrdinalIgnoreCase);
+        var mounts = new List<RazorDocsPublishedTreeMount>();
+
+        foreach (var version in catalog.PublicVersions.Where(version => version.IsAvailable && version.ExactTreePath is not null))
+        {
+            var provider = GetOrCreateProvider(version.ExactTreePath!, providersByPath);
+            mounts.Add(new RazorDocsPublishedTreeMount(version.ExactRootUrl, provider));
+        }
+
+        if (catalog.RecommendedVersion is { IsAvailable: true, ExactTreePath: not null } recommendedVersion)
+        {
+            var provider = GetOrCreateProvider(recommendedVersion.ExactTreePath, providersByPath);
+            mounts.Add(new RazorDocsPublishedTreeMount(DocsUrlBuilder.DocsEntryPath, provider));
+        }
+
+        return (mounts, providersByPath.Values.ToList());
+    }
+
+    private static PhysicalFileProvider GetOrCreateProvider(
+        string exactTreePath,
+        IDictionary<string, PhysicalFileProvider> providersByPath)
+    {
+        var normalizedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(exactTreePath));
+        if (providersByPath.TryGetValue(normalizedPath, out var provider))
+        {
+            return provider;
+        }
+
+        provider = new PhysicalFileProvider(normalizedPath);
+        providersByPath[normalizedPath] = provider;
+        return provider;
     }
 
     private static void RegisterMountedProviderDisposal(IServiceProvider services, IReadOnlyList<PhysicalFileProvider> providers)
@@ -159,7 +219,7 @@ public class RazorDocsWebModule : IRunnableWebModule
     }
 
     /// <summary>
-    /// Adds the module's default catch-all controller route for documentation endpoints.
+    /// Adds the module's default controller routes and supporting asset routes for documentation endpoints.
     /// </summary>
     /// <remarks>
     /// When RazorDocs is the root module assembly, standalone and static-export hosts preserve the historical
@@ -167,6 +227,14 @@ public class RazorDocsWebModule : IRunnableWebModule
     /// <c>/_content/ForgeTrust.Runnable.Web.RazorDocs/css/site.gen.css</c>. Embedded hosts do not register that
     /// redirect because they already link to the packaged asset directly. Redirects preserve the request
     /// <see cref="HttpRequest.PathBase"/> and query string so legacy links continue to work behind a virtual path.
+    /// </remarks>
+    /// <remarks>
+    /// When versioning is enabled, this hook also reserves the stable version entry route at <c>/docs</c>, adds the
+    /// archive surface at <c>/docs/versions</c>, and serves preview-surface assets from either the live web root or the
+    /// packaged Razor Class Library depending on whether published-tree mounts can shadow the stable docs root.
+    /// Route ordering matters: index, search, search-index, section, and catch-all routes are registered from most to
+    /// least specific so the live preview root continues to behave correctly even when the current docs root is
+    /// root-mounted or overlaps published exact-version aliases.
     /// </remarks>
     /// <param name="context">Startup context for the application and environment.</param>
     /// <param name="endpoints">Endpoint route builder used to map the module's routes.</param>

@@ -24,6 +24,7 @@ namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
 
 public class DocsControllerTests : IDisposable
 {
+    private readonly List<string> _temporaryCatalogRoots = [];
     private readonly DocAggregator _aggregator;
     private readonly DocsController _controller;
     private readonly IDocHarvester _harvesterFake;
@@ -2816,6 +2817,14 @@ public class DocsControllerTests : IDisposable
 
     public void Dispose()
     {
+        foreach (var directory in _temporaryCatalogRoots)
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+
         (_memo as IDisposable)?.Dispose();
         _cache.Dispose();
     }
@@ -2842,7 +2851,7 @@ public class DocsControllerTests : IDisposable
         };
     }
 
-    private static (DocsController Controller, IMemoryCache Cache, Memo Memo) CreateController(
+    private (DocsController Controller, IMemoryCache Cache, Memo Memo) CreateController(
         RazorDocsOptions options,
         IDocHarvester harvester)
     {
@@ -2931,10 +2940,17 @@ public class DocsControllerTests : IDisposable
         return message?.Contains(expectedMessageFragment, StringComparison.OrdinalIgnoreCase) == true;
     }
 
-    private static RazorDocsVersionCatalogService CreateDefaultVersionCatalogService(RazorDocsOptions options)
+    private RazorDocsVersionCatalogService CreateDefaultVersionCatalogService(RazorDocsOptions options)
     {
+        var emptyCatalogRoot = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-controller-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(emptyCatalogRoot);
+        _temporaryCatalogRoots.Add(emptyCatalogRoot);
+
         var environment = A.Fake<IWebHostEnvironment>();
-        A.CallTo(() => environment.ContentRootPath).Returns(Path.GetTempPath());
+        A.CallTo(() => environment.ContentRootPath).Returns(emptyCatalogRoot);
 
         return new RazorDocsVersionCatalogService(
             options,

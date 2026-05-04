@@ -538,7 +538,7 @@ related_pages:
 - `sequence_key` opts a page into a specific sequence. Pages do not join a sequence just because they share a folder.
 - `order` determines the relative previous/next position inside that sequence.
 - `related_pages` stays independent from sequencing and can point to source paths, canonical docs paths, or exact page titles.
-- RazorDocs publishes authored sequence metadata to the current-surface search index for custom clients and integrations. The live source surface emits that payload at `/docs/search-index.json` when versioning is off and `/docs/next/search-index.json` when versioning is on; exported exact-version trees carry their own `search-index.json` payload at the tree root. The `sequence_key` front-matter value becomes `sequenceKey`, `order` stays `order`, and `related_pages` stays separate as `relatedPages`; for example: `{ "sequenceKey": "razorwire-proof", "order": 20, "relatedPages": ["Web/ForgeTrust.Runnable.Web.RazorWire/README.md"] }`.
+- RazorDocs publishes authored sequence metadata to the current-surface search index for custom clients and integrations. The live source surface emits that payload at `{DocsRootPath}/search-index.json` (for example, `/docs/search-index.json` by default when versioning is off and `/docs/next/search-index.json` by default when versioning is on); exported exact-version trees carry their own `search-index.json` payload at the tree root. The `sequence_key` front-matter value becomes `sequenceKey`, `order` stays `order`, and `related_pages` stays separate as `relatedPages`; for example: `{ "sequenceKey": "razorwire-proof", "order": 20, "relatedPages": ["Web/ForgeTrust.Runnable.Web.RazorWire/README.md"] }`.
 
 ### Resolution rules
 

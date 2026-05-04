@@ -474,6 +474,53 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
+    public void BuildPublishedTreeMounts_ShouldReuseProvider_ForRecommendedAliasOfPublicVersion()
+    {
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-web-module-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var exactTreePath = Path.Combine(tempDirectory, "1.2.3");
+            Directory.CreateDirectory(exactTreePath);
+            var version = new RazorDocsResolvedVersion(
+                Version: "1.2.3",
+                Label: "1.2.3",
+                Summary: null,
+                ExactTreePath: exactTreePath,
+                ExactRootUrl: "/docs/v/1.2.3",
+                SupportState: RazorDocsVersionSupportState.Current,
+                Visibility: RazorDocsVersionVisibility.Public,
+                AdvisoryState: RazorDocsVersionAdvisoryState.None,
+                IsAvailable: true,
+                AvailabilityIssue: null);
+            var catalog = new RazorDocsResolvedVersionCatalog(
+                RazorDocsResolvedVersionCatalogStatus.Resolved,
+                CatalogPath: Path.Combine(tempDirectory, "catalog.json"),
+                Versions: [version],
+                RecommendedVersion: version);
+
+            var (mounts, providers) = RazorDocsWebModule.BuildPublishedTreeMounts(catalog);
+
+            Assert.Equal(2, mounts.Count);
+            Assert.Single(providers);
+            Assert.Equal("/docs/v/1.2.3", mounts[0].MountRootPath);
+            Assert.Equal("/docs", mounts[1].MountRootPath);
+            Assert.Same(mounts[0].FileProvider, mounts[1].FileProvider);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void ConfigureWebApplication_ShouldReturn_WhenVersioningOptionsAreMissing()
     {
         var context = CreateStartupContext();

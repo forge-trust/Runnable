@@ -163,6 +163,17 @@ public sealed class RazorDocsVersionArchiveControllerTests : IDisposable
     }
 
     [Fact]
+    public void Versions_ShouldRedirectToLiveHome_WhenVersioningIsDisabled()
+    {
+        var controller = CreateController(catalogPath: null, versioningEnabled: false, docsRootPath: "/docs");
+
+        var result = controller.Versions();
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/docs", redirect.Url);
+    }
+
+    [Fact]
     public void Versions_ShouldPreserveCatalogOrder()
     {
         var firstTree = CreateExactTree("1.10.0");

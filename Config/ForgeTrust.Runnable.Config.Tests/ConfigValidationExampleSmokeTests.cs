@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ForgeTrust.Runnable.Core;
 
 namespace ForgeTrust.Runnable.Config.Tests;
 
@@ -7,13 +8,13 @@ public sealed class ConfigValidationExampleSmokeTests
     [Fact]
     public async Task ConfigValidationExample_FailsWithScalarValidationMessage()
     {
-        var repositoryRoot = FindRepositoryRoot();
+        var repositoryRoot = PathUtils.FindRepositoryRoot(AppContext.BaseDirectory);
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
             Arguments = "run --project examples/config-validation -p:NodeReuse=false",
-            WorkingDirectory = repositoryRoot.FullName,
+            WorkingDirectory = repositoryRoot,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false
@@ -70,20 +71,4 @@ public sealed class ConfigValidationExampleSmokeTests
         Assert.DoesNotContain("70000", output);
     }
 
-    private static DirectoryInfo FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory != null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "ForgeTrust.Runnable.slnx")))
-            {
-                return directory;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not find the repository root.");
-    }
 }

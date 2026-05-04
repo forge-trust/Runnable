@@ -39,7 +39,7 @@ public class ConfigValueValidationAttributeTests
     }
 
     [Fact]
-    public void Range_IntConstructor_ValidatesIntValues()
+    public void Range_IntConstructor_ValidatesIntAndDoubleValues()
     {
         var attribute = new ConfigValueRangeAttribute(1, 5);
 
@@ -48,14 +48,17 @@ public class ConfigValueValidationAttributeTests
         AssertValid(attribute, null);
         AssertValid(attribute, attribute.Minimum);
         AssertValid(attribute, 3);
+        AssertValid(attribute, 3.5);
         AssertValid(attribute, attribute.Maximum);
         AssertInvalid(attribute, 0, "between 1 and 5");
+        AssertInvalid(attribute, 0.5, "between 1 and 5");
         AssertInvalid(attribute, 6, "between 1 and 5");
-        AssertInvalid(attribute, 3.0, "configured for Int32 values");
+        AssertInvalid(attribute, 6.0, "between 1 and 5");
+        AssertInvalid(attribute, 3m, "supports Int32 and Double values");
     }
 
     [Fact]
-    public void Range_DoubleConstructor_ValidatesDoubleValues()
+    public void Range_DoubleConstructor_ValidatesIntAndDoubleValues()
     {
         var attribute = new ConfigValueRangeAttribute(1.5, 5.5);
 
@@ -63,11 +66,14 @@ public class ConfigValueValidationAttributeTests
         Assert.Equal(5.5, attribute.Maximum);
         AssertValid(attribute, null);
         AssertValid(attribute, attribute.Minimum);
+        AssertValid(attribute, 3);
         AssertValid(attribute, 3.5);
         AssertValid(attribute, attribute.Maximum);
+        AssertInvalid(attribute, 1, "between 1.5 and 5.5");
         AssertInvalid(attribute, 1.0, "between 1.5 and 5.5");
+        AssertInvalid(attribute, 6, "between 1.5 and 5.5");
         AssertInvalid(attribute, 6.0, "between 1.5 and 5.5");
-        AssertInvalid(attribute, 3, "configured for Double values");
+        AssertInvalid(attribute, 3m, "supports Int32 and Double values");
     }
 
     [Fact]

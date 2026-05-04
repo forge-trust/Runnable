@@ -105,11 +105,11 @@ public sealed class ConfigValueNotEmptyAttribute : ConfigValueValidationAttribut
 /// Non-null values are compared against the inclusive minimum and maximum supplied to the constructor.
 /// </para>
 /// <para>
-/// Runtime type matching is strict and follows the constructor overload. The <see cref="int"/> constructor
-/// validates only <see cref="int"/> values, and the <see cref="double"/> constructor validates only
-/// <see cref="double"/> values. Unsupported runtime types return validation failures instead of being
-/// converted. Use an options object when validation needs multiple numeric fields, required presence, or
-/// object-level DataAnnotations.
+/// Range validation accepts resolved <see cref="int"/> and <see cref="double"/> values. Integer bounds are
+/// widened when validating a <see cref="double"/> value, so attribute arguments such as
+/// <c>[ConfigValueRange(1, 5)]</c> work for <c>ConfigStruct&lt;double&gt;</c> wrappers. Unsupported runtime
+/// types return validation failures instead of being converted. Use an options object when validation needs
+/// multiple numeric fields, required presence, or object-level DataAnnotations.
 /// </para>
 /// </remarks>
 public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
@@ -180,7 +180,7 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
     /// <remarks>
     /// The integer constructor stores a boxed <see cref="int"/>, and the double constructor stores a boxed
     /// <see cref="double"/>. Callers should unbox this value according to the constructor overload they used.
-    /// The attribute also compares values using that same numeric type and treats the bound as inclusive.
+    /// The attribute treats the bound as inclusive and may widen integer bounds when validating double values.
     /// </remarks>
     public object Minimum { get; }
 
@@ -191,7 +191,7 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
     /// <remarks>
     /// The integer constructor stores a boxed <see cref="int"/>, and the double constructor stores a boxed
     /// <see cref="double"/>. Callers should unbox this value according to the constructor overload they used.
-    /// The attribute also compares values using that same numeric type and treats the bound as inclusive.
+    /// The attribute treats the bound as inclusive and may widen integer bounds when validating double values.
     /// </remarks>
     public object Maximum { get; }
 
@@ -222,37 +222,40 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
 
     private ValidationResult? ValidateInt32(object value, string displayName)
     {
-        if (value is not int typedValue)
-        {
-            return new ValidationResult(CreateUnsupportedTypeMessage(value.GetType(), "Int32"));
-        }
-
-        var minimum = (int)Minimum;
-        var maximum = (int)Maximum;
-
-        return typedValue >= minimum && typedValue <= maximum
-            ? ValidationResult.Success
-            : new ValidationResult(FormatErrorMessage(displayName));
+        return ValidateNumber(value, displayName, (int)Minimum, (int)Maximum);
     }
 
     private ValidationResult? ValidateDouble(object value, string displayName)
     {
-        if (value is not double typedValue)
-        {
-            return new ValidationResult(CreateUnsupportedTypeMessage(value.GetType(), "Double"));
-        }
+        return ValidateNumber(value, displayName, (double)Minimum, (double)Maximum);
+    }
 
-        var minimum = (double)Minimum;
-        var maximum = (double)Maximum;
+    private ValidationResult? ValidateNumber(
+        object value,
+        string displayName,
+        double minimum,
+        double maximum)
+    {
+        var typedValue = value switch
+        {
+            int intValue => intValue,
+            double doubleValue => doubleValue,
+            _ => (double?)null
+        };
+
+        if (typedValue is null)
+        {
+            return new ValidationResult(CreateUnsupportedTypeMessage(value.GetType()));
+        }
 
         return typedValue >= minimum && typedValue <= maximum
             ? ValidationResult.Success
             : new ValidationResult(FormatErrorMessage(displayName));
     }
 
-    private static string CreateUnsupportedTypeMessage(Type type, string supportedType) =>
-        $"{nameof(ConfigValueRangeAttribute)} configured for {supportedType} values cannot validate "
-        + $"config value type '{type.Name}'.";
+    private static string CreateUnsupportedTypeMessage(Type type) =>
+        $"{nameof(ConfigValueRangeAttribute)} supports Int32 and Double values. "
+        + $"Config value type '{type.Name}' is not supported.";
 
     private enum RangeKind
     {

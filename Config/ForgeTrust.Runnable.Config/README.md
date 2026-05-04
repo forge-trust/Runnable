@@ -155,8 +155,8 @@ Built-in scalar attributes are intentionally small:
 | Attribute | Supported values | Behavior |
 | --- | --- | --- |
 | `ConfigValueNotEmptyAttribute` | `string`, `Guid` | Rejects empty or whitespace-only strings and `Guid.Empty`. |
-| `ConfigValueRangeAttribute(int minimum, int maximum)` | `int` | Rejects values outside the inclusive integer range. |
-| `ConfigValueRangeAttribute(double minimum, double maximum)` | `double` | Rejects values outside the inclusive double range. |
+| `ConfigValueRangeAttribute(int minimum, int maximum)` | `int`, `double` | Rejects values outside the inclusive range. Integer bounds are widened for double values, so `[ConfigValueRange(1, 5)]` works on `ConfigStruct<double>`. |
+| `ConfigValueRangeAttribute(double minimum, double maximum)` | `int`, `double` | Rejects values outside the inclusive range using double comparisons. |
 | `ConfigValueMinLengthAttribute(int length)` | `string` | Rejects strings shorter than the configured length. |
 
 An unsupported built-in attribute and value-type pairing fails as a structured `ConfigurationValidationException`. For example, `[ConfigValueMinLength(3)]` on `ConfigStruct<int>` reports that the attribute supports `String` values instead of silently passing or throwing a cast exception.

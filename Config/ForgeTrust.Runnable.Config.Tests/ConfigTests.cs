@@ -372,6 +372,11 @@ public class ConfigTests
     {
     }
 
+    [ConfigValueRange(1, 5)]
+    private sealed class RangedDoubleWithIntegerBoundsConfig : ConfigStruct<double>
+    {
+    }
+
     [ConfigValueNotEmpty]
     private sealed class NotEmptyGuidConfig : ConfigStruct<Guid>
     {
@@ -1066,6 +1071,16 @@ public class ConfigTests
 
         Assert.Equal(3, intConfig.Value);
         Assert.Equal(3.5, doubleConfig.Value);
+    }
+
+    [Fact]
+    public void Struct_Init_WithConfigValueRange_AcceptsDoubleWithIntegerLiteralBounds()
+    {
+        var config = new RangedDoubleWithIntegerBoundsConfig();
+
+        InitStruct(config, 3.5);
+
+        Assert.Equal(3.5, config.Value);
     }
 
     [Fact]

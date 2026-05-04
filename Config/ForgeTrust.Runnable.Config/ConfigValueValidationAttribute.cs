@@ -7,6 +7,24 @@ namespace ForgeTrust.Runnable.Config;
 /// Apply derived attributes to concrete <see cref="Config{T}"/> or <see cref="ConfigStruct{T}"/> wrapper
 /// types to validate resolved scalar values during configuration initialization.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Scalar validation runs after provider/default resolution and only when the resolved value is non-null.
+/// These attributes validate the value itself; they do not make a missing configuration key required.
+/// Use a default value or an application startup presence check when absence should fail.
+/// </para>
+/// <para>
+/// Validation is intentionally strict about value types. Built-in scalar attributes return validation
+/// failures for unsupported runtime types instead of converting values. Use an options object with
+/// DataAnnotations when validation spans multiple members, needs nested object traversal, or should model
+/// required presence separately from value shape.
+/// </para>
+/// <para>
+/// The validation context object is the concrete config wrapper and does not provide application dependency
+/// injection services. Override <see cref="Config{T}.ValidateValue"/> or <see cref="ConfigStruct{T}.ValidateValue"/>
+/// for scalar rules that cannot be expressed as reusable attributes.
+/// </para>
+/// </remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = true)]
 public abstract class ConfigValueValidationAttribute : ValidationAttribute
 {
@@ -31,6 +49,19 @@ public abstract class ConfigValueValidationAttribute : ValidationAttribute
 /// Validates that a resolved scalar configuration value is not empty.
 /// Supported value types are <see cref="string"/> and <see cref="Guid"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// A null value is treated as successful validation so optional or missing scalar values remain optional.
+/// Non-null strings must contain non-whitespace characters, and non-null <see cref="Guid"/> values must not
+/// be <see cref="Guid.Empty"/>.
+/// </para>
+/// <para>
+/// Runtime type matching is strict: only <see cref="string"/> and <see cref="Guid"/> are supported. Applying
+/// this attribute to a different scalar value type returns a validation failure rather than attempting a
+/// conversion. Use an options object with member-level DataAnnotations when required presence, cross-field
+/// rules, or richer object validation is part of the contract.
+/// </para>
+/// </remarks>
 public sealed class ConfigValueNotEmptyAttribute : ConfigValueValidationAttribute
 {
     /// <summary>
@@ -46,7 +77,7 @@ public sealed class ConfigValueNotEmptyAttribute : ConfigValueValidationAttribut
     {
         if (value is null)
         {
-            return new ValidationResult(FormatErrorMessage(validationContext.DisplayName));
+            return ValidationResult.Success;
         }
 
         return value switch
@@ -68,6 +99,19 @@ public sealed class ConfigValueNotEmptyAttribute : ConfigValueValidationAttribut
 /// Validates that a resolved scalar numeric configuration value is inside an inclusive range.
 /// Supported value types are <see cref="int"/> and <see cref="double"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// A null value is treated as successful validation so optional or missing scalar values remain optional.
+/// Non-null values are compared against the inclusive minimum and maximum supplied to the constructor.
+/// </para>
+/// <para>
+/// Runtime type matching is strict and follows the constructor overload. The <see cref="int"/> constructor
+/// validates only <see cref="int"/> values, and the <see cref="double"/> constructor validates only
+/// <see cref="double"/> values. Unsupported runtime types return validation failures instead of being
+/// converted. Use an options object when validation needs multiple numeric fields, required presence, or
+/// object-level DataAnnotations.
+/// </para>
+/// </remarks>
 public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
 {
     private readonly RangeKind _kind;
@@ -196,6 +240,18 @@ public sealed class ConfigValueRangeAttribute : ConfigValueValidationAttribute
 /// <summary>
 /// Validates that a resolved scalar string configuration value has at least the configured length.
 /// </summary>
+/// <remarks>
+/// <para>
+/// A null value is treated as successful validation so optional or missing scalar values remain optional.
+/// Non-null strings must have a length greater than or equal to <see cref="Length"/>.
+/// </para>
+/// <para>
+/// Runtime type matching is strict: only <see cref="string"/> values are supported. Applying this attribute
+/// to another scalar value type returns a validation failure rather than converting the value. Use an options
+/// object with DataAnnotations when string length is only one part of a larger model contract or when
+/// required presence should be represented separately.
+/// </para>
+/// </remarks>
 public sealed class ConfigValueMinLengthAttribute : ConfigValueValidationAttribute
 {
     /// <summary>

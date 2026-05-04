@@ -24,7 +24,7 @@ public class ConfigValueValidationAttributeTests
 
         AssertValid(attribute, "value");
         AssertValid(attribute, Guid.NewGuid());
-        AssertInvalid(attribute, null, "must not be empty");
+        AssertValid(attribute, null);
         AssertInvalid(attribute, string.Empty, "must not be empty");
         AssertInvalid(attribute, "   ", "must not be empty");
         AssertInvalid(attribute, Guid.Empty, "must not be empty");

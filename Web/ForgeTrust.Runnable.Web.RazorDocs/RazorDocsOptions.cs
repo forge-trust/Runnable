@@ -37,6 +37,16 @@ public sealed class RazorDocsOptions
     /// Gets contributor provenance settings used to render source, edit, and freshness evidence on details pages.
     /// </summary>
     public RazorDocsContributorOptions Contributor { get; set; } = new();
+
+    /// <summary>
+    /// Gets routing settings that control where the live RazorDocs source surface is exposed.
+    /// </summary>
+    public RazorDocsRoutingOptions Routing { get; set; } = new();
+
+    /// <summary>
+    /// Gets versioning settings used to mount exact release trees and the archive surface.
+    /// </summary>
+    public RazorDocsVersioningOptions Versioning { get; set; } = new();
 }
 
 /// <summary>
@@ -184,6 +194,76 @@ public enum RazorDocsLastUpdatedMode
 }
 
 /// <summary>
+/// Routing settings for the live RazorDocs source surface.
+/// </summary>
+/// <remarks>
+/// The live source-backed surface always stays under the <c>/docs</c> URL family. RazorDocs normalizes configured
+/// values into app-relative paths before validation, so hosts may provide <c>docs/preview</c> and still get the
+/// canonical <c>/docs/preview</c> route contract. The one supported exception is <c>/</c>, which mounts the live
+/// docs surface at the application root for single-purpose docs hosts. When versioning is off the live surface
+/// defaults to <c>/docs</c>. When versioning is on the live surface defaults to <c>/docs/next</c> so the stable
+/// <c>/docs</c> alias can point at the recommended published release instead. These defaults are applied by
+/// <c>AddRazorDocs()</c> during options binding, so callers can omit <see cref="DocsRootPath"/> when the standard
+/// route contract is acceptable.
+/// </remarks>
+public sealed class RazorDocsRoutingOptions
+{
+    /// <summary>
+    /// Gets or sets the app-relative root path for the live source-backed docs surface.
+    /// </summary>
+    /// <remarks>
+    /// Relative-looking values are normalized into app-relative paths. For example, <c>docs/live</c> becomes
+    /// <c>/docs/live</c> during options binding. The normalized path must either be exactly <c>/</c> for a
+    /// root-mounted docs host or start with <c>/docs</c>; it must not end with <c>/</c> and cannot include query or
+    /// fragment segments.
+    /// When versioning is disabled the default path is <c>/docs</c>. When versioning is enabled the default path
+    /// becomes <c>/docs/next</c> so the current unreleased snapshot does not collide with the recommended released
+    /// docs alias at <c>/docs</c>.
+    /// Avoid reserved versioning paths such as <c>/docs</c>, <c>/docs/versions</c>, <c>/docs/v</c>, and any
+    /// <c>/docs/v/{version}</c> route when versioning is enabled unless you intentionally use the root-mounted
+    /// <c>/</c> special case. Hosts that customize this root should configure it before any generated links or
+    /// exported trees are produced so server-rendered pages, search assets, and static export output all agree on the
+    /// same live preview root.
+    /// </remarks>
+    public string? DocsRootPath { get; set; }
+}
+
+/// <summary>
+/// Versioning settings for published RazorDocs release trees.
+/// </summary>
+/// <remarks>
+/// Enabling versioning turns on the published-release route contract:
+/// <c>/docs</c> for the recommended release alias, <c>/docs/v/{version}</c> for immutable exact trees,
+/// <c>/docs/versions</c> for the archive, and a live preview surface rooted at <see cref="RazorDocsRoutingOptions.DocsRootPath"/>.
+/// The catalog stays file-based in this slice: runtime consumes a JSON manifest plus prebuilt exact release trees and
+/// does not perform Git or bundle resolution at request time. The catalog must describe the recommended version
+/// alias plus one or more exact release trees whose exported contents satisfy the exact-tree contract documented in
+/// the package README.
+/// </remarks>
+public sealed class RazorDocsVersioningOptions
+{
+    /// <summary>
+    /// Gets or sets a value indicating whether release-tree versioning is enabled.
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the path to the version catalog JSON file.
+    /// </summary>
+    /// <remarks>
+    /// This property is required when <see cref="Enabled"/> is <see langword="true"/>.
+    /// The catalog describes available exact-version trees, the recommended version alias, and release-level status
+    /// metadata such as support and advisory state. Relative paths resolve from the app content root.
+    /// The JSON payload is expected to contain a top-level recommended version plus a <c>versions</c> array whose
+    /// entries point at exported exact-version trees.
+    /// A missing, unreadable, or malformed catalog does not crash RazorDocs, but it leaves all published releases
+    /// unavailable until the catalog can be loaded successfully. When <see cref="Enabled"/> is <see langword="true"/>
+    /// and this property is blank, startup validation fails before the app begins serving requests.
+    /// </remarks>
+    public string? CatalogPath { get; set; }
+}
+
+/// <summary>
 /// Validates <see cref="RazorDocsOptions"/> and rejects unsupported or ambiguous startup configurations.
 /// </summary>
 public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOptions>
@@ -202,6 +282,8 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         var bundle = options.Bundle;
         var sidebar = options.Sidebar;
         var contributor = options.Contributor;
+        var routing = options.Routing;
+        var versioning = options.Versioning;
 
         if (!Enum.IsDefined(options.Mode))
         {
@@ -236,6 +318,16 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             failures.Add($"Unsupported RazorDocs contributor last-updated mode '{contributor.LastUpdatedMode}'.");
         }
 
+        if (routing is null)
+        {
+            failures.Add("RazorDocs:Routing must not be null.");
+        }
+
+        if (versioning is null)
+        {
+            failures.Add("RazorDocs:Versioning must not be null.");
+        }
+
         if (options.Mode == RazorDocsMode.Bundle)
         {
             if (bundle is null || string.IsNullOrWhiteSpace(bundle.Path))
@@ -251,6 +343,37 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
             && string.IsNullOrWhiteSpace(source.RepositoryRoot))
         {
             failures.Add("RazorDocs:Source:RepositoryRoot cannot be whitespace.");
+        }
+
+        if (routing?.DocsRootPath is null)
+        {
+            failures.Add("RazorDocs:Routing:DocsRootPath must not be null.");
+        }
+        else if (!IsValidDocsRootPath(routing.DocsRootPath))
+        {
+            failures.Add(
+                "RazorDocs:Routing:DocsRootPath must be exactly '/' or start with '/docs', must not end with '/', and cannot contain query or fragment segments.");
+        }
+
+        if (versioning?.Enabled == true)
+        {
+            if (string.IsNullOrWhiteSpace(versioning.CatalogPath))
+            {
+                failures.Add("RazorDocs versioning requires RazorDocs:Versioning:CatalogPath.");
+            }
+
+            if (string.Equals(routing?.DocsRootPath, "/docs", StringComparison.OrdinalIgnoreCase))
+            {
+                failures.Add(
+                    "RazorDocs versioning cannot use '/docs' as the live source docs root. Use '/docs/next' or another '/docs/*' preview path.");
+            }
+
+            if (routing?.DocsRootPath is not null
+                && IsReservedVersioningPath(routing.DocsRootPath))
+            {
+                failures.Add(
+                    "RazorDocs:Routing:DocsRootPath cannot use a reserved versioning path such as '/docs/versions', '/docs/v', or '/docs/v/...'.");
+            }
         }
 
         if (contributor is not null
@@ -334,5 +457,34 @@ public sealed class RazorDocsOptionsValidator : IValidateOptions<RazorDocsOption
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static bool IsValidDocsRootPath(string docsRootPath)
+    {
+        if (string.IsNullOrWhiteSpace(docsRootPath))
+        {
+            return false;
+        }
+
+        if (!string.Equals(docsRootPath, "/", StringComparison.Ordinal)
+            && !string.Equals(docsRootPath, "/docs", StringComparison.OrdinalIgnoreCase)
+            && !docsRootPath.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (docsRootPath.Length > 1 && docsRootPath[^1] == '/')
+        {
+            return false;
+        }
+
+        return docsRootPath.IndexOfAny(['?', '#']) < 0;
+    }
+
+    private static bool IsReservedVersioningPath(string docsRootPath)
+    {
+        return string.Equals(docsRootPath, "/docs/v", StringComparison.OrdinalIgnoreCase)
+               || docsRootPath.StartsWith("/docs/v/", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(docsRootPath, "/docs/versions", StringComparison.OrdinalIgnoreCase);
     }
 }

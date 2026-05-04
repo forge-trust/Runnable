@@ -23,6 +23,7 @@
     <Project Path="Console/ForgeTrust.Runnable.Console/ForgeTrust.Runnable.Console.csproj" />
   </Folder>
   <Folder Name="/Dependency/">
+    <Project Path="Dependency/ForgeTrust.Runnable.Dependency.Autofac.Tests/ForgeTrust.Runnable.Dependency.Autofac.Tests.csproj" />
     <Project Path="Dependency/ForgeTrust.Runnable.Dependency.Autofac/ForgeTrust.Runnable.Dependency.Autofac.csproj" />
   </Folder>
   <Folder Name="/Examples/">
@@ -45,6 +46,7 @@
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorDocs.Tests/ForgeTrust.Runnable.Web.RazorDocs.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorDocs/ForgeTrust.Runnable.Web.RazorDocs.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.RazorDocs.Standalone/ForgeTrust.Runnable.Web.RazorDocs.Standalone.csproj" />
+    <Project Path="Web/ForgeTrust.Runnable.Web.OpenApi.Tests/ForgeTrust.Runnable.Web.OpenApi.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.OpenApi/ForgeTrust.Runnable.Web.OpenApi.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.Scalar.Tests/ForgeTrust.Runnable.Web.Scalar.Tests.csproj" />
     <Project Path="Web/ForgeTrust.Runnable.Web.Scalar/ForgeTrust.Runnable.Web.Scalar.csproj" />

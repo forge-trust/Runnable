@@ -1,11 +1,92 @@
 using System.Globalization;
 using System.Net;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using ForgeTrust.Runnable.Caching;
 using ForgeTrust.Runnable.Core;
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Services;
+
+/// <summary>
+/// Cached search-index payload for the live source-backed docs surface.
+/// </summary>
+/// <param name="Metadata">Static metadata emitted alongside the indexed documents.</param>
+/// <param name="Documents">Searchable docs entries in the shape consumed by the built-in MiniSearch client.</param>
+internal sealed record DocsSearchIndexPayload(
+    [property: JsonPropertyName("metadata")] DocsSearchIndexMetadata Metadata,
+    [property: JsonPropertyName("documents")] IReadOnlyList<DocsSearchIndexDocument> Documents);
+
+/// <summary>
+/// Metadata emitted with each docs search-index payload.
+/// </summary>
+/// <param name="GeneratedAtUtc">UTC timestamp for when the snapshot was generated.</param>
+/// <param name="Version">Schema version understood by the search client.</param>
+/// <param name="Engine">Client-side search engine identifier.</param>
+internal sealed record DocsSearchIndexMetadata(
+    [property: JsonPropertyName("generatedAtUtc")] string GeneratedAtUtc,
+    [property: JsonPropertyName("version")] string Version,
+    [property: JsonPropertyName("engine")] string Engine);
+
+/// <summary>
+/// Search document entry emitted for the built-in docs search experience.
+/// </summary>
+/// <remarks>
+/// The <see cref="Path" /> value is cached relative to the live docs surface root and can be rebased onto a request
+/// <c>PathBase</c> at response time without rebuilding the full snapshot. Lists are serialized as JSON arrays so the
+/// browser client can preserve exact ordering for headings, aliases, related pages, and breadcrumbs.
+/// </remarks>
+/// <param name="Id">Stable identifier for the indexed document.</param>
+/// <param name="Path">Browser-facing docs URL used for result navigation.</param>
+/// <param name="Title">Display title shown in search results.</param>
+/// <param name="Summary">Summary text favored for recovery and preview UI.</param>
+/// <param name="Headings">Normalized heading titles harvested from the document outline.</param>
+/// <param name="BodyText">Full normalized body text indexed for recall.</param>
+/// <param name="Snippet">Short excerpt shown in search results.</param>
+/// <param name="PageType">Page-type facet value.</param>
+/// <param name="PageTypeLabel">Resolved page-type badge label.</param>
+/// <param name="PageTypeVariant">Resolved page-type badge variant.</param>
+/// <param name="Audience">Audience facet value when explicitly authored.</param>
+/// <param name="Component">Component facet value when explicitly authored.</param>
+/// <param name="Aliases">Alternative phrases that should match the page.</param>
+/// <param name="Keywords">Additional authored search keywords.</param>
+/// <param name="Status">Status facet value.</param>
+/// <param name="NavGroup">Public navigation group label when present.</param>
+/// <param name="PublicSection">Resolved public-section slug when the page participates in a public section.</param>
+/// <param name="PublicSectionLabel">Human-readable public-section label.</param>
+/// <param name="IsSectionLanding">Whether this record is the resolved landing page for its public section.</param>
+/// <param name="Order">Authored order hint used for browse sorting.</param>
+/// <param name="SequenceKey">Optional authored sequence key for related content.</param>
+/// <param name="CanonicalSlug">Optional canonical slug used for route continuity.</param>
+/// <param name="RelatedPages">Authored related-page references used for recovery links.</param>
+/// <param name="Breadcrumbs">Authored breadcrumb labels displayed in result chrome.</param>
+internal sealed record DocsSearchIndexDocument(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("path")] string Path,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("summary")] string Summary,
+    [property: JsonPropertyName("headings")] IReadOnlyList<string> Headings,
+    [property: JsonPropertyName("bodyText")] string BodyText,
+    [property: JsonPropertyName("snippet")] string Snippet,
+    [property: JsonPropertyName("pageType")] string? PageType,
+    [property: JsonPropertyName("pageTypeLabel")] string? PageTypeLabel,
+    [property: JsonPropertyName("pageTypeVariant")] string? PageTypeVariant,
+    [property: JsonPropertyName("audience")] string? Audience,
+    [property: JsonPropertyName("component")] string? Component,
+    [property: JsonPropertyName("aliases")] IReadOnlyList<string> Aliases,
+    [property: JsonPropertyName("keywords")] IReadOnlyList<string> Keywords,
+    [property: JsonPropertyName("status")] string? Status,
+    [property: JsonPropertyName("navGroup")] string? NavGroup,
+    [property: JsonPropertyName("publicSection")] string? PublicSection,
+    [property: JsonPropertyName("publicSectionLabel")] string? PublicSectionLabel,
+    [property: JsonPropertyName("isSectionLanding")] bool IsSectionLanding,
+    [property: JsonPropertyName("order")] int? Order,
+    [property: JsonPropertyName("sequenceKey")] string? SequenceKey,
+    [property: JsonPropertyName("canonicalSlug")] string? CanonicalSlug,
+    [property: JsonPropertyName("relatedPages")] IReadOnlyList<string> RelatedPages,
+    [property: JsonPropertyName("breadcrumbs")] IReadOnlyList<string> Breadcrumbs);
 
 /// <summary>
 /// Service responsible for aggregating documentation from multiple harvesters and caching the results.
@@ -23,6 +104,7 @@ public class DocAggregator
     private readonly string _repositoryRoot;
     private readonly IMemo _memo;
     private readonly IRazorDocsHtmlSanitizer _sanitizer;
+    private readonly DocsUrlBuilder _docsUrlBuilder;
     private readonly ILogger<DocAggregator> _logger;
     private readonly RazorDocsContributorOptions _contributorOptions;
     private readonly Func<string, CancellationToken, Task<DateTimeOffset?>> _resolveGitLastUpdatedUtcAsync;
@@ -56,7 +138,7 @@ public class DocAggregator
         Dictionary<string, DocNode> DocsByPath,
         Dictionary<string, DocLookupBucket> Lookup,
         IReadOnlyList<DocSectionSnapshot> PublicSections,
-        object SearchIndexPayload,
+        DocsSearchIndexPayload SearchIndexPayload,
         Dictionary<string, DocContributorProvenanceViewModel> ContributorProvenanceByPath);
 
     private sealed class DocLookupBucket
@@ -88,6 +170,7 @@ public class DocAggregator
             environment,
             memo,
             sanitizer,
+            new DocsUrlBuilder(options),
             logger,
             resolveGitLastUpdatedUtcAsync: null)
     {
@@ -101,6 +184,80 @@ public class DocAggregator
     /// <param name="environment">The host environment used to resolve the repository root when needed.</param>
     /// <param name="memo">The memo cache used for snapshot reuse.</param>
     /// <param name="sanitizer">The HTML sanitizer applied to rendered docs content.</param>
+    /// <param name="logger">The logger used for harvest and contributor-freshness diagnostics.</param>
+    /// <param name="resolveGitLastUpdatedUtcAsync">
+    /// Optional freshness resolver used by tests to simulate git-backed timestamps and failure modes.
+    /// </param>
+    /// <param name="contributorFreshnessTimeout">
+    /// Optional timeout override for snapshot-time contributor freshness resolution.
+    /// </param>
+    /// <param name="utcNow">
+    /// Optional clock seam used by tests that need deterministic contributor-freshness budgeting.
+    /// </param>
+    internal DocAggregator(
+        IEnumerable<IDocHarvester> harvesters,
+        RazorDocsOptions options,
+        IWebHostEnvironment environment,
+        IMemo memo,
+        IRazorDocsHtmlSanitizer sanitizer,
+        ILogger<DocAggregator> logger,
+        Func<string, CancellationToken, Task<DateTimeOffset?>>? resolveGitLastUpdatedUtcAsync,
+        TimeSpan? contributorFreshnessTimeout = null,
+        Func<DateTimeOffset>? utcNow = null)
+        : this(
+            harvesters,
+            options,
+            environment,
+            memo,
+            sanitizer,
+            new DocsUrlBuilder(options),
+            logger,
+            resolveGitLastUpdatedUtcAsync,
+            contributorFreshnessTimeout,
+            utcNow)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="DocAggregator"/> with optional contributor-freshness test seams.
+    /// </summary>
+    /// <param name="harvesters">The documentation harvesters that populate the docs snapshot.</param>
+    /// <param name="options">The resolved RazorDocs options, including source and contributor settings.</param>
+    /// <param name="environment">The host environment used to resolve the repository root when needed.</param>
+    /// <param name="memo">The memo cache used for snapshot reuse.</param>
+    /// <param name="sanitizer">The HTML sanitizer applied to rendered docs content.</param>
+    /// <param name="docsUrlBuilder">Shared URL builder for the live source-backed docs surface.</param>
+    /// <param name="logger">The logger used for harvest and contributor-freshness diagnostics.</param>
+    [ActivatorUtilitiesConstructor]
+    public DocAggregator(
+        IEnumerable<IDocHarvester> harvesters,
+        RazorDocsOptions options,
+        IWebHostEnvironment environment,
+        IMemo memo,
+        IRazorDocsHtmlSanitizer sanitizer,
+        DocsUrlBuilder docsUrlBuilder,
+        ILogger<DocAggregator> logger)
+        : this(
+            harvesters,
+            options,
+            environment,
+            memo,
+            sanitizer,
+            docsUrlBuilder,
+            logger,
+            resolveGitLastUpdatedUtcAsync: null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="DocAggregator"/> with optional contributor-freshness test seams.
+    /// </summary>
+    /// <param name="harvesters">The documentation harvesters that populate the docs snapshot.</param>
+    /// <param name="options">The resolved RazorDocs options, including source and contributor settings.</param>
+    /// <param name="environment">The host environment used to resolve the repository root when needed.</param>
+    /// <param name="memo">The memo cache used for snapshot reuse.</param>
+    /// <param name="sanitizer">The HTML sanitizer applied to rendered docs content.</param>
+    /// <param name="docsUrlBuilder">Shared URL builder for the live source-backed docs surface.</param>
     /// <param name="logger">The logger used for harvest and contributor-freshness diagnostics.</param>
     /// <param name="resolveGitLastUpdatedUtcAsync">
     /// Optional freshness resolver used by tests to simulate git-backed timestamps and failure modes.
@@ -129,6 +286,7 @@ public class DocAggregator
         IWebHostEnvironment environment,
         IMemo memo,
         IRazorDocsHtmlSanitizer sanitizer,
+        DocsUrlBuilder docsUrlBuilder,
         ILogger<DocAggregator> logger,
         Func<string, CancellationToken, Task<DateTimeOffset?>>? resolveGitLastUpdatedUtcAsync,
         TimeSpan? contributorFreshnessTimeout = null,
@@ -139,11 +297,13 @@ public class DocAggregator
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(memo);
         ArgumentNullException.ThrowIfNull(sanitizer);
+        ArgumentNullException.ThrowIfNull(docsUrlBuilder);
         ArgumentNullException.ThrowIfNull(logger);
 
         _harvesters = harvesters;
         _memo = memo;
         _sanitizer = sanitizer;
+        _docsUrlBuilder = docsUrlBuilder;
         _logger = logger;
         _contributorOptions = options.Contributor ?? throw new ArgumentNullException(nameof(options.Contributor));
         _contributorFreshnessTimeout = contributorFreshnessTimeout ?? ContributorFreshnessTimeout;
@@ -259,8 +419,12 @@ public class DocAggregator
     /// Returns the docs search-index payload generated during docs aggregation.
     /// </summary>
     /// <param name="cancellationToken">An optional token to observe for cancellation requests.</param>
-    /// <returns>A JSON-serializable payload containing index metadata and documents.</returns>
-    public async Task<object> GetSearchIndexPayloadAsync(CancellationToken cancellationToken = default)
+    /// <returns>
+    /// A typed payload containing the search metadata and documents emitted by the live docs surface.
+    /// The payload is cached before response serialization so callers can rebase rooted paths, such as <c>/docs/guide.html</c>,
+    /// onto a request <c>PathBase</c> without reparsing or reserializing an intermediate JSON node graph.
+    /// </returns>
+    internal async Task<DocsSearchIndexPayload> GetSearchIndexPayloadAsync(CancellationToken cancellationToken = default)
     {
         var snapshot = await GetCachedDocsSnapshotAsync().WaitAsync(cancellationToken);
         return snapshot.SearchIndexPayload;
@@ -414,6 +578,7 @@ public class DocAggregator
                                    DocContentLinkRewriter.RewriteInternalDocLinks(
                                        n.Path,
                                        n.Content,
+                                       _docsUrlBuilder.CurrentDocsRootPath,
                                        linkTargetManifest),
                                    n.ParentPath,
                                    n.IsDirectory,
@@ -534,8 +699,7 @@ public class DocAggregator
                     return string.Empty;
                 }
 
-                var label = $"View source for {anchorId}";
-                return $@"<a href=""{WebUtility.HtmlEncode(href)}"" class=""doc-symbol-source-link"" aria-label=""{WebUtility.HtmlEncode(label)}"">Source</a>";
+                return $@"<a href=""{WebUtility.HtmlEncode(href)}"" class=""doc-symbol-source-link"" aria-label=""View source"">Source</a>";
             });
     }
 
@@ -1074,7 +1238,7 @@ public class DocAggregator
     /// <param name="docs">The documentation nodes to index.</param>
     /// <param name="publicSections">The resolved public sections used to derive landing winners.</param>
     /// <returns>A tuple containing the serializable payload and the number of records indexed.</returns>
-    private static (object Payload, int RecordCount) BuildSearchIndexPayload(
+    private (DocsSearchIndexPayload Payload, int RecordCount) BuildSearchIndexPayload(
         IEnumerable<DocNode> docs,
         IReadOnlyList<DocSectionSnapshot> publicSections)
     {
@@ -1088,13 +1252,11 @@ public class DocAggregator
             .Select(
                 d =>
                 {
-                    var content = d.Content;
-                    var searchableContent = SymbolSourceLinkRegex.Replace(content ?? string.Empty, " ");
+                    var content = d.Content ?? string.Empty;
+                    var searchableContent = SymbolSourceLinkRegex.Replace(content, " ");
                     var bodyText = NormalizeSearchText(TagRegex.Replace(ScriptOrStyleRegex.Replace(searchableContent, string.Empty), " "));
                     var snippet = TruncateSnippetAtWordBoundary(bodyText, SearchSnippetMaxLength);
-                    var title = string.IsNullOrWhiteSpace(d.Metadata?.Title)
-                        ? d.Title
-                        : d.Metadata!.Title!.Trim();
+                    var title = ResolveSearchIndexTitle(d);
                     var summary = d.Metadata?.Summary ?? snippet;
 
                     var headings = (d.Outline ?? [])
@@ -1106,52 +1268,68 @@ public class DocAggregator
                     var pageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(d.Metadata?.PageType);
                     var hasPublicSection = DocPublicSectionCatalog.TryResolve(d.Metadata?.NavGroup, out var publicSection);
 
-                    return new
-                    {
-                        id = d.Path,
-                        path = BuildSearchDocUrl(d.Path),
+                    return new DocsSearchIndexDocument(
+                        d.Path,
+                        BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, d.Path),
                         title,
                         summary,
                         headings,
                         bodyText,
                         snippet,
-                        pageType = d.Metadata?.PageType,
-                        pageTypeLabel = pageTypeBadge?.Label,
-                        pageTypeVariant = pageTypeBadge?.Variant,
-                        audience = d.Metadata?.AudienceIsDerived == true ? null : d.Metadata?.Audience,
-                        component = d.Metadata?.ComponentIsDerived == true ? null : d.Metadata?.Component,
-                        aliases = d.Metadata?.Aliases ?? [],
-                        keywords = d.Metadata?.Keywords ?? [],
-                        status = d.Metadata?.Status,
-                        navGroup = d.Metadata?.NavGroup,
-                        publicSection = hasPublicSection ? DocPublicSectionCatalog.GetSlug(publicSection) : null,
-                        publicSectionLabel = hasPublicSection ? DocPublicSectionCatalog.GetLabel(publicSection) : null,
-                        isSectionLanding = resolvedLandingPaths.Contains(d.Path),
-                        order = d.Metadata?.Order,
-                        sequenceKey = d.Metadata?.SequenceKey,
-                        canonicalSlug = d.Metadata?.CanonicalSlug,
-                        relatedPages = d.Metadata?.RelatedPages ?? [],
-                        breadcrumbs = d.Metadata?.Breadcrumbs ?? []
-                    };
+                        d.Metadata?.PageType,
+                        pageTypeBadge?.Label,
+                        pageTypeBadge?.Variant,
+                        d.Metadata?.AudienceIsDerived == true ? null : d.Metadata?.Audience,
+                        d.Metadata?.ComponentIsDerived == true ? null : d.Metadata?.Component,
+                        d.Metadata?.Aliases ?? [],
+                        d.Metadata?.Keywords ?? [],
+                        d.Metadata?.Status,
+                        d.Metadata?.NavGroup,
+                        hasPublicSection ? DocPublicSectionCatalog.GetSlug(publicSection) : null,
+                        hasPublicSection ? DocPublicSectionCatalog.GetLabel(publicSection) : null,
+                        resolvedLandingPaths.Contains(d.Path),
+                        d.Metadata?.Order,
+                        d.Metadata?.SequenceKey,
+                        d.Metadata?.CanonicalSlug,
+                        d.Metadata?.RelatedPages ?? [],
+                        d.Metadata?.Breadcrumbs ?? []);
                 })
-            .Where(r => !string.IsNullOrWhiteSpace(r.title) || !string.IsNullOrWhiteSpace(r.bodyText))
-            .GroupBy(r => r.path, StringComparer.OrdinalIgnoreCase)
+            .Where(r => !string.IsNullOrWhiteSpace(r.Title) || !string.IsNullOrWhiteSpace(r.BodyText))
+            .GroupBy(r => r.Path, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .OrderBy(r => r.path, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(r => r.Path, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var payload = (object)new
-        {
-            metadata = new
-            {
-                generatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
-                version = "1",
-                engine = "minisearch"
-            },
-            documents = records
-        };
+        var payload = new DocsSearchIndexPayload(
+            new DocsSearchIndexMetadata(
+                DateTimeOffset.UtcNow.ToString("O"),
+                "1",
+                "minisearch"),
+            records);
 
         return (payload, records.Count);
+    }
+
+    private static string ResolveSearchIndexTitle(DocNode doc)
+    {
+        var authoredTitle = string.IsNullOrWhiteSpace(doc.Metadata?.Title)
+            ? doc.Title
+            : doc.Metadata!.Title!.Trim();
+        if (!string.IsNullOrWhiteSpace(authoredTitle))
+        {
+            return authoredTitle;
+        }
+
+        var pathPart = doc.Path.Split('#', 2)[0];
+        var lastSegment = pathPart
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .LastOrDefault();
+        if (!string.IsNullOrWhiteSpace(lastSegment))
+        {
+            return Uri.UnescapeDataString(lastSegment);
+        }
+
+        return "Untitled document";
     }
 
     /// <summary>
@@ -1172,28 +1350,18 @@ public class DocAggregator
     /// <returns>A URL string starting with "/docs".</returns>
     internal static string BuildSearchDocUrl(string path)
     {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return "/docs";
-        }
+        return BuildSearchDocUrl("/docs", path);
+    }
 
-        var fragmentSeparator = path.IndexOf('#');
-        var pathPart = fragmentSeparator >= 0 ? path[..fragmentSeparator] : path;
-        var fragmentPart = fragmentSeparator >= 0 ? path[(fragmentSeparator + 1)..] : string.Empty;
-
-        var encodedPath = string.Join(
-            "/",
-            pathPart
-                .Split('/', StringSplitOptions.RemoveEmptyEntries)
-                .Select(Uri.EscapeDataString));
-
-        var url = string.IsNullOrEmpty(encodedPath) ? "/docs" : $"/docs/{encodedPath}";
-        if (!string.IsNullOrWhiteSpace(fragmentPart))
-        {
-            url += $"#{Uri.EscapeDataString(fragmentPart)}";
-        }
-
-        return url;
+    /// <summary>
+    /// Constructs a browser-facing URL for a documentation path rooted at a specific docs surface.
+    /// </summary>
+    /// <param name="docsRootPath">The app-relative docs root path.</param>
+    /// <param name="path">The relative documentation path.</param>
+    /// <returns>A URL string rooted at <paramref name="docsRootPath" />.</returns>
+    internal static string BuildSearchDocUrl(string docsRootPath, string path)
+    {
+        return DocsUrlBuilder.BuildDocUrl(docsRootPath, path);
     }
 
     /// <summary>
@@ -1296,7 +1464,7 @@ public class DocAggregator
             .FirstOrDefault();
     }
 
-    private static DocPageLinkViewModel? ResolveSequenceNeighbor(
+    private DocPageLinkViewModel? ResolveSequenceNeighbor(
         DocNode currentDoc,
         IReadOnlyList<DocNode> docs,
         int direction)
@@ -1379,7 +1547,7 @@ public class DocAggregator
         return metadata.Order is not null;
     }
 
-    private static IReadOnlyList<DocPageLinkViewModel> ResolveRelatedPages(
+    private IReadOnlyList<DocPageLinkViewModel> ResolveRelatedPages(
         DocNode currentDoc,
         IReadOnlyList<DocNode> docs,
         IReadOnlyDictionary<string, DocLookupBucket> lookup,
@@ -1394,7 +1562,7 @@ public class DocAggregator
 
         var excludedHrefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            BuildSearchDocUrl(GetSnapshotCanonicalPath(currentDoc))
+            BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, GetSnapshotCanonicalPath(currentDoc))
         };
         if (!string.IsNullOrWhiteSpace(previousPage?.Href))
         {
@@ -1423,7 +1591,7 @@ public class DocAggregator
                 continue;
             }
 
-            var relatedHref = BuildSearchDocUrl(GetSnapshotCanonicalPath(relatedDoc));
+            var relatedHref = BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, GetSnapshotCanonicalPath(relatedDoc));
             if (!excludedHrefs.Add(relatedHref))
             {
                 continue;
@@ -1446,14 +1614,14 @@ public class DocAggregator
                 doc => string.Equals(GetDisplayTitle(doc), title, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static DocPageLinkViewModel CreatePageLink(DocNode doc)
+    private DocPageLinkViewModel CreatePageLink(DocNode doc)
     {
         var summary = NormalizeMetadataText(doc.Metadata?.Summary);
 
         return new DocPageLinkViewModel
         {
             Title = GetDisplayTitle(doc),
-            Href = BuildSearchDocUrl(GetSnapshotCanonicalPath(doc)),
+            Href = BuildSearchDocUrl(_docsUrlBuilder.CurrentDocsRootPath, GetSnapshotCanonicalPath(doc)),
             Summary = summary,
             PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType)
         };
@@ -1728,7 +1896,11 @@ public class DocAggregator
     /// Extracts a namespace name from a README path, optionally matching against a list of known namespaces.
     /// </summary>
     /// <param name="path">The README path to process.</param>
-    /// <param name="knownNamespaceNames">Optional list of known namespaces to match directory segments against.</param>
+    /// <param name="knownNamespaceNames">
+    /// Optional list of known namespaces to match directory segments against. When provided, README paths are only
+    /// treated as namespace introductions when the matching namespace folder appears under a trusted container
+    /// directory such as <c>docs</c> or <c>Namespaces</c>.
+    /// </param>
     /// <returns>The extracted namespace name, or <c>null</c> if it cannot be determined.</returns>
     private static string? ExtractNamespaceNameFromReadmePath(string path, IEnumerable<string>? knownNamespaceNames)
     {
@@ -1771,6 +1943,17 @@ public class DocAggregator
         return parts.LastOrDefault();
     }
 
+    /// <summary>
+    /// Determines whether the matched namespace folder appears in one of the supported namespace README locations.
+    /// </summary>
+    /// <param name="parts">The normalized directory path segments that precede <c>README.md</c>.</param>
+    /// <param name="namespaceStartIndex">
+    /// The index where the matched namespace name begins within <paramref name="parts"/>.
+    /// </param>
+    /// <returns>
+    /// <c>true</c> when the namespace folder lives under a trusted container like <c>docs</c> or <c>Namespaces</c>;
+    /// otherwise, <c>false</c>.
+    /// </returns>
     private static bool HasNamespaceReadmePrefix(IReadOnlyList<string> parts, int namespaceStartIndex)
     {
         if (namespaceStartIndex <= 0)

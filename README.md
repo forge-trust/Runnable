@@ -54,7 +54,7 @@ This approach aims to:
 - [**ForgeTrust.Runnable.Web**](./Web/ForgeTrust.Runnable.Web/README.md) – Bootstraps ASP.NET Core minimal API apps and lets modules register middleware, endpoints, and perform additional host configuration.
 - [**ForgeTrust.Runnable.Web.OpenApi**](./Web/ForgeTrust.Runnable.Web.OpenApi/README.md) – Optional module that adds OpenAPI generation using `AddEndpointsApiExplorer` and `WithOpenApi`.
 - [**ForgeTrust.Runnable.Web.RazorWire**](./Web/ForgeTrust.Runnable.Web.RazorWire/README.md) – Adds reactive Razor-based streaming, islands, and export tooling for server-rendered web apps.
-- [**ForgeTrust.Runnable.Web.RazorDocs**](./Web/ForgeTrust.Runnable.Web.RazorDocs/README.md) – Reusable Razor Class Library package that serves harvested source docs with section-first landing, sidebar, search experiences, and built-in trust plus contributor-provenance surfaces on details pages.
+- [**ForgeTrust.Runnable.Web.RazorDocs**](./Web/ForgeTrust.Runnable.Web.RazorDocs/README.md) – Reusable Razor Class Library package that serves harvested source docs with section-first landing, sidebar, search, built-in trust plus contributor-provenance details, and optional published-version archive surfaces.
 - [**ForgeTrust.Runnable.Web.RazorDocs.Standalone**](./Web/ForgeTrust.Runnable.Web.RazorDocs.Standalone/README.md) – Thin runnable host for exporting or serving RazorDocs as an application.
 - [**ForgeTrust.Runnable.Web.Scalar**](./Web/ForgeTrust.Runnable.Web.Scalar/README.md) – Optional module that serves the Scalar API reference UI and depends on the OpenAPI module.
 
@@ -141,9 +141,9 @@ Runnable is preparing to release the entire monorepo in unison. The public relea
 
 ## Feedback and contributing
 
-Runnable uses GitHub issue forms to keep bug reports and docs/developer-experience feedback concrete enough to reproduce. If an example, README, quickstart, or package API leaves you stuck, start with the [contribution guide](./CONTRIBUTING.md), [choose an issue template](https://github.com/forge-trust/Runnable/issues/new/choose), and file the form that matches the problem.
+Runnable uses GitHub issue forms to keep bug reports, feature requests, and docs/developer-experience feedback concrete enough to reproduce or evaluate. If an example, README, quickstart, or package API leaves you stuck, start with the [contribution guide](./CONTRIBUTING.md), [choose an issue template](https://github.com/forge-trust/Runnable/issues/new/choose), and file the form that matches the problem.
 
-Use docs/DX feedback for confusing guidance, missing concepts, broken links, snippet drift, or first-run friction. Use bug reports when runtime behavior, generated output, or package APIs do something unexpected.
+Use docs/DX feedback for confusing guidance, missing concepts, broken links, snippet drift, or first-run friction. Use feature requests for focused product capabilities, API shapes, workflows, or examples. Use bug reports when runtime behavior, generated output, or package APIs do something unexpected.
 Do not file suspected vulnerabilities, leaked secrets, or exploit details in public issues; follow the [security policy](./SECURITY.md) instead.
 
 ## Examples

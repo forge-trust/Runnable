@@ -172,10 +172,38 @@ internal sealed class TargetAppProcess : ITargetAppProcess
 
     public void Start()
     {
+        if (_hooks?.StartOverride is { } startOverride)
+        {
+            _started = true;
+            startOverride(this);
+            return;
+        }
+
         _process.Start();
         _started = true;
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
+    }
+
+    internal void RaiseOutputLineForTesting(string line)
+    {
+        if (!string.IsNullOrWhiteSpace(line))
+        {
+            OutputLineReceived?.Invoke(line);
+        }
+    }
+
+    internal void RaiseErrorLineForTesting(string line)
+    {
+        if (!string.IsNullOrWhiteSpace(line))
+        {
+            ErrorLineReceived?.Invoke(line);
+        }
+    }
+
+    internal void RaiseExitedForTesting()
+    {
+        Exited?.Invoke();
     }
 
     /// <inheritdoc />
@@ -300,6 +328,16 @@ internal sealed class TargetAppProcess : ITargetAppProcess
 /// </remarks>
 internal sealed class TargetAppProcessHooks
 {
+    /// <summary>
+    /// Gets or sets an optional start override used in place of <see cref="Process.Start()"/> and output-reader setup.
+    /// </summary>
+    /// <remarks>
+    /// Tests can use this to deterministically raise <see cref="ITargetAppProcess.Exited"/> and
+    /// <see cref="ITargetAppProcess.OutputLineReceived"/> in a controlled order without depending on operating-system
+    /// process timing.
+    /// </remarks>
+    public Action<TargetAppProcess>? StartOverride { get; init; }
+
     /// <summary>
     /// Gets or sets an optional exit-state override used in place of <see cref="Process.HasExited"/>.
     /// </summary>

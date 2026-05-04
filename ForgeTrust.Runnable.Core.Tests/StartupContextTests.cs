@@ -1,3 +1,4 @@
+using System.Reflection;
 using ForgeTrust.Runnable.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -72,11 +73,13 @@ public class StartupContextTests
     }
 
     [Fact]
-    public void HostApplicationName_DefaultsToRootModuleAssemblyName()
+    public void HostApplicationName_DefaultsToProcessEntryAssembly_WhenAvailable()
     {
         var context = new StartupContext([], new DummyModule());
+        var expectedAssemblyName = Assembly.GetEntryAssembly()?.GetName().Name
+            ?? typeof(DummyModule).Assembly.GetName().Name;
 
-        Assert.Equal(typeof(DummyModule).Assembly.GetName().Name, context.HostApplicationName);
+        Assert.Equal(expectedAssemblyName, context.HostApplicationName);
     }
 
     [Fact]
@@ -88,6 +91,25 @@ public class StartupContextTests
         };
 
         Assert.Equal(typeof(string).Assembly.GetName().Name, context.HostApplicationName);
+    }
+
+    [Fact]
+    public void EntryPointAssembly_DefaultsToRootModuleAssembly()
+    {
+        var context = new StartupContext([], new DummyModule());
+
+        Assert.Equal(typeof(DummyModule).Assembly, context.EntryPointAssembly);
+    }
+
+    [Fact]
+    public void EntryPointAssembly_UsesOverrideEntryPointAssembly()
+    {
+        var context = new StartupContext([], new DummyModule())
+        {
+            OverrideEntryPointAssembly = typeof(string).Assembly
+        };
+
+        Assert.Equal(typeof(string).Assembly, context.EntryPointAssembly);
     }
 
     private class DummyModule : IRunnableHostModule

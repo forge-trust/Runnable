@@ -1,6 +1,8 @@
 @model ForgeTrust.Runnable.Web.RazorDocs.Models.DocDetailsViewModel
+@inject ForgeTrust.Runnable.Web.RazorDocs.Services.DocsUrlBuilder DocsUrlBuilder
 @{
     ViewData["Title"] = Model.Title;
+    var docsOutlineClientUrl = Url.PathBaseAware(DocsUrlBuilder.BuildAssetUrl("outline-client.js"));
     var trust = Model.Document.Metadata?.Trust;
     var trustStatus = string.IsNullOrWhiteSpace(trust?.Status) ? null : trust!.Status!.Trim();
     var trustSummary = string.IsNullOrWhiteSpace(trust?.Summary) ? null : trust!.Summary!.Trim();
@@ -17,7 +19,6 @@
     var trustMigrationLabel = string.IsNullOrWhiteSpace(trustMigration?.Label)
         ? "Migration guidance"
         : trustMigration!.Label!.Trim();
-    var trustMigrationUsesTurbo = trustMigrationHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
     var showTrustBar = trustStatus is not null
                        || trustSummary is not null
                        || trustFreshness is not null
@@ -30,8 +31,6 @@
     var editHref = string.IsNullOrWhiteSpace(provenance?.EditHref) ? null : provenance!.EditHref!.Trim();
     var provenanceLabel = string.IsNullOrWhiteSpace(provenance?.Label) ? "Source of truth" : provenance!.Label.Trim();
     var lastUpdatedUtc = provenance?.LastUpdatedUtc?.ToUniversalTime();
-    var sourceUsesTurbo = sourceHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
-    var editUsesTurbo = editHref?.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase) == true;
     var showContributorProvenance = sourceHref is not null || editHref is not null || lastUpdatedUtc is not null;
 }
 @functions {
@@ -39,21 +38,6 @@
         """<a\b(?:(?:[^>]*\bhref\s*=\s*"(?<hrefBefore>/[^"]*)"[^>]*\bclass\s*=\s*"(?:doc-symbol-source-link(?:\s[^"]*)?|[^"]*\sdoc-symbol-source-link(?:\s[^"]*)?)")|(?:[^>]*\bclass\s*=\s*"(?:doc-symbol-source-link(?:\s[^"]*)?|[^"]*\sdoc-symbol-source-link(?:\s[^"]*)?)"[^>]*\bhref\s*=\s*"(?<hrefAfter>/[^"]*)"))[^>]*>""",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase
         | System.Text.RegularExpressions.RegexOptions.NonBacktracking);
-
-    private string ResolveAppHref(string href)
-    {
-        if (string.IsNullOrWhiteSpace(href))
-        {
-            return "#";
-        }
-
-        var trimmed = href.Trim();
-        return trimmed.Equals("/docs", StringComparison.OrdinalIgnoreCase)
-               || trimmed.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase)
-               || trimmed.StartsWith("/docs?", StringComparison.OrdinalIgnoreCase)
-            ? Url.Content($"~{trimmed}")
-            : Url.Content(trimmed);
-    }
 
     private string ResolveGeneratedContentHrefs(string content)
     {
@@ -88,7 +72,7 @@
     @if (!string.IsNullOrWhiteSpace(Model.PublicSectionLabel) && !string.IsNullOrWhiteSpace(Model.PublicSectionHref))
     {
         <div class="mb-4 md:hidden">
-            <a href="@ResolveAppHref(Model.PublicSectionHref)"
+            <a href="@Url.PathBaseAware(Model.PublicSectionHref)"
                data-turbo-frame="doc-content"
                data-turbo-action="advance"
                class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors hover:border-cyan-500/40 hover:text-cyan-200">
@@ -112,7 +96,7 @@
                 }
                 else
                 {
-                    <a href="@ResolveAppHref(crumb.Href)"
+                    <a href="@Url.PathBaseAware(crumb.Href)"
                        data-turbo-frame="doc-content"
                        data-turbo-action="advance"
                        class="px-1 text-slate-400 transition-colors hover:text-cyan-400">
@@ -162,18 +146,18 @@
             <div class="docs-provenance-items">
                 @if (sourceHref is not null)
                 {
-                    <a href="@ResolveAppHref(sourceHref)"
+                    <a href="@Url.PathBaseAware(sourceHref)"
                        class="docs-provenance-link docs-provenance-link--primary"
-                       @if (sourceUsesTurbo)
+                       @if (Model.ContributorSourceUsesTurbo)
                        {
                            <text>data-turbo-frame="doc-content" data-turbo-action="advance"</text>
                        }>View source</a>
                 }
                 @if (editHref is not null)
                 {
-                    <a href="@ResolveAppHref(editHref)"
+                    <a href="@Url.PathBaseAware(editHref)"
                        class="docs-provenance-link docs-provenance-link--secondary"
-                       @if (editUsesTurbo)
+                       @if (Model.ContributorEditUsesTurbo)
                        {
                            <text>data-turbo-frame="doc-content" data-turbo-action="advance"</text>
                        }>
@@ -230,9 +214,9 @@
                     {
                         <p class="docs-trust-bar-value">
                             <span class="docs-trust-bar-key">Migration:</span>
-                            <a href="@ResolveAppHref(trustMigrationHref)"
+                            <a href="@Url.PathBaseAware(trustMigrationHref)"
                                class="docs-trust-bar-link"
-                               @if (trustMigrationUsesTurbo)
+                               @if (Model.TrustMigrationUsesTurbo)
                                {
                                    <text>data-turbo-frame="doc-content" data-turbo-action="advance"</text>
                                }>@trustMigrationLabel</a>
@@ -279,7 +263,7 @@
                     </div>
                     @if (!string.IsNullOrWhiteSpace(Model.PublicSectionHref))
                     {
-                        <a href="@ResolveAppHref(Model.PublicSectionHref)"
+                        <a href="@Url.PathBaseAware(Model.PublicSectionHref)"
                            data-turbo-frame="doc-content"
                            data-turbo-action="advance"
                            class="inline-flex items-center gap-2 self-start rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-cyan-500/40 hover:text-cyan-200">
@@ -304,7 +288,7 @@
                                     @foreach (var featuredPage in featuredGroup.Pages)
                                     {
                                         <li>
-                                            <a href="@ResolveAppHref(featuredPage.Href)"
+                                            <a href="@Url.PathBaseAware(featuredPage.Href)"
                                                data-turbo-frame="doc-content"
                                                data-turbo-action="advance"
                                                class="group block rounded-xl border border-slate-900 bg-slate-950/60 px-4 py-3 transition-colors hover:border-cyan-500/30 hover:bg-slate-950">
@@ -348,7 +332,7 @@
                                         @foreach (var link in sectionGroup.Links)
                                         {
                                             <li>
-                                                <a href="@ResolveAppHref(link.Href)"
+                                                <a href="@Url.PathBaseAware(link.Href)"
                                                    data-turbo-frame="doc-content"
                                                    data-turbo-action="advance"
                                                    class="group block rounded-xl border border-slate-900 bg-slate-950/50 px-4 py-3 transition-colors hover:border-cyan-500/30 hover:bg-slate-950">
@@ -371,7 +355,7 @@
                                                         @foreach (var child in link.Children)
                                                         {
                                                             <li>
-                                                                <a href="@ResolveAppHref(child.Href)"
+                                                                <a href="@Url.PathBaseAware(child.Href)"
                                                                    data-doc-anchor-link="true"
                                                                    data-turbo-frame="doc-content"
                                                                    data-turbo-action="advance"
@@ -408,7 +392,7 @@
                         <div class="grid gap-3 md:grid-cols-2">
                             @if (Model.PreviousPage is not null)
                             {
-                                <a href="@ResolveAppHref(Model.PreviousPage.Href)"
+                                <a href="@Url.PathBaseAware(Model.PreviousPage.Href)"
                                    data-doc-wayfinding="previous"
                                    data-turbo-frame="doc-content"
                                    data-turbo-action="advance"
@@ -427,7 +411,7 @@
                             }
                             @if (Model.NextPage is not null)
                             {
-                                <a href="@ResolveAppHref(Model.NextPage.Href)"
+                                <a href="@Url.PathBaseAware(Model.NextPage.Href)"
                                    data-doc-wayfinding="next"
                                    data-turbo-frame="doc-content"
                                    data-turbo-action="advance"
@@ -455,7 +439,7 @@
                         <div class="grid gap-3 md:grid-cols-2">
                             @foreach (var relatedPage in Model.RelatedPages)
                             {
-                                <a href="@ResolveAppHref(relatedPage.Href)"
+                                <a href="@Url.PathBaseAware(relatedPage.Href)"
                                    data-doc-related-link="true"
                                    data-turbo-frame="doc-content"
                                    data-turbo-action="advance"
@@ -518,5 +502,5 @@
 
 @if (Model.HasOutline)
 {
-    <script src="~/docs/outline-client.js" defer data-doc-outline-client="true"></script>
+    <script src="@docsOutlineClientUrl" defer data-doc-outline-client="true"></script>
 }

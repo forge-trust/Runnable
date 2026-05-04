@@ -744,8 +744,6 @@ public sealed record DocLandingViewModel
 /// visible docs. Empty <see cref="Pages"/> lists are treated as no featured pages and are suppressed by
 /// <see cref="DocLandingViewModel.HasFeaturedPages"/>, <see cref="DocDetailsViewModel.HasFeaturedPages"/>, and the
 /// RazorDocs views.
-/// </remarks>
-/// <remarks>
 /// Pitfalls: callers should not rely on an empty <see cref="Pages"/> list being rendered, and should expect
 /// <see cref="Intent"/>, <see cref="Label"/>, <see cref="Summary"/>, and <see cref="Pages"/> to reflect resolver output
 /// rather than raw authored front matter.
@@ -1151,6 +1149,35 @@ public sealed record DocDetailsViewModel
     /// Gets the current public-section utility sentence when one exists.
     /// </summary>
     public string? PublicSectionPurpose { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the trust-bar migration link should stay inside the docs content frame.
+    /// </summary>
+    /// <remarks>
+    /// This is resolved from the harvested docs corpus rather than inferred from the raw href alone so root-mounted
+    /// docs surfaces can still treat canonical plain <c>.html</c> docs routes as docs-local without misclassifying
+    /// unrelated site pages.
+    /// </remarks>
+    public bool TrustMigrationUsesTurbo { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the contributor source link should stay inside the docs content frame.
+    /// </summary>
+    /// <remarks>
+    /// This is resolved from the harvested docs corpus rather than inferred from the raw href alone so mounted or
+    /// root-hosted docs surfaces can keep local provenance links inside the docs shell without trapping unrelated app
+    /// routes.
+    /// </remarks>
+    public bool ContributorSourceUsesTurbo { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether the contributor edit link should stay inside the docs content frame.
+    /// </summary>
+    /// <remarks>
+    /// This follows the same docs-local resolution contract as <see cref="ContributorSourceUsesTurbo" /> so preview,
+    /// versioned, and root-mounted docs surfaces all make the same frame-targeting decision.
+    /// </remarks>
+    public bool ContributorEditUsesTurbo { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the current document is a section landing doc.

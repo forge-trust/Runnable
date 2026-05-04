@@ -19,7 +19,7 @@ public sealed class RazorDocsIntegrationCollection : ICollectionFixture<RazorDoc
 public sealed class RazorDocsSearchPlaywrightTests
 {
     private const string SearchIndexPath = "/docs/search-index.json";
-    private const string MiniSearchRuntimePath = "/docs/minisearch.min.js";
+    private const string MiniSearchRuntimePathPattern = "**/docs/minisearch.min.js*";
     private readonly RazorDocsPlaywrightFixture _fixture;
 
     public RazorDocsSearchPlaywrightTests(RazorDocsPlaywrightFixture fixture)
@@ -414,7 +414,7 @@ public sealed class RazorDocsSearchPlaywrightTests
         var runtimeRequests = 0;
 
         await page.RouteAsync(
-            $"**{MiniSearchRuntimePath}",
+            MiniSearchRuntimePathPattern,
             async route =>
             {
                 var attempt = System.Threading.Interlocked.Increment(ref runtimeRequests);
@@ -667,10 +667,14 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
             throw new FileNotFoundException("Could not find RazorDocs standalone host project.", projectPath);
         }
 
+        var buildConfiguration = DotnetLaunchResolver.TryGetCurrentBuildConfiguration(AppContext.BaseDirectory);
         var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
-            Arguments = $"run --project \"{projectPath}\" --no-launch-profile",
+            Arguments = DotnetLaunchResolver.ResolveProjectLaunchArguments(
+                projectPath,
+                assemblyName: "ForgeTrust.Runnable.Web.RazorDocs.Standalone",
+                preferredConfiguration: buildConfiguration),
             WorkingDirectory = repoRoot,
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -939,5 +943,90 @@ public sealed class RazorDocsPlaywrightFixture : IAsyncLifetime
     private string GetRecentLogs()
     {
         return string.Join(Environment.NewLine, _appLogs);
+    }
+}
+
+internal static class DotnetLaunchResolver
+{
+    public static string ResolveProjectLaunchArguments(
+        string projectPath,
+        string assemblyName,
+        string? preferredConfiguration)
+    {
+        var builtAssemblyPath = FindBuiltAssemblyPath(projectPath, assemblyName, preferredConfiguration);
+        if (builtAssemblyPath is not null)
+        {
+            return $"\"{builtAssemblyPath}\"";
+        }
+
+        var configurationArgument = string.IsNullOrWhiteSpace(preferredConfiguration)
+            ? string.Empty
+            : $" --configuration {preferredConfiguration}";
+        return $"run --project \"{projectPath}\" --no-launch-profile{configurationArgument}";
+    }
+
+    public static string? TryGetCurrentBuildConfiguration(string appBaseDirectory)
+    {
+        var normalized = appBaseDirectory.Replace('\\', '/');
+        if (normalized.Contains("/Debug/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Debug";
+        }
+
+        if (normalized.Contains("/Release/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Release";
+        }
+
+        return null;
+    }
+
+    private static string? FindBuiltAssemblyPath(
+        string projectPath,
+        string assemblyName,
+        string? preferredConfiguration)
+    {
+        var projectDirectory = Path.GetDirectoryName(projectPath);
+        if (string.IsNullOrWhiteSpace(projectDirectory))
+        {
+            return null;
+        }
+
+        foreach (var configuration in GetCandidateConfigurations(preferredConfiguration))
+        {
+            var configurationDirectory = Path.Combine(projectDirectory, "bin", configuration);
+            if (!Directory.Exists(configurationDirectory))
+            {
+                continue;
+            }
+
+            var builtAssemblyPath = Directory
+                .EnumerateFiles(configurationDirectory, assemblyName + ".dll", SearchOption.AllDirectories)
+                .FirstOrDefault();
+            if (builtAssemblyPath is not null)
+            {
+                return builtAssemblyPath;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> GetCandidateConfigurations(string? preferredConfiguration)
+    {
+        if (!string.IsNullOrWhiteSpace(preferredConfiguration))
+        {
+            yield return preferredConfiguration;
+        }
+
+        if (!string.Equals(preferredConfiguration, "Release", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return "Release";
+        }
+
+        if (!string.Equals(preferredConfiguration, "Debug", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return "Debug";
+        }
     }
 }

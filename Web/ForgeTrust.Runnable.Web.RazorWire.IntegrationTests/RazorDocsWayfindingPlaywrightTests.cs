@@ -16,6 +16,8 @@ public sealed class RazorDocsWayfindingPlaywrightTests
     [Fact]
     public async Task DetailsPage_RendersOutline_AndSequenceWayfinding()
     {
+        // Regression: ISSUE-002 — partial wayfinding navigation could update the URL before the
+        // replacement doc content landed, making this assertion flaky on slower runners.
         await using var context = await _fixture.Browser.NewContextAsync();
         var page = await context.NewPageAsync();
 
@@ -39,33 +41,38 @@ public sealed class RazorDocsWayfindingPlaywrightTests
             "#files-behind-the-hero-flow",
             await page.GetAttributeAsync("#docs-page-outline a[href='#files-behind-the-hero-flow']", "href"));
 
-        const string nextPagePath = "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html";
-        const string nextPageTitle = "Failed Form UX";
-
+        const string nextDocPath = "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/Docs/form-failures.md.html";
+        const string nextDocHeading = "Failed Form UX";
         Assert.Equal(
             "/docs/Web/ForgeTrust.Runnable.Web.RazorWire/README.md.html",
             await page.GetAttributeAsync("[data-doc-wayfinding='previous']", "href"));
         Assert.Equal(
-            nextPagePath,
+            nextDocPath,
             await page.GetAttributeAsync("[data-doc-wayfinding='next']", "href"));
+
+        var initialContent = await page.Locator("#doc-content").InnerHTMLAsync();
 
         await page.ClickAsync("[data-doc-wayfinding='next']");
         await page.WaitForFunctionAsync(
             """
             (args) => {
+              const island = document.getElementById('doc-content');
               const heading = document.querySelector('#doc-content h1');
               return window.location.pathname === args.path
+                && Boolean(island)
+                && island.innerHTML !== args.initialContent
                 && heading?.textContent?.trim() === args.title;
             }
             """,
             new
             {
-                path = nextPagePath,
-                title = nextPageTitle
+                path = nextDocPath,
+                initialContent,
+                title = nextDocHeading
             },
-            new PageWaitForFunctionOptions { Timeout = 15_000 });
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
 
-        Assert.Equal(nextPageTitle, (await page.Locator("#doc-content h1").First.TextContentAsync())?.Trim());
+        Assert.Equal(nextDocHeading, (await page.Locator("#doc-content h1").First.TextContentAsync())?.Trim());
     }
 
     [Fact]

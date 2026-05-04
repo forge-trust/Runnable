@@ -33,8 +33,8 @@ public sealed record SearchPageViewModel(
 /// </summary>
 /// <remarks>
 /// These links are rendered before the client search payload is available, so each entry should be complete enough
-/// to stand on its own. Destinations under <c>/docs/...</c> continue using the docs content frame, while the docs
-/// index and non-doc routes navigate the top-level page.
+/// to stand on its own. <see cref="UsesDocsFrame" /> determines whether the destination should continue navigating
+/// inside the docs content frame or escalate to a top-level page navigation.
 /// Keep <see cref="Href" /> app-relative and already URL-safe, and assume the UI will HTML-escape the visible text
 /// in <see cref="Title" /> and <see cref="Description" />. Prefer concise copy that fits comfortably in a compact
 /// recovery card, and do not depend on client search indexing to make the destination discoverable.
@@ -42,7 +42,13 @@ public sealed record SearchPageViewModel(
 /// <param name="Title">Short, action-oriented label used as the visible link title.</param>
 /// <param name="Href">The app-relative destination URL to open when the user follows the recovery action.</param>
 /// <param name="Description">Supporting context that explains what the destination contains and why it helps recover from the failed search flow.</param>
+/// <param name="UsesDocsFrame">
+/// A value indicating whether the destination should stay inside the docs content frame. Set this to
+/// <see langword="true" /> only when the destination is known to be another docs page rather than a top-level
+/// recovery surface such as the docs home or version archive.
+/// </param>
 public sealed record SearchPageFallbackLink(
     string Title,
     string Href,
-    string Description);
+    string Description,
+    bool UsesDocsFrame = false);

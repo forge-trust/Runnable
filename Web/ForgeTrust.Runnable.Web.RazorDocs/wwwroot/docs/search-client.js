@@ -1,6 +1,9 @@
 (() => {
-  const indexUrl = '/docs/search-index.json';
-  const miniSearchUrl = '/docs/minisearch.min.js';
+  const rawConfig = window.__razorDocsConfig || {};
+  const docsRootPath = normalizeDocsRootPath(rawConfig.docsRootPath || '/docs');
+  const docsSearchUrl = rawConfig.docsSearchUrl || joinDocsPath(docsRootPath, 'search');
+  const indexUrl = rawConfig.docsSearchIndexUrl || joinDocsPath(docsRootPath, 'search-index.json');
+  const miniSearchUrl = rawConfig.miniSearchUrl || joinDocsPath(docsRootPath, 'minisearch.min.js');
   const maxQueryLength = 500;
   const topResults = 8;
   const fetchTimeoutMs = 10000;
@@ -47,6 +50,7 @@
     index: null,
     docs: [],
     docsById: new Map(),
+    docsByPath: collectInitialDocsPaths(),
     facetValues: createEmptyFacetValues(),
     loadPromise: null,
     runtimePromise: null
@@ -68,6 +72,21 @@
       audience: [],
       status: []
     };
+  }
+
+  function normalizeDocsRootPath(path) {
+    const value = String(path || '').trim();
+    if (!value) {
+      return '/docs';
+    }
+
+    const prefixed = value.startsWith('/') ? value : `/${value}`;
+    return prefixed !== '/' && prefixed.endsWith('/') ? prefixed.slice(0, -1) : prefixed;
+  }
+
+  function joinDocsPath(root, leaf) {
+    const normalizedLeaf = String(leaf || '').replace(/^\/+/, '');
+    return root === '/' ? `/${normalizedLeaf}` : `${root}/${normalizedLeaf}`;
   }
 
   function getSidebarSearchElements() {
@@ -115,8 +134,95 @@
     }
   }
 
+  function normalizeComparablePath(path) {
+    const value = String(path ?? '').trim();
+    if (!value || value === '/') {
+      return '/';
+    }
+
+    return value.endsWith('/') ? value.slice(0, -1) : value;
+  }
+
   function isDocsPath(path) {
-    return path === '/docs' || path.startsWith('/docs/');
+    return docsRootPath === '/'
+      ? isKnownRootMountedDocsNavigationPath(path)
+      : path === docsRootPath || path.startsWith(`${docsRootPath}/`);
+  }
+
+  function collectInitialDocsPaths() {
+    const paths = new Set();
+    const currentUrl = toUrl(window.location.href);
+    const searchUrl = toUrl(docsSearchUrl);
+
+    if (currentUrl?.pathname) {
+      for (const candidate of getRootMountedDocsPathCandidates(currentUrl.pathname)) {
+        paths.add(candidate);
+      }
+    }
+
+    if (searchUrl?.pathname) {
+      for (const candidate of getRootMountedDocsPathCandidates(searchUrl.pathname)) {
+        paths.add(candidate);
+      }
+    }
+
+    document
+      .querySelectorAll(`a[data-turbo-frame="${docsFrameId}"][href]`)
+      .forEach((anchor) => {
+        const href = anchor.getAttribute('href');
+        const path = toUrl(href)?.pathname;
+        if (path) {
+          for (const candidate of getRootMountedDocsPathCandidates(path)) {
+            paths.add(candidate);
+          }
+        }
+      });
+
+    return paths;
+  }
+
+  function getRootMountedDocsPathCandidates(path) {
+    const normalizedPath = normalizeComparablePath(path);
+    const candidates = new Set([normalizedPath]);
+
+    if (normalizedPath.endsWith('.md')) {
+      candidates.add(`${normalizedPath}.html`);
+    }
+
+    if (normalizedPath.endsWith('.md.html')) {
+      candidates.add(normalizedPath.slice(0, -'.html'.length));
+    }
+
+    if (normalizedPath.endsWith('/index.partial.html')) {
+      const canonicalIndexPath = normalizedPath.slice(0, -'/index.partial.html'.length) || '/';
+      candidates.add(canonicalIndexPath);
+      candidates.add(joinDocsPath(canonicalIndexPath, 'index.html'));
+    }
+
+    if (normalizedPath.endsWith('.partial.html')) {
+      const canonicalPath = normalizedPath.slice(0, -'.partial.html'.length) || '/';
+      candidates.add(canonicalPath);
+
+      if (canonicalPath !== '/' && !canonicalPath.endsWith('.html')) {
+        candidates.add(`${canonicalPath}.html`);
+      }
+
+      if (canonicalPath.endsWith('/index')) {
+        const withoutIndex = canonicalPath.slice(0, -'/index'.length) || '/';
+        candidates.add(withoutIndex);
+        candidates.add(joinDocsPath(withoutIndex, 'index.html'));
+      }
+    }
+
+    return [...candidates].map(normalizeComparablePath);
+  }
+
+  function isKnownRootMountedDocsNavigationPath(path) {
+    const candidates = getRootMountedDocsPathCandidates(path);
+    const searchUrl = toUrl(docsSearchUrl);
+    const normalizedSearchPath = normalizeComparablePath(searchUrl?.pathname);
+
+    return candidates.some((candidate) => searchData.docsByPath.has(candidate) || candidate === normalizedSearchPath);
   }
 
   function getHeader(headers, name) {
@@ -148,7 +254,7 @@
 
     const path = url.pathname;
 
-    if (!isDocsPath(path) || path === '/docs') {
+    if (!isDocsPath(path) || path === docsRootPath) {
       return null;
     }
 
@@ -191,7 +297,7 @@
       }
     }
 
-    url.pathname = canonicalPath || '/docs';
+    url.pathname = canonicalPath || docsRootPath;
     return url;
   }
 
@@ -259,12 +365,25 @@
       if (pendingCanonical) {
         frame.removeAttribute('data-rw-canonical-url');
         replaceBrowserUrl(pendingCanonical);
+        if (docsRootPath === '/') {
+          searchData.docsByPath = new Set([
+            ...searchData.docsByPath,
+            ...collectInitialDocsPaths()
+          ]);
+        }
         return;
       }
 
       const canonicalUrl = toDocsCanonicalUrl(window.location.href);
       if (canonicalUrl) {
         replaceBrowserUrl(canonicalUrl);
+      }
+
+      if (docsRootPath === '/') {
+        searchData.docsByPath = new Set([
+          ...searchData.docsByPath,
+          ...collectInitialDocsPaths()
+        ]);
       }
     });
   }
@@ -660,7 +779,20 @@
 
   function shouldTargetDocsFrame(href) {
     const url = toUrl(href);
-    return Boolean(url && url.origin === window.location.origin && isDocsPath(url.pathname) && url.pathname !== '/docs');
+    if (!url || url.origin !== window.location.origin) {
+      return false;
+    }
+
+    const normalizedPath = normalizeComparablePath(url.pathname);
+    if (normalizedPath === docsRootPath) {
+      return false;
+    }
+
+    if (docsRootPath !== '/') {
+      return isDocsPath(normalizedPath);
+    }
+
+    return isKnownRootMountedDocsNavigationPath(normalizedPath);
   }
 
   function applyDocsNavigationTarget(anchor, href) {
@@ -687,7 +819,7 @@
   }
 
   function navigateToSearchPageWithQuery(query) {
-    const url = new URL('/docs/search', window.location.origin);
+    const url = new URL(docsSearchUrl, window.location.origin);
     const normalized = normalizeQuery(query);
     if (normalized) {
       url.searchParams.set('q', normalized);
@@ -753,7 +885,7 @@
     const path = String(doc.path ?? '');
     const pathPart = path.split('#')[0];
     const pathSegments = pathPart
-      .replace(/^\/docs\/?/i, '')
+      .replace(new RegExp(`^${escapeRegExp(docsRootPath)}\\/?`, 'i'), '')
       .split('/')
       .map((segment) => {
         try {
@@ -869,7 +1001,7 @@
   function normalizeDocReference(value) {
     return String(value ?? '')
       .trim()
-      .replace(/^\/docs\/?/i, '')
+      .replace(new RegExp(`^${escapeRegExp(docsRootPath)}\\/?`, 'i'), '')
       .replace(/\.html$/i, '')
       .replace(/\.md$/i, '')
       .replace(/^\/+/, '')
@@ -949,12 +1081,16 @@
     }
 
     if (links.length < 3) {
-      const namespacesDoc = selectRecoveryDoc(allDocs, (doc) => doc.path.endsWith('/Namespaces.html') || doc.path === '/docs/Namespaces');
+      const namespacesPath = joinDocsPath(docsRootPath, 'Namespaces');
+      const namespacesDoc = selectRecoveryDoc(
+        allDocs,
+        (doc) => doc.path.endsWith('/Namespaces.html')
+          || normalizeComparablePath(doc.path) === normalizeComparablePath(namespacesPath));
       pushLink(namespacesDoc, 'Browse namespaces');
     }
 
     if (links.length < 3) {
-      links.push({ title: 'Documentation index', href: '/docs' });
+      links.push({ title: 'Documentation index', href: docsRootPath });
     }
 
     return links;
@@ -1247,6 +1383,10 @@
     searchData.index = index;
     searchData.docs = docs;
     searchData.docsById = new Map(docs.map((doc) => [doc.id, doc]));
+    searchData.docsByPath = new Set([
+      ...searchData.docsByPath,
+      ...docs.flatMap((doc) => getRootMountedDocsPathCandidates(toUrl(doc.path)?.pathname ?? doc.path))
+    ]);
     searchData.facetValues = deriveFacetValues(docs);
   }
 

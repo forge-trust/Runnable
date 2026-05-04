@@ -27,7 +27,7 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 - Pull request titles are now expected to follow Conventional Commits so the merge history is machine-readable for future automation.
 - Pull requests are expected to update this page unless maintainers explicitly mark the change as outside the public release story.
 - Markdown-only changes on `main` now republish the docs surface, so release-note and policy edits are treated as first-class product updates.
-- Runnable now exposes focused GitHub issue forms for bug reports and docs/developer-experience feedback, with the root README and contribution guide pointing developers to that feedback path.
+- Runnable now exposes focused GitHub issue forms for bug reports, feature requests, and docs/developer-experience feedback, with the root README and contribution guide pointing developers to that feedback path.
 - Public contribution surfaces now steer suspected vulnerabilities away from issue forms and into a private security reporting path.
 - GitHub issue template support links now point first-time adopters to the package chooser and release/upgrade contract when they are evaluating install path or migration risk.
 
@@ -50,15 +50,18 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 ### Dependency maintenance
 
 - The centrally managed `YamlDotNet` dependency now targets `17.0.1`, and the affected PackageIndex, RazorDocs, and Aspire lock files have been regenerated.
+- The Autofac dependency package now has dedicated test coverage for Runnable module integration, host container setup, dependent module loading, and implementation scanning.
 
 ### Configuration validation
 
 - Strongly typed config wrappers now validate resolved object values with DataAnnotations during startup, including defaults, and report operator-friendly `ConfigurationValidationException` failures without echoing attempted values.
 - Nested config validation can now opt into Microsoft Options `[ValidateObjectMembers]` and `[ValidateEnumeratedItems]` markers while Runnable owns traversal, path formatting, and cycle protection.
+- Environment variables can now patch individual members of object-valued config loaded from lower-priority providers, so `APP__SETTINGS__DATABASE__PORT` can override one nested value without replacing the rest of the JSON-backed options object.
 
 ### Web host development defaults
 
 - Runnable web hosts now choose a deterministic localhost-only development URL when no endpoint is configured, while production, staging, container, and appsettings-based endpoint choices remain untouched.
+- OpenAPI's optional web package now has dedicated test coverage for service registration, endpoint mapping, generated document titles, and transformer behavior that removes `ForgeTrust.Runnable.Web` tags at the document and operation levels while preserving unrelated tags, so the public module contract is guarded independently of Scalar.
 - Scalar's optional web package now has dedicated test coverage for OpenAPI dependency wiring, Scalar endpoint mapping, no-op lifecycle hooks, and minimal Runnable web host composition.
 - Tailwind development watch mode now treats a missing standalone CLI as a recoverable local-tooling gap: the app keeps serving existing CSS and logs a warning that points to the runtime package or `TailwindCliPath` override.
 - Runnable's conventional browser 404 page now prioritizes user recovery paths, including documentation search for missing `/docs/...` routes and a home link for other misses, while still documenting how app owners can override the default page.
@@ -72,6 +75,8 @@ Runnable is putting the release contract in place before `v0.1.0`. This slice is
 ### RazorDocs product example
 
 - Runnable's own release pages now double as a working RazorDocs example for consumers who want better release notes.
+- RazorDocs now supports a static-first versioned docs surface: `/docs` can point at the recommended released tree, `/docs/next` can stay on the live preview, `/docs/v/{version}` can serve exact historical releases, and `/docs/versions` can act as the public archive.
+- Published RazorDocs release trees are now catalog-driven and validated before they are mounted, so broken historical exports stay unavailable instead of half-rendering with cross-version search or asset leakage.
 - RazorDocs pages can now expose typed `On this page` outlines, explicit proof-path previous/next links, related-page cards, and sidebar anchor navigation from harvested metadata instead of scraping rendered HTML.
 - RazorDocs details pages now render those `On this page` outlines as a page-local navigation surface, using a sticky desktop rail, a compact narrow-viewport drawer, and active-section state that keeps the reader oriented without competing with the global sidebar.
 - Public docs navigation now groups pages by intent-first sections, preserves authored editorial breadcrumbs, and keeps Start Here recovery links hidden when that section is unavailable.
@@ -103,9 +108,10 @@ There is no tagged migration guide yet because Runnable has not cut `v0.1.0`. Un
 - the stable policy lives in [Pre-1.0 upgrade policy](./upgrade-policy.md)
 - finalized migration steps move into the tagged release note when the version ships
 - custom RazorDocs harvesters that want detail-page outlines and search heading metadata should populate `DocNode.Outline`; pages without outline metadata continue to render without the optional outline section
+- `DocAggregator.GetSearchIndexPayloadAsync(...)` is no longer a supported package-consumer API. The live search-index payload is now treated as an internal RazorDocs implementation detail so the host can rebase docs paths and serialize once per request. Consumers that previously called that method directly should switch to the public docs search endpoint or build their own search payload contract instead of depending on RazorDocs' internal snapshot shape.
 - existing `rw-active` forms opt into failed-form request markers and default fallback UI; applications with custom failure rendering can use `RazorWireOptions.Forms.FailureMode = Manual`, `RazorWireOptions.Forms.EnableFailureUx = false`, or per-form `data-rw-form-failure="off"`
 - RazorDocs authors should migrate flat `featured_pages` metadata to `featured_page_groups`. The old field is ignored and logs a warning; each group needs at least `label` or `intent`, plus a `pages` list containing the existing `question`, `path`, `supporting_copy`, and `order` entries.
-- Code that previously read `IHostEnvironment.ApplicationName` to recover a custom Runnable display label should read `StartupContext.ApplicationName` instead. `IHostEnvironment.ApplicationName` now stays aligned with the host or root-module assembly identity used for static web asset discovery.
+- Code that previously read `IHostEnvironment.ApplicationName` to recover a custom Runnable display label should read `StartupContext.ApplicationName` instead. `IHostEnvironment.ApplicationName` now stays aligned with the host entry-assembly identity used for static web asset discovery unless `StartupContext.OverrideEntryPointAssembly` explicitly selects a different manifest identity. `StartupContext.EntryPointAssembly` still defaults to the root module assembly for command/controller/component discovery, so existing cross-assembly scanning behavior remains stable.
 
 ## Proof artifacts
 

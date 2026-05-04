@@ -92,6 +92,15 @@ For both `--project` and `--dll`:
 - If you do not pass `--urls` via `--app-args`, the CLI appends `--urls http://127.0.0.1:0`.
 - The CLI waits for startup, crawls the app, then shuts the process down automatically.
 
+### RazorDocs versioned export notes
+
+When the target app hosts RazorDocs:
+
+- Export the live unreleased preview surface from its configured live docs root, such as `/docs` when versioning is off or `/docs/next` when versioning is on.
+- Export exact published release trees as standalone static subtrees that already contain their own `index.html`, `search.html`, `search-index.json`, `search.css`, `search-client.js`, `minisearch.min.js`, section routes, and detail pages.
+- Treat those exact release trees as immutable publish artifacts. The RazorDocs runtime mounts them later under `/docs/v/{version}` and may also mount the recommended one at `/docs`.
+- Use `--seeds` when you want deterministic seeds for docs-specific surfaces instead of relying only on crawl discovery.
+
 **Example:**
 
 ```bash

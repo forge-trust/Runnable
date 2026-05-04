@@ -134,13 +134,48 @@ internal static class DocPublicSectionCatalog
     }
 
     /// <summary>
-    /// Gets the canonical docs route for the specified public section.
+    /// Gets the stable canonical public route for the specified section.
     /// </summary>
     /// <param name="section">The section whose href should be returned.</param>
-    /// <returns>The canonical <c>/docs/sections/{slug}</c> route for the section.</returns>
+    /// <returns>The stable canonical <c>/docs/sections/{slug}</c> route for the section.</returns>
+    /// <remarks>
+    /// This overload always roots the returned href at the stable <c>/docs</c> alias, even when the current host is
+    /// serving the live docs surface somewhere else such as <c>/docs/next</c> or <c>/</c>. Callers that are rendering
+    /// links on the current live surface should prefer <see cref="GetHref(DocPublicSection, string)"/> so they do not
+    /// accidentally send readers back to the stable alias. The route slug is always produced by
+    /// <see cref="GetSlug(DocPublicSection)"/>.
+    /// </remarks>
     internal static string GetHref(DocPublicSection section)
     {
-        return $"/docs/sections/{GetSlug(section)}";
+        return GetHref(section, "/docs");
+    }
+
+    /// <summary>
+    /// Gets the canonical public-section route rooted at the caller's current docs surface.
+    /// </summary>
+    /// <param name="section">The section whose href should be returned.</param>
+    /// <param name="docsRootPath">
+    /// The pre-normalized, app-relative docs root path to anchor the section route under. Callers are expected to pass
+    /// the validated live docs root from <see cref="RazorDocsRoutingOptions.DocsRootPath"/> or
+    /// <see cref="Services.DocsUrlBuilder.CurrentDocsRootPath"/>, not an arbitrary or unvalidated value.
+    /// </param>
+    /// <returns>
+    /// The canonical <c>{docsRootPath}/sections/{slug}</c> route for the section, or <c>/sections/{slug}</c> when
+    /// <paramref name="docsRootPath"/> is exactly <c>/</c>.
+    /// </returns>
+    /// <remarks>
+    /// This overload exists for mounted live docs surfaces such as <c>/docs/next</c> or root-mounted docs at
+    /// <c>/</c>. It special-cases <c>/</c> so root-mounted hosts emit <c>/sections/{slug}</c> instead of
+    /// <c>//sections/{slug}</c>. The slug portion is always derived from <see cref="GetSlug(DocPublicSection)"/>.
+    /// Passing a non-normalized value such as <c>/docs/</c> can produce incorrect hard-coded links, so callers should
+    /// normalize and validate <paramref name="docsRootPath"/> before invoking this overload.
+    /// </remarks>
+    internal static string GetHref(DocPublicSection section, string docsRootPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(docsRootPath);
+        return string.Equals(docsRootPath, "/", StringComparison.Ordinal)
+            ? $"/sections/{GetSlug(section)}"
+            : $"{docsRootPath}/sections/{GetSlug(section)}";
     }
 
     /// <summary>
@@ -179,7 +214,8 @@ internal static class DocPublicSectionCatalog
     /// </returns>
     /// <remarks>
     /// Unlike <see cref="TryResolve"/>, this method does not accept labels or aliases. Callers that want to support
-    /// legacy or user-friendly alias inputs should resolve them separately and redirect to <see cref="GetHref"/>.
+    /// legacy or user-friendly alias inputs should resolve them separately and redirect to
+    /// <see cref="GetHref(DocPublicSection)"/>.
     /// </remarks>
     internal static bool TryResolveSlug(string? slug, out DocPublicSection section)
     {

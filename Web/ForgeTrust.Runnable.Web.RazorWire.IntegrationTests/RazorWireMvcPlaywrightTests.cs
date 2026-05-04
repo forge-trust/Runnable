@@ -448,6 +448,53 @@ public sealed class RazorWireMvcPlaywrightTests
             Timeout = 30_000,
             State = WaitForSelectorState.Attached
         });
+        await page.WaitForFunctionAsync(
+            @"() => {
+                const list = document.querySelector('#active-user-list');
+                return list instanceof HTMLElement
+                    && !list.innerText.includes('Connecting to presence...');
+            }",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+        await page.WaitForFunctionAsync(
+            @"() => {
+                const count = document.querySelector('#user-count');
+                return count instanceof HTMLElement
+                    && /^\d+\s+ONLINE$/i.test(count.innerText.trim());
+            }",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
+    }
+
+    private static async Task WaitForRegisterFormReadyAsync(IPage page)
+    {
+        const string formSelector = "#register-form";
+
+        await page.WaitForSelectorAsync(formSelector, new PageWaitForSelectorOptions
+        {
+            State = WaitForSelectorState.Attached,
+            Timeout = 30_000
+        });
+        await page.WaitForFunctionAsync(
+            @"args => {
+                const form = document.querySelector(args.formSelector);
+                if (!(form instanceof HTMLFormElement)) {
+                    return false;
+                }
+
+                const token = form.querySelector(""input[name='__RequestVerificationToken']"");
+                const input = form.querySelector('#register-username');
+                const submit = form.querySelector(""button[type='submit']"");
+
+                return token instanceof HTMLInputElement
+                    && token.value.trim().length > 0
+                    && input instanceof HTMLInputElement
+                    && !input.disabled
+                    && submit instanceof HTMLButtonElement
+                    && !submit.disabled;
+            }",
+            new { formSelector },
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
     }
 
     private static async Task WaitForUserInListAsync(IPage page, string username)
@@ -475,11 +522,7 @@ public sealed class RazorWireMvcPlaywrightTests
         {
             try
             {
-                await page.WaitForSelectorAsync(formSelector, new PageWaitForSelectorOptions
-                {
-                    State = WaitForSelectorState.Attached,
-                    Timeout = 30_000
-                });
+                await WaitForRegisterFormReadyAsync(page);
 
                 return await page.RunAndWaitForResponseAsync(
                     () => page.EvaluateAsync(
@@ -708,6 +751,9 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
     private static readonly SemaphoreSlim PlaywrightInstallLock = new(1, 1);
     private static bool _playwrightInstalled;
     private static readonly Regex ListeningUrlRegex = new(@"Now listening on:\s*(https?://\S+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex EmptyUserCountRegex = new(
+        "id=\"user-count\"[^>]*>\\s*0(?:\\s|<)",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
     private readonly ConcurrentQueue<string> _appLogs = new();
     private readonly TaskCompletionSource<string> _boundBaseUrlSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -737,6 +783,7 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         FormFailuresUrl = $"{baseUrl}/Reactivity/FormFailures";
 
         await WaitForAppReadyAsync(baseUrl, TimeSpan.FromSeconds(60));
+        await WarmReactivitySurfaceAsync(baseUrl, TimeSpan.FromSeconds(60));
     }
 
     public async Task DisposeAsync()
@@ -886,6 +933,107 @@ public sealed class RazorWireMvcPlaywrightFixture : IAsyncLifetime
         }
 
         throw new TimeoutException($"RazorWire MVC example did not become ready within {timeout.TotalSeconds} seconds.{Environment.NewLine}{GetRecentLogs()}");
+    }
+
+    private async Task WarmReactivitySurfaceAsync(string baseUrl, TimeSpan timeout)
+    {
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var client = new HttpClient
+        {
+            BaseAddress = new Uri(baseUrl, UriKind.Absolute)
+        };
+
+        using var _ = await WaitForOkAsync(client, "/Reactivity", timeoutCts.Token);
+        await WaitForEmptyUserListAsync(client, "/Reactivity/UserList", timeoutCts.Token);
+        using var __ = await WaitForOkAsync(client, "/Reactivity/FormFailures", timeoutCts.Token);
+    }
+
+    private async Task<HttpResponseMessage> WaitForOkAsync(HttpClient client, string path, CancellationToken token)
+    {
+        while (true)
+        {
+            try
+            {
+                var response = await client.GetAsync(path, token);
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    return response;
+                }
+
+                response.Dispose();
+            }
+            catch (HttpRequestException)
+            {
+                // Application is still starting.
+            }
+            catch (TaskCanceledException) when (!token.IsCancellationRequested)
+            {
+                // Retry until the overall warm-up timeout expires.
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            await DelayWarmupRetryAsync(token);
+        }
+
+        throw new TimeoutException($"RazorWire MVC warm-up timed out waiting for '{path}'.{Environment.NewLine}{GetRecentLogs()}");
+    }
+
+    private async Task WaitForEmptyUserListAsync(HttpClient client, string path, CancellationToken token)
+    {
+        while (true)
+        {
+            try
+            {
+                using var response = await client.GetAsync(path, token);
+                if (response.StatusCode == HttpStatusCode.OK)
+                {
+                    var html = await response.Content.ReadAsStringAsync(token);
+                    if (IsEmptyUserListMarkup(html))
+                    {
+                        return;
+                    }
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // Application is still starting.
+            }
+            catch (TaskCanceledException) when (!token.IsCancellationRequested)
+            {
+                // Retry until the overall warm-up timeout expires.
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            await DelayWarmupRetryAsync(token);
+        }
+
+        throw new TimeoutException($"RazorWire MVC warm-up timed out waiting for an empty '{path}' surface.{Environment.NewLine}{GetRecentLogs()}");
+    }
+
+    private static bool IsEmptyUserListMarkup(string html)
+    {
+        return html.Contains("id=\"active-user-list\"", StringComparison.Ordinal)
+               && html.Contains("id=\"user-list-items\"", StringComparison.Ordinal)
+               && html.Contains("id=\"user-list-empty\"", StringComparison.Ordinal)
+               && EmptyUserCountRegex.IsMatch(html);
+    }
+
+    private async Task DelayWarmupRetryAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(250, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // Caller converts cancellation into a timeout with recent logs.
+        }
     }
 
     private void CaptureAppLog(string? message)

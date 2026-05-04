@@ -11,8 +11,8 @@ namespace ForgeTrust.Runnable.Web.RazorWire.IntegrationTests;
 [Trait("Category", "Integration")]
 public sealed class RazorDocsSearchTurboCtaRegression1Tests
 {
-    private const string MiniSearchRuntimePath = "/docs/minisearch.min.js";
-    private const string SearchWorkspaceLinkSelector = "#docs-search-shell a[href='/docs/search']";
+    private const string MiniSearchRuntimePathPattern = "**/docs/minisearch.min.js*";
+    private const string SearchWorkspaceLinkSelector = "#docs-search-shell a[href$='/docs/search']";
     private readonly RazorDocsPlaywrightFixture _fixture;
 
     public RazorDocsSearchTurboCtaRegression1Tests(RazorDocsPlaywrightFixture fixture)
@@ -28,7 +28,7 @@ public sealed class RazorDocsSearchTurboCtaRegression1Tests
         var delayedRuntimeRequests = 0;
 
         await page.RouteAsync(
-            $"**{MiniSearchRuntimePath}",
+            MiniSearchRuntimePathPattern,
             async route =>
             {
                 delayedRuntimeRequests++;

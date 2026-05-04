@@ -416,15 +416,22 @@ public class RazorDocsWebModuleRegressionTests
             await AssertRedirectAsync(client, "/docs/search.css", $"{PackagedAssetBasePath}/search.css");
             await AssertRedirectAsync(client, "/docs/minisearch.min.js", $"{PackagedAssetBasePath}/minisearch.min.js");
             await AssertRedirectAsync(client, "/docs/search-client.js", $"{PackagedAssetBasePath}/search-client.js");
+            await AssertRedirectAsync(client, "/docs/outline-client.js", $"{PackagedAssetBasePath}/outline-client.js");
             await AssertRedirectAsync(client, "/docs/search.css?v=42", $"{PackagedAssetBasePath}/search.css?v=42");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/search.css", $"{PackagedAssetBasePath}/search.css");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/minisearch.min.js", $"{PackagedAssetBasePath}/minisearch.min.js");
             await AssertRedirectAsync(client, HttpMethod.Head, "/docs/search-client.js", $"{PackagedAssetBasePath}/search-client.js");
+            await AssertRedirectAsync(client, HttpMethod.Head, "/docs/outline-client.js", $"{PackagedAssetBasePath}/outline-client.js");
             await AssertRedirectAsync(
                 client,
                 HttpMethod.Head,
                 "/docs/search-client.js?cache=abc",
                 $"{PackagedAssetBasePath}/search-client.js?cache=abc");
+            await AssertRedirectAsync(
+                client,
+                HttpMethod.Head,
+                "/docs/outline-client.js?cache=abc",
+                $"{PackagedAssetBasePath}/outline-client.js?cache=abc");
         }
         finally
         {
@@ -446,6 +453,7 @@ public class RazorDocsWebModuleRegressionTests
             File.WriteAllText(Path.Combine(tempDirectory, "docs", "search.css"), "body { background: #111827; }");
             File.WriteAllText(Path.Combine(tempDirectory, "docs", "minisearch.min.js"), "window.MiniSearch = {};");
             File.WriteAllText(Path.Combine(tempDirectory, "docs", "search-client.js"), "window.__previewAsset = true;");
+            File.WriteAllText(Path.Combine(tempDirectory, "docs", "outline-client.js"), "window.__outlineAsset = true;");
 
             var module = new RazorDocsWebModule();
             var context = new StartupContext([], module);
@@ -497,6 +505,12 @@ public class RazorDocsWebModuleRegressionTests
                     var jsBody = await jsResponse.Content.ReadAsStringAsync();
                     Assert.Equal(HttpStatusCode.OK, jsResponse.StatusCode);
                     Assert.Contains("window.__previewAsset = true;", jsBody);
+
+                    using var outlineResponse = await client.GetAsync("/docs/next/outline-client.js");
+                    var outlineBody = await outlineResponse.Content.ReadAsStringAsync();
+                    Assert.Equal(HttpStatusCode.OK, outlineResponse.StatusCode);
+                    Assert.Contains("window.__outlineAsset = true;", outlineBody);
+                    Assert.Equal("/docs/next/outline-client.js", outlineResponse.RequestMessage?.RequestUri?.AbsolutePath);
 
                     using var headResponse = await client.SendAsync(
                         new HttpRequestMessage(HttpMethod.Head, "/docs/next/minisearch.min.js?cache=abc"));
@@ -779,6 +793,11 @@ public class RazorDocsWebModuleRegressionTests
                 HttpMethod.Head,
                 "/some-base/docs/search-client.js?cache=abc",
                 $"/some-base{PackagedAssetBasePath}/search-client.js?cache=abc");
+            await AssertRedirectAsync(
+                client,
+                HttpMethod.Head,
+                "/some-base/docs/outline-client.js?cache=abc",
+                $"/some-base{PackagedAssetBasePath}/outline-client.js?cache=abc");
         }
         finally
         {

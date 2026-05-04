@@ -7,11 +7,16 @@ using ForgeTrust.Runnable.Web.RazorDocs.Services;
 using ForgeTrust.Runnable.Web.RazorWire;
 using ForgeTrust.Runnable.Web.Tailwind;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.Tests;
@@ -199,6 +204,376 @@ public class RazorDocsWebModuleTests
     }
 
     [Fact]
+    public void ConfigureEndpoints_ShouldMapVersionedRoutes_WhenVersioningIsEnabled()
+    {
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = "catalog.json"
+            }
+        };
+        var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+        A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+        builder.Services.AddSingleton(optionsMonitor);
+        using var app = builder.Build();
+        var routeBuilder = (IEndpointRouteBuilder)app;
+
+        _module.ConfigureEndpoints(context, routeBuilder);
+
+        var routePatterns = routeBuilder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .Where(pattern => !string.IsNullOrEmpty(pattern))
+            .ToList();
+
+        Assert.Contains("docs", routePatterns);
+        Assert.Contains("docs/versions", routePatterns);
+        Assert.Contains("docs/next", routePatterns);
+        Assert.Contains("docs/next/search", routePatterns);
+        Assert.Contains("docs/next/search-index.json", routePatterns);
+        Assert.Contains("docs/next/{*path}", routePatterns);
+    }
+
+    [Fact]
+    public void ConfigureEndpoints_ShouldTrimLeadingSlash_ForRootMountedSectionAndDetailsRoutes()
+    {
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            }
+        };
+        var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+        A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+        builder.Services.AddSingleton(optionsMonitor);
+        using var app = builder.Build();
+        var routeBuilder = (IEndpointRouteBuilder)app;
+
+        _module.ConfigureEndpoints(context, routeBuilder);
+
+        var routePatterns = routeBuilder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .Where(pattern => pattern is not null)
+            .ToList();
+
+        Assert.Contains("search", routePatterns);
+        Assert.Contains("search-index.json", routePatterns);
+        Assert.Contains("sections/{sectionSlug}", routePatterns);
+        Assert.Contains("{*path}", routePatterns);
+        Assert.DoesNotContain("/sections/{sectionSlug}", routePatterns);
+        Assert.DoesNotContain("/{*path}", routePatterns);
+    }
+
+    [Fact]
+    public void ConfigureWebApplication_ShouldReturn_WhenVersioningIsEnabledButCatalogServiceIsMissing()
+    {
+        var context = CreateStartupContext();
+        var services = new ServiceCollection();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = "catalog.json"
+            }
+        };
+        var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+        A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+        services.AddSingleton(optionsMonitor);
+        var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
+
+        _module.ConfigureWebApplication(context, recordingBuilder);
+
+        Assert.Equal(0, recordingBuilder.UseCallCount);
+    }
+
+    [Fact]
+    public async Task ConfigureWebApplication_ShouldFallbackToConstructedDocsUrlBuilder_WhenServiceIsMissing()
+    {
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-web-module-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var treePath = Path.Combine(tempDirectory, "1.2.3");
+            Directory.CreateDirectory(treePath);
+            File.WriteAllText(Path.Combine(treePath, "index.html"), "<html>ok</html>");
+            Directory.CreateDirectory(Path.Combine(treePath, "next"));
+            File.WriteAllText(Path.Combine(treePath, "next", "index.html"), "<html>published-collision</html>");
+            File.WriteAllText(Path.Combine(treePath, "search.html"), "<html>search</html>");
+            File.WriteAllText(Path.Combine(treePath, "search-index.json"), "{\"documents\":[]}");
+            File.WriteAllText(Path.Combine(treePath, "search.css"), "body { color: #fff; }");
+            File.WriteAllText(Path.Combine(treePath, "search-client.js"), "window.__searchClientLoaded = true;");
+            File.WriteAllText(Path.Combine(treePath, "minisearch.min.js"), "window.MiniSearch = window.MiniSearch || {};");
+
+            var catalogPath = Path.Combine(tempDirectory, "catalog.json");
+            File.WriteAllText(
+                catalogPath,
+                """
+                {
+                  "recommendedVersion": "1.2.3",
+                  "versions": [
+                    {
+                      "version": "1.2.3",
+                      "exactTreePath": "1.2.3",
+                      "supportState": "Current",
+                      "visibility": "Public",
+                      "advisoryState": "None"
+                    }
+                  ]
+                }
+                """);
+
+            var context = CreateStartupContext();
+            var services = new ServiceCollection();
+            var options = new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/next"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true,
+                    CatalogPath = catalogPath
+                }
+            };
+            var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+            A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+            services.AddSingleton(optionsMonitor);
+            services.AddSingleton(
+                new RazorDocsVersionCatalogService(
+                    options,
+                    new TestWebHostEnvironment { ContentRootPath = tempDirectory, WebRootPath = tempDirectory },
+                    NullLogger<RazorDocsVersionCatalogService>.Instance));
+            var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
+
+            _module.ConfigureWebApplication(context, recordingBuilder);
+
+            Assert.Equal(1, recordingBuilder.UseCallCount);
+
+            var pipeline = recordingBuilder.Build(
+                async httpContext =>
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status200OK;
+                    await httpContext.Response.WriteAsync("<html>preview-surface</html>");
+                });
+            var httpContext = new DefaultHttpContext
+            {
+                RequestServices = recordingBuilder.ApplicationServices
+            };
+            httpContext.Request.Path = "/docs/next";
+            httpContext.Response.Body = new MemoryStream();
+
+            await pipeline(httpContext);
+
+            httpContext.Response.Body.Position = 0;
+            using var reader = new StreamReader(httpContext.Response.Body);
+            var responseBody = reader.ReadToEnd();
+            Assert.Equal(StatusCodes.Status200OK, httpContext.Response.StatusCode);
+            Assert.Equal("<html>preview-surface</html>", responseBody);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ConfigureWebApplication_ShouldSkipRecommendedMount_WhenCatalogMarksReleaseUnavailable()
+    {
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-web-module-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var treePath = Path.Combine(tempDirectory, "1.2.3");
+            Directory.CreateDirectory(treePath);
+            File.WriteAllText(Path.Combine(treePath, "index.html"), "<html>broken</html>");
+
+            var catalogPath = Path.Combine(tempDirectory, "catalog.json");
+            File.WriteAllText(
+                catalogPath,
+                """
+                {
+                  "recommendedVersion": "1.2.3",
+                  "versions": [
+                    {
+                      "version": "1.2.3",
+                      "exactTreePath": "1.2.3",
+                      "supportState": "Current",
+                      "visibility": "Public",
+                      "advisoryState": "None"
+                    }
+                  ]
+                }
+                """);
+
+            var context = CreateStartupContext();
+            var services = new ServiceCollection();
+            var options = new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs/next"
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true,
+                    CatalogPath = catalogPath
+                }
+            };
+            services.AddSingleton(options);
+            services.AddSingleton(
+                new RazorDocsVersionCatalogService(
+                    options,
+                    new TestWebHostEnvironment { ContentRootPath = tempDirectory, WebRootPath = tempDirectory },
+                    NullLogger<RazorDocsVersionCatalogService>.Instance));
+            var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
+
+            _module.ConfigureWebApplication(context, recordingBuilder);
+
+            Assert.Equal(0, recordingBuilder.UseCallCount);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void BuildPublishedTreeMounts_ShouldReuseProvider_ForRecommendedAliasOfPublicVersion()
+    {
+        var tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "razordocs-web-module-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var exactTreePath = Path.Combine(tempDirectory, "1.2.3");
+            Directory.CreateDirectory(exactTreePath);
+            var version = new RazorDocsResolvedVersion(
+                Version: "1.2.3",
+                Label: "1.2.3",
+                Summary: null,
+                ExactTreePath: exactTreePath,
+                ExactRootUrl: "/docs/v/1.2.3",
+                SupportState: RazorDocsVersionSupportState.Current,
+                Visibility: RazorDocsVersionVisibility.Public,
+                AdvisoryState: RazorDocsVersionAdvisoryState.None,
+                IsAvailable: true,
+                AvailabilityIssue: null);
+            var catalog = new RazorDocsResolvedVersionCatalog(
+                RazorDocsResolvedVersionCatalogStatus.Resolved,
+                CatalogPath: Path.Combine(tempDirectory, "catalog.json"),
+                Versions: [version],
+                RecommendedVersion: version);
+
+            var (mounts, providers) = RazorDocsWebModule.BuildPublishedTreeMounts(catalog);
+
+            Assert.Equal(2, mounts.Count);
+            Assert.Single(providers);
+            Assert.Equal("/docs/v/1.2.3", mounts[0].MountRootPath);
+            Assert.Equal("/docs", mounts[1].MountRootPath);
+            Assert.Same(mounts[0].FileProvider, mounts[1].FileProvider);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ConfigureWebApplication_ShouldReturn_WhenVersioningOptionsAreMissing()
+    {
+        var context = CreateStartupContext();
+        var services = new ServiceCollection();
+        services.AddSingleton(
+            new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = "/docs"
+                },
+                Versioning = null!
+            });
+        var recordingBuilder = new RecordingApplicationBuilder(services.BuildServiceProvider());
+
+        _module.ConfigureWebApplication(context, recordingBuilder);
+
+        Assert.Equal(0, recordingBuilder.UseCallCount);
+    }
+
+    [Fact]
+    public void ConfigureEndpoints_ShouldTreatNullVersioningOptionsAsDisabled()
+    {
+        var context = CreateStartupContext();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddControllersWithViews().AddApplicationPart(typeof(DocsController).Assembly);
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs"
+            },
+            Versioning = null!
+        };
+        var optionsMonitor = A.Fake<IOptionsMonitor<RazorDocsOptions>>();
+        A.CallTo(() => optionsMonitor.CurrentValue).Returns(options);
+        builder.Services.AddSingleton(optionsMonitor);
+        using var app = builder.Build();
+        var routeBuilder = (IEndpointRouteBuilder)app;
+
+        _module.ConfigureEndpoints(context, routeBuilder);
+
+        var routePatterns = routeBuilder.DataSources
+            .SelectMany(ds => ds.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText)
+            .Where(pattern => !string.IsNullOrEmpty(pattern))
+            .ToList();
+
+        Assert.DoesNotContain("docs/versions", routePatterns);
+    }
+
+    [Fact]
     public void HostAndAppConfigureMethods_ShouldNotThrow()
     {
         var context = CreateStartupContext();
@@ -217,5 +592,66 @@ public class RazorDocsWebModuleTests
         var rootModuleFake = A.Fake<IRunnableHostModule>();
         var envFake = A.Fake<IEnvironmentProvider>();
         return new StartupContext(Array.Empty<string>(), rootModuleFake, "TestApp", envFake);
+    }
+
+    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "RazorDocsTests";
+
+        public IFileProvider WebRootFileProvider { get; set; } = null!;
+
+        public string WebRootPath { get; set; } = string.Empty;
+
+        public string EnvironmentName { get; set; } = Environments.Development;
+
+        public string ContentRootPath { get; set; } = string.Empty;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
+    }
+
+    private sealed class RecordingApplicationBuilder : IApplicationBuilder
+    {
+        private readonly IList<Func<RequestDelegate, RequestDelegate>> _components = [];
+
+        public RecordingApplicationBuilder(IServiceProvider applicationServices)
+        {
+            ApplicationServices = applicationServices;
+        }
+
+        public int UseCallCount => _components.Count;
+
+        public IServiceProvider ApplicationServices { get; set; }
+
+        public IFeatureCollection ServerFeatures { get; } = new FeatureCollection();
+
+        public IDictionary<string, object?> Properties { get; } = new Dictionary<string, object?>();
+
+        public RequestDelegate Build()
+        {
+            return Build(_ => Task.CompletedTask);
+        }
+
+        public RequestDelegate Build(RequestDelegate terminal)
+        {
+            RequestDelegate app = terminal;
+            foreach (var component in _components.Reverse())
+            {
+                app = component(app);
+            }
+
+            return app;
+        }
+
+        public IApplicationBuilder New()
+        {
+            return new RecordingApplicationBuilder(ApplicationServices);
+        }
+
+        public IApplicationBuilder Use(Func<RequestDelegate, RequestDelegate> middleware)
+        {
+            ArgumentNullException.ThrowIfNull(middleware);
+            _components.Add(middleware);
+            return this;
+        }
     }
 }

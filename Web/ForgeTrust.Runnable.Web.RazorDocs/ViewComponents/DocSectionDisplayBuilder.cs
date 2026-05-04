@@ -1,4 +1,5 @@
 using ForgeTrust.Runnable.Web.RazorDocs.Models;
+using ForgeTrust.Runnable.Web.RazorDocs.Services;
 
 namespace ForgeTrust.Runnable.Web.RazorDocs.ViewComponents;
 
@@ -18,6 +19,7 @@ internal static class DocSectionDisplayBuilder
     /// Optional namespace prefixes used to shorten API-reference labels and family headings. When omitted, API-reference
     /// groups derive prefixes from the visible pages in <paramref name="snapshot"/>.
     /// </param>
+    /// <param name="docsRootPath">The app-relative docs root path used to build canonical links for the current surface.</param>
     /// <returns>The grouped link model for the supplied section snapshot.</returns>
     /// <remarks>
     /// Editorial sections stay flat and task-oriented, while <see cref="DocPublicSection.ApiReference"/> delegates to the
@@ -26,16 +28,18 @@ internal static class DocSectionDisplayBuilder
     internal static IReadOnlyList<DocSectionGroupViewModel> BuildGroups(
         DocSectionSnapshot snapshot,
         string? currentHref = null,
-        IReadOnlyList<string>? namespacePrefixes = null)
+        IReadOnlyList<string>? namespacePrefixes = null,
+        string docsRootPath = "/docs")
     {
         return snapshot.Section == DocPublicSection.ApiReference
-            ? BuildApiReferenceGroups(snapshot, currentHref, namespacePrefixes)
-            : BuildEditorialGroups(snapshot, currentHref);
+            ? BuildApiReferenceGroups(snapshot, currentHref, namespacePrefixes, docsRootPath)
+            : BuildEditorialGroups(snapshot, currentHref, docsRootPath);
     }
 
     private static IReadOnlyList<DocSectionGroupViewModel> BuildEditorialGroups(
         DocSectionSnapshot snapshot,
-        string? currentHref)
+        string? currentHref,
+        string docsRootPath)
     {
         var rootItems = snapshot.VisiblePages
             .Where(doc => string.IsNullOrEmpty(doc.ParentPath) && !SidebarDisplayHelper.IsTypeAnchorNode(doc))
@@ -48,7 +52,7 @@ internal static class DocSectionDisplayBuilder
             new DocSectionGroupViewModel
             {
                 Links = rootItems
-                    .Select(doc => CreateLink(doc, snapshot.VisiblePages, currentHref))
+                    .Select(doc => CreateLink(doc, snapshot.VisiblePages, currentHref, docsRootPath))
                     .ToList()
             }
         ];
@@ -57,7 +61,8 @@ internal static class DocSectionDisplayBuilder
     private static IReadOnlyList<DocSectionGroupViewModel> BuildApiReferenceGroups(
         DocSectionSnapshot snapshot,
         string? currentHref,
-        IReadOnlyList<string>? configuredNamespacePrefixes)
+        IReadOnlyList<string>? configuredNamespacePrefixes,
+        string docsRootPath)
     {
         var namespacePrefixes = configuredNamespacePrefixes is { Count: > 0 }
             ? configuredNamespacePrefixes
@@ -76,7 +81,7 @@ internal static class DocSectionDisplayBuilder
             groups.Add(
                 new DocSectionGroupViewModel
                 {
-                    Links = [CreateLink(namespaceRoot, snapshot.VisiblePages, currentHref)]
+                    Links = [CreateLink(namespaceRoot, snapshot.VisiblePages, currentHref, docsRootPath)]
                 });
         }
 
@@ -98,7 +103,7 @@ internal static class DocSectionDisplayBuilder
                         Links = group
                             .OrderBy(doc => doc.Metadata?.Order ?? int.MaxValue)
                             .ThenBy(doc => SidebarDisplayHelper.GetFullNamespaceName(doc), StringComparer.OrdinalIgnoreCase)
-                            .Select(doc => CreateLink(doc, snapshot.VisiblePages, currentHref, namespacePrefixes))
+                            .Select(doc => CreateLink(doc, snapshot.VisiblePages, currentHref, docsRootPath, namespacePrefixes))
                             .ToList()
                     }));
 
@@ -109,10 +114,11 @@ internal static class DocSectionDisplayBuilder
         DocNode doc,
         IReadOnlyList<DocNode> sectionDocs,
         string? currentHref,
+        string docsRootPath,
         IReadOnlyList<string>? namespacePrefixes = null)
     {
         var normalizedDocPath = NormalizePath(doc.Path);
-        var href = $"/docs/{GetCanonicalPath(doc)}";
+        var href = DocsUrlBuilder.BuildDocUrl(docsRootPath, GetCanonicalPath(doc));
         var badge = DocMetadataPresentation.ResolvePageTypeBadge(doc.Metadata?.PageType);
         var children = sectionDocs
             .Where(item => string.Equals(NormalizePath(item.ParentPath), normalizedDocPath, StringComparison.OrdinalIgnoreCase)
@@ -122,7 +128,7 @@ internal static class DocSectionDisplayBuilder
             .Select(
                 item =>
                 {
-                    var childHref = $"/docs/{GetCanonicalPath(item)}";
+                    var childHref = DocsUrlBuilder.BuildDocUrl(docsRootPath, GetCanonicalPath(item));
                     return new DocSectionLinkViewModel
                     {
                         Title = item.Title,

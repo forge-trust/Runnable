@@ -14,6 +14,15 @@ public sealed class RazorDocsOptionsTests
         Assert.Equal(1, (int)RazorDocsMode.Bundle);
         Assert.Equal(0, (int)RazorDocsLastUpdatedMode.None);
         Assert.Equal(1, (int)RazorDocsLastUpdatedMode.Git);
+        Assert.Equal(0, (int)RazorDocsVersionSupportState.Current);
+        Assert.Equal(1, (int)RazorDocsVersionSupportState.Maintained);
+        Assert.Equal(2, (int)RazorDocsVersionSupportState.Deprecated);
+        Assert.Equal(3, (int)RazorDocsVersionSupportState.Archived);
+        Assert.Equal(0, (int)RazorDocsVersionVisibility.Public);
+        Assert.Equal(1, (int)RazorDocsVersionVisibility.Hidden);
+        Assert.Equal(0, (int)RazorDocsVersionAdvisoryState.None);
+        Assert.Equal(1, (int)RazorDocsVersionAdvisoryState.Vulnerable);
+        Assert.Equal(2, (int)RazorDocsVersionAdvisoryState.SecurityRisk);
     }
 
     [Fact]
@@ -111,6 +120,63 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldDefaultDocsRootToDocs_WhenVersioningIsDisabled()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("/docs", options.Routing.DocsRootPath);
+    }
+
+    [Fact]
+    public void AddRazorDocs_ShouldDefaultDocsRootToDocsNext_WhenVersioningIsEnabled()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Versioning:Enabled"] = "true",
+                        ["RazorDocs:Versioning:CatalogPath"] = "catalog.json"
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("/docs/next", options.Routing.DocsRootPath);
+    }
+
+    [Fact]
+    public void AddRazorDocs_ShouldNormalizeRelativeDocsRootToAppRelativePath()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Routing:DocsRootPath"] = "docs/preview"
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("/docs/preview", options.Routing.DocsRootPath);
+    }
+
+    [Fact]
     public void ContributorOptions_ShouldDefaultLastUpdatedModeToNone()
     {
         var options = new RazorDocsContributorOptions();
@@ -143,6 +209,27 @@ public sealed class RazorDocsOptionsTests
         Assert.Contains(
             ex.Failures,
             failure => failure.Contains("RepositoryRoot cannot be whitespace", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void AddRazorDocs_ShouldAllowRootMountedDocsSurface()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["RazorDocs:Routing:DocsRootPath"] = "/"
+                    })
+                .Build());
+
+        services.AddRazorDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.Equal("/", options.Routing.DocsRootPath);
     }
 
     [Fact]
@@ -263,6 +350,29 @@ public sealed class RazorDocsOptionsTests
     }
 
     [Fact]
+    public void AddRazorDocs_ShouldRehydrateNullRoutingAndVersioningOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+
+        services.AddRazorDocs();
+        services.Configure<RazorDocsOptions>(
+            options =>
+            {
+                options.Routing = null!;
+                options.Versioning = null!;
+            });
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<RazorDocsOptions>>().Value;
+
+        Assert.NotNull(options.Routing);
+        Assert.NotNull(options.Versioning);
+        Assert.Equal("/docs", options.Routing.DocsRootPath);
+        Assert.False(options.Versioning.Enabled);
+    }
+
+    [Fact]
     public void AddRazorDocs_ShouldRehydrateExplicitlyNullNamespacePrefixes()
     {
         var services = new ServiceCollection();
@@ -310,7 +420,9 @@ public sealed class RazorDocsOptionsTests
             Source = null!,
             Bundle = null!,
             Sidebar = null!,
-            Contributor = null!
+            Contributor = null!,
+            Routing = null!,
+            Versioning = null!
         };
 
         var result = validator.Validate(Options.DefaultName, options);
@@ -320,6 +432,8 @@ public sealed class RazorDocsOptionsTests
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Bundle must not be null.", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Sidebar must not be null.", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Contributor must not be null.", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Routing must not be null.", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Failures, failure => failure.Contains("RazorDocs:Versioning must not be null.", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -385,6 +499,131 @@ public sealed class RazorDocsOptionsTests
 
         Assert.True(result.Failed);
         Assert.Contains(result.Failures, failure => failure.Contains("not implemented", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectDocsRootAtDocs_WhenVersioningIsEnabled()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = "catalog.json"
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("cannot use '/docs' as the live source docs root", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectReservedVersioningPreviewPath()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        foreach (var docsRootPath in new[] { "/docs/v", "/docs/v/1.0.0", "/docs/versions" })
+        {
+            var options = new RazorDocsOptions
+            {
+                Routing = new RazorDocsRoutingOptions
+                {
+                    DocsRootPath = docsRootPath
+                },
+                Versioning = new RazorDocsVersioningOptions
+                {
+                    Enabled = true,
+                    CatalogPath = "catalog.json"
+                }
+            };
+
+            var result = validator.Validate(Options.DefaultName, options);
+
+            Assert.True(result.Failed);
+            Assert.Contains(
+                result.Failures,
+                failure => failure.Contains("reserved versioning path", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Validator_ShouldAllowRootMountedDocsRootPath(bool versioningEnabled)
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = versioningEnabled,
+                CatalogPath = versioningEnabled ? "catalog.json" : null
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("guides")]
+    [InlineData("/docsx")]
+    [InlineData("/docs-preview")]
+    [InlineData("/docs/")]
+    public void Validator_ShouldRejectInvalidDocsRootPaths(string docsRootPath)
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = docsRootPath
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("DocsRootPath must be exactly '/' or start with '/docs'", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_ShouldRequireCatalogPath_WhenVersioningIsEnabled()
+    {
+        var validator = new RazorDocsOptionsValidator();
+        var options = new RazorDocsOptions
+        {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs/next"
+            },
+            Versioning = new RazorDocsVersioningOptions
+            {
+                Enabled = true,
+                CatalogPath = " "
+            }
+        };
+
+        var result = validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("requires RazorDocs:Versioning:CatalogPath", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -518,6 +757,10 @@ public sealed class RazorDocsOptionsTests
         var validator = new RazorDocsOptionsValidator();
         var options = new RazorDocsOptions
         {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs"
+            },
             Contributor = new RazorDocsContributorOptions
             {
                 DefaultBranch = "main",
@@ -536,6 +779,10 @@ public sealed class RazorDocsOptionsTests
         var validator = new RazorDocsOptionsValidator();
         var options = new RazorDocsOptions
         {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs"
+            },
             Contributor = new RazorDocsContributorOptions
             {
                 SourceRef = "abc123",
@@ -575,6 +822,10 @@ public sealed class RazorDocsOptionsTests
         var validator = new RazorDocsOptionsValidator();
         var options = new RazorDocsOptions
         {
+            Routing = new RazorDocsRoutingOptions
+            {
+                DocsRootPath = "/docs"
+            },
             Contributor = new RazorDocsContributorOptions
             {
                 Enabled = false,

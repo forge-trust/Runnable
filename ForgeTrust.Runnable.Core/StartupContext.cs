@@ -29,8 +29,12 @@ public record StartupContext(
     private string? _applicationName = ApplicationName;
 
     /// <summary>
-    /// Gets or sets an assembly that should be treated as the entry point assembly, overriding the default.
+    /// Gets or sets an assembly that should override both application discovery and host manifest identity.
     /// </summary>
+    /// <remarks>
+    /// Set this when a test or custom host needs Runnable to scan a different assembly for commands, MVC parts,
+    /// or Aspire components, or when static web asset manifest identity must be pinned to a specific assembly.
+    /// </remarks>
     public Assembly? OverrideEntryPointAssembly { get; set; } = null;
 
     /// <summary>
@@ -49,9 +53,28 @@ public record StartupContext(
     public Assembly RootModuleAssembly { get; } = RootModule.GetType().Assembly;
 
     /// <summary>
-    /// Gets the entry point assembly for the application.
+    /// Gets the assembly used for application-owned type discovery.
     /// </summary>
+    /// <remarks>
+    /// Runnable uses this assembly to discover application-owned commands, MVC application parts, Aspire components,
+    /// and similar extensibility hooks. By default it stays aligned with the root module assembly so cross-assembly
+    /// test runners and shared hosts do not accidentally scan the outer process entry assembly. Set
+    /// <see cref="OverrideEntryPointAssembly"/> when a host intentionally wants discovery to come from a different
+    /// assembly.
+    /// </remarks>
     public Assembly EntryPointAssembly => OverrideEntryPointAssembly ?? RootModuleAssembly;
+
+    /// <summary>
+    /// Gets the assembly whose name should be written into the Generic Host environment.
+    /// </summary>
+    /// <remarks>
+    /// ASP.NET static web assets resolve runtime manifests through <see cref="Microsoft.Extensions.Hosting.IHostEnvironment.ApplicationName"/>.
+    /// When <see cref="OverrideEntryPointAssembly"/> is not provided, Runnable falls back to
+    /// <see cref="Assembly.GetEntryAssembly()"/> here so the host environment tracks the real executable surface
+    /// rather than the root module's assembly. When no process entry assembly is available, the root module assembly
+    /// remains the defensive fallback.
+    /// </remarks>
+    internal Assembly HostIdentityAssembly => OverrideEntryPointAssembly ?? Assembly.GetEntryAssembly() ?? RootModuleAssembly;
 
     /// <summary>
     /// Gets the environment provider for the application.
@@ -84,9 +107,12 @@ public record StartupContext(
     /// <remarks>
     /// ASP.NET static web assets resolve runtime manifests by host application name. Custom display names should not be
     /// written into the host environment because they can point static web asset discovery at a non-existent manifest.
-    /// Override <see cref="OverrideEntryPointAssembly"/> when a test or host needs to select a different manifest identity.
+    /// By default Runnable uses the process entry assembly when one is available; override
+    /// <see cref="OverrideEntryPointAssembly"/> when a test or custom host needs to select a different manifest identity.
+    /// This host identity is intentionally separate from <see cref="EntryPointAssembly"/>, which still drives
+    /// application-owned type discovery.
     /// </remarks>
-    public string HostApplicationName => GetAssemblyNameOrDefault(EntryPointAssembly);
+    public string HostApplicationName => GetAssemblyNameOrDefault(HostIdentityAssembly);
 
     /// <summary>
     /// Gets the list of modules that the application depends on.

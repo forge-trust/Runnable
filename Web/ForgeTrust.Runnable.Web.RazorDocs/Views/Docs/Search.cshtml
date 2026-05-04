@@ -81,11 +81,11 @@
         <div class="grid gap-3 md:grid-cols-3">
             @foreach (var link in Model.FailureFallbackLinks)
             {
-                var usesDocsFrame = link.Href.StartsWith("/docs/", StringComparison.OrdinalIgnoreCase);
-                if (usesDocsFrame)
+                var resolvedHref = Url.PathBaseAware(link.Href);
+                if (link.UsesDocsFrame)
                 {
                     <a class="@FailureLinkClass"
-                       href="@link.Href"
+                       href="@resolvedHref"
                        data-turbo-frame="doc-content"
                        data-turbo-action="advance">
                         <span class="text-[0.95rem] font-semibold text-cyan-300">@link.Title</span>
@@ -95,7 +95,7 @@
                 else
                 {
                     <a class="@FailureLinkClass"
-                       href="@link.Href"
+                       href="@resolvedHref"
                        data-turbo-frame="_top">
                         <span class="text-[0.95rem] font-semibold text-cyan-300">@link.Title</span>
                         <span class="text-[0.82rem] leading-[1.45] text-slate-400">@link.Description</span>

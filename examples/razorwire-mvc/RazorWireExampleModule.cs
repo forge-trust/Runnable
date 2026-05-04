@@ -18,8 +18,7 @@ public class RazorWireExampleModule : IRunnableWebModule
     /// <param name="services">The service collection to which module services are added.</param>
     public void ConfigureServices(StartupContext context, IServiceCollection services)
     {
-        services.AddSingleton<InMemoryUserPresenceService>();
-        services.AddSingleton<Services.IUserPresenceService>(sp => sp.GetRequiredService<InMemoryUserPresenceService>());
+        services.AddSingleton<Services.IUserPresenceService, InMemoryUserPresenceService>();
         services.AddSingleton<Services.IMessageStore, Services.InMemoryMessageStore>();
         services.AddHostedService<Services.UserPresenceBackgroundService>();
         services.AddTailwind();

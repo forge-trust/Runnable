@@ -202,6 +202,9 @@ public sealed class ConfigValueMinLengthAttribute : ConfigValueValidationAttribu
     /// Initializes a new instance of the <see cref="ConfigValueMinLengthAttribute"/> class.
     /// </summary>
     /// <param name="length">The minimum allowed string length.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="length"/> is less than zero.
+    /// </exception>
     public ConfigValueMinLengthAttribute(int length)
         : base("The configuration value must be at least {0} character(s) long.")
     {

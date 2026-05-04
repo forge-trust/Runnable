@@ -11,6 +11,7 @@
 
     let lifecycleController = null;
     let activeObserver = null;
+    let fallbackDisposers = [];
 
     function decodeHash(hash) {
         if (!hash) {
@@ -122,6 +123,39 @@
         activeObserver = null;
     }
 
+    function createLifecycleController() {
+        return typeof AbortController === "function" ? new AbortController() : null;
+    }
+
+    function addLifecycleEventListener(target, type, listener) {
+        const signal = lifecycleController?.signal;
+
+        if (typeof target?.addEventListener === "function") {
+            if (signal) {
+                target.addEventListener(type, listener, { signal });
+                return;
+            }
+
+            target.addEventListener(type, listener);
+            fallbackDisposers.push(() => target.removeEventListener?.(type, listener));
+            return;
+        }
+
+        if (type === "change" && typeof target?.addListener === "function") {
+            target.addListener(listener);
+            fallbackDisposers.push(() => target.removeListener?.(listener));
+        }
+    }
+
+    function cleanupLifecycleEventListeners() {
+        const disposers = fallbackDisposers;
+        fallbackDisposers = [];
+
+        for (const dispose of disposers) {
+            dispose();
+        }
+    }
+
     function syncOutlinePlacement(shell, primary, compact) {
         const layout = shell.parentElement;
         if (!layout || !primary || primary.parentElement !== layout) {
@@ -142,6 +176,7 @@
     }
 
     function teardown() {
+        cleanupLifecycleEventListeners();
         disconnectActiveObserver();
         lifecycleController?.abort();
         lifecycleController = null;
@@ -167,8 +202,7 @@
         }
 
         const entries = getOutlineEntries(links);
-        const controller = new AbortController();
-        lifecycleController = controller;
+        lifecycleController = createLifecycleController();
         shell.dataset.outlineEnhanced = "true";
 
         const compactMedia = window.matchMedia ? window.matchMedia(compactMediaQuery) : null;
@@ -179,14 +213,14 @@
         };
 
         syncViewportState();
-        compactMedia?.addEventListener("change", syncViewportState, { signal: controller.signal });
+        addLifecycleEventListener(compactMedia, "change", syncViewportState);
 
-        toggle?.addEventListener("click", () => {
+        addLifecycleEventListener(toggle, "click", () => {
             setExpanded(shell, toggle, shell.dataset.outlineExpanded !== "true");
-        }, { signal: controller.signal });
+        });
 
         for (const link of links) {
-            link.addEventListener("click", () => {
+            addLifecycleEventListener(link, "click", () => {
                 if (!getEntryForLink(entries, link)) {
                     return;
                 }
@@ -199,14 +233,14 @@
                 for (const delay of [120, 360, 720]) {
                     window.setTimeout(() => refreshHashActiveLink(entries, links, link, currentLabel), delay);
                 }
-            }, { signal: controller.signal });
+            });
         }
 
         setActiveLink(links, getInitialActiveLink(entries), currentLabel);
 
-        window.addEventListener("hashchange", () => {
+        addLifecycleEventListener(window, "hashchange", () => {
             setActiveLink(links, getActiveEntryFromHash(entries)?.link ?? null, currentLabel);
-        }, { signal: controller.signal });
+        });
 
         if (entries.length === 0 || !("IntersectionObserver" in window) || !mainContent) {
             return;

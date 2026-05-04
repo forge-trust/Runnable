@@ -113,6 +113,10 @@ public class RazorDocsViewsTests
         Assert.Contains("document.addEventListener(\"turbo:frame-load\"", outlineClient);
         Assert.Contains("activeObserver?.disconnect()", outlineClient);
         Assert.Contains("aria-current", outlineClient);
+        Assert.Contains("typeof AbortController === \"function\"", outlineClient);
+        Assert.Contains("function addLifecycleEventListener", outlineClient);
+        Assert.Contains("removeEventListener", outlineClient);
+        Assert.Contains("addListener", outlineClient);
     }
 
     [Fact]
@@ -933,10 +937,19 @@ public class RazorDocsViewsTests
             });
 
         var html = await RenderDetailsViewAsync(landingDoc, deepDive, anchor);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var sectionRoutes = document.QuerySelectorAll("a[href='/docs/sections/concepts']")
+            .Where(link => (link.ClassName ?? string.Empty).Contains("rounded-full", StringComparison.Ordinal))
+            .ToArray();
 
         Assert.Contains("Section landing", html);
         Assert.Contains("Use this section as the entry point.", html);
-        Assert.Contains("href=\"/docs/sections/concepts\"", html);
+        Assert.Equal(2, sectionRoutes.Length);
+        Assert.All(sectionRoutes, sectionRoute =>
+        {
+            Assert.Equal("doc-content", sectionRoute.GetAttribute("data-turbo-frame"));
+            Assert.Equal("advance", sectionRoute.GetAttribute("data-turbo-action"));
+        });
         Assert.Contains("Next steps", html);
         Assert.Contains(">Test</h3>", html);
         Assert.Contains("Choose this path when you need section context.", html);

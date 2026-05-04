@@ -89,6 +89,8 @@
     {
         <div class="mb-4 md:hidden">
             <a href="@ResolveAppHref(Model.PublicSectionHref)"
+               data-turbo-frame="doc-content"
+               data-turbo-action="advance"
                class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors hover:border-cyan-500/40 hover:text-cyan-200">
                 <span class="text-slate-500">Section</span>
                 <span>@Model.PublicSectionLabel</span>
@@ -278,6 +280,8 @@
                     @if (!string.IsNullOrWhiteSpace(Model.PublicSectionHref))
                     {
                         <a href="@ResolveAppHref(Model.PublicSectionHref)"
+                           data-turbo-frame="doc-content"
+                           data-turbo-action="advance"
                            class="inline-flex items-center gap-2 self-start rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-cyan-500/40 hover:text-cyan-200">
                             Section route
                         </a>

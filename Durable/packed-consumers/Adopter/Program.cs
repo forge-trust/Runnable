@@ -7,6 +7,7 @@ var services = new ServiceCollection();
 new AppSurfaceDurableModule().ConfigureServices(
     new StartupContext([], new PassiveHostModule()),
     services);
+GmailBackfillExitExample.Register(services);
 using var provider = services.BuildServiceProvider();
 _ = provider.GetRequiredService<IDurablePayloadCodecRegistry>();
 _ = provider.GetRequiredService<IDurableWorkRegistry>();

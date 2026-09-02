@@ -119,6 +119,15 @@ public sealed class DurablePreparedWorkInvocation
     /// <summary>Invokes the prepared application executor and returns its encoded terminal result.</summary>
     public ValueTask<DurableEncodedPayload> InvokeAsync(CancellationToken cancellationToken = default) =>
         _preparedWork.InvokeAsync(cancellationToken);
+
+    /// <summary>Invokes the prepared application executor and returns its encoded exit fact.</summary>
+    /// <remarks>
+    /// Providers that understand typed durable exits must call this member after their effect permit commits. Legacy
+    /// prepared Work retains exact success behavior because its default implementation wraps <see cref="InvokeAsync"/>
+    /// as <see cref="DurableWorkExitKind.Succeeded"/>.
+    /// </remarks>
+    public ValueTask<DurableEncodedWorkExit> InvokeExitAsync(CancellationToken cancellationToken = default) =>
+        _preparedWork.InvokeExitAsync(cancellationToken);
 }
 
 /// <summary>Adapts validated provider claims to adopter-owned work registrations.</summary>

@@ -327,7 +327,7 @@ internal sealed class StructuralLineClassifier
                 return Reject(line, normalizedPath, "semantic-diagnostic", source, propertySymbol);
             }
 
-            var propertyShapeReason = GetPropertyShapeRejectionReason(property, boundPropertySymbol);
+            var propertyShapeReason = GetPropertyShapeRejectionReason(property);
             if (propertyShapeReason is not null)
             {
                 return Reject(line, normalizedPath, propertyShapeReason, source, propertySymbol);
@@ -360,15 +360,8 @@ internal sealed class StructuralLineClassifier
             && (token.Equals(accessors.OpenBraceToken) || token.Equals(accessors.CloseBraceToken));
     }
 
-    private static string? GetPropertyShapeRejectionReason(
-        PropertyDeclarationSyntax property,
-        IPropertySymbol propertySymbol)
+    private static string? GetPropertyShapeRejectionReason(PropertyDeclarationSyntax property)
     {
-        if (propertySymbol.IsIndexer)
-        {
-            return "unsupported-property-shape";
-        }
-
         if (property.AttributeLists.Count != 0)
         {
             return "property-attributes";

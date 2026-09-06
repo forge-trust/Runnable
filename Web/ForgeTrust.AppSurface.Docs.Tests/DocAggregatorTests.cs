@@ -913,8 +913,12 @@ public class DocAggregatorTests : IDisposable
             localEnv,
             _memo,
             new AppSurfaceDocsHtmlSanitizer(),
-            _loggerFake);
+            _loggerFake,
+            resolveGitLastUpdatedUtcAsync: null,
+            harvesterTimeout: TimeSpan.FromMinutes(2));
 
+        // This full-repository integration assertion checks rendered package links, not the production
+        // per-harvester timeout. Allow the Markdown scan to complete when the test host is contended.
         var chooser = await aggregator.GetDocByPathAsync("packages/README.md");
 
         Assert.NotNull(chooser);

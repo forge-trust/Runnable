@@ -115,6 +115,45 @@ public sealed class TailwindCliManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task Resolver_UsesInjectedHostAndCachePathWhenOptionsDoNotOverrideThem()
+    {
+        var payload = Encoding.UTF8.GetBytes("runtime injected host executable");
+        var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        var asset = manifest.GetAsset("linux-x64");
+        var cacheRoot = Path.Join(_tempRoot, "cache");
+        var expectedPath = Path.Join(cacheRoot, "injected", asset.BinaryName);
+        var currentRidCalls = 0;
+        var cachePathCalls = 0;
+        var resolver = new TailwindCliResolver(
+            manifest,
+            (uri, _) => Task.FromResult(CreateDownload(uri, asset, payload)),
+            getCurrentRid: () =>
+            {
+                currentRidCalls++;
+                return asset.Rid;
+            },
+            getRuntimeBinaryPath: (root, version, rid, binaryName) =>
+            {
+                cachePathCalls++;
+                Assert.Equal(cacheRoot, root);
+                Assert.Equal(manifest.Version, version);
+                Assert.Equal(asset.Rid, rid);
+                Assert.Equal(asset.BinaryName, binaryName);
+                return expectedPath;
+            });
+
+        var resolved = await resolver.ResolveAsync(
+            new TailwindCliResolverOptions(null, _tempRoot, cacheRoot, manifest.Version, null),
+            CancellationToken.None);
+
+        Assert.Equal(TailwindCliCacheState.Acquired, resolved.CacheState);
+        Assert.Equal(expectedPath, resolved.Path);
+        Assert.Equal(payload, await File.ReadAllBytesAsync(resolved.Path));
+        Assert.Equal(1, currentRidCalls);
+        Assert.Equal(1, cachePathCalls);
+    }
+
+    [Fact]
     public async Task Resolver_AcquiresThenReusesOnlyThePinnedHostEntry()
     {
         var payload = Encoding.UTF8.GetBytes("verified test executable");

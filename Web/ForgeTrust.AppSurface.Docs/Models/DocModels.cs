@@ -786,6 +786,29 @@ public record DocNode(
     public IReadOnlyList<string>? RichAuthoringTabsTokens { get; init; }
 
     /// <summary>
+    /// Gets whether this node has reader-visible content through either the legacy HTML bridge or the internal C# projection.
+    /// </summary>
+    internal bool HasReaderContent => !string.IsNullOrWhiteSpace(Content)
+                                      || CSharpNamespaceDocument is { ReaderText.Length: > 0 };
+
+    /// <summary>
+    /// Gets whether this node is a fragment-only navigation stub rather than a reader page.
+    /// </summary>
+    internal bool IsFragmentStub => !string.IsNullOrWhiteSpace(ParentPath)
+                                    && !HasReaderContent
+                                    && Path.Contains('#', StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gets the internal semantic projection for a built-in C# namespace page.
+    /// </summary>
+    /// <remarks>
+    /// This non-positional internal state preserves the public constructor, deconstructor, and serialization shape of
+    /// <see cref="DocNode"/>. It is assigned only by the exact built-in C# aggregation path; direct public and
+    /// derived/custom harvester calls continue to use <see cref="Content"/>.
+    /// </remarks>
+    internal CSharpNamespaceDocument? CSharpNamespaceDocument { get; init; }
+
+    /// <summary>
     /// Gets optional generated API symbol metadata scoped to one fragment-addressable node.
     /// </summary>
     /// <remarks>
@@ -1077,6 +1100,16 @@ public static class DocHarvestDiagnosticCodes
     /// A C# source file matched the configured include set but exceeded the configured parse size limit.
     /// </summary>
     public const string CSharpFileTooLarge = "appsurfacedocs.csharp.file_too_large";
+
+    /// <summary>
+    /// A C# source file had syntax or traversal errors and was atomically omitted from the harvest.
+    /// </summary>
+    public const string CSharpParseFailed = "appsurfacedocs.csharp.parse_failed";
+
+    /// <summary>
+    /// A C# XML documentation comment was malformed and its documentation fields were omitted safely.
+    /// </summary>
+    public const string CSharpXmlCommentMalformed = "appsurfacedocs.csharp.xml_comment_malformed";
 
     /// <summary>
     /// A JavaScript source file could not be parsed and was skipped while other files continued harvesting.
@@ -2022,6 +2055,11 @@ public sealed record DocDetailsViewModel
     /// Gets a value indicating whether the page is a C# API reference document.
     /// </summary>
     public bool IsCSharpApiDoc { get; init; }
+
+    /// <summary>
+    /// Gets the internal C# rendering contract selected for the current details page.
+    /// </summary>
+    internal CSharpRenderKind CSharpRenderKind { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether the page should use the API reference reading surface.

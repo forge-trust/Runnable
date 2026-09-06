@@ -2161,6 +2161,9 @@ public class DocsController : Controller
                 HttpContext.Request.PathBase.Value,
                 _docsUrlBuilder.RouteRootPath)
         };
+        var csharpRenderKind = doc.CSharpNamespaceDocument is null
+            ? CSharpRenderKind.Legacy
+            : CSharpRenderKind.TypedNamespace;
         var metadata = doc.Metadata;
         var resolvedTitle = ResolveDisplayTitle(doc);
         var summary = metadata?.Summary;
@@ -2210,7 +2213,8 @@ public class DocsController : Controller
             CanonicalUrl = currentHref,
             Summary = summary,
             ShowSummary = showSummary,
-            IsCSharpApiDoc = doc.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase),
+            IsCSharpApiDoc = csharpRenderKind == CSharpRenderKind.TypedNamespace,
+            CSharpRenderKind = csharpRenderKind,
             IsApiSurfaceDoc = IsApiSurfaceDoc(doc),
             PageTypeBadge = pageTypeBadge,
             Component = component,

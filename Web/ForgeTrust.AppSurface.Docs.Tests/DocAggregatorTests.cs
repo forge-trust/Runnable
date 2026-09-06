@@ -3387,6 +3387,81 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocsAsync_ShouldProjectTypedCSharpSourceLinks_AndIndexTypedReaderText()
+    {
+        var root = Directory.CreateTempSubdirectory("appsurface-docaggregator-typed-csharp-").FullName;
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Join(root, "Api.cs"),
+                """
+                namespace Product.Api;
+
+                /// <summary>Typed service summary.</summary>
+                public sealed class Service
+                {
+                    /// <summary>Gets the typed value.</summary>
+                    public string Get(string name) => name;
+
+                    /// <summary>The typed display name.</summary>
+                    public string Name { get; } = string.Empty;
+                }
+
+                /// <summary>Current typed state.</summary>
+                public enum State
+                {
+                    Ready
+                }
+                """);
+            var options = new AppSurfaceDocsOptions
+            {
+                Source = new AppSurfaceDocsSourceOptions { RepositoryRoot = root },
+                Contributor = new AppSurfaceDocsContributorOptions
+                {
+                    Enabled = true,
+                    SourceRef = "deadbeef",
+                    SymbolSourceUrlTemplate = "https://example.test/blob/{ref}/{path}#L{line}"
+                }
+            };
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var environment = A.Fake<IWebHostEnvironment>();
+            A.CallTo(() => environment.ContentRootPath).Returns(root);
+            var aggregator = new DocAggregator(
+                [new CSharpDocHarvester(options, NullLogger<CSharpDocHarvester>.Instance)],
+                options,
+                environment,
+                new Memo(cache),
+                new AppSurfaceDocsHtmlSanitizer(),
+                _loggerFake);
+
+            var docs = await aggregator.GetDocsAsync();
+            var namespaceNode = Assert.Single(docs, node => node.Path == "Namespaces/Product.Api");
+            var document = Assert.IsType<CSharpNamespaceDocument>(namespaceNode.CSharpNamespaceDocument);
+            var type = Assert.Single(document.Types);
+            var overload = Assert.Single(Assert.Single(type.MethodGroups).Overloads);
+            var property = Assert.Single(type.Properties);
+            var @enum = Assert.Single(document.Enums);
+            var search = await aggregator.GetSearchIndexPayloadAsync();
+            var indexedDocument = Assert.Single(search.Documents, item => item.Id == "Namespaces/Product.Api.html");
+
+            Assert.Equal(string.Empty, namespaceNode.Content);
+            Assert.All(
+                new[] { type.SourceHref, overload.SourceHref, property.SourceHref, @enum.SourceHref },
+                href => Assert.StartsWith("https://example.test/blob/deadbeef/Api.cs#L", href, StringComparison.Ordinal));
+            Assert.Contains("Typed service summary.", indexedDocument.BodyText, StringComparison.Ordinal);
+            Assert.Contains("Gets the typed value.", indexedDocument.BodyText, StringComparison.Ordinal);
+            Assert.Contains("The typed display name.", indexedDocument.BodyText, StringComparison.Ordinal);
+            Assert.Contains("Current typed state.", indexedDocument.BodyText, StringComparison.Ordinal);
+            Assert.DoesNotContain("https://example.test", indexedDocument.BodyText, StringComparison.Ordinal);
+            Assert.DoesNotContain("Source", indexedDocument.BodyText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task GetSearchIndexPayloadAsync_ShouldOmitGeneratedSymbolSourceLinkText_RegardlessOfAttributeOrder()
     {
         A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._))
@@ -3689,6 +3764,54 @@ public class DocAggregatorTests : IDisposable
         Assert.Equal(DocHarvestDiagnosticCodes.HarvesterFailed, failed.Diagnostic?.Code);
         Assert.DoesNotContain(health.Diagnostics, diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.AllFailed);
         Assert.Equal(0, CountLogCalls(_loggerFake, LogLevel.Critical));
+    }
+
+    [Fact]
+    public async Task GetHarvestHealthAsync_ShouldDegradeForBuiltInCSharpParseFailure_WhilePublishingValidSibling()
+    {
+        var root = Directory.CreateTempSubdirectory("appsurface-docaggregator-csharp-").FullName;
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Join(root, "Valid.cs"),
+                """
+                namespace Product.Valid;
+                /// <summary>Valid.</summary>
+                public class Valid { }
+                """);
+            await File.WriteAllTextAsync(
+                Path.Join(root, "Broken.cs"),
+                """
+                namespace Product.Broken;
+                /// <summary>Broken.</summary>
+                public class Broken {
+                """);
+            var env = A.Fake<IWebHostEnvironment>();
+            A.CallTo(() => env.ContentRootPath).Returns(root);
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var aggregator = new DocAggregator(
+                [new CSharpDocHarvester(NullLogger<CSharpDocHarvester>.Instance)],
+                new AppSurfaceDocsOptions { Source = new AppSurfaceDocsSourceOptions { RepositoryRoot = root } },
+                env,
+                new Memo(cache),
+                _sanitizerFake,
+                _loggerFake);
+
+            var docs = await aggregator.GetDocsAsync();
+            var health = await aggregator.GetHarvestHealthAsync();
+
+            Assert.Contains(docs, doc => doc.Path == "Namespaces/Product.Valid" && doc.CSharpNamespaceDocument is not null);
+            Assert.DoesNotContain(docs, doc => doc.Path.StartsWith("Namespaces/Product.Broken", StringComparison.Ordinal));
+            Assert.Equal(DocHarvestHealthStatus.Failed, health.Status);
+            var failedHarvester = Assert.Single(health.Harvesters);
+            Assert.Equal(DocHarvesterHealthStatus.Failed, failedHarvester.Status);
+            Assert.Equal(DocHarvestDiagnosticCodes.CSharpParseFailed, failedHarvester.Diagnostic?.Code);
+            Assert.Contains(health.Diagnostics, diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.CSharpParseFailed);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

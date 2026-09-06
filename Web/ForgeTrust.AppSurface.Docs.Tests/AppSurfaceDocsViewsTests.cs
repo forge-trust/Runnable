@@ -3006,7 +3006,7 @@ public class AppSurfaceDocsViewsTests
     }
 
     [Fact]
-    public async Task DetailsView_ShouldHideTopH1ForCSharpDocs()
+    public async Task DetailsView_ShouldRenderShellH1ForLegacyCSharpDocs()
     {
         using var services = CreateServiceProvider(CreateDocs());
 
@@ -3015,8 +3015,121 @@ public class AppSurfaceDocsViewsTests
             "Details",
             c => c.Details("src/Example.cs.html"));
 
-        Assert.DoesNotContain("text-3xl font-bold text-white tracking-tight", html);
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var heading = Assert.Single(document.QuerySelectorAll("h1"));
+
+        Assert.Equal("Example", heading.TextContent.Trim());
         Assert.Contains("Example body", html);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldRenderTypedCSharpNamespaceWithOneShellH1_AndEncodedSemanticValues()
+    {
+        var typeAnchor = "Test-Calculator";
+        var groupAnchor = "Test-Calculator-Process-method-group";
+        var overloadAnchor = "Test-Calculator-Process-Int32";
+        var propertyAnchor = "Test-Calculator-String-Name-get";
+        var typedDocument = new CSharpNamespaceDocument(
+            "Test",
+            "Test",
+            [new CSharpChildNamespace("Namespaces/Test.Advanced", "Advanced")],
+            [
+                new CSharpTypeDocument(
+                    typeAnchor,
+                    "Calculator <unsafe>",
+                    new CSharpDocumentation(
+                    [
+                        new CSharpDocumentationSection(
+                            CSharpDocumentationSectionKind.Summary,
+                            null,
+                            null,
+                            null,
+                            [new CSharpXmlNode(CSharpXmlNodeKind.Paragraph, Children: [new CSharpXmlNode(CSharpXmlNodeKind.Text, "Adds <safe> values.")])])
+                    ]),
+                    [
+                        new CSharpMethodGroupDocument(
+                            groupAnchor,
+                            "Process",
+                            [
+                                new CSharpMethodDocument(
+                                    overloadAnchor,
+                                    new CSharpSignature("string", "Process", [new CSharpSignatureParameter(null, "int", "count")], []),
+                                    new CSharpDocumentation(
+                                    [
+                                        new CSharpDocumentationSection(
+                                            CSharpDocumentationSectionKind.Parameter,
+                                            "count",
+                                            null,
+                                            null,
+                                            [new CSharpXmlNode(CSharpXmlNodeKind.Text, "Number to process.")])
+                                    ]),
+                                    "/source/Calculator.cs#L12")
+                            ])
+                    ],
+                    [
+                        new CSharpPropertyDocument(
+                            propertyAnchor,
+                            "Name",
+                            new CSharpSignature("string", "Name", [], [], AccessorSignature: "get;"),
+                            new CSharpDocumentation([]))
+                    ]
+                )
+            ],
+            [],
+            [
+                new DocOutlineItem { Id = typeAnchor, Title = "Calculator", Level = 2 },
+                new DocOutlineItem { Id = groupAnchor, Title = "Process", Level = 3 },
+                new DocOutlineItem { Id = propertyAnchor, Title = "Name", Level = 3 }
+            ],
+            [],
+            "Calculator Process Name",
+            IntroHtml: "<section class=\"doc-namespace-intro\"><p>Intro text.</p></section>",
+            EntryPoints:
+            [
+                new DocNamespaceEntryPoint { Label = "Process", Target = groupAnchor },
+                new DocNamespaceEntryPoint { Label = "Missing", Target = "not-present" },
+                new DocNamespaceEntryPoint { Label = "Read", Summary = "Plain orientation." }
+            ]);
+        var doc = new DocNode(
+            "Test",
+            "Namespaces/Test",
+            string.Empty,
+            Metadata: new DocMetadata { NavGroup = "API Reference", CodeLanguage = "csharp" })
+        {
+            CSharpNamespaceDocument = typedDocument
+        };
+        var model = CreateDetailsViewModel(doc);
+        using var services = CreateServiceProvider([doc]);
+
+        var html = await RenderViewAsync(services, "/Views/Docs/Details.cshtml", model, pathBase: "/mounted");
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+
+        var heading = Assert.Single(document.QuerySelectorAll("h1"));
+        Assert.Equal("Test", heading.TextContent.Trim());
+        Assert.Empty(document.QuerySelectorAll(".docs-content h1"));
+        Assert.Equal("Calculator <unsafe>", document.QuerySelector($"#{typeAnchor} h2")?.TextContent.Trim());
+        Assert.Contains("Adds &lt;safe&gt; values.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Adds <safe> values.", html, StringComparison.Ordinal);
+        Assert.Equal("h4", document.QuerySelector(".doc-namespace-groups > h4")?.LocalName);
+        Assert.Equal("/mounted/docs/Namespaces/Test.Advanced", document.QuerySelector(".doc-namespace-groups a")?.GetAttribute("href"));
+        Assert.True(
+            html.IndexOf("doc-namespace-groups", StringComparison.Ordinal)
+            < html.IndexOf("doc-namespace-intro", StringComparison.Ordinal));
+        Assert.True(
+            html.IndexOf("doc-namespace-intro", StringComparison.Ordinal)
+            < html.IndexOf("doc-namespace-entry-points", StringComparison.Ordinal));
+        Assert.True(
+            html.IndexOf("doc-namespace-entry-points", StringComparison.Ordinal)
+            < html.IndexOf("doc-type", StringComparison.Ordinal));
+        Assert.Equal("#" + groupAnchor, document.QuerySelector(".doc-namespace-entry-points a")?.GetAttribute("href"));
+        Assert.Contains("Target unavailable", html, StringComparison.Ordinal);
+        Assert.Contains("Plain orientation.", html, StringComparison.Ordinal);
+        Assert.Equal("/mounted/source/Calculator.cs#L12", document.QuerySelector($"#{overloadAnchor} .doc-symbol-source-link")?.GetAttribute("href"));
+        Assert.Equal("details", document.QuerySelector($"#{overloadAnchor}")?.LocalName);
+        Assert.True(document.QuerySelector($"#{overloadAnchor}")!.HasAttribute("open"));
+        Assert.Equal("Method", document.QuerySelector($"#{groupAnchor} .doc-kind")?.TextContent.Trim());
+        Assert.Equal("article", document.QuerySelector($"#{propertyAnchor} .doc-property")?.LocalName);
+        Assert.Equal("Property", document.QuerySelector($"#{propertyAnchor} .doc-kind")?.TextContent.Trim());
     }
 
     [Fact]
@@ -3058,7 +3171,7 @@ public class AppSurfaceDocsViewsTests
     }
 
     [Fact]
-    public async Task DetailsView_ShouldKeepLeadingDocumentH1_WhenShellDoesNotOwnPageH1()
+    public async Task DetailsView_ShouldSuppressLeadingDocumentH1_ForLegacyCSharpContent()
     {
         var doc = new DocNode(
             "Example",
@@ -3070,9 +3183,10 @@ public class AppSurfaceDocsViewsTests
         var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
         var heading = Assert.Single(document.QuerySelectorAll("h1"));
 
-        Assert.Equal("example-api", heading.Id);
-        Assert.Equal("Example API", heading.TextContent.Trim());
+        Assert.Null(heading.Id);
+        Assert.Equal("Example", heading.TextContent.Trim());
         Assert.Contains("Example body", html);
+        Assert.DoesNotContain("id=\"example-api\"", html);
     }
 
     [Fact]
@@ -5501,7 +5615,10 @@ public class AppSurfaceDocsViewsTests
             Title = string.IsNullOrWhiteSpace(metadata?.Title) ? doc.Title : metadata!.Title!.Trim(),
             Summary = metadata?.Summary,
             ShowSummary = !string.IsNullOrWhiteSpace(metadata?.Summary) && metadata?.SummaryIsDerived != true,
-            IsCSharpApiDoc = doc.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase),
+            IsCSharpApiDoc = doc.CSharpNamespaceDocument is not null,
+            CSharpRenderKind = doc.CSharpNamespaceDocument is null
+                ? CSharpRenderKind.Legacy
+                : CSharpRenderKind.TypedNamespace,
             IsApiSurfaceDoc = !IsMarkdownDoc(doc.Path)
                               || IsApiSurfacePageType(metadata?.PageType),
             PageTypeBadge = DocMetadataPresentation.ResolvePageTypeBadge(metadata?.PageType),

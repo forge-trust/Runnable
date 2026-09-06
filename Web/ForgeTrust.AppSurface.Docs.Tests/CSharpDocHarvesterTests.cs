@@ -195,6 +195,29 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_WithBuiltInContextShouldSkipOversizedFileAndProjectSibling()
+    {
+        var options = CreateOptionsWithCSharpMaxFileSize(128);
+        var harvester = CreateHarvester(options);
+        await WriteUtf8Async(
+            CombineUnder(_testRoot, "OversizedService.cs"),
+            CreateDocumentedClassSource("OversizedService", new string('x', 512)));
+        await WriteUtf8Async(
+            CombineUnder(_testRoot, "SiblingService.cs"),
+            CreateDocumentedClassSource("SiblingService", "Sibling semantic documentation."));
+
+        var results = await harvester.HarvestAsync(CreateContextWithDefaultPolicy());
+        var namespaceNode = Assert.Single(results, node => node.Path == "Namespaces/Product.Api");
+        var document = Assert.IsType<CSharpNamespaceDocument>(namespaceNode.CSharpNamespaceDocument);
+        var diagnostic = Assert.Single(GetDiagnostics(harvester));
+
+        Assert.Equal("SiblingService", Assert.Single(document.Types).DisplayName);
+        Assert.DoesNotContain(document.Types, type => type.DisplayName == "OversizedService");
+        Assert.Equal(DocHarvestDiagnosticCodes.CSharpFileTooLarge, diagnostic.Code);
+        Assert.Contains("OversizedService.cs", diagnostic.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetHarvestHealthAsync_ShouldIncludeCSharpFileTooLargeWithoutStrictBlockingByDefault()
     {
         var options = CreateOptionsWithCSharpMaxFileSize(128);
@@ -374,6 +397,91 @@ public class CSharpDocHarvesterTests : IDisposable
 
         Assert.DoesNotContain(results, n => n.Title == "InternalService");
         Assert.DoesNotContain(results, n => n.Path == "Namespaces/Product.Internal");
+    }
+
+    [Fact]
+    public async Task HarvestAsync_WithBuiltInContextShouldProjectTypedNamespace_AndKeepLegacyPublicContract()
+    {
+        await File.WriteAllTextAsync(
+            CombineUnder(_testRoot, "Api.cs"),
+            """
+            namespace Product.Api;
+
+            /// <summary>Service <c>summary</c>.</summary>
+            public sealed class Service
+            {
+                /// <summary>Gets a result for <paramref name="name"/>.</summary>
+                /// <param name="name">The name.</param>
+                /// <returns>A result.</returns>
+                public string Get(string name) => name;
+            }
+            """);
+
+        var typedResults = await _harvester.HarvestAsync(CreateContextWithDefaultPolicy());
+        var legacyResults = await _harvester.HarvestAsync(_testRoot);
+
+        var typedNamespace = Assert.Single(typedResults, node => node.Path == "Namespaces/Product.Api");
+        var typedDocument = Assert.IsType<CSharpNamespaceDocument>(typedNamespace.CSharpNamespaceDocument);
+        Assert.Equal(string.Empty, typedNamespace.Content);
+        var type = Assert.Single(typedDocument.Types);
+        Assert.Equal("Service", type.DisplayName);
+        var overload = Assert.Single(Assert.Single(type.MethodGroups).Overloads);
+        Assert.Equal("Get", overload.Signature.Name);
+        Assert.Contains("summary", typedDocument.ReaderText, StringComparison.Ordinal);
+        Assert.Contains("name", typedDocument.ReaderText, StringComparison.Ordinal);
+
+        var legacyNamespace = Assert.Single(legacyResults, node => node.Path == "Namespaces/Product.Api");
+        Assert.Null(legacyNamespace.CSharpNamespaceDocument);
+        Assert.Contains("doc-type", legacyNamespace.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_WithBuiltInContextShouldOmitSyntaxErrorAtomically_AndReportDiagnostic()
+    {
+        await File.WriteAllTextAsync(
+            CombineUnder(_testRoot, "Broken.cs"),
+            """
+            namespace Product.Api;
+            /// <summary>Broken.</summary>
+            public class Broken {
+            """);
+
+        var results = await _harvester.HarvestAsync(CreateContextWithDefaultPolicy());
+        var diagnostic = Assert.Single(GetDiagnostics(_harvester));
+
+        Assert.DoesNotContain(results, node => node.Path.StartsWith("Namespaces/Product.Api", StringComparison.Ordinal));
+        Assert.Equal(DocHarvestDiagnosticCodes.CSharpParseFailed, diagnostic.Code);
+        Assert.Equal(DocHarvestDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Broken.cs", diagnostic.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_WithBuiltInContextShouldRetainMalformedXmlDeclarationShell_AndReportRedactedWarning()
+    {
+        await File.WriteAllTextAsync(
+            CombineUnder(_testRoot, "MalformedXml.cs"),
+            """
+            namespace Product.Api;
+
+            /// <summary>Broken <c>markup</summary>
+            public sealed class BrokenDocumentation { }
+            """);
+
+        var results = await _harvester.HarvestAsync(CreateContextWithDefaultPolicy());
+        var namespaceNode = Assert.Single(results, node => node.Path == "Namespaces/Product.Api");
+        var document = Assert.IsType<CSharpNamespaceDocument>(namespaceNode.CSharpNamespaceDocument);
+        var type = Assert.Single(document.Types);
+        var diagnostic = Assert.Single(GetDiagnostics(_harvester));
+
+        Assert.Equal("BrokenDocumentation", type.DisplayName);
+        Assert.Null(type.Documentation);
+        Assert.Contains(document.Outline, item => item.Id == type.AnchorId && item.Level == 2);
+        Assert.Equal(DocHarvestDiagnosticCodes.CSharpXmlCommentMalformed, diagnostic.Code);
+        Assert.Equal(DocHarvestDiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Contains("MalformedXml.cs", diagnostic.Problem, StringComparison.Ordinal);
+        Assert.DoesNotContain(_testRoot, diagnostic.Problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("<summary>", diagnostic.Problem, StringComparison.Ordinal);
+        Assert.Contains("Repair", diagnostic.Fix, StringComparison.Ordinal);
     }
 
     [Fact]

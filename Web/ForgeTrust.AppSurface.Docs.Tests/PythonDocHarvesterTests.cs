@@ -89,6 +89,47 @@ public sealed class PythonDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_UsesLastPythonRedefinitionAndPublishesEachExportOnce()
+    {
+        await WriteAsync(
+            "worker.py",
+            """"
+            __all__ = ["Worker", "Worker", "run", "run"]
+
+            class Worker:
+                """Stale worker."""
+
+                def execute(self):
+                    """Stale method."""
+
+            class Worker:
+                """Final worker."""
+
+                def execute(self):
+                    """Final method."""
+
+            def run():
+                """Stale run."""
+
+            def run():
+                """Final run."""
+            """");
+        var harvester = CreateHarvester(CreateEnabledOptions("worker.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        var module = Assert.Single(docs, document => document.Path == "api/python/worker");
+        Assert.Contains("Final worker.", module.Content, StringComparison.Ordinal);
+        Assert.Contains("Final method.", module.Content, StringComparison.Ordinal);
+        Assert.Contains("Final run.", module.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stale", module.Content, StringComparison.Ordinal);
+        Assert.Single(docs, document => document.Path == "api/python/worker#class-worker");
+        Assert.Single(docs, document => document.Path == "api/python/worker#method-class-worker-execute");
+        Assert.Single(docs, document => document.Path == "api/python/worker#function-run");
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
     public async Task HarvestAsync_RejectsMissingAndDynamicPublicBoundaries()
     {
         await WriteAsync("missing.py", "def visible():\n    \"\"\"Visible.\"\"\"\n");

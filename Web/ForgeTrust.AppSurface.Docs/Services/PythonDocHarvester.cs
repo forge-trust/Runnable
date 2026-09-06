@@ -317,10 +317,12 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
             .Select(static declaration => CreateDeclaration(declaration!))
             .Where(static declaration => declaration is not null)
             .Select(static declaration => declaration!)
-            .ToDictionary(static declaration => declaration.Name, StringComparer.Ordinal);
+            .GroupBy(static declaration => declaration.Name, StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.Last(), StringComparer.Ordinal);
         var supportedNames = declarations.Keys.ToHashSet(StringComparer.Ordinal);
         var declaredNames = GetDeclaredModuleNames(moduleStatements);
-        foreach (var exportName in boundary)
+        var publicNames = boundary.Distinct(StringComparer.Ordinal).ToArray();
+        foreach (var exportName in publicNames)
         {
             if (supportedNames.Contains(exportName))
             {
@@ -343,7 +345,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
                     : "Correct the __all__ entry, add the matching class or function declaration, or remove the stale export name."));
         }
 
-        var exportedDeclarations = boundary
+        var exportedDeclarations = publicNames
             .Where(declarations.ContainsKey)
             .Select(name => declarations[name])
             .Where(static declaration => declaration.Docstring is not null || declaration.Members.Count > 0)
@@ -477,6 +479,9 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
                 .Where(static declaration => declaration is not null)
                 .Select(static declaration => declaration! with { Kind = GetMethodKind(declaration!) })
                 .Where(static declaration => declaration.Docstring is not null)
+                .GroupBy(static declaration => declaration.Name, StringComparer.Ordinal)
+                .Select(static group => group.Last())
+                .OrderBy(static declaration => declaration.StartLine)
                 .ToArray();
 
         return new PythonDeclaration(

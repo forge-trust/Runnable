@@ -311,7 +311,7 @@ internal sealed class PostgreSqlDurableRuntimePump : IDurableRuntimePump
         CancellationToken cancellationToken)
     {
         using var executorStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var running = _executionBoundary.InvokeAsync(invocation, executorStop.Token).AsTask();
+        var running = _executionBoundary.InvokeExitAsync(invocation, executorStop.Token).AsTask();
         var current = claim;
         var heartbeatInterval = _registration.Options.HeartbeatStaleAfter / 3;
         var nextHeartbeat = DateTimeOffset.UtcNow + heartbeatInterval;

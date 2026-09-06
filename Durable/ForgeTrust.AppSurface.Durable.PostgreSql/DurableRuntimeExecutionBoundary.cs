@@ -12,14 +12,14 @@ internal interface IDurableRuntimeExecutionBoundary
 {
     /// <summary>Invokes one prepared provider operation and returns its encoded exit fact.</summary>
     /// <remarks>Forwards cancellation to provider execution and owns no claim, permit, completion, or tracing state.</remarks>
-    ValueTask<DurableEncodedWorkExit> InvokeAsync(
+    ValueTask<DurableEncodedWorkExit> InvokeExitAsync(
         DurablePreparedWorkInvocation invocation,
         CancellationToken cancellationToken);
 }
 
 internal sealed class UninstrumentedDurableRuntimeExecutionBoundary : IDurableRuntimeExecutionBoundary
 {
-    public ValueTask<DurableEncodedWorkExit> InvokeAsync(
+    public ValueTask<DurableEncodedWorkExit> InvokeExitAsync(
         DurablePreparedWorkInvocation invocation,
         CancellationToken cancellationToken)
     {

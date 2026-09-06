@@ -357,7 +357,17 @@ public sealed class DurableWorkExitRegistration<TWork, TResult, TExecutor> : Dur
     /// <inheritdoc />
     public override bool CanReconcile => false;
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Invokes the exit-aware executor through the legacy success-only provider boundary.
+    /// </summary>
+    /// <remarks>
+    /// Providers that support typed exits must invoke <see cref="DurablePreparedWork.InvokeExitAsync(CancellationToken)"/>
+    /// through the provider invocation boundary instead. This compatibility member returns an encoded result only for
+    /// <see cref="DurableWorkExitKind.Succeeded"/>; every non-success exit throws
+    /// <see cref="DurableWorkExitCompatibilityException"/> so a legacy provider follows its conservative ambiguous
+    /// external-outcome path after the effect permit.
+    /// </remarks>
+    /// <exception cref="DurableWorkExitCompatibilityException">Thrown when the exit-aware executor returns a non-success exit.</exception>
     public override async ValueTask<DurableEncodedPayload> InvokeAsync(
         IServiceProvider services,
         DurableWorkExecutionContext work,
@@ -506,6 +516,22 @@ public sealed class DurableWorkRegistry : IDurableWorkRegistry
 /// </summary>
 public static class DurableServiceCollectionExtensions
 {
+    private static IServiceCollection AddWorkRegistration<TExecutor>(
+        IServiceCollection services,
+        DurableWorkRegistration registration,
+        IDurablePayloadCodec workCodec,
+        IDurablePayloadCodec resultCodec)
+        where TExecutor : class
+    {
+        services.AddSingleton<IDurablePayloadCodec>(workCodec);
+        services.AddSingleton<IDurablePayloadCodec>(resultCodec);
+        services.AddSingleton<DurableWorkRegistration>(registration);
+        services.AddTransient<TExecutor>();
+        services.TryAddSingleton<IDurablePayloadCodecRegistry, DurablePayloadCodecRegistry>();
+        services.TryAddSingleton<IDurableWorkRegistry, DurableWorkRegistry>();
+        return services;
+    }
+
     /// <summary>
     /// Registers one versioned work contract, its allowlisted codecs, and its transient executor.
     /// </summary>
@@ -534,13 +560,7 @@ public static class DurableServiceCollectionExtensions
             providerSafety,
             workCodec,
             resultCodec);
-        services.AddSingleton<IDurablePayloadCodec>(workCodec);
-        services.AddSingleton<IDurablePayloadCodec>(resultCodec);
-        services.AddSingleton<DurableWorkRegistration>(registration);
-        services.AddTransient<TExecutor>();
-        services.TryAddSingleton<IDurablePayloadCodecRegistry, DurablePayloadCodecRegistry>();
-        services.TryAddSingleton<IDurableWorkRegistry, DurableWorkRegistry>();
-        return services;
+        return AddWorkRegistration<TExecutor>(services, registration, workCodec, resultCodec);
     }
 
     /// <summary>
@@ -578,13 +598,7 @@ public static class DurableServiceCollectionExtensions
             workVersion,
             workCodec,
             resultCodec);
-        services.AddSingleton<IDurablePayloadCodec>(workCodec);
-        services.AddSingleton<IDurablePayloadCodec>(resultCodec);
-        services.AddSingleton<DurableWorkRegistration>(registration);
-        services.AddTransient<TExecutor>();
-        services.TryAddSingleton<IDurablePayloadCodecRegistry, DurablePayloadCodecRegistry>();
-        services.TryAddSingleton<IDurableWorkRegistry, DurableWorkRegistry>();
-        return services;
+        return AddWorkRegistration<TExecutor>(services, registration, workCodec, resultCodec);
     }
 
     /// <summary>
@@ -616,13 +630,8 @@ public static class DurableServiceCollectionExtensions
             workCodec,
             resultCodec,
             provider => provider.GetRequiredService<TReconciler>());
-        services.AddSingleton<IDurablePayloadCodec>(workCodec);
-        services.AddSingleton<IDurablePayloadCodec>(resultCodec);
-        services.AddSingleton<DurableWorkRegistration>(registration);
-        services.AddTransient<TExecutor>();
+        AddWorkRegistration<TExecutor>(services, registration, workCodec, resultCodec);
         services.AddTransient<TReconciler>();
-        services.TryAddSingleton<IDurablePayloadCodecRegistry, DurablePayloadCodecRegistry>();
-        services.TryAddSingleton<IDurableWorkRegistry, DurableWorkRegistry>();
         return services;
     }
 

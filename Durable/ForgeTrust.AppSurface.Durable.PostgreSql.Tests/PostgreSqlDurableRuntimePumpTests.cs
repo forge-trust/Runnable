@@ -135,6 +135,113 @@ public sealed class PostgreSqlDurableRuntimePumpTests
         Assert.Equal(expectedPermitStatus, await permit.ExecuteScalarAsync());
     }
 
+    [Fact]
+    public async Task RunOnceAsync_RegistersAndExecutesTheTypedExitPathThroughThePublicServiceCollectionExtension()
+    {
+        await using var database = await PostgreSqlIntegrationTestDatabase.TryCreateAsync();
+        var schema = new PostgreSqlDurableRuntimeSchemaManager(database.DataSource);
+        await schema.ApplyAsync();
+        var epoch = Guid.NewGuid();
+        await schema.InitializeRuntimeEpochAsync(epoch, "runtime-pump-tests", "typed-exit-extension");
+        var workCodec = new PostgreSqlOpaqueTestCodec("tests.runtime-pump.typed-exit.extension.input", "v1");
+        var resultCodec = new PostgreSqlOpaqueTestCodec("tests.runtime-pump.typed-exit.extension.result", "v1");
+        var services = new ServiceCollection();
+        services.AddDurableWorkExit<byte[], byte[], SuccessfulTypedExitExecutor>(
+            "tests.runtime-pump.typed-exit.extension",
+            "v2",
+            workCodec,
+            resultCodec);
+        services.AddAppSurfaceDurablePostgreSql(
+            database.DataSource,
+            database.CreateDataSource(),
+            new PostgreSqlDurableWorkOptions(epoch, (await schema.GetStatusAsync()).StoreId),
+            new PostgreSqlDurableScheduleOptions("appsurface"),
+            options =>
+            {
+                options.WorkerId = "runtime-pump-typed-exit-extension-worker";
+                options.SendWakeNotifications = false;
+            });
+        await using var provider = services.BuildServiceProvider();
+        var registration = Assert.IsType<DurableWorkExitRegistration<byte[], byte[], SuccessfulTypedExitExecutor>>(
+            provider.GetRequiredService<IDurableWorkRegistry>().GetRequired("tests.runtime-pump.typed-exit.extension", "v2"));
+        var accepted = await provider.GetRequiredService<IDurableWorkClient>().EnqueueAsync(new DurableWorkRequest(
+            new DurableScopeId("runtime-pump-typed-exit-extension-scope"),
+            new DurableCommandId("runtime-pump-typed-exit-extension-command"),
+            "runtime-pump-typed-exit-extension-key",
+            registration.WorkName,
+            registration.WorkVersion,
+            workCodec.Encode(Encoding.UTF8.GetBytes("input")),
+            DurableProviderSafety.ProviderKeyed));
+        Assert.True(accepted.IsSuccess);
+
+        var result = await provider.GetRequiredService<IDurableRuntimePump>().RunOnceAsync(
+            new DurableRuntimePumpRequest(maximumItems: 1, surfaces: DurableRuntimeSurface.Work));
+        var snapshot = await provider.GetRequiredService<IDurableWorkControlClient>().GetAsync(
+            new DurableWorkGetRequest(new DurableScopeId("runtime-pump-typed-exit-extension-scope"), accepted.Value!.WorkId));
+
+        Assert.Equal(1, result.Processed);
+        Assert.True(snapshot.IsSuccess);
+        Assert.Equal(DurableWorkState.Succeeded, snapshot.Value!.State);
+        Assert.Equal("completed", snapshot.Value.TerminalCode);
+    }
+
+    [Fact]
+    public async Task RunOnceAsync_FailsClosedWhenALegacyBoundaryInvokesANonSuccessTypedExitAfterTheEffectPermit()
+    {
+        await using var database = await PostgreSqlIntegrationTestDatabase.TryCreateAsync();
+        var schema = new PostgreSqlDurableRuntimeSchemaManager(database.DataSource);
+        await schema.ApplyAsync();
+        var epoch = Guid.NewGuid();
+        await schema.InitializeRuntimeEpochAsync(epoch, "runtime-pump-tests", "typed-exit-legacy-boundary");
+        var workCodec = new PostgreSqlOpaqueTestCodec("tests.runtime-pump.typed-exit.legacy.input", "v1");
+        var resultCodec = new PostgreSqlOpaqueTestCodec("tests.runtime-pump.typed-exit.legacy.result", "v1");
+        var registration = new DurableWorkExitRegistration<byte[], byte[], TypedExitExecutor>(
+            "tests.runtime-pump.typed-exit.legacy",
+            "v2",
+            workCodec,
+            resultCodec);
+        var services = new ServiceCollection();
+        services.AddSingleton<DurableWorkRegistration>(registration);
+        services.AddSingleton(new TypedExitExecutor(DurableWorkExitKind.RetryBeforeEffect, "app.gmail.sender_list_transient"));
+        services.AddAppSurfaceDurablePostgreSql(
+            database.DataSource,
+            database.CreateDataSource(),
+            new PostgreSqlDurableWorkOptions(epoch, (await schema.GetStatusAsync()).StoreId),
+            new PostgreSqlDurableScheduleOptions("appsurface"),
+            options =>
+            {
+                options.WorkerId = "runtime-pump-typed-exit-legacy-worker";
+                options.SendWakeNotifications = false;
+            });
+        services.AddSingleton<IDurableRuntimeExecutionBoundary, LegacySuccessOnlyExecutionBoundary>();
+        await using var provider = services.BuildServiceProvider();
+        var scope = new DurableScopeId("runtime-pump-typed-exit-legacy-scope");
+        var accepted = await provider.GetRequiredService<IDurableWorkClient>().EnqueueAsync(new DurableWorkRequest(
+            scope,
+            new DurableCommandId("runtime-pump-typed-exit-legacy-command"),
+            "runtime-pump-typed-exit-legacy-key",
+            registration.WorkName,
+            registration.WorkVersion,
+            workCodec.Encode(Encoding.UTF8.GetBytes("input")),
+            DurableProviderSafety.ProviderKeyed));
+        Assert.True(accepted.IsSuccess);
+
+        var result = await provider.GetRequiredService<IDurableRuntimePump>().RunOnceAsync(
+            new DurableRuntimePumpRequest(maximumItems: 1, surfaces: DurableRuntimeSurface.Work));
+        var snapshot = await provider.GetRequiredService<IDurableWorkControlClient>().GetAsync(
+            new DurableWorkGetRequest(scope, accepted.Value!.WorkId));
+
+        Assert.Equal(1, result.Failed);
+        Assert.True(snapshot.IsSuccess);
+        Assert.Equal(DurableWorkState.Suspended, snapshot.Value!.State);
+        Assert.Equal(DurableProblemCodes.AmbiguousExternalOutcome, snapshot.Value.TerminalCode);
+        await using var permit = database.DataSource.CreateCommand(
+            "SELECT status FROM appsurface_durable.effect_permit WHERE scope_id = @scope_id AND work_id = @work_id;");
+        permit.Parameters.AddWithValue("scope_id", scope.Value);
+        permit.Parameters.AddWithValue("work_id", accepted.Value.WorkId.Value);
+        Assert.Equal("ambiguous", await permit.ExecuteScalarAsync());
+    }
+
     [Theory]
     [InlineData(TypedExitFailure.Throws)]
     [InlineData(TypedExitFailure.ReturnsNull)]
@@ -1881,6 +1988,14 @@ public sealed class PostgreSqlDurableRuntimePumpTests
         Assert.Equal(1, await command.ExecuteNonQueryAsync());
     }
 
+    private sealed class LegacySuccessOnlyExecutionBoundary : IDurableRuntimeExecutionBoundary
+    {
+        public async ValueTask<DurableEncodedWorkExit> InvokeExitAsync(
+            DurablePreparedWorkInvocation invocation,
+            CancellationToken cancellationToken) =>
+            DurableEncodedWorkExit.Succeeded(await invocation.InvokeAsync(cancellationToken).ConfigureAwait(false));
+    }
+
     private static async ValueTask InsertAmbiguousPermitFromAnotherAttemptAsync(
         NpgsqlDataSource dataSource,
         DurableWorkSnapshot snapshot,
@@ -1995,6 +2110,14 @@ public sealed class PostgreSqlDurableRuntimePumpTests
                 DurableWorkExitKind.AmbiguousExternalOutcome => DurableWorkExit<byte[]>.AmbiguousExternalOutcome(code),
                 _ => throw new InvalidOperationException("Unexpected test exit kind."),
             });
+    }
+
+    private sealed class SuccessfulTypedExitExecutor : IDurableWorkExitExecutor<byte[], byte[]>
+    {
+        public ValueTask<DurableWorkExit<byte[]>> ExecuteAsync(
+            DurableWorkerEnvelope<byte[]> work,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(DurableWorkExit<byte[]>.Succeeded(Encoding.UTF8.GetBytes("result")));
     }
 
     public enum TypedExitFailure

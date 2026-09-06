@@ -122,13 +122,15 @@ internal static void Register(IServiceCollection services) =>
 
 The executor returns one of four closed facts: `Succeeded(result)`, `RetryBeforeEffect(code)`,
 `FailedTerminal(code)`, or `AmbiguousExternalOutcome(code)`. `RetryBeforeEffect` means the executor can prove it did
-not begin its external provider effect—not that no Durable permit was committed. The provider still owns permit,
+not begin an external provider mutation; read-only provider I/O is allowed. It does not mean that no Durable permit
+was committed. The provider still owns permit,
 claim, cancellation, retry-delay, deadline, and fencing decisions; an exit has no direct state API, custom retry
 delay, hook, metadata envelope, or exception classifier.
 
 Use application-owned, privacy-safe codes such as `app.gmail.sender_list_transient`. Codes use the normal Durable
-identifier alphabet and a 120-character maximum. Do not reuse reserved `ASDURxxx` provider diagnostics: those explain
-provider/runtime facts, while an application exit code explains the executor fact. See the [Work protocol's typed
+identifier alphabet and a 120-character maximum. The reserved `ASDUR` prefix is rejected case-insensitively, so do
+not reuse any provider diagnostic code: those explain provider/runtime facts, while an application exit code explains
+the executor fact. See the [Work protocol's typed
 exit rules](../work-protocol-v1.md#typed-executor-exits) and the [diagnostics catalog](../../troubleshooting/durable-diagnostics.md#exit-aware-work-codes).
 
 Before registering the new immutable Work version, deploy exit-capable Provider/PostgreSQL binaries, confirm every

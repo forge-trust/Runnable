@@ -85,14 +85,14 @@ defines the public factories and application-code boundary.
 | Returned executor fact | Completion fact after a committed permit | Required PostgreSQL behavior |
 |---|---|---|
 | `Succeeded(result)` | `Succeeded` | Persist the encoded result under the existing success/cancellation rules. |
-| `RetryBeforeEffect(code)` | `ProvenNoEffect` | The executor proved it did not begin provider I/O. Apply the normal retry/deadline/cancellation/fence rules and record `proven_no_effect`; do not infer this fact from a read success, exception type, cancellation, or absence of a permit. |
+| `RetryBeforeEffect(code)` | `ProvenNoEffect` | The executor proved it did not begin a provider mutation; read-only provider I/O is allowed. Apply the normal retry/deadline/cancellation/fence rules and record `proven_no_effect`; do not infer this fact from a read success, exception type, cancellation, or absence of a permit. |
 | `FailedTerminal(code)` | `FailedTerminal` | This is a local terminal fact, not proof that a permitted provider effect was absent. Apply the existing post-permit provider-safety matrix. |
 | `AmbiguousExternalOutcome(code)` | `AmbiguousExternalOutcome` | Preserve ambiguity and apply the existing reconciliation/manual-resolution behavior. |
 | Exception, cancellation, lease loss, codec failure, or legacy-boundary compatibility failure | `AmbiguousExternalOutcome` with `ASDUR106` | Treat the post-permit outcome as unknown. |
 
 Application codes are bounded, identifier-safe, application-owned facts (for example,
-`app.gmail.sender_list_transient`) and are distinct from the reserved `ASDURxxx` provider diagnostics. The provider
-must not put raw response data, payload bytes, provider diagnostics, or exception text in an application exit code.
+`app.gmail.sender_list_transient`) and cannot use the reserved `ASDUR` prefix, case-insensitively. The provider must
+not put raw response data, payload bytes, provider diagnostics, or exception text in an application exit code.
 
 Exit-aware Work requires a provider that calls `InvokeExitAsync`. An old success-only provider can preserve a success,
 but a non-success exit throws `DurableWorkExitCompatibilityException` and follows the `ASDUR106` path. Rolling

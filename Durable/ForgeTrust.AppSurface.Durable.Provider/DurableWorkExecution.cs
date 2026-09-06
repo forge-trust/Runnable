@@ -126,6 +126,13 @@ public sealed class DurablePreparedWorkInvocation
     /// prepared Work retains exact success behavior because its default implementation wraps <see cref="InvokeAsync"/>
     /// as <see cref="DurableWorkExitKind.Succeeded"/>.
     /// </remarks>
+    /// <param name="cancellationToken">
+    /// The optional token forwarded unchanged to the prepared executor; the default is <see cref="CancellationToken.None"/>.
+    /// </param>
+    /// <returns>
+    /// The encoded exit fact. Legacy prepared Work produces a <see cref="DurableWorkExitKind.Succeeded"/> fact
+    /// wrapping the encoded terminal result.
+    /// </returns>
     public ValueTask<DurableEncodedWorkExit> InvokeExitAsync(CancellationToken cancellationToken = default) =>
         _preparedWork.InvokeExitAsync(cancellationToken);
 }

@@ -14,7 +14,7 @@ public enum DurableWorkExitKind
     /// <summary>The executor produced a terminal result.</summary>
     Succeeded = 0,
 
-    /// <summary>The executor proved that it did not begin the provider effect.</summary>
+    /// <summary>The executor proved that it did not begin a provider mutation.</summary>
     RetryBeforeEffect = 1,
 
     /// <summary>The executor reached a terminal local outcome.</summary>
@@ -31,8 +31,8 @@ public enum DurableWorkExitKind
 /// <remarks>
 /// Only <see cref="Succeeded(TResult)"/> carries a result. The other factories require a bounded,
 /// identifier-safe application code and do not provide a result. An executor must return
-/// <see cref="RetryBeforeEffect(string)"/> only when it can prove the failure happened before provider I/O;
-/// this boundary is about the provider effect, not the Durable effect permit.
+/// <see cref="RetryBeforeEffect(string)"/> only when it can prove the failure happened before a provider mutation.
+/// Read-only provider I/O is allowed; this boundary is about the provider effect, not the Durable effect permit.
 /// </remarks>
 public sealed class DurableWorkExit<TResult>
 {
@@ -67,13 +67,14 @@ public sealed class DurableWorkExit<TResult>
     }
 
     /// <summary>
-    /// Creates an exit that proves the executor did not begin provider I/O.
+    /// Creates an exit that proves the executor did not begin a provider mutation.
     /// </summary>
     /// <param name="code">A bounded, identifier-safe application diagnostic code.</param>
     /// <returns>A no-effect retry fact for the provider to evaluate.</returns>
     /// <remarks>
-    /// This does not mean a Durable effect permit was absent. It asserts only that the executor did not begin the
-    /// external provider effect; the provider still decides whether the fact is current and retryable.
+    /// This does not mean a Durable effect permit was absent. It asserts only that the executor did not begin an
+    /// external provider mutation; read-only provider I/O is allowed. The provider still decides whether the fact is
+    /// current and retryable.
     /// </remarks>
     public static DurableWorkExit<TResult> RetryBeforeEffect(string code) =>
         new(DurableWorkExitKind.RetryBeforeEffect, ValidateCode(code), default);

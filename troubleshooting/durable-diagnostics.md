@@ -84,16 +84,18 @@ the host. Migration, role, schema, or epoch failures use their own schema/runtim
 An `IDurableWorkExitExecutor<TWork,TResult>` returns an application-owned code only with a non-success exit. Codes are
 bounded to 120 characters and use Durable's identifier alphabet; a safe example is
 `app.gmail.sender_list_transient`. They must never contain provider responses, payload values, credentials, URLs,
-exception messages, or a reserved `ASDURxxx` code.
+exception messages, or a code beginning with the reserved `ASDUR` prefix, case-insensitively.
 
 `RetryBeforeEffect` is the sole exit that can enter PostgreSQL's existing `proven_no_effect` retry path. It means the
-executor can prove it did not begin external provider I/O, not that Durable did not issue an effect permit. The provider
-still evaluates cancellation, retry limits, deadline, lease/scope/epoch/revision fences, and dispatch state. A
+executor can prove it did not begin an external provider mutation; read-only provider I/O is allowed. It does not mean
+that Durable did not issue an effect permit. The provider still evaluates cancellation, retry limits, deadline,
+lease/scope/epoch/revision fences, and dispatch state. A
 `FailedTerminal` exit after a permit is not evidence that no external effect occurred; V1's `ProviderKeyed` contract
 therefore preserves ambiguity safety. `AmbiguousExternalOutcome` explicitly preserves the same safety path.
 
-Exceptions, cancellation, lease loss, serialization failures, and a non-success exit invoked through a legacy
-success-only provider boundary use `ASDUR106`, not an application retry code. Operators should use the
+After the effect permit, executor exceptions, cancellation, lease loss, result-serialization failures, and a
+non-success exit invoked through a legacy success-only provider boundary use `ASDUR106`, not an application retry
+code. Registration or codec resolution failures before the permit use `ASDUR109`. Operators should use the
 [typed-exit protocol](../Durable/work-protocol-v1.md#typed-executor-exits) to distinguish a user-returned fact from a
 provider-owned diagnostic.
 

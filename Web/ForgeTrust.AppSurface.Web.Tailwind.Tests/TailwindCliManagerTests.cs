@@ -644,6 +644,41 @@ public sealed class TailwindCliManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task Resolver_ReportsRetryExhaustionAfterTheBoundedBinaryDownloadAttempts()
+    {
+        var payload = Encoding.UTF8.GetBytes("binary retry exhaustion executable");
+        var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        var asset = manifest.GetAsset("linux-x64");
+        var binaryDownloadCalls = 0;
+        var delayCalls = 0;
+        var resolver = new TailwindCliResolver(
+            manifest,
+            (uri, _) =>
+            {
+                if (uri.AbsolutePath.EndsWith("sha256sums.txt", StringComparison.Ordinal))
+                {
+                    return Task.FromResult(CreateDownload(uri, asset, payload));
+                }
+
+                binaryDownloadCalls++;
+                throw new IOException("binary offline test failure");
+            },
+            delay: (_, _) =>
+            {
+                delayCalls++;
+                return Task.CompletedTask;
+            });
+
+        var exception = await Assert.ThrowsAsync<TailwindCliResolutionException>(() => resolver.ResolveAsync(
+            new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
+            CancellationToken.None));
+
+        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
+        Assert.Equal(5, binaryDownloadCalls);
+        Assert.Equal(4, delayCalls);
+    }
+
+    [Fact]
     public async Task Resolver_ReportsLockTimeoutAfterAllBoundedLockAttempts()
     {
         var payload = Encoding.UTF8.GetBytes("lock timeout executable");
@@ -1299,6 +1334,32 @@ public sealed class TailwindCliManagerTests : IDisposable
         Assert.True(File.Exists(expected));
     }
 
+    [Fact]
+    public void Manager_DoesNotUseDevelopmentPathAfterAnIntegrityResolutionFailure()
+    {
+        var payload = Encoding.UTF8.GetBytes("manager integrity failure executable");
+        var manifestPath = WriteControlledManifest(payload);
+        var pathDirectory = Path.Join(_tempRoot, "path");
+        Directory.CreateDirectory(pathDirectory);
+        var fallback = Path.Join(pathDirectory, TailwindRuntimeMap.GetLocalBinaryName());
+        File.WriteAllText(fallback, "path shim");
+        Environment.SetEnvironmentVariable("PATH", pathDirectory);
+        var manager = new TailwindCliManager(_logger)
+        {
+            ReleaseManifestPathOverride = manifestPath,
+            DownloadCacheRootOverride = Path.Join(_tempRoot, "cache"),
+            RidOverride = "linux-x64",
+            DownloadOverride = (_, _) => Task.FromResult(Encoding.UTF8.GetBytes("not a checksum"))
+        };
+
+        var exception = Assert.Throws<FileNotFoundException>(() => manager.GetTailwindPath());
+
+        Assert.Contains("development PATH was not used", exception.Message, StringComparison.Ordinal);
+        var resolutionFailure = Assert.IsType<TailwindCliResolutionException>(exception.InnerException);
+        Assert.Equal(TailwindCliResolutionFailure.ChecksumFailure, resolutionFailure.Failure);
+        Assert.True(File.Exists(fallback));
+    }
+
     [Theory]
     [InlineData(nameof(TailwindCliResolutionFailure.NoCacheRoot), true)]
     [InlineData(nameof(TailwindCliResolutionFailure.NonWritableRoot), true)]
@@ -1344,6 +1405,24 @@ public sealed class TailwindCliManagerTests : IDisposable
 
         Assert.NotEqual(fallback, resolved);
         Assert.Equal(payload, File.ReadAllBytes(resolved));
+    }
+
+    [Fact]
+    public void Manager_UsesDevelopmentPathAfterAnAvailabilityResolutionFailure()
+    {
+        var pathDirectory = Path.Join(_tempRoot, "path");
+        Directory.CreateDirectory(pathDirectory);
+        var fallback = Path.Join(pathDirectory, TailwindRuntimeMap.GetLocalBinaryName());
+        File.WriteAllText(fallback, "fallback path executable");
+        Environment.SetEnvironmentVariable("PATH", pathDirectory);
+        var manager = new TailwindCliManager(_logger)
+        {
+            ReleaseManifestPathOverride = GetRepositoryManifestPath(),
+            DownloadCacheRootOverride = Path.Join(_tempRoot, "cache"),
+            RidOverride = "unknown"
+        };
+
+        Assert.Equal(fallback, manager.GetTailwindPath());
     }
 
     [Fact]

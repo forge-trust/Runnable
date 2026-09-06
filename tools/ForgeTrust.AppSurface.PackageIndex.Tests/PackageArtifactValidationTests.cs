@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -2736,6 +2737,33 @@ public sealed class PackageArtifactValidationTests : IDisposable
             "ForgeTrust.AppSurface.Web.Tailwind");
 
         Assert.Equal(1024 * 1024, bytes.Length);
+    }
+
+    [Fact]
+    public void PackageArtifactValidator_ReadPackageEntryBytesRejectsStreamThatExceedsTheSizeLimitDespiteArchiveMetadata()
+    {
+        var packagePath = CombineSafeChildPath(_repositoryRoot, "artifacts/malformed-size-entry.nupkg");
+        Directory.CreateDirectory(Path.GetDirectoryName(packagePath)!);
+        using (var archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("build/tailwind.release.json", CompressionLevel.NoCompression);
+            using var stream = entry.Open();
+            stream.Write(new byte[(1024 * 1024) + 1]);
+        }
+
+        var archiveBytes = File.ReadAllBytes(packagePath);
+        var centralDirectoryOffset = archiveBytes.AsSpan().IndexOf("PK\u0001\u0002"u8);
+        Assert.True(centralDirectoryOffset >= 0, "The test package must contain a central-directory entry.");
+        BinaryPrimitives.WriteUInt32LittleEndian(archiveBytes.AsSpan(centralDirectoryOffset + 24), 0);
+        File.WriteAllBytes(packagePath, archiveBytes);
+
+        var error = Assert.Throws<PackageIndexException>(
+            () => PackageArtifactValidator.ReadPackageEntryBytes(
+                packagePath,
+                "build/tailwind.release.json",
+                "ForgeTrust.AppSurface.Web.Tailwind"));
+
+        Assert.Contains("exceeds the 1048576-byte validation limit", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]

@@ -730,7 +730,7 @@ public class CSharpDocHarvesterTests : IDisposable
     public async Task HarvestAsync_ShouldRejectInvalidPythonModuleOwnershipWithoutSuppressingCSharpDocs()
     {
         await File.WriteAllTextAsync(
-            Path.Combine(_testRoot, "InvalidOwnership.cs"),
+            Path.Join(_testRoot, "InvalidOwnership.cs"),
             """
             namespace Test;
 

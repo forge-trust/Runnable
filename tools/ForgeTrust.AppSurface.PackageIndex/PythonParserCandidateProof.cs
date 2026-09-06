@@ -1,5 +1,7 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.IO.Compression;
+using System.IO.Hashing;
 using System.Security;
 using System.Security.Cryptography;
 using System.Text;
@@ -39,8 +41,6 @@ internal sealed class PythonParserCandidateProofWorkflow
         "win-x64",
         "win-x86"
     ];
-
-    private static readonly uint[] Crc32Table = CreateCrc32Table();
 
     /// <summary>
     /// Inspects the supplied archive and writes deterministic static-gate evidence.
@@ -230,7 +230,7 @@ internal sealed class PythonParserCandidateProofWorkflow
             {
                 await using var stream = entry.Open();
                 var entryTotal = 0L;
-                var crc32 = uint.MaxValue;
+                var crc32 = new Crc32();
                 int bytesRead;
                 while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(), cancellationToken)) != 0)
                 {
@@ -242,7 +242,7 @@ internal sealed class PythonParserCandidateProofWorkflow
 
                     total += bytesRead;
                     entryTotal += bytesRead;
-                    crc32 = UpdateCrc32(crc32, buffer.AsSpan(0, bytesRead));
+                    crc32.Append(buffer.AsSpan(0, bytesRead));
                 }
 
                 if (entryTotal != entry.Length)
@@ -250,7 +250,7 @@ internal sealed class PythonParserCandidateProofWorkflow
                     return $"Archive entry '{entry.FullName}' produced {entryTotal} bytes but declares {entry.Length} bytes.";
                 }
 
-                if (~crc32 != entry.Crc32)
+                if (BinaryPrimitives.ReadUInt32LittleEndian(crc32.GetCurrentHash()) != entry.Crc32)
                 {
                     return $"Archive entry '{entry.FullName}' does not match its declared CRC-32 checksum.";
                 }
@@ -262,33 +262,6 @@ internal sealed class PythonParserCandidateProofWorkflow
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
-    }
-
-    private static uint UpdateCrc32(uint crc32, ReadOnlySpan<byte> bytes)
-    {
-        foreach (var value in bytes)
-        {
-            crc32 = Crc32Table[(byte)(crc32 ^ value)] ^ (crc32 >> 8);
-        }
-
-        return crc32;
-    }
-
-    private static uint[] CreateCrc32Table()
-    {
-        var table = new uint[256];
-        for (var index = 0; index < table.Length; index++)
-        {
-            var crc32 = (uint)index;
-            for (var bit = 0; bit < 8; bit++)
-            {
-                crc32 = (crc32 >> 1) ^ ((crc32 & 1) == 0 ? 0U : 0xEDB88320U);
-            }
-
-            table[index] = crc32;
-        }
-
-        return table;
     }
 
     /// <summary>

@@ -1,6 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using ForgeTrust.AppSurface.Web.Tailwind.Internal;
+
+[assembly: ExcludeFromCodeCoverage(
+    Justification = "This non-packable child-process harness is exercised by TailwindCacheProcessTests; the coverage collector cannot instrument the child process it launches.")]
 
 if (args.Length == 6 && string.Equals(args[0], "resolve", StringComparison.Ordinal))
 {

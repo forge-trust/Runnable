@@ -166,7 +166,7 @@ help anchor.
 | ASTW001 | No explicit path was supplied and the build host is unsupported. | Build on a supported host or set TailwindCliPath. |
 | ASTW002 | The package Tailwind version is missing. | Restore the package or provide an explicit CLI path. |
 | ASTW003 | An explicit build CLI path does not exist. | Correct it or remove it to use verified host resolution. |
-| ASTW005 | The task assembly or resolved executable could not start. | Restore package task assets and verify the executable or override is runnable. |
+| ASTW005 | The task assembly or resolved executable could not start. | Restore package task assets and verify the executable or override can run. |
 | ASTW006 | Tailwind exited non-zero. | Read the captured output and fix CSS or configuration. |
 | ASTW007 | MSBuild canceled Tailwind. | Re-run when cancellation was unintended. |
 | ASTW008 | Input and output resolve to the same file. | Choose a distinct generated output. |

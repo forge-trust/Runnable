@@ -33,35 +33,36 @@ public sealed class TailwindCacheProcessTests : IDisposable
         var secondOutcomePath = Path.Join(_tempRoot, "second.outcome");
 
         using var first = StartHost("resolve", cacheRoot, payloadPath, firstOutcomePath, firstReadyPath, "500");
-        Process? second = null;
         try
         {
             await WaitForFileAsync(firstReadyPath);
-            second = StartHost("resolve", cacheRoot, payloadPath, secondOutcomePath, "-", "0");
+            using var second = StartHost("resolve", cacheRoot, payloadPath, secondOutcomePath, "-", "0");
 
-            await WaitForSuccessAsync(first);
-            await WaitForSuccessAsync(second);
+            try
+            {
+                await WaitForSuccessAsync(first);
+                await WaitForSuccessAsync(second);
 
-            var firstOutcome = await ReadOutcomeAsync(firstOutcomePath);
-            var secondOutcome = await ReadOutcomeAsync(secondOutcomePath);
-            var finalPath = GetFinalPath(cacheRoot);
+                var firstOutcome = await ReadOutcomeAsync(firstOutcomePath);
+                var secondOutcome = await ReadOutcomeAsync(secondOutcomePath);
+                var finalPath = GetFinalPath(cacheRoot);
 
-            Assert.Equal("Acquired", firstOutcome.CacheState);
-            Assert.Equal("Reused", secondOutcome.CacheState);
-            Assert.Equal(finalPath, firstOutcome.Path);
-            Assert.Equal(finalPath, secondOutcome.Path);
-            Assert.Equal(await File.ReadAllBytesAsync(payloadPath), await File.ReadAllBytesAsync(finalPath));
-            Assert.Empty(Directory.EnumerateFiles(cacheRoot, "*.partial-*", SearchOption.AllDirectories));
-            Assert.Empty(Directory.EnumerateFiles(cacheRoot, "*.rejected-*", SearchOption.AllDirectories));
+                Assert.Equal("Acquired", firstOutcome.CacheState);
+                Assert.Equal("Reused", secondOutcome.CacheState);
+                Assert.Equal(finalPath, firstOutcome.Path);
+                Assert.Equal(finalPath, secondOutcome.Path);
+                Assert.Equal(await File.ReadAllBytesAsync(payloadPath), await File.ReadAllBytesAsync(finalPath));
+                Assert.Empty(Directory.EnumerateFiles(cacheRoot, "*.partial-*", SearchOption.AllDirectories));
+                Assert.Empty(Directory.EnumerateFiles(cacheRoot, "*.rejected-*", SearchOption.AllDirectories));
+            }
+            finally
+            {
+                await StopIfRunningAsync(second);
+            }
         }
         finally
         {
             await StopIfRunningAsync(first);
-            if (second is not null)
-            {
-                await StopIfRunningAsync(second);
-                second.Dispose();
-            }
         }
     }
 
@@ -74,7 +75,6 @@ public sealed class TailwindCacheProcessTests : IDisposable
         var recoveryOutcomePath = Path.Join(_tempRoot, "recovery.outcome");
 
         using var owner = StartHost("resolve-hold-partial", cacheRoot, payloadPath, partialReadyPath);
-        Process? recovery = null;
         try
         {
             await WaitForFileAsync(partialReadyPath);
@@ -85,27 +85,29 @@ public sealed class TailwindCacheProcessTests : IDisposable
 
             await StopIfRunningAsync(owner);
 
-            recovery = StartHost("resolve", cacheRoot, payloadPath, recoveryOutcomePath, "-", "0");
-            await WaitForSuccessAsync(recovery);
-            var outcome = await ReadOutcomeAsync(recoveryOutcomePath);
+            using var recovery = StartHost("resolve", cacheRoot, payloadPath, recoveryOutcomePath, "-", "0");
+            try
+            {
+                await WaitForSuccessAsync(recovery);
+                var outcome = await ReadOutcomeAsync(recoveryOutcomePath);
 
-            Assert.Equal("Acquired", outcome.CacheState);
-            Assert.Equal(finalPath, outcome.Path);
-            Assert.Equal(await File.ReadAllBytesAsync(payloadPath), await File.ReadAllBytesAsync(finalPath));
-            Assert.True(File.Exists(finalPath + ".lock"));
-            Assert.True(File.Exists(abandonedPartialPath));
-            Assert.True(File.Exists(abandonedRejectedPath));
-            Assert.DoesNotContain(outcome.Path, ".partial-", StringComparison.Ordinal);
-            Assert.DoesNotContain(outcome.Path, ".rejected-", StringComparison.Ordinal);
+                Assert.Equal("Acquired", outcome.CacheState);
+                Assert.Equal(finalPath, outcome.Path);
+                Assert.Equal(await File.ReadAllBytesAsync(payloadPath), await File.ReadAllBytesAsync(finalPath));
+                Assert.True(File.Exists(finalPath + ".lock"));
+                Assert.True(File.Exists(abandonedPartialPath));
+                Assert.True(File.Exists(abandonedRejectedPath));
+                Assert.DoesNotContain(outcome.Path, ".partial-", StringComparison.Ordinal);
+                Assert.DoesNotContain(outcome.Path, ".rejected-", StringComparison.Ordinal);
+            }
+            finally
+            {
+                await StopIfRunningAsync(recovery);
+            }
         }
         finally
         {
             await StopIfRunningAsync(owner);
-            if (recovery is not null)
-            {
-                await StopIfRunningAsync(recovery);
-                recovery.Dispose();
-            }
         }
     }
 

@@ -99,6 +99,56 @@ public sealed class DurableWorkExitTests
     }
 
     [Fact]
+    public async Task Exit_registration_preserves_success_for_the_legacy_registration_boundary()
+    {
+        var workCodec = new StringCodec("tests.exit.input");
+        var resultCodec = new StringCodec("tests.exit.result");
+        var registration = new DurableWorkExitRegistration<string, string, SuccessExitExecutor>(
+            "tests.exit.work",
+            "v2",
+            workCodec,
+            resultCodec);
+        await using var services = new ServiceCollection().AddSingleton<SuccessExitExecutor>().BuildServiceProvider();
+
+        var result = await registration.InvokeAsync(services, CreateContext(workCodec));
+
+        Assert.False(registration.CanReconcile);
+        Assert.Equal("sent:input", resultCodec.Decode(result));
+    }
+
+    [Fact]
+    public async Task Exit_registration_rejects_reconciliation()
+    {
+        var workCodec = new StringCodec("tests.exit.input");
+        var registration = new DurableWorkExitRegistration<string, string, SuccessExitExecutor>(
+            "tests.exit.work",
+            "v2",
+            workCodec,
+            new StringCodec("tests.exit.result"));
+        await using var services = new ServiceCollection().AddSingleton<SuccessExitExecutor>().BuildServiceProvider();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await registration.ReconcileAsync(services, CreateContext(workCodec)));
+
+        Assert.Equal("This durable work registration has no provider reconciler.", exception.Message);
+    }
+
+    [Fact]
+    public async Task Exit_registration_rejects_a_codec_that_returns_no_success_payload()
+    {
+        var workCodec = new StringCodec("tests.exit.input");
+        var registration = new DurableWorkExitRegistration<string, string, SuccessExitExecutor>(
+            "tests.exit.work",
+            "v2",
+            workCodec,
+            new NullEncodingStringCodec(new StringCodec("tests.exit.result")));
+        await using var services = new ServiceCollection().AddSingleton<SuccessExitExecutor>().BuildServiceProvider();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await registration.Prepare(services, CreateContext(workCodec)).InvokeExitAsync());
+    }
+
+    [Fact]
     public async Task Exit_registration_forwards_cancellation_to_the_executor()
     {
         var workCodec = new StringCodec("tests.exit.input");
@@ -210,5 +260,26 @@ public sealed class DurableWorkExitTests
         public DurableEncodedPayload EncodeObject(object value) => Encode(Assert.IsType<string>(value));
 
         public object DecodeObject(DurableEncodedPayload payload) => Decode(payload);
+    }
+
+    private sealed class NullEncodingStringCodec(StringCodec inner) : IDurablePayloadCodec<string>
+    {
+        public Type PayloadType => inner.PayloadType;
+
+        public string ContractName => inner.ContractName;
+
+        public string ContractVersion => inner.ContractVersion;
+
+        public DurableDataClassification Classification => inner.Classification;
+
+        public string RetentionPolicyId => inner.RetentionPolicyId;
+
+        public DurableEncodedPayload Encode(string value) => null!;
+
+        public string Decode(DurableEncodedPayload payload) => inner.Decode(payload);
+
+        public DurableEncodedPayload EncodeObject(object value) => Encode(Assert.IsType<string>(value));
+
+        public object DecodeObject(DurableEncodedPayload payload) => inner.DecodeObject(payload);
     }
 }

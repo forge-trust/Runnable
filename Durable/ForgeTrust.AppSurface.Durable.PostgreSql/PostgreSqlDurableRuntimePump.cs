@@ -421,20 +421,20 @@ internal sealed class PostgreSqlDurableRuntimePump : IDurableRuntimePump
                 PostgreSqlWorkCompletionKind.Succeeded,
                 "completed",
                 "{}",
-                exit.Result ?? throw new InvalidOperationException("A successful durable Work exit requires a result.")),
+                exit.Result!),
             DurableWorkExitKind.RetryBeforeEffect => new PostgreSqlWorkCompletion(
                 PostgreSqlWorkCompletionKind.ProvenNoEffect,
-                exit.Code ?? throw new InvalidOperationException("A non-success durable Work exit requires a code."),
+                exit.Code!,
                 "{}"),
             DurableWorkExitKind.FailedTerminal => new PostgreSqlWorkCompletion(
                 PostgreSqlWorkCompletionKind.FailedTerminal,
-                exit.Code ?? throw new InvalidOperationException("A non-success durable Work exit requires a code."),
+                exit.Code!,
                 "{}"),
-            DurableWorkExitKind.AmbiguousExternalOutcome => new PostgreSqlWorkCompletion(
+            // Encoded exits use private constructors and validated factories; unknown values remain conservative.
+            _ => new PostgreSqlWorkCompletion(
                 PostgreSqlWorkCompletionKind.AmbiguousExternalOutcome,
-                exit.Code ?? throw new InvalidOperationException("A non-success durable Work exit requires a code."),
+                exit.Code!,
                 "{}"),
-            _ => throw new InvalidOperationException("The durable Work exit kind must be defined."),
         };
     }
 

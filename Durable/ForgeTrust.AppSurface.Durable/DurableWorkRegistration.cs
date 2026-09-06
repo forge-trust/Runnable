@@ -412,8 +412,8 @@ public sealed class DurableWorkExitRegistration<TWork, TResult, TExecutor> : Dur
                 DurableWorkExitKind.Succeeded => DurableEncodedWorkExit.Succeeded(resultCodec.Encode(exit.Result!)),
                 DurableWorkExitKind.RetryBeforeEffect => DurableEncodedWorkExit.RetryBeforeEffect(exit.Code!),
                 DurableWorkExitKind.FailedTerminal => DurableEncodedWorkExit.FailedTerminal(exit.Code!),
-                DurableWorkExitKind.AmbiguousExternalOutcome => DurableEncodedWorkExit.AmbiguousExternalOutcome(exit.Code!),
-                _ => throw new InvalidOperationException("The durable Work exit kind must be defined."),
+                // Ambiguous and unknown facts are never treated as completed or safe to retry.
+                _ => DurableEncodedWorkExit.AmbiguousExternalOutcome(exit.Code!),
             };
         }
     }

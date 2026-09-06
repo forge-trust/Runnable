@@ -41,6 +41,28 @@ public sealed class PythonDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ReportsUnavailableNativeParserAsAStrictHealthError()
+    {
+        await WriteAsync("worker.py", "__all__ = [\"run\"]\ndef run():\n    \"\"\"Run.\"\"\"\n");
+        var options = CreateEnabledOptions("worker.py");
+        options.Harvest.Python.StrictHealth = true;
+        var harvester = new PythonDocHarvester(
+            options,
+            NullLogger<PythonDocHarvester>.Instance,
+            new AppSurfaceDocsHarvestPathPolicy(options, NullLogger<AppSurfaceDocsHarvestPathPolicy>.Instance),
+            static () => throw new DllNotFoundException("Tree-sitter native asset is unavailable."));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Empty(docs);
+        var diagnostic = Assert.Single(GetDiagnostics(harvester));
+        Assert.Equal(DocHarvestDiagnosticCodes.PythonParserUnavailable, diagnostic.Code);
+        Assert.Equal(DocHarvestDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains(nameof(DllNotFoundException), diagnostic.Cause, StringComparison.Ordinal);
+        Assert.True(((IDocHarvesterHealthParticipation)harvester).ParticipatesInStrictHealth);
+    }
+
+    [Fact]
     public async Task HarvestAsync_PublishesLiteralExportsAndTheirDocumentedMethods_WithoutExecutingPython()
     {
         await WriteAsync(

@@ -26,6 +26,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
     private readonly AppSurfaceDocsOptions _options;
     private readonly ILogger<PythonDocHarvester> _logger;
     private readonly AppSurfaceDocsHarvestPathPolicy _pathPolicy;
+    private readonly Func<Language> _createLanguage;
     private IReadOnlyList<DocHarvestDiagnostic> _lastDiagnostics = [];
 
     /// <summary>
@@ -48,14 +49,36 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         AppSurfaceDocsOptions options,
         ILogger<PythonDocHarvester> logger,
         AppSurfaceDocsHarvestPathPolicy pathPolicy)
+        : this(options, logger, pathPolicy, static () => new Language("Python"))
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="PythonDocHarvester"/> with an injectable native-language factory.
+    /// </summary>
+    /// <param name="options">Normalized AppSurface Docs options that contain Python harvest settings.</param>
+    /// <param name="logger">Logger used for non-fatal Python harvest diagnostics.</param>
+    /// <param name="pathPolicy">Shared harvest path policy used to decide which Python candidates publish.</param>
+    /// <param name="createLanguage">Factory used to initialize the native Tree-sitter Python grammar.</param>
+    /// <remarks>
+    /// The default constructor supplies the registered Python grammar. This internal seam lets package tests verify that
+    /// unavailable native assets are converted into diagnostics rather than escaping the harvest pipeline.
+    /// </remarks>
+    internal PythonDocHarvester(
+        AppSurfaceDocsOptions options,
+        ILogger<PythonDocHarvester> logger,
+        AppSurfaceDocsHarvestPathPolicy pathPolicy,
+        Func<Language> createLanguage)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(pathPolicy);
+        ArgumentNullException.ThrowIfNull(createLanguage);
 
         _options = options;
         _logger = logger;
         _pathPolicy = pathPolicy;
+        _createLanguage = createLanguage;
     }
 
     /// <summary>
@@ -120,7 +143,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
                 await progress.TransitionAsync(AppSurfaceDocsHarvestProgressPhase.Discovering);
             }
 
-            if (!TryCreateParser(out var language, out var parser, out var parserFailure))
+            if (!TryCreateParser(_createLanguage, out var language, out var parser, out var parserFailure))
             {
                 diagnostics.Add(CreateDiagnostic(
                     DocHarvestDiagnosticCodes.PythonParserUnavailable,
@@ -254,6 +277,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
     IReadOnlyList<DocHarvestDiagnostic> IDocHarvesterDiagnosticProvider.GetHarvestDiagnostics() => _lastDiagnostics;
 
     private static bool TryCreateParser(
+        Func<Language> createLanguage,
         out Language? language,
         out Parser? parser,
         out string failure)
@@ -263,7 +287,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         failure = string.Empty;
         try
         {
-            language = new Language("Python");
+            language = createLanguage();
             parser = new Parser(language);
             using var tree = parser.Parse("pass");
             if (tree is null || tree.RootNode.HasError)

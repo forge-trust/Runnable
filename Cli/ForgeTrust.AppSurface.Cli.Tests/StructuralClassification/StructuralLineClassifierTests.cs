@@ -81,6 +81,7 @@ public sealed class StructuralLineClassifierTests
         Assert.Equal(before.PatchAnalysis.Metrics, after.PatchAnalysis.Metrics);
         Assert.Equal(before.PatchLineCoverage, after.PatchLineCoverage);
         Assert.Equal(before.PatchBranchCoverage, after.PatchBranchCoverage);
+        Assert.Equal(before.Passed, after.Passed);
         Assert.Equal(beforeArtifacts, afterArtifacts);
         Assert.DoesNotContain(afterArtifacts.Keys, path => path.Contains("structural", StringComparison.OrdinalIgnoreCase));
     }
@@ -315,6 +316,128 @@ public sealed class StructuralLineClassifierTests
     }
 
     [Fact]
+    public void Classify_AcceptsSkoolitStyleGenericAccessorByLanguageShapeOnly()
+    {
+        const string source = """
+            namespace Fixture;
+
+            public sealed class DbSet<T>
+            {
+            }
+
+            public sealed class Context
+            {
+                public DbSet<int> Items { get; set; }
+            }
+            """;
+        var context = CreateContext(source);
+
+        var entry = ClassifySingle(context, LineOf(source, "public DbSet<int> Items"));
+
+        Assert.Equal(StructuralLineDisposition.Accepted, entry.Disposition);
+        Assert.Equal("structural-auto-property", entry.ReasonCode);
+    }
+
+    [Fact]
+    public void Classify_RejectsInterfaceAndExplicitInterfaceProperties()
+    {
+        const string source = """
+            namespace Fixture;
+
+            public interface IContract
+            {
+                int Value { get; set; }
+            }
+
+            public sealed class ExplicitContract : IContract
+            {
+                int IContract.Value { get; set; }
+            }
+            """;
+        var context = CreateContext(source);
+
+        var interfaceEntry = ClassifySingle(context, LineOf(source, "int Value { get; set; }"));
+        var explicitEntry = ClassifySingle(context, LineOf(source, "int IContract.Value"));
+
+        Assert.Equal("property-inherited-or-overridden", interfaceEntry.ReasonCode);
+        Assert.Equal("property-inherited-or-overridden", explicitEntry.ReasonCode);
+    }
+
+    [Fact]
+    public void Classify_RejectsInvalidCoordinatesAndAmbiguousDeclarations()
+    {
+        const string source = "namespace Fixture; public sealed class Example { public int Value { get; set; } }";
+        var context = CreateContext(source);
+        const string ambiguousSource = "namespace Fixture; public sealed class Example { public int First { get; set; } public int Second { get; set; } }";
+        var ambiguousContext = CreateContext(ambiguousSource);
+
+        var zero = ClassifySingle(context, 0);
+        var pastEnd = ClassifySingle(context, 2);
+        var ambiguous = ClassifySingle(ambiguousContext, 1);
+
+        Assert.Equal("location-unmatched", zero.ReasonCode);
+        Assert.Equal("location-unmatched", pastEnd.ReasonCode);
+        Assert.Equal("location-ambiguous", ambiguous.ReasonCode);
+    }
+
+    [Fact]
+    public void Classify_RequiresSourceBytesToDecodeToTheBoundSyntaxTree()
+    {
+        const string source = "namespace Fixture; public sealed class Example { public int Value { get; set; } }";
+        var context = CreateContext(source);
+        var mismatchedDocument = StructuralSourceDocument.Create(
+            "src/Fixture.cs",
+            Encoding.UTF8.GetBytes("namespace Fixture; public sealed class Example { public int Other { get; set; } }"),
+            context.Document.ParseOptions,
+            syntaxTree: context.Document.SyntaxTree);
+
+        var entry = ClassifySingle(
+            context,
+            1,
+            new StructuralSourceManifest([mismatchedDocument]));
+
+        Assert.Equal(StructuralLineDisposition.Rejected, entry.Disposition);
+        Assert.Equal("source-fingerprint-mismatch", entry.ReasonCode);
+    }
+
+    [Fact]
+    public void Classify_RechecksCachedSourceIdentityForEveryClassificationRun()
+    {
+        const string source = "namespace Fixture; public sealed class Example { public int Value { get; set; } }";
+        var context = CreateContext(source);
+        var classifier = new StructuralLineClassifier();
+        var analysis = CreateAnalysis(new PatchCoverageLine("src/Fixture.cs", 1, true, false, 0, 1));
+
+        var beforeMutation = classifier.Classify(analysis, context.Compilation, context.Manifest);
+        context.Document.Bytes[0] = (byte)'X';
+        var afterMutation = classifier.Classify(analysis, context.Compilation, context.Manifest);
+
+        Assert.Equal(StructuralLineDisposition.Accepted, Assert.Single(beforeMutation.Entries).Disposition);
+        Assert.Equal("source-fingerprint-mismatch", Assert.Single(afterMutation.Entries).ReasonCode);
+    }
+
+    [Fact]
+    public void Classify_NormalizesWindowsFixturePathsAndRecordsBoundEvidence()
+    {
+        const string source = "namespace Fixture; public sealed class Example { public int Value { get; set; } }";
+        var context = CreateContext(source);
+        var audit = new StructuralLineClassifier().Classify(
+            CreateAnalysis(new PatchCoverageLine("src\\Fixture.cs", 1, true, false, 0, 1)),
+            context.Compilation,
+            context.Manifest);
+
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal(StructuralLineDisposition.Accepted, entry.Disposition);
+        Assert.Equal("src/Fixture.cs", entry.Path);
+        Assert.Equal(context.Document.Fingerprint, entry.SourceFingerprint);
+        Assert.Equal("authored", entry.SourceProvenance);
+        Assert.Equal("src/Fixture.cs", entry.SourceTreePath);
+        Assert.Equal("P:Fixture.Example.Value", entry.SymbolDocumentationId);
+        Assert.Equal("Value", entry.SymbolDisplayName);
+        Assert.Contains("language=Preview", entry.ParseOptionsIdentity, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Classify_OrdersEntriesAndSerializesTheAuditDeterministically()
     {
         const string sourceA = "namespace Fixture; public sealed class A { public int Value { get; set; } }";
@@ -347,6 +470,7 @@ public sealed class StructuralLineClassifierTests
     public void Classify_ReusedFixtures_StaysWithinTheAllocationBudget_AndRecordsTimingDistribution()
     {
         const int candidateCount = 200;
+        const long allocationBudgetBytes = 1 * 1024 * 1024;
         var source = BuildLargeSource(candidateCount);
         var context = CreateContext(source);
         var analysis = CreateAnalysis(
@@ -360,9 +484,20 @@ public sealed class StructuralLineClassifierTests
         GC.WaitForPendingFinalizers();
         GC.Collect();
 
+        var controlSamples = new List<long>();
         var samples = new List<long>();
         var constructionSamples = new List<long>();
         long maxAllocatedBytes = 0;
+        for (var iteration = 0; iteration < 25; iteration++)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var controlLineCount = analysis.Lines.Count;
+            stopwatch.Stop();
+
+            Assert.Equal(candidateCount, controlLineCount);
+            controlSamples.Add(stopwatch.ElapsedTicks);
+        }
+
         for (var iteration = 0; iteration < 25; iteration++)
         {
             var beforeAllocatedBytes = GC.GetAllocatedBytesForCurrentThread();
@@ -384,21 +519,27 @@ public sealed class StructuralLineClassifierTests
             constructionSamples.Add(stopwatch.ElapsedTicks);
         }
 
+        controlSamples.Sort();
         samples.Sort();
         constructionSamples.Sort();
         var tickToMilliseconds = 1000d / Stopwatch.Frequency;
+        var controlP50Milliseconds = controlSamples[PercentileIndex(controlSamples.Count, 0.50)] * tickToMilliseconds;
+        var classificationP50Milliseconds = samples[PercentileIndex(samples.Count, 0.50)] * tickToMilliseconds;
         output.WriteLine(
-            "#781 structural classifier benchmark: candidates={0}; samples=25; minMs={1:F4}; p50Ms={2:F4}; p95Ms={3:F4}; maxMs={4:F4}; maxAllocatedBytes={5}; compilationSamples=10; compilationMinMs={6:F4}; compilationP50Ms={7:F4}; compilationP95Ms={8:F4}",
+            "#781 structural classifier benchmark: candidates={0}; samples=25; minMs={1:F4}; p50Ms={2:F4}; p95Ms={3:F4}; maxMs={4:F4}; maxAllocatedBytes={5}; allocationBudgetBytes={6}; noClassifierControlP50Ms={7:F4}; classificationDeltaP50Ms={8:F4}; compilationSamples=10; compilationMinMs={9:F4}; compilationP50Ms={10:F4}; compilationP95Ms={11:F4}",
             candidateCount,
             samples[0] * tickToMilliseconds,
-            samples[PercentileIndex(samples.Count, 0.50)] * tickToMilliseconds,
+            classificationP50Milliseconds,
             samples[PercentileIndex(samples.Count, 0.95)] * tickToMilliseconds,
             samples[^1] * tickToMilliseconds,
             maxAllocatedBytes,
+            allocationBudgetBytes,
+            controlP50Milliseconds,
+            classificationP50Milliseconds - controlP50Milliseconds,
             constructionSamples[0] * tickToMilliseconds,
             constructionSamples[PercentileIndex(constructionSamples.Count, 0.50)] * tickToMilliseconds,
             constructionSamples[PercentileIndex(constructionSamples.Count, 0.95)] * tickToMilliseconds);
-        Assert.InRange(maxAllocatedBytes, 0, 24 * 1024 * 1024);
+        Assert.InRange(maxAllocatedBytes, 0, allocationBudgetBytes);
     }
 
     private static ClassificationContext CreateContext(string source)

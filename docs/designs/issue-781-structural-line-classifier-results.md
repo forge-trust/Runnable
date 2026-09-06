@@ -29,7 +29,7 @@ Run the focused pilot tests with:
 dotnet test Cli/ForgeTrust.AppSurface.Cli.Tests/ForgeTrust.AppSurface.Cli.Tests.csproj --no-restore --configuration Release --filter FullyQualifiedName~StructuralLineClassifierTests --logger "console;verbosity=detailed"
 ```
 
-The recorded run passed all 25 tests. It used the following environment:
+The recorded run passed all 31 tests. It used the following environment:
 
 | Component | Value |
 | --- | --- |
@@ -45,12 +45,13 @@ The focused suite makes 25 warmed classification runs over the 200-candidate cor
 
 | Measure | Observed value |
 | --- | --- |
-| Classification min / p50 / p95 / max | 47.0353 / 60.2865 / 81.7266 / 83.3692 ms |
-| Maximum per-run allocation | 13,894,504 bytes (about 13.25 MiB) |
-| Fixture-manifest/compilation min / p50 / p95 | 0.6377 / 0.6583 / 5.7763 ms |
-| Allocation guard | 24 MiB per warmed run |
+| Classification min / p50 / p95 / max | 2.1126 / 2.3182 / 2.3844 / 3.5713 ms |
+| No-classifier control p50 / classification p50 delta | below timer resolution / 2.3182 ms |
+| Maximum per-run allocation | 427,936 bytes (about 0.41 MiB) |
+| Fixture-manifest/compilation min / p50 / p95 | 0.6452 / 0.6636 / 5.1962 ms |
+| Allocation guard | 1 MiB per warmed run |
 
-The 24 MiB guard is intentionally coarse: it leaves room for normal host/runtime variation while flagging an obvious multi-megabyte regression from the observed baseline. Any future path toward runtime use should replace it with a benchmark corpus that is representative of real repositories and a performance budget agreed by the owners of the prospective integration.
+The warmed measurement window uses `GC.GetAllocatedBytesForCurrentThread` immediately around classification, after one complete cache-warming pass over the reusable manifest and compilation. The observed p95 is below the approved 15 ms proposal threshold on the named baseline host, and the observed allocation is below the approved 1 MiB automated guard. Any future path toward runtime use should replace this synthetic corpus with representative repositories and a performance budget agreed by the owners of the prospective integration.
 
 ## Decision
 

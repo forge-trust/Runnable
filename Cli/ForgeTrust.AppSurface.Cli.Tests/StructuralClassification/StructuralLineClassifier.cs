@@ -166,6 +166,8 @@ internal sealed class StructuralSourceManifest
 internal sealed class StructuralLineClassifier
 {
     private readonly Func<PatchCoverageLine, Exception?>? faultInjection;
+    private readonly Dictionary<CSharpCompilation, StructuralSourceEvidenceCache> evidenceCaches =
+        new(ReferenceEqualityComparer.Instance);
 
     /// <summary>
     /// Initializes the classifier with an optional test seam that exercises the fail-closed fault boundary.
@@ -187,8 +189,10 @@ internal sealed class StructuralLineClassifier
         ArgumentNullException.ThrowIfNull(compilation);
         ArgumentNullException.ThrowIfNull(manifest);
 
+        var evidenceCache = GetEvidenceCache(compilation);
+        var classificationRun = evidenceCache.StartClassificationRun();
         var entries = analysis.Lines
-            .Select(line => ClassifyLine(line, compilation, manifest))
+            .Select(line => ClassifyLine(line, manifest, evidenceCache, classificationRun))
             .OrderBy(entry => entry.Path, StringComparer.Ordinal)
             .ThenBy(entry => entry.Line)
             .ThenBy(entry => entry.ReasonCode, StringComparer.Ordinal)
@@ -207,8 +211,9 @@ internal sealed class StructuralLineClassifier
 
     private StructuralLineClassificationEntry ClassifyLine(
         PatchCoverageLine line,
-        CSharpCompilation compilation,
-        StructuralSourceManifest manifest)
+        StructuralSourceManifest manifest,
+        StructuralSourceEvidenceCache evidenceCache,
+        int classificationRun)
     {
         StructuralSourceDocument? source = null;
         IPropertySymbol? propertySymbol = null;
@@ -242,41 +247,40 @@ internal sealed class StructuralLineClassifier
                 return Reject(line, normalizedPath, "source-generated", source);
             }
 
-            if (!IsSourceIdentityValid(source, normalizedPath))
+            var evidence = evidenceCache.Get(source);
+            if (!evidence.HasExactSourceIdentity(normalizedPath, classificationRun))
             {
                 return Reject(line, normalizedPath, "source-fingerprint-mismatch", source);
             }
 
-            if (!compilation.SyntaxTrees.Any(tree => ReferenceEquals(tree, source.SyntaxTree)))
+            if (!evidence.IsCompilationTree)
             {
                 return Reject(line, normalizedPath, "compilation-mismatch", source);
             }
 
-            if (source.SyntaxTree.Options is not CSharpParseOptions syntaxTreeOptions)
+            if (evidence.SyntaxTreeOptions is null)
             {
                 return Reject(line, normalizedPath, "compilation-mismatch", source);
             }
 
-            if (!HaveSameConditionalSymbols(source.ParseOptions, syntaxTreeOptions))
+            if (!evidence.HasMatchingConditionalSymbols)
             {
                 return Reject(line, normalizedPath, "conditional-compilation-mismatch", source);
             }
 
-            if (!source.ParseOptions.Equals(syntaxTreeOptions))
+            if (!evidence.HasMatchingParseOptions)
             {
                 return Reject(line, normalizedPath, "compilation-mismatch", source);
             }
 
-            var sourceText = source.SyntaxTree.GetText();
+            var sourceText = evidence.SourceText;
             if (line.Line <= 0 || line.Line > sourceText.Lines.Count)
             {
                 return Reject(line, normalizedPath, "location-unmatched", source);
             }
 
             var lineSpan = sourceText.Lines[line.Line - 1].Span;
-            var properties = source.SyntaxTree.GetRoot()
-                .DescendantNodes()
-                .OfType<PropertyDeclarationSyntax>()
+            var properties = evidence.Properties
                 .Where(property => property.Span.OverlapsWith(lineSpan))
                 .ToArray();
             if (properties.Length == 0)
@@ -301,41 +305,35 @@ internal sealed class StructuralLineClassifier
                 throw injectedFailure;
             }
 
-            var semanticModel = compilation.GetSemanticModel(source.SyntaxTree);
-            propertySymbol = semanticModel.GetDeclaredSymbol(property);
-            if (propertySymbol is null
-                || propertySymbol.Type is IErrorTypeSymbol
-                || propertySymbol.DeclaringSyntaxReferences.Length != 1
-                || !ReferenceEquals(propertySymbol.DeclaringSyntaxReferences[0].SyntaxTree, source.SyntaxTree))
+            var propertyEvidence = evidence.GetPropertyEvidence(property);
+            propertySymbol = propertyEvidence.Symbol;
+            if (propertyEvidence.IsUnbound || propertySymbol is not { } boundPropertySymbol)
             {
                 return Reject(line, normalizedPath, "property-unbound", source, propertySymbol);
             }
 
-            if (propertySymbol.OverriddenProperty is not null
-                || propertySymbol.ExplicitInterfaceImplementations.Length != 0
-                || propertySymbol.ContainingType.TypeKind == TypeKind.Interface)
+            if (propertyEvidence.IsInheritedOrOverridden)
             {
                 return Reject(line, normalizedPath, "property-inherited-or-overridden", source, propertySymbol);
             }
 
-            if (property.Ancestors().OfType<TypeDeclarationSyntax>().Any(type =>
-                type.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.PartialKeyword))))
+            if (propertyEvidence.IsInPartialType)
             {
                 return Reject(line, normalizedPath, "partial-type", source, propertySymbol);
             }
 
-            if (semanticModel.GetDiagnostics(property.Span).Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            if (propertyEvidence.HasSemanticDiagnostic)
             {
                 return Reject(line, normalizedPath, "semantic-diagnostic", source, propertySymbol);
             }
 
-            var propertyShapeReason = GetPropertyShapeRejectionReason(property, propertySymbol);
+            var propertyShapeReason = GetPropertyShapeRejectionReason(property, boundPropertySymbol);
             if (propertyShapeReason is not null)
             {
                 return Reject(line, normalizedPath, propertyShapeReason, source, propertySymbol);
             }
 
-            return Accept(line, normalizedPath, source, propertySymbol);
+            return Accept(line, normalizedPath, source, boundPropertySymbol);
         }
         catch (Exception exception)
         {
@@ -348,26 +346,6 @@ internal sealed class StructuralLineClassifier
                 "exceptionType=" + exception.GetType().Name);
         }
     }
-
-    private static bool IsSourceIdentityValid(StructuralSourceDocument source, string normalizedPath)
-    {
-        var fingerprint = Convert.ToHexString(SHA256.HashData(source.Bytes));
-        if (!string.Equals(fingerprint, source.Fingerprint, StringComparison.Ordinal)
-            || !string.Equals(NormalizePath(source.SyntaxTree.FilePath), normalizedPath, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        return string.Equals(
-            source.Encoding.GetString(source.Bytes),
-            source.SyntaxTree.GetText().ToString(),
-            StringComparison.Ordinal);
-    }
-
-    private static bool HaveSameConditionalSymbols(CSharpParseOptions expected, CSharpParseOptions actual) =>
-        expected.PreprocessorSymbolNames
-            .Order(StringComparer.Ordinal)
-            .SequenceEqual(actual.PreprocessorSymbolNames.Order(StringComparer.Ordinal), StringComparer.Ordinal);
 
     private static bool HasNonBraceTokenOnLine(PropertyDeclarationSyntax property, TextSpan lineSpan)
     {
@@ -521,4 +499,141 @@ internal sealed class StructuralLineClassifier
 
     private static string NormalizePathForAudit(string? path) =>
         string.IsNullOrWhiteSpace(path) ? string.Empty : path.Replace('\\', '/');
+
+    private StructuralSourceEvidenceCache GetEvidenceCache(CSharpCompilation compilation)
+    {
+        if (evidenceCaches.TryGetValue(compilation, out var evidenceCache))
+        {
+            return evidenceCache;
+        }
+
+        evidenceCache = new StructuralSourceEvidenceCache(compilation);
+        evidenceCaches.Add(compilation, evidenceCache);
+        return evidenceCache;
+    }
+
+    private sealed class StructuralSourceEvidenceCache
+    {
+        private readonly CSharpCompilation compilation;
+        private readonly HashSet<SyntaxTree> compilationTrees;
+        private readonly Dictionary<StructuralSourceDocument, StructuralSourceEvidence> evidenceBySource = [];
+        private int classificationRun;
+
+        internal StructuralSourceEvidenceCache(CSharpCompilation compilation)
+        {
+            this.compilation = compilation;
+            compilationTrees = new HashSet<SyntaxTree>(compilation.SyntaxTrees, ReferenceEqualityComparer.Instance);
+        }
+
+        internal StructuralSourceEvidence Get(StructuralSourceDocument source)
+        {
+            if (evidenceBySource.TryGetValue(source, out var evidence))
+            {
+                return evidence;
+            }
+
+            evidence = new StructuralSourceEvidence(source, compilation, compilationTrees.Contains(source.SyntaxTree));
+            evidenceBySource.Add(source, evidence);
+            return evidence;
+        }
+
+        internal int StartClassificationRun() => checked(++classificationRun);
+    }
+
+    private sealed class StructuralSourceEvidence
+    {
+        private readonly StructuralSourceDocument source;
+        private readonly Lazy<SemanticModel> semanticModel;
+        private readonly Dictionary<PropertyDeclarationSyntax, StructuralPropertyEvidence> propertyEvidence = [];
+        private string? actualFingerprint;
+        private string? decodedText;
+        private int verifiedClassificationRun = -1;
+
+        internal StructuralSourceEvidence(
+            StructuralSourceDocument source,
+            CSharpCompilation compilation,
+            bool isCompilationTree)
+        {
+            this.source = source;
+            SourceText = source.SyntaxTree.GetText();
+            Properties = source.SyntaxTree.GetRoot()
+                .DescendantNodes()
+                .OfType<PropertyDeclarationSyntax>()
+                .ToArray();
+            SyntaxTreeOptions = source.SyntaxTree.Options as CSharpParseOptions;
+            IsCompilationTree = isCompilationTree;
+            HasMatchingConditionalSymbols = SyntaxTreeOptions is not null
+                && source.ParseOptions.PreprocessorSymbolNames
+                    .Order(StringComparer.Ordinal)
+                    .SequenceEqual(
+                        SyntaxTreeOptions.PreprocessorSymbolNames.Order(StringComparer.Ordinal),
+                        StringComparer.Ordinal);
+            HasMatchingParseOptions = SyntaxTreeOptions is not null
+                && source.ParseOptions.Equals(SyntaxTreeOptions);
+            semanticModel = new Lazy<SemanticModel>(() => compilation.GetSemanticModel(source.SyntaxTree));
+        }
+
+        internal SourceText SourceText { get; }
+
+        internal IReadOnlyList<PropertyDeclarationSyntax> Properties { get; }
+
+        internal CSharpParseOptions? SyntaxTreeOptions { get; }
+
+        internal bool IsCompilationTree { get; }
+
+        internal bool HasMatchingConditionalSymbols { get; }
+
+        internal bool HasMatchingParseOptions { get; }
+
+        internal SemanticModel SemanticModel => semanticModel.Value;
+
+        internal StructuralPropertyEvidence GetPropertyEvidence(PropertyDeclarationSyntax property)
+        {
+            if (propertyEvidence.TryGetValue(property, out var evidence))
+            {
+                return evidence;
+            }
+
+            var symbol = SemanticModel.GetDeclaredSymbol(property);
+            var isUnbound = symbol is null
+                || symbol.Type is IErrorTypeSymbol
+                || symbol.DeclaringSyntaxReferences.Length != 1
+                || !ReferenceEquals(symbol.DeclaringSyntaxReferences[0].SyntaxTree, source.SyntaxTree);
+            evidence = new StructuralPropertyEvidence(
+                symbol,
+                isUnbound,
+                !isUnbound
+                    && (symbol!.OverriddenProperty is not null
+                        || symbol.ExplicitInterfaceImplementations.Length != 0
+                        || symbol.ContainingType.TypeKind == TypeKind.Interface),
+                property.Ancestors().OfType<TypeDeclarationSyntax>().Any(type =>
+                    type.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.PartialKeyword))),
+                !isUnbound
+                    && SemanticModel.GetDiagnostics(property.Span)
+                        .Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+            propertyEvidence.Add(property, evidence);
+            return evidence;
+        }
+
+        internal bool HasExactSourceIdentity(string normalizedPath, int classificationRun)
+        {
+            if (verifiedClassificationRun != classificationRun)
+            {
+                actualFingerprint = Convert.ToHexString(SHA256.HashData(source.Bytes));
+                decodedText = source.Encoding.GetString(source.Bytes);
+                verifiedClassificationRun = classificationRun;
+            }
+
+            return string.Equals(actualFingerprint, source.Fingerprint, StringComparison.Ordinal)
+                && string.Equals(NormalizePath(source.SyntaxTree.FilePath), normalizedPath, StringComparison.Ordinal)
+                && string.Equals(decodedText, SourceText.ToString(), StringComparison.Ordinal);
+        }
+    }
+
+    private sealed record StructuralPropertyEvidence(
+        IPropertySymbol? Symbol,
+        bool IsUnbound,
+        bool IsInheritedOrOverridden,
+        bool IsInPartialType,
+        bool HasSemanticDiagnostic);
 }

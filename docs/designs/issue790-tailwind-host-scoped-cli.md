@@ -190,8 +190,9 @@ separate release decision.
      executable, and only then makes the final path visible;
    - serializes an entry with an OS-backed exclusive `FileStream` lock on its `.lock`
      file. Contenders attempt once plus `TailwindDownloadRetries` reattempts, waiting
-     `TailwindDownloadRetryDelayMilliseconds` between attempts (five total attempts and
-     at most 20 seconds of waits at the current defaults). Every successful contender
+     `TailwindDownloadRetryDelayMilliseconds` between attempts. The lock waits through
+     both checksum and binary retry windows (nine total attempts and at most 40 seconds
+     of waits at the current defaults). Every successful contender
      rechecks the final binary before doing any network work. Timeout is `ASTW012` with
      classification `lock-timeout`. The operating system releases the lock when a
      process dies, so a stale lock *file* is reusable rather than deleted by PID or
@@ -239,8 +240,8 @@ separate release decision.
    recovery path.
 
 5. **Document the delivery boundary.** Update the Tailwind README, the
-   [package chooser](../../packages/README.md), and
-   [`packages/third-party-payloads.yml`](../../packages/third-party-payloads.yml).
+   [package chooser](../../packages/README.md), and the
+   [third-party payload inventory](../../packages/README.md#redistributed-payloads).
    State that normal consumers download exactly one build-host tool into the verified
    cache, explain how a durable CI cache or one connected build prewarms it, describe
    first-use offline recovery, remove claims about transitive runtime packages, and
@@ -276,7 +277,7 @@ separate release decision.
 |---|---|---|---|
 | Supported host, missing cache, network available | Acquires and verifies one host CLI, then builds CSS. | Acquires and verifies one host CLI before starting watch. | No action required; cache is populated. |
 | Supported host, missing cache, network unavailable or non-writable root | Fails hard with the new stable acquisition diagnostic; no child process starts. | Without an explicit watch path, makes the one development-only `PATH` attempt; if it fails, logs the acquisition cause and runs without watch. | Prime the configured cache on a connected machine/CI cache, fix root permissions, or set the explicit CLI path. |
-| Cache checksum malformed, missing, mismatched, or final binary hash mismatched | Rejects only the named bad entry under lock, reacquires when possible, then fails with `ASTW012` if no verified final file results; never executes it. | Without an explicit watch path, makes the one development-only `PATH` attempt after resolver failure; if it fails, runs without watch. | Remove the named cache entry or provide an explicit verified CLI path. |
+| Cache checksum malformed, missing, mismatched, or final binary hash mismatched | Rejects only the named bad entry under lock, reacquires when possible, then fails with `ASTW012` if no verified final file results; never executes it. | Fails closed without a `PATH` attempt. | Remove the named cache entry or provide an explicit verified CLI path. |
 | No explicit CLI override and unsupported host RID | Fails hard with the existing unsupported-RID diagnostic. | May make its one development-only `PATH` attempt, then logs the classified cause and runs without watch. | Use a supported build host or supply an existing compatible explicit CLI path, which is evaluated before host mapping. |
 | Explicit CLI override is missing or the OS cannot start it | Retains existing explicit-path/process-start diagnostics; no cache or network fallback occurs. | Retains existing warning/error lifecycle; no cache write occurs. | Correct the explicit path or remove it to use normal host-tool resolution. |
 
@@ -362,7 +363,8 @@ details remain intentionally open and must be resolved before coding begins:
   fields separately.
 - **Complete `ASTW012` taxonomy:** Fix and document the finite classifications:
   `invalid-version`, `no-cache-root`, `invalid-cache`, `checksum-failure`,
-  `non-writable-root`, `network-failure`, `retry-exhausted`, and `lock-timeout`.
+  `non-writable-root`, `network-failure`, `download-size-limit`,
+  `retry-exhausted`, and `lock-timeout`.
 - **Diagnostic path redaction:** Specify a safe rendered cache-path form or omit the
   path when a custom root could expose a username, token, or other sensitive segment.
 - **MSBuild async bridge:** Specify how `RunTailwindBuildTask` awaits the asynchronous
@@ -604,8 +606,8 @@ files in build or publish output.
 ### Section 7: Performance and cache budget
 
 The steady state is one full SHA-256 rehash of the host executable and no network request; the
-first-use path has a bounded lock wait of the existing retry budget (five attempts and
-at most 20 seconds at defaults) plus the bounded downloader retries. Contention is
+first-use path has a bounded lock wait that covers both downloader retry windows (nine
+attempts and at most 40 seconds at defaults) plus the bounded downloader retries. Contention is
 per version/RID/binary entry, so unrelated hosts and versions do not serialize. There
 is intentionally no automatic cache pruning: operator-owned cache retention is safer
 than deleting a known-good tool during a build. Documentation must provide deterministic
@@ -817,7 +819,7 @@ This table supersedes conflicting prose elsewhere in the document.
 | Execution mode | Resolution order | Path anchoring | Failure behavior |
 |---|---|---|---|
 | Build | Non-empty `TailwindCliPath` -> shared resolver. | Explicit path: `ProjectDirectory`; cache: resolved root; relative inputs/outputs: `ProjectDirectory`. Absolute explicit paths are allowed. | Missing explicit path is `ASTW003` with no resolver/`PATH` fallback. No explicit path and unknown host is `ASTW001`. Resolver failure is `ASTW012`; build never searches `PATH`. |
-| Development watch | Non-empty `TailwindOptions.CliPath` -> shared resolver -> development `PATH` -> no watch. | Explicit path and inputs/outputs: `IHostEnvironment.ContentRootPath`; cache uses the package manifest version and resolved root. | Missing explicit watch path is an authoritative warning and no fallback. Without an explicit path, every resolver failure, including unknown host or unavailable root, may try the existing development `PATH` fallback; if that fails, log the classified cause and run the app without watch. |
+| Development watch | Non-empty `TailwindOptions.CliPath` -> shared resolver -> development `PATH` for an availability failure -> no watch. | Explicit path and inputs/outputs: `IHostEnvironment.ContentRootPath`; cache uses the package manifest version and resolved root. | Missing explicit watch path is an authoritative warning and no fallback. An unavailable root, transient network failure, lock timeout, retry exhaustion, or unknown host may try the existing development `PATH` fallback. Manifest, cache, version, and digest integrity failures are final; if an allowed PATH fallback fails, log the classified cause and run the app without watch. |
 | Packed/source-tree consumers | Same resolver identity and manifest. | Packed targets locate `build/tailwind.release.json`; source-tree targets locate the same file beside the source targets. | The manifest version must equal `tailwind.version` and the supplied `TailwindVersion`; mismatch is `ASTW012/checksum-failure` before network work. |
 
 `TailwindDownloadCacheRoot` wins when non-empty. Otherwise root resolution is
@@ -831,7 +833,7 @@ is `ASTW012/invalid-cache`, preserving the fixed finite taxonomy.
 
 The only `ASTW012` classifications are `invalid-version`, `no-cache-root`,
 `invalid-cache`, `checksum-failure`, `non-writable-root`, `network-failure`,
-`retry-exhausted`, and `lock-timeout`. `invalid-version` includes no cache identity;
+`download-size-limit`, `retry-exhausted`, and `lock-timeout`. `invalid-version` includes no cache identity;
 all other classifications include the safe root source and relative identity but never
 an absolute root, URL, response body, credential, or exception text.
 
@@ -1049,7 +1051,7 @@ The following table supersedes every earlier abbreviated fallback description:
 | Watch: explicit `TailwindOptions.CliPath` exists | Execute it using current watch semantics; no resolver or `PATH` work. |
 | Watch: explicit path is missing or cannot start | Log the authoritative explicit-path/process error and start the app without watch; no fallback. |
 | Watch: no explicit path, resolver succeeds | Run watch with the verified host cache entry. |
-| Watch: no explicit path, resolver fails | Make exactly one existing development-only `PATH` attempt. It is unverified, never cached, and unavailable in build mode. If it fails, log the resolver classification plus PATH failure and run without watch. |
+| Watch: no explicit path, resolver has an availability failure | Make exactly one existing development-only `PATH` attempt. It is unverified, never cached, and unavailable in build mode. Manifest, cache, version, and digest integrity failures fail closed without a `PATH` attempt. If an allowed attempt fails, log the resolver classification plus PATH failure and run without watch. |
 
 | Artifact or system | Required post-change condition | Proof |
 |---|---|---|
@@ -1073,7 +1075,7 @@ The five-host evidence gate names actual current native runners rather than gues
 | Multiprocess cache | New non-packable `TailwindCacheTestHost` process proves two-process contention, owner death holding lock, stale lock-file reuse, death after partial write, atomic reader visibility, and refusal to select partial/rejected files. Thread-only tests do not satisfy this row. |
 | Process integration | Existing build/watch arguments, working directory, inherited environment, bounded output, CliWrap executable handling, nonzero exit, `ASTW005`, and no fallback after start failure. |
 | Packaging | Main package no companion dependency/native payload; companions direct-only; real packed consumer produces CSS on the native host; two-project non-executing consumer remains native-free. |
-| Watch policy | One case for every resolver classification verifies no override -> one PATH attempt -> non-blocking app start when PATH fails; each explicit-path failure verifies no fallback. |
+| Watch policy | Availability classifications verify no override -> one PATH attempt -> non-blocking app start when PATH fails; manifest, cache, version, and digest integrity classifications verify no `PATH` fallback; each explicit-path failure verifies no fallback. |
 | CI/offline/performance | Network-disabled primed-cache build; five native restore artifacts; cold-acquisition and verified-reuse p95 timings; lock-contention timing. Rehash cost is measured as a full executable hash, with no in-memory shortcut that weakens disk verification. |
 | Documentation | Packed-consumer fixture executes the README's exact three-step build path and asserts output/link results; cache/prewarm/offline/recovery and host-versus-target RID examples are checked for drift. |
 
@@ -1166,7 +1168,7 @@ authorized by this plan-review output alone.
 |---|---|---|---|---|
 | Package boundary | Remove native assets from non-executing consumers. | Keep a no-config default and direct escape hatch. | Prove main archive/dependency closure and downstream output absence. | Main package becomes host-cache delivery; companions remain direct-only. |
 | Trust and recovery | A downloaded checksum cannot validate its paired download alone. | Make failures actionable without new public diagnostics UI. | Define first-party manifest, exact safe taxonomy, cache boundary, and launch contract. | First-party manifest digest is the trust anchor; upstream sums are audit-only. |
-| Predictable precedence | Preserve explicit CLI overrides. | Publish one build/watch matrix and a copy-paste quick start. | Make early explicit-path resolution and no-fallback behavior testable. | Explicit path first; build never PATH; watch has one dev-only PATH attempt only after no-override resolver failure. |
+| Predictable precedence | Preserve explicit CLI overrides. | Publish one build/watch matrix and a copy-paste quick start. | Make early explicit-path resolution and no-fallback behavior testable. | Explicit path first; build never PATH; watch has one dev-only PATH attempt only after an availability-related no-override resolver failure. |
 | Operational reliability | Require usable offline behavior and a release/migration story. | Document cache roots, prewarm, offline recovery, and package chooser changes. | Add atomic publish, cancellation, multiprocess, performance, and five-host native evidence. | A primed verified cache is supported; a fresh offline machine fails safely with documented recovery. |
 | Scope discipline | Do not convert #790 into a public tool-cache platform or companion-package lifecycle rewrite. | Avoid new knobs, dashboard, or package-selection workflow. | Use linked internal source and test seams only. | Keep API surface unchanged; lifecycle policy remains a separately owned release decision. |
 

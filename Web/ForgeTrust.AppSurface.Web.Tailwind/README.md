@@ -111,7 +111,7 @@ for native execution proof.
 | Mode | Ordered resolution | Failure behavior |
 |---|---|---|
 | MSBuild build | Existing TailwindCliPath -> verified host cache/acquisition | Missing explicit path is final. Resolver failure is a build error. Build never searches PATH. |
-| Development watch | Existing TailwindOptions.CliPath -> verified host cache/acquisition -> one PATH attempt | Missing explicit watch path is final. With no explicit path, a resolver and PATH failure logs a warning and the app starts without watch mode. |
+| Development watch | Existing TailwindOptions.CliPath -> verified host cache/acquisition -> one PATH attempt for an availability failure | Missing explicit watch path is final. Manifest, cache, and digest integrity failures are final and do not try PATH. With no explicit path, an availability failure followed by a PATH failure logs a warning and the app starts without watch mode. |
 
 An explicit path is deliberately a trusted escape hatch. Relative TailwindCliPath values
 resolve from the project directory; relative TailwindOptions.CliPath values resolve from
@@ -129,6 +129,7 @@ well as the standalone executable.
 | TailwindCliPath | empty | Build with a deliberate local or custom standalone binary. |
 | TailwindVersion | build/tailwind.version | Internal coordinated-release value. It must match the package manifest. |
 | TailwindDownloadCacheRoot | user or CI cache derived from environment | Use a durable or isolated cache root. |
+| TailwindReleaseManifestPath | package-owned `build/tailwind.release.json` | Internal task input set by the imported targets. Do not override it; use TailwindCliPath for an explicitly trusted local binary instead. |
 
 | TailwindOptions member | Default | Use it when |
 |---|---|---|
@@ -144,8 +145,8 @@ using one directly.
 
 ## Package release proof
 
-The repository package gate runs a real packed-consumer proof through
-[`scripts/verify-tailwind-package-consumer.sh`](../../scripts/verify-tailwind-package-consumer.sh).
+The repository package gate runs a real packed-consumer proof described in the
+[package maintainer notes](../../packages/README.md#maintainer-notes).
 It restores only the freshly packed main package from the local artifact feed, maps
 third-party resolution to reviewed CliWrap, Microsoft.Extensions, and
 System.Diagnostics.EventLog package sources, isolates all NuGet caches inside the proof
@@ -153,7 +154,7 @@ workspace, verifies the generated consumer lock file with `--locked-mode`, then 
 with the default resolver. The proof confirms the current host cache entry and
 generated CSS, and rejects any runtime companion edge or copied Tailwind executable in
 consumer output.
-Run `verify-packages` as described in the [package release workflow](../../packages/README.md#package-release-workflow)
+Run `verify-packages` as described in the [package maintainer notes](../../packages/README.md#maintainer-notes)
 before publishing changes to this package boundary.
 
 ## Diagnostics
@@ -173,7 +174,8 @@ help anchor.
 | ASTW012 | Manifest, version, cache, lock, checksum, or acquisition verification failed. | Use the classification and redacted cache identity; prewarm the cache, fix the root, or set an explicit CLI path. |
 
 ASTW012 classifications are finite: invalid-version, no-cache-root, invalid-cache,
-checksum-failure, non-writable-root, network-failure, retry-exhausted, and lock-timeout.
+checksum-failure, non-writable-root, network-failure, download-size-limit,
+retry-exhausted, and lock-timeout.
 Diagnostics never render a custom absolute cache root, release URL, response body, or
 credential.
 

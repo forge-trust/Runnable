@@ -11,7 +11,7 @@ namespace ForgeTrust.AppSurface.Web.Tailwind;
 /// <item><description><see cref="Enabled"/> defaults to <c>true</c>.</description></item>
 /// <item><description><see cref="InputPath"/> defaults to <c>wwwroot/css/app.css</c>.</description></item>
 /// <item><description><see cref="OutputPath"/> defaults to <c>wwwroot/css/site.gen.css</c>.</description></item>
-/// <item><description><see cref="CliPath"/> defaults to <see langword="null" />, which uses the verified host cache and then the development <c>PATH</c> fallback.</description></item>
+/// <item><description><see cref="CliPath"/> defaults to <see langword="null" />, which uses the verified host cache and may use the development <c>PATH</c> fallback only after an availability failure.</description></item>
 /// </list>
 /// Paths are resolved relative to the app content root. Common misconfigurations include pointing at a missing
 /// input file, using whitespace-only paths, or choosing an output path whose parent directory is not writable.

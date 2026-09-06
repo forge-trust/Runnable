@@ -2697,6 +2697,47 @@ public sealed class PackageArtifactValidationTests : IDisposable
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PackageArtifactValidator_ReadPackageEntryBytesRejectsOversizedRequiredArchiveEntry()
+    {
+        var packagePath = CombineSafeChildPath(_repositoryRoot, "artifacts/oversized-entry.nupkg");
+        Directory.CreateDirectory(Path.GetDirectoryName(packagePath)!);
+        using (var archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("build/tailwind.release.json", CompressionLevel.SmallestSize);
+            using var stream = entry.Open();
+            stream.Write(new byte[(1024 * 1024) + 1]);
+        }
+
+        var error = Assert.Throws<PackageIndexException>(
+            () => PackageArtifactValidator.ReadPackageEntryBytes(
+                packagePath,
+                "build/tailwind.release.json",
+                "ForgeTrust.AppSurface.Web.Tailwind"));
+
+        Assert.Contains("exceeds the 1048576-byte validation limit", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PackageArtifactValidator_ReadPackageEntryBytesAcceptsRequiredArchiveEntryAtTheSizeLimit()
+    {
+        var packagePath = CombineSafeChildPath(_repositoryRoot, "artifacts/at-size-limit-entry.nupkg");
+        Directory.CreateDirectory(Path.GetDirectoryName(packagePath)!);
+        using (var archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
+        {
+            var entry = archive.CreateEntry("build/tailwind.release.json", CompressionLevel.SmallestSize);
+            using var stream = entry.Open();
+            stream.Write(new byte[1024 * 1024]);
+        }
+
+        var bytes = PackageArtifactValidator.ReadPackageEntryBytes(
+            packagePath,
+            "build/tailwind.release.json",
+            "ForgeTrust.AppSurface.Web.Tailwind");
+
+        Assert.Equal(1024 * 1024, bytes.Length);
+    }
+
     [Theory]
     [InlineData("build/tailwind.release.json")]
     [InlineData("build/tailwind.version")]

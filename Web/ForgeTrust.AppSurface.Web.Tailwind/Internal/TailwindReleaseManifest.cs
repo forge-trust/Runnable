@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -218,6 +217,7 @@ internal enum TailwindCliResolutionFailure
     ChecksumFailure,
     NonWritableRoot,
     NetworkFailure,
+    DownloadSizeLimit,
     RetryExhausted,
     LockTimeout
 }

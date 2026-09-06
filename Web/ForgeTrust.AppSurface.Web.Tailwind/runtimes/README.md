@@ -26,6 +26,12 @@ requires a native payload under runtimes/<rid>/native. Direct use is a compatibi
 choice: it does not change the main package's host-cache behavior, project-reference
 output hygiene, or explicit CLI overrides.
 
+Adding a companion package alone does not change either resolver's precedence. A
+specialized workflow must point MSBuild's `TailwindCliPath`, or development watch's
+`TailwindOptions.CliPath`, at its intentionally managed native payload. This preserves
+the default package's host-cache trust boundary while allowing a narrowly scoped
+legacy integration to opt in to its own binary lifecycle.
+
 ## Maintainer guidance
 
 The runtime projects remain independently packable so published companion artifacts are

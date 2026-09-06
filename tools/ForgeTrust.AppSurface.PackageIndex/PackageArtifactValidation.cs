@@ -17,6 +17,7 @@ internal sealed class PackageArtifactValidator
     private const string TailwindMainPackageId = "ForgeTrust.AppSurface.Web.Tailwind";
     private const string TailwindRuntimePackagePrefix = "ForgeTrust.AppSurface.Web.Tailwind.Runtime.";
     private const int MaxNoticeBytes = 256 * 1024;
+    private const int MaxRequiredPackageEntryBytes = 1024 * 1024;
 
     private static readonly IReadOnlyDictionary<string, string> TailwindRuntimeBinaryNames =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -1356,7 +1357,7 @@ internal sealed class PackageArtifactValidator
     /// <param name="entryPath">Repository-style path of the required archive entry.</param>
     /// <param name="packageId">Package identifier used in a validation failure message.</param>
     /// <returns>The archive entry bytes.</returns>
-    /// <exception cref="PackageIndexException">Thrown when the archive does not contain the required entry.</exception>
+    /// <exception cref="PackageIndexException">Thrown when the archive does not contain the required entry or its uncompressed contents exceed the validation limit.</exception>
     internal static byte[] ReadPackageEntryBytes(string packagePath, string entryPath, string packageId)
     {
         using var archive = ZipFile.OpenRead(packagePath);
@@ -1367,9 +1368,27 @@ internal sealed class PackageArtifactValidator
             throw new PackageIndexException($"Package '{packageId}' is missing required entry '{entryPath}'.");
         }
 
+        if (entry.Length > MaxRequiredPackageEntryBytes)
+        {
+            throw new PackageIndexException(
+                $"Package '{packageId}' required entry '{entryPath}' exceeds the {MaxRequiredPackageEntryBytes}-byte validation limit.");
+        }
+
         using var stream = entry.Open();
         using var buffer = new MemoryStream();
-        stream.CopyTo(buffer);
+        var readBuffer = new byte[81920];
+        int bytesRead;
+        while ((bytesRead = stream.Read(readBuffer, 0, readBuffer.Length)) != 0)
+        {
+            if (buffer.Length > MaxRequiredPackageEntryBytes - bytesRead)
+            {
+                throw new PackageIndexException(
+                    $"Package '{packageId}' required entry '{entryPath}' exceeds the {MaxRequiredPackageEntryBytes}-byte validation limit.");
+            }
+
+            buffer.Write(readBuffer, 0, bytesRead);
+        }
+
         return buffer.ToArray();
     }
 

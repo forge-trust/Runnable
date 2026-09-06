@@ -36,6 +36,11 @@ if [[ -z "$artifact_directory" || -z "$package_version" || -z "$work_directory" 
   exit 2
 fi
 
+if [[ ! "$package_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?$ ]]; then
+  printf 'Package version must be a SemVer stable or prerelease identity without build metadata.\n' >&2
+  exit 2
+fi
+
 xml_escape() {
   local value="$1"
   value="${value//&/\&amp;}"

@@ -484,7 +484,7 @@ public sealed class TailwindTaskResolverTests : IDisposable
             CancellationToken.None));
 
         Assert.Equal(TaskInternal.TailwindCliResolutionFailure.LockTimeout, exception.Failure);
-        Assert.Equal(4, delayCalls);
+        Assert.Equal(8, delayCalls);
         Assert.IsType<IOException>(exception.InnerException);
     }
 

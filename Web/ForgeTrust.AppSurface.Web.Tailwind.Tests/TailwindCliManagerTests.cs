@@ -207,8 +207,11 @@ public sealed class TailwindCliManagerTests : IDisposable
         Assert.Equal(["/tailwind/sha256sums.txt", "/tailwind/tailwindcss-linux-x64"], requests);
     }
 
-    [Fact]
-    public async Task Resolver_RetriesTransientChecksumFailureThroughTheProductionHttpPipeline()
+    [Theory]
+    [InlineData(408)]
+    [InlineData(429)]
+    [InlineData(503)]
+    public async Task Resolver_RetriesTransientChecksumFailureThroughTheProductionHttpPipeline(int transientStatusCode)
     {
         var payload = Encoding.UTF8.GetBytes("http retry executable");
         var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
@@ -221,7 +224,7 @@ public sealed class TailwindCliManagerTests : IDisposable
             {
                 checksumAttempts++;
                 return checksumAttempts == 1
-                    ? CreateHttpResponse(HttpStatusCode.ServiceUnavailable, Array.Empty<byte>())
+                    ? CreateHttpResponse((HttpStatusCode)transientStatusCode, Array.Empty<byte>())
                     : CreateHttpResponse(HttpStatusCode.OK, CreateChecksums(asset, payload));
             }
 
@@ -245,8 +248,11 @@ public sealed class TailwindCliManagerTests : IDisposable
         Assert.Equal(1, delayCalls);
     }
 
-    [Fact]
-    public async Task Resolver_RetriesTransientBinaryFailureThroughTheProductionHttpPipeline()
+    [Theory]
+    [InlineData(408)]
+    [InlineData(429)]
+    [InlineData(503)]
+    public async Task Resolver_RetriesTransientBinaryFailureThroughTheProductionHttpPipeline(int transientStatusCode)
     {
         var payload = Encoding.UTF8.GetBytes("http binary retry executable");
         var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
@@ -262,7 +268,7 @@ public sealed class TailwindCliManagerTests : IDisposable
 
             binaryAttempts++;
             return binaryAttempts == 1
-                ? CreateHttpResponse(HttpStatusCode.ServiceUnavailable, Array.Empty<byte>())
+                ? CreateHttpResponse((HttpStatusCode)transientStatusCode, Array.Empty<byte>())
                 : CreateHttpResponse(HttpStatusCode.OK, payload);
         }));
         var resolver = new TailwindCliResolver(
@@ -314,9 +320,9 @@ public sealed class TailwindCliManagerTests : IDisposable
             new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
             CancellationToken.None));
 
-        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
-        Assert.Equal(5, checksumAttempts);
-        Assert.Equal(4, delayCalls);
+        Assert.Equal(TailwindCliResolutionFailure.DownloadSizeLimit, exception.Failure);
+        Assert.Equal(1, checksumAttempts);
+        Assert.Equal(0, delayCalls);
     }
 
     [Fact]
@@ -662,8 +668,41 @@ public sealed class TailwindCliManagerTests : IDisposable
             CancellationToken.None));
 
         Assert.Equal(TailwindCliResolutionFailure.LockTimeout, exception.Failure);
-        Assert.Equal(4, delayCalls);
+        Assert.Equal(8, delayCalls);
         Assert.IsAssignableFrom<IOException>(exception.InnerException);
+    }
+
+    [Fact]
+    public async Task Resolver_WaitsForTheFullAcquisitionRetryBudgetBeforeTimingOutTheEntryLock()
+    {
+        var payload = Encoding.UTF8.GetBytes("long owner acquisition executable");
+        var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        var asset = manifest.GetAsset("linux-x64");
+        var cacheRoot = Path.Join(_tempRoot, "cache");
+        var finalPath = TailwindDownloadCache.GetRuntimeBinaryPath(cacheRoot, manifest.Version, asset.Rid, asset.BinaryName);
+        Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
+        using var heldLock = new FileStream(finalPath + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        var delayCalls = 0;
+        var resolver = new TailwindCliResolver(
+            manifest,
+            (uri, _) => Task.FromResult(CreateDownload(uri, asset, payload)),
+            delay: (_, _) =>
+            {
+                delayCalls++;
+                if (delayCalls == 8)
+                {
+                    heldLock.Dispose();
+                }
+
+                return Task.CompletedTask;
+            });
+
+        var resolved = await resolver.ResolveAsync(
+            new TailwindCliResolverOptions(null, _tempRoot, cacheRoot, manifest.Version, asset.Rid),
+            CancellationToken.None);
+
+        Assert.Equal(TailwindCliCacheState.Acquired, resolved.CacheState);
+        Assert.Equal(8, delayCalls);
     }
 
     [Fact]
@@ -798,9 +837,9 @@ public sealed class TailwindCliManagerTests : IDisposable
             new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, "linux-x64"),
             CancellationToken.None));
 
-        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
-        Assert.Equal(5, downloadCalls);
-        Assert.Equal(4, delayCalls);
+        Assert.Equal(TailwindCliResolutionFailure.DownloadSizeLimit, exception.Failure);
+        Assert.Equal(1, downloadCalls);
+        Assert.Equal(0, delayCalls);
     }
 
     [Fact]
@@ -866,9 +905,9 @@ public sealed class TailwindCliManagerTests : IDisposable
             new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
             CancellationToken.None));
 
-        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
-        Assert.Equal(5, binaryAttempts);
-        Assert.Equal(4, delayCalls);
+        Assert.Equal(TailwindCliResolutionFailure.DownloadSizeLimit, exception.Failure);
+        Assert.Equal(1, binaryAttempts);
+        Assert.Equal(0, delayCalls);
     }
 
     [Fact]
@@ -895,8 +934,8 @@ public sealed class TailwindCliManagerTests : IDisposable
             new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
             CancellationToken.None));
 
-        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
-        Assert.Equal(4, delayCalls);
+        Assert.Equal(TailwindCliResolutionFailure.DownloadSizeLimit, exception.Failure);
+        Assert.Equal(0, delayCalls);
     }
 
     [Fact]
@@ -929,8 +968,8 @@ public sealed class TailwindCliManagerTests : IDisposable
             new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
             CancellationToken.None));
 
-        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
-        Assert.Equal(4, delayCalls);
+        Assert.Equal(TailwindCliResolutionFailure.DownloadSizeLimit, exception.Failure);
+        Assert.Equal(0, delayCalls);
     }
 
     [Fact]
@@ -962,8 +1001,71 @@ public sealed class TailwindCliManagerTests : IDisposable
             new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
             CancellationToken.None));
 
-        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
-        Assert.Equal(4, delayCalls);
+        Assert.Equal(TailwindCliResolutionFailure.DownloadSizeLimit, exception.Failure);
+        Assert.Equal(0, delayCalls);
+    }
+
+    [Theory]
+    [InlineData(400)]
+    [InlineData(404)]
+    [InlineData(499)]
+    public async Task Resolver_DoesNotRetryANonRetryableOfficialReleaseResponse(int nonRetryableStatusCode)
+    {
+        var payload = Encoding.UTF8.GetBytes("non-retryable response executable");
+        var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        var requestCount = 0;
+        using var client = new HttpClient(new QueueHttpMessageHandler(_ =>
+        {
+            requestCount++;
+            return CreateHttpResponse((HttpStatusCode)nonRetryableStatusCode, Array.Empty<byte>());
+        }));
+        var resolver = new TailwindCliResolver(manifest, httpClient: client);
+
+        var exception = await Assert.ThrowsAsync<TailwindCliResolutionException>(() => resolver.ResolveAsync(
+            new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, "linux-x64"),
+            CancellationToken.None));
+
+        Assert.Equal(TailwindCliResolutionFailure.NetworkFailure, exception.Failure);
+        Assert.Equal(1, requestCount);
+    }
+
+    [Theory]
+    [InlineData(400)]
+    [InlineData(404)]
+    [InlineData(499)]
+    public async Task Resolver_DoesNotRetryANonRetryableBinaryResponse(int nonRetryableStatusCode)
+    {
+        var payload = Encoding.UTF8.GetBytes("non-retryable binary response executable");
+        var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        var asset = manifest.GetAsset("linux-x64");
+        var binaryRequestCount = 0;
+        var delayCalls = 0;
+        using var client = new HttpClient(new QueueHttpMessageHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("sha256sums.txt", StringComparison.Ordinal))
+            {
+                return CreateHttpResponse(HttpStatusCode.OK, CreateChecksums(asset, payload));
+            }
+
+            binaryRequestCount++;
+            return CreateHttpResponse((HttpStatusCode)nonRetryableStatusCode, Array.Empty<byte>());
+        }));
+        var resolver = new TailwindCliResolver(
+            manifest,
+            delay: (_, _) =>
+            {
+                delayCalls++;
+                return Task.CompletedTask;
+            },
+            httpClient: client);
+
+        var exception = await Assert.ThrowsAsync<TailwindCliResolutionException>(() => resolver.ResolveAsync(
+            new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
+            CancellationToken.None));
+
+        Assert.Equal(TailwindCliResolutionFailure.NetworkFailure, exception.Failure);
+        Assert.Equal(1, binaryRequestCount);
+        Assert.Equal(0, delayCalls);
     }
 
     [Theory]
@@ -1133,7 +1235,49 @@ public sealed class TailwindCliManagerTests : IDisposable
     }
 
     [Fact]
-    public void Manager_UsesDevelopmentPathAfterVerifiedResolutionFailure()
+    public async Task Resolver_RevalidatesTheCacheDirectoryAfterOpeningTheEntryLock()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var payload = Encoding.UTF8.GetBytes("cache directory race executable");
+        var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        var asset = manifest.GetAsset("linux-x64");
+        var cacheRoot = Path.Join(_tempRoot, "cache");
+        var finalPath = TailwindDownloadCache.GetRuntimeBinaryPath(cacheRoot, manifest.Version, asset.Rid, asset.BinaryName);
+        var entryDirectory = Path.GetDirectoryName(finalPath)!;
+        Directory.CreateDirectory(entryDirectory);
+        await File.WriteAllTextAsync(finalPath + ".lock", "ordinary lock file");
+        var replacementTarget = Path.Join(_tempRoot, "replacement-target");
+        Directory.CreateDirectory(replacementTarget);
+        await File.WriteAllTextAsync(Path.Join(replacementTarget, Path.GetFileName(finalPath) + ".lock"), "replacement lock file");
+        var movedDirectory = entryDirectory + ".moved";
+        var downloadCalls = 0;
+        var resolver = new TailwindCliResolver(
+            manifest,
+            (_, _) =>
+            {
+                downloadCalls++;
+                return Task.FromResult(Array.Empty<byte>());
+            },
+            afterLockOpened: _ =>
+            {
+                Directory.Move(entryDirectory, movedDirectory);
+                Directory.CreateSymbolicLink(entryDirectory, replacementTarget);
+            });
+
+        var exception = await Assert.ThrowsAsync<TailwindCliResolutionException>(() => resolver.ResolveAsync(
+            new TailwindCliResolverOptions(null, _tempRoot, cacheRoot, manifest.Version, asset.Rid),
+            CancellationToken.None));
+
+        Assert.Equal(TailwindCliResolutionFailure.InvalidCache, exception.Failure);
+        Assert.Equal(0, downloadCalls);
+    }
+
+    [Fact]
+    public void Manager_DoesNotUseDevelopmentPathAfterAnInvalidManifest()
     {
         var pathDirectory = Path.Join(_tempRoot, "path");
         Directory.CreateDirectory(pathDirectory);
@@ -1148,7 +1292,32 @@ public sealed class TailwindCliManagerTests : IDisposable
             DownloadCacheRootOverride = Path.Join(_tempRoot, "cache")
         };
 
-        Assert.Equal(expected, manager.GetTailwindPath());
+        var exception = Assert.Throws<FileNotFoundException>(() => manager.GetTailwindPath());
+
+        Assert.Contains("development PATH was not used", exception.Message, StringComparison.Ordinal);
+        Assert.IsType<InvalidDataException>(exception.InnerException);
+        Assert.True(File.Exists(expected));
+    }
+
+    [Theory]
+    [InlineData(nameof(TailwindCliResolutionFailure.NoCacheRoot), true)]
+    [InlineData(nameof(TailwindCliResolutionFailure.NonWritableRoot), true)]
+    [InlineData(nameof(TailwindCliResolutionFailure.NetworkFailure), true)]
+    [InlineData(nameof(TailwindCliResolutionFailure.RetryExhausted), true)]
+    [InlineData(nameof(TailwindCliResolutionFailure.LockTimeout), true)]
+    [InlineData(nameof(TailwindCliResolutionFailure.UnsupportedRid), true)]
+    [InlineData(nameof(TailwindCliResolutionFailure.InvalidCache), false)]
+    [InlineData(nameof(TailwindCliResolutionFailure.ChecksumFailure), false)]
+    [InlineData(nameof(TailwindCliResolutionFailure.DownloadSizeLimit), false)]
+    [InlineData(nameof(TailwindCliResolutionFailure.MissingManifest), false)]
+    [InlineData(nameof(TailwindCliResolutionFailure.InvalidCliPath), false)]
+    [InlineData(nameof(TailwindCliResolutionFailure.MissingVersion), false)]
+    [InlineData(nameof(TailwindCliResolutionFailure.InvalidVersion), false)]
+    public void Manager_UsesPathFallbackOnlyForAvailabilityFailures(string failureName, bool expected)
+    {
+        var failure = Enum.Parse<TailwindCliResolutionFailure>(failureName);
+
+        Assert.Equal(expected, TailwindCliManager.CanUseDevelopmentPathFallback(failure));
     }
 
     [Fact]

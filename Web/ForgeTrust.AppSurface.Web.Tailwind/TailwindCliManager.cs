@@ -15,7 +15,8 @@ namespace ForgeTrust.AppSurface.Web.Tailwind;
 /// <remarks>
 /// Normal resolution uses the same package-pinned manifest and verified host cache as
 /// the MSBuild task. This manager is intentionally the only place that may make the
-/// development-only <c>PATH</c> fallback after verified resolution fails. Build mode
+/// development-only <c>PATH</c> fallback after an availability-related verified-resolution
+/// failure. A manifest, cache, or digest integrity failure never falls back to <c>PATH</c>. Build mode
 /// uses <see cref="TailwindCliResolver"/> directly and never searches <c>PATH</c>.
 /// </remarks>
 public class TailwindCliManager
@@ -59,7 +60,7 @@ public class TailwindCliManager
     internal static Func<Architecture>? ProcessArchitectureOverride { get; set; }
 
     /// <summary>
-    /// Resolves a verified host-cache executable, then makes one development-only PATH attempt.
+    /// Resolves a verified host-cache executable, then makes one development-only PATH attempt only for an availability failure.
     /// </summary>
     /// <returns>The absolute path or launcher path for development watch mode.</returns>
     /// <exception cref="FileNotFoundException">Thrown when neither verified resolution nor PATH yields a CLI.</exception>
@@ -69,14 +70,15 @@ public class TailwindCliManager
     }
 
     /// <summary>
-    /// Resolves a verified host-cache executable, then makes one development-only PATH attempt.
+    /// Resolves a verified host-cache executable, then makes one development-only PATH attempt only for an availability failure.
     /// </summary>
     /// <param name="cancellationToken">Cancellation for cache locking, downloads, and retry delays.</param>
     /// <returns>The absolute path or launcher path for development watch mode.</returns>
     /// <exception cref="FileNotFoundException">Thrown when neither verified resolution nor PATH yields a CLI.</exception>
     /// <remarks>
     /// Watch hosts should prefer this asynchronous method so shutdown can cancel a cold-cache acquisition. The
-    /// synchronous <see cref="GetTailwindPath"/> wrapper remains for existing callers that cannot await resolution.
+    /// synchronous <see cref="GetTailwindPath"/> wrapper remains for existing callers that cannot await resolution,
+    /// but can block while it waits for cache ownership or an official-release retry.
     /// </remarks>
     public virtual async Task<string> GetTailwindPathAsync(CancellationToken cancellationToken)
     {
@@ -101,11 +103,18 @@ public class TailwindCliManager
         catch (TailwindCliResolutionException ex)
         {
             resolutionFailure = ex;
+            if (!CanUseDevelopmentPathFallback(ex.Failure))
+            {
+                _logger.LogWarning(ex, "Verified Tailwind CLI resolution failed with integrity classification {Classification}; watch will not try PATH.", ex.Failure);
+                throw CreateVerifiedResolutionFailure(ex);
+            }
+
             _logger.LogDebug(ex, "Verified Tailwind CLI resolution failed with {Classification}; watch will try PATH once.", ex.Failure);
         }
         catch (InvalidDataException ex)
         {
-            _logger.LogDebug(ex, "The Tailwind release manifest is invalid; watch will try PATH once.");
+            _logger.LogWarning(ex, "The Tailwind release manifest is invalid; watch will not try PATH.");
+            throw CreateVerifiedResolutionFailure(ex);
         }
 
         if (TryGetFromPath(_binaryName, out var path))
@@ -115,9 +124,24 @@ public class TailwindCliManager
         }
 
         throw new FileNotFoundException(
-            "Tailwind CLI was not available from the verified host cache or development PATH. Configure TailwindOptions.CliPath, prewarm TailwindDownloadCacheRoot, or install tailwindcss on PATH for development watch mode.",
+            "Tailwind CLI was not available from the verified host cache or development PATH. Configure TailwindOptions.CliPath, prewarm the default user cache, or install tailwindcss on PATH for development watch mode.",
             _binaryName,
             resolutionFailure);
+    }
+
+    /// <summary>
+    /// Determines whether a failed verified resolution is an availability condition for which watch mode may use its unverified development fallback.
+    /// </summary>
+    /// <param name="failure">The verified-resolution failure classification.</param>
+    /// <returns><see langword="true" /> only for failures that do not undermine the manifest, cache, or digest trust boundary.</returns>
+    internal static bool CanUseDevelopmentPathFallback(TailwindCliResolutionFailure failure)
+    {
+        return failure is TailwindCliResolutionFailure.NoCacheRoot
+            or TailwindCliResolutionFailure.NonWritableRoot
+            or TailwindCliResolutionFailure.NetworkFailure
+            or TailwindCliResolutionFailure.RetryExhausted
+            or TailwindCliResolutionFailure.LockTimeout
+            or TailwindCliResolutionFailure.UnsupportedRid;
     }
 
     /// <summary>Builds the invocation needed to execute a resolved CLI path.</summary>
@@ -145,6 +169,14 @@ public class TailwindCliManager
     private static bool IsCurrentOsPlatform(OSPlatform platform)
     {
         return IsOSPlatformOverride?.Invoke(platform) ?? RuntimeInformation.IsOSPlatform(platform);
+    }
+
+    private FileNotFoundException CreateVerifiedResolutionFailure(Exception innerException)
+    {
+        return new FileNotFoundException(
+            "Tailwind CLI verified resolution did not complete safely, so development PATH was not used. Fix the package manifest or cache entry, prewarm the default user cache, or configure TailwindOptions.CliPath for an explicitly trusted local CLI.",
+            _binaryName,
+            innerException);
     }
 
     private static bool TryGetFromPath(string fileName, out string path)

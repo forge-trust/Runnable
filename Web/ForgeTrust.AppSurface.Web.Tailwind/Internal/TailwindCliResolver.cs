@@ -20,6 +20,9 @@ internal sealed class TailwindCliResolver
 {
     private const int MaximumChecksumBytes = 1024 * 1024;
     private const long MaximumBinaryBytes = 200L * 1024 * 1024;
+    private const int DownloadRetryCount = 4;
+    private const int RetryDelayMilliseconds = 5000;
+    private const int CacheLockRetryCount = DownloadRetryCount * 2;
     private static readonly HttpClient SharedHttpClient = new();
     private readonly TailwindReleaseManifest _manifest;
     private readonly Func<Uri, CancellationToken, Task<byte[]>>? _downloadOverride;
@@ -34,6 +37,8 @@ internal sealed class TailwindCliResolver
     private readonly Func<bool> _isWindows;
     private readonly long _maximumBinaryBytes;
     private readonly Func<string, string, string, string, string> _getRuntimeBinaryPath;
+
+    private sealed class TailwindDownloadSizeLimitException(string message) : IOException(message);
 
     /// <summary>
     /// Initializes a resolver with the supplied checked-in release manifest.
@@ -229,12 +234,14 @@ internal sealed class TailwindCliResolver
         var entryDirectory = Path.GetDirectoryName(finalPath)
             ?? throw new IOException("The Tailwind cache entry does not have a parent directory.");
         cancellationToken.ThrowIfCancellationRequested();
+        EnsureSafeCachePath(cacheRoot, finalPath);
         Directory.CreateDirectory(entryDirectory);
         cancellationToken.ThrowIfCancellationRequested();
         EnsureSafeCachePath(cacheRoot, finalPath);
 
         await using var lockStream = await AcquireLockAsync(finalPath + ".lock", asset.Rid, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+        EnsureSafeCachePath(cacheRoot, finalPath);
 
         if (_isVerifiedFinal(finalPath, asset.Sha256))
         {
@@ -279,6 +286,7 @@ internal sealed class TailwindCliResolver
             cancellationToken.ThrowIfCancellationRequested();
             SetUnixExecutableBit(partialPath);
             cancellationToken.ThrowIfCancellationRequested();
+            EnsureSafeCachePath(cacheRoot, finalPath);
             File.Move(partialPath, finalPath, overwrite: true);
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -305,9 +313,6 @@ internal sealed class TailwindCliResolver
 
     private async Task<FileStream> AcquireLockAsync(string lockPath, string rid, CancellationToken cancellationToken)
     {
-        const int retries = 4;
-        const int retryDelayMilliseconds = 5000;
-
         for (var attempt = 0; ; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -315,9 +320,9 @@ internal sealed class TailwindCliResolver
             {
                 return OpenSafeLockFile(lockPath);
             }
-            catch (IOException) when (attempt < retries)
+            catch (IOException) when (attempt < CacheLockRetryCount)
             {
-                await _delay(TimeSpan.FromMilliseconds(retryDelayMilliseconds), cancellationToken);
+                await _delay(TimeSpan.FromMilliseconds(RetryDelayMilliseconds), cancellationToken);
             }
             catch (IOException ex)
             {
@@ -361,11 +366,9 @@ internal sealed class TailwindCliResolver
 
     private async Task<byte[]> DownloadSmallPayloadWithRetryAsync(Uri uri, string rid, CancellationToken cancellationToken)
     {
-        const int retries = 4;
-        const int retryDelayMilliseconds = 5000;
         Exception? lastException = null;
 
-        for (var attempt = 0; attempt <= retries; attempt++)
+        for (var attempt = 0; attempt <= DownloadRetryCount; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
@@ -375,7 +378,7 @@ internal sealed class TailwindCliResolver
                     : await _downloadOverride(uri, cancellationToken);
                 if (payload.Length > MaximumChecksumBytes)
                 {
-                    throw new IOException("The official Tailwind checksum response exceeded the supported size limit.");
+                    throw new TailwindDownloadSizeLimitException("The official Tailwind checksum response exceeded the supported size limit.");
                 }
 
                 return payload;
@@ -384,12 +387,30 @@ internal sealed class TailwindCliResolver
             {
                 throw;
             }
+            catch (TailwindDownloadSizeLimitException ex)
+            {
+                throw new TailwindCliResolutionException(
+                    TailwindCliResolutionFailure.DownloadSizeLimit,
+                    ex.Message,
+                    rid,
+                    _manifest.Version,
+                    ex);
+            }
+            catch (HttpRequestException ex) when (IsNonRetryableHttpFailure(ex))
+            {
+                throw new TailwindCliResolutionException(
+                    TailwindCliResolutionFailure.NetworkFailure,
+                    "The official Tailwind checksum request returned a non-retryable HTTP response.",
+                    rid,
+                    _manifest.Version,
+                    ex);
+            }
             catch (Exception ex) when (ex is HttpRequestException or IOException)
             {
                 lastException = ex;
-                if (attempt < retries)
+                if (attempt < DownloadRetryCount)
                 {
-                    await _delay(TimeSpan.FromMilliseconds(retryDelayMilliseconds), cancellationToken);
+                    await _delay(TimeSpan.FromMilliseconds(RetryDelayMilliseconds), cancellationToken);
                 }
             }
         }
@@ -408,11 +429,9 @@ internal sealed class TailwindCliResolver
         string rid,
         CancellationToken cancellationToken)
     {
-        const int retries = 4;
-        const int retryDelayMilliseconds = 5000;
         Exception? lastException = null;
 
-        for (var attempt = 0; attempt <= retries; attempt++)
+        for (var attempt = 0; attempt <= DownloadRetryCount; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
@@ -422,7 +441,7 @@ internal sealed class TailwindCliResolver
                     var bytes = await _downloadOverride(uri, cancellationToken);
                     if (bytes.LongLength > _maximumBinaryBytes)
                     {
-                        throw new IOException("The Tailwind executable response exceeded the supported size limit.");
+                        throw new TailwindDownloadSizeLimitException("The Tailwind executable response exceeded the supported size limit.");
                     }
 
                     await WriteBinaryBytesToNewFileAsync(destinationPath, bytes, cancellationToken);
@@ -435,13 +454,31 @@ internal sealed class TailwindCliResolver
             {
                 throw;
             }
+            catch (TailwindDownloadSizeLimitException ex)
+            {
+                throw new TailwindCliResolutionException(
+                    TailwindCliResolutionFailure.DownloadSizeLimit,
+                    ex.Message,
+                    rid,
+                    _manifest.Version,
+                    ex);
+            }
+            catch (HttpRequestException ex) when (IsNonRetryableHttpFailure(ex))
+            {
+                throw new TailwindCliResolutionException(
+                    TailwindCliResolutionFailure.NetworkFailure,
+                    "The official Tailwind executable request returned a non-retryable HTTP response.",
+                    rid,
+                    _manifest.Version,
+                    ex);
+            }
             catch (Exception ex) when (ex is HttpRequestException or IOException)
             {
                 lastException = ex;
                 TryDeleteOwnedArtifact(destinationPath);
-                if (attempt < retries)
+                if (attempt < DownloadRetryCount)
                 {
-                    await _delay(TimeSpan.FromMilliseconds(retryDelayMilliseconds), cancellationToken);
+                    await _delay(TimeSpan.FromMilliseconds(RetryDelayMilliseconds), cancellationToken);
                 }
             }
         }
@@ -454,13 +491,19 @@ internal sealed class TailwindCliResolver
             lastException);
     }
 
+    private static bool IsNonRetryableHttpFailure(HttpRequestException exception)
+    {
+        return exception.StatusCode is >= System.Net.HttpStatusCode.BadRequest and < System.Net.HttpStatusCode.InternalServerError
+            && exception.StatusCode is not System.Net.HttpStatusCode.RequestTimeout and not System.Net.HttpStatusCode.TooManyRequests;
+    }
+
     private async Task<byte[]> DownloadSmallPayloadAsync(Uri uri, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength is > MaximumChecksumBytes)
         {
-            throw new IOException("The official Tailwind checksum response exceeded the supported size limit.");
+            throw new TailwindDownloadSizeLimitException("The official Tailwind checksum response exceeded the supported size limit.");
         }
 
         await using var input = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -473,7 +516,7 @@ internal sealed class TailwindCliResolver
             {
                 if (output.Length + bytesRead > MaximumChecksumBytes)
                 {
-                    throw new IOException("The official Tailwind checksum response exceeded the supported size limit.");
+                    throw new TailwindDownloadSizeLimitException("The official Tailwind checksum response exceeded the supported size limit.");
                 }
 
                 await output.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
@@ -493,7 +536,7 @@ internal sealed class TailwindCliResolver
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength is long contentLength && contentLength > _maximumBinaryBytes)
         {
-            throw new IOException("The Tailwind executable response exceeded the supported size limit.");
+            throw new TailwindDownloadSizeLimitException("The Tailwind executable response exceeded the supported size limit.");
         }
 
         await using var input = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -516,7 +559,7 @@ internal sealed class TailwindCliResolver
                 totalBytes += bytesRead;
                 if (totalBytes > _maximumBinaryBytes)
                 {
-                    throw new IOException("The Tailwind executable response exceeded the supported size limit.");
+                    throw new TailwindDownloadSizeLimitException("The Tailwind executable response exceeded the supported size limit.");
                 }
 
                 hash.AppendData(buffer, 0, bytesRead);

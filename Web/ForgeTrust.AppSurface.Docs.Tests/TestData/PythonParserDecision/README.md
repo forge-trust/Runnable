@@ -10,7 +10,7 @@ Reject `TreeSitter.DotNet` `1.3.0` for the AppSurface Docs Python-docstring spik
 
 The candidate's compressed package delta is 53,401,399 bytes (50.93 MiB). The approved cap is 5,242,880 bytes (5 MiB), so the package exceeds the cap by 48,158,519 bytes (45.93 MiB). That hard failure ends this candidate's spike before any AppSurface Docs package reference, Python source kind, harvester, ownership marker, search change, or consumer fixture is added.
 
-The successful local native-load smoke below is useful evidence about the artifact, but it cannot turn an over-budget package into an accepted dependency. No parser fallback is selected by this record. A managed parser or a different package requires a new approved decision.
+The static archive evidence below is useful for auditing the artifact, but it cannot turn an over-budget package into an accepted dependency. No native-load smoke was run: this candidate failed before runtime evaluation, and no parser fallback is selected by this record. A managed parser or a different package requires a new approved decision.
 
 ## Exact artifact measured
 
@@ -78,7 +78,7 @@ Download the exact candidate, then verify the digest and archive measurements be
 curl -fsSL --output /tmp/treesitter-dotnet-1.3.0.nupkg \
   https://api.nuget.org/v3-flatcontainer/treesitter.dotnet/1.3.0/treesitter.dotnet.1.3.0.nupkg
 shasum -a 256 /tmp/treesitter-dotnet-1.3.0.nupkg
-stat -f '%z bytes' /tmp/treesitter-dotnet-1.3.0.nupkg
+wc -c < /tmp/treesitter-dotnet-1.3.0.nupkg
 unzip -l /tmp/treesitter-dotnet-1.3.0.nupkg
 unzip -p /tmp/treesitter-dotnet-1.3.0.nupkg '*.nuspec'
 dotnet run --project tools/ForgeTrust.AppSurface.PackageIndex/ForgeTrust.AppSurface.PackageIndex.csproj -- \

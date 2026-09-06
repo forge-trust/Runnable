@@ -76,7 +76,7 @@ internal static class Program
           --python-parser-package <path>
                                 Required local TreeSitter.DotNet .nupkg for inspect-python-parser-candidate.
           --python-parser-proof-report <path>
-                                JSON candidate-proof report beneath <repo-root>/artifacts/. Defaults to <artifacts-output>/python-parser-candidate-proof.json.
+                                JSON candidate-proof report beneath <repo-root>/artifacts/. Defaults to <repo-root>/artifacts/python-parser-candidate-proof.json.
           -h, --help            Show this help.
         """;
 
@@ -591,7 +591,7 @@ internal sealed record CommandLineOptions(
         var resolvedPublishLogPath = ResolvePath(publishLogPath, repoRoot, Path.Join(repoRoot, "artifacts", "package-publish-log.md"));
         var resolvedSmokeWorkDirectory = ResolvePath(smokeWorkDirectory, repoRoot, Path.Join(repoRoot, "artifacts", "package-smoke"));
         var resolvedSmokeReportPath = ResolvePath(smokeReportPath, repoRoot, Path.Join(repoRoot, "artifacts", "package-smoke-report.md"));
-        var resolvedPythonParserProofReportPath = ResolvePath(pythonParserProofReportPath, repoRoot, Path.Join(resolvedArtifactsOutputPath, "python-parser-candidate-proof.json"));
+        var resolvedPythonParserProofReportPath = ResolvePath(pythonParserProofReportPath, repoRoot, Path.Join(repoRoot, "artifacts", "python-parser-candidate-proof.json"));
 
         return new CommandLineOptions(
             new PackageIndexRequest(repoRoot, resolvedManifestPath, resolvedOutputPath, resolvedReadinessOutputPath),

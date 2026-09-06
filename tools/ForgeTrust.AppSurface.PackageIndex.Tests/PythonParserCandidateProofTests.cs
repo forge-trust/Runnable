@@ -41,6 +41,10 @@ public sealed class PythonParserCandidateProofTests : IDisposable
         using var reportJson = await JsonDocument.ParseAsync(reportStream);
         Assert.Equal("treesitter-dotnet-1.3.0.nupkg", reportJson.RootElement.GetProperty("archive").GetProperty("packageFileName").GetString());
         Assert.Contains("compressed_archive_exceeds_budget", reportJson.RootElement.GetProperty("rejectionReasons").EnumerateArray().Select(value => value.GetString()));
+
+        var serializedReport = await File.ReadAllTextAsync(ReportPath("report.json"));
+        Assert.DoesNotContain("\r", serializedReport, StringComparison.Ordinal);
+        Assert.EndsWith("\n", serializedReport, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -214,7 +218,8 @@ public sealed class PythonParserCandidateProofTests : IDisposable
     public async Task Workflow_RejectsArchiveEntriesWithForgedDeclaredPayloadLengths()
     {
         var candidatePackagePath = CreateCandidatePackage();
-        await SetArchiveEntryDeclaredUncompressedBytesAsync(candidatePackagePath, "TreeSitter.DotNet.nuspec", 1);
+        var actualBytes = GetArchiveEntryUncompressedBytes(candidatePackagePath, "TreeSitter.DotNet.nuspec");
+        await SetArchiveEntryDeclaredUncompressedBytesAsync(candidatePackagePath, "TreeSitter.DotNet.nuspec", checked((uint)(actualBytes + 1)));
         var workflow = new PythonParserCandidateProofWorkflow();
 
         var report = await workflow.RunAsync(
@@ -222,11 +227,11 @@ public sealed class PythonParserCandidateProofTests : IDisposable
             CancellationToken.None);
 
         Assert.Equal(["archive_inspection_failed"], report.RejectionReasons);
-        Assert.Contains("CRC-32 checksum", report.Archive.InspectionFailure, StringComparison.Ordinal);
+        Assert.Contains($"produced {actualBytes} bytes but declares {actualBytes + 1} bytes", report.Archive.InspectionFailure, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Workflow_RejectsOversizedArchiveBeforeHashingOrOpeningIt()
+    public async Task Workflow_RejectsOversizedArchiveBeforeHashingOrInspectingIt()
     {
         var candidatePackagePath = TestPathUtils.PathUnder(_repositoryRoot, "oversized.nupkg");
         await using (var stream = File.Create(candidatePackagePath))
@@ -382,7 +387,15 @@ public sealed class PythonParserCandidateProofTests : IDisposable
         Directory.CreateDirectory(TestPathUtils.PathUnder(_repositoryRoot, "artifacts"));
         var externalTarget = TestPathUtils.PathUnder(_repositoryRoot, "outside.json");
         await File.WriteAllTextAsync(externalTarget, "preserve me");
-        File.CreateSymbolicLink(ReportPath("linked.json"), externalTarget);
+        try
+        {
+            File.CreateSymbolicLink(ReportPath("linked.json"), externalTarget);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
         var workflow = new PythonParserCandidateProofWorkflow();
 
         var error = await Assert.ThrowsAsync<PackageIndexException>(
@@ -532,6 +545,35 @@ public sealed class PythonParserCandidateProofTests : IDisposable
     }
 
     [Fact]
+    public async Task Program_UsesRepositoryArtifactsForDefaultCandidateReportWhenArtifactsOutputIsOutsideRepository()
+    {
+        var artifactsOutputPath = TestPathUtils.PathUnder(Path.GetTempPath(), "appsurface-python-parser-external-artifacts", Guid.NewGuid().ToString("N"));
+        using var standardOut = new StringWriter();
+        using var standardError = new StringWriter();
+        PythonParserCandidateProofRequest? capturedRequest = null;
+
+        var exitCode = await Program.RunAsync(
+            [
+                "inspect-python-parser-candidate",
+                "--python-parser-package", "candidate.nupkg",
+                "--artifacts-output", artifactsOutputPath
+            ],
+            standardOut,
+            standardError,
+            _repositoryRoot,
+            inspectPythonParserCandidateAsync: (request, _) =>
+            {
+                capturedRequest = request;
+                return Task.FromResult(CreateReport([]));
+            });
+
+        Assert.Equal(0, exitCode);
+        Assert.NotNull(capturedRequest);
+        Assert.Equal(ReportPath("python-parser-candidate-proof.json"), capturedRequest!.ReportPath);
+        Assert.Equal(string.Empty, standardError.ToString());
+    }
+
+    [Fact]
     public async Task Program_RequiresTheCandidatePackageOption()
     {
         using var standardOut = new StringWriter();
@@ -671,6 +713,13 @@ public sealed class PythonParserCandidateProofTests : IDisposable
         }
 
         throw new InvalidOperationException($"Could not find ZIP central-directory entry '{entryPath}'.");
+    }
+
+    private static long GetArchiveEntryUncompressedBytes(string archivePath, string entryPath)
+    {
+        using var archive = ZipFile.OpenRead(archivePath);
+        return archive.GetEntry(entryPath)?.Length
+            ?? throw new InvalidOperationException($"Could not find ZIP entry '{entryPath}'.");
     }
 
     private static PythonParserCandidateProofReport CreateReport(IReadOnlyList<string> rejectionReasons) =>

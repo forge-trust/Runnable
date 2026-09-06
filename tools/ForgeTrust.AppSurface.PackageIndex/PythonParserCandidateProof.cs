@@ -41,6 +41,8 @@ internal sealed class PythonParserCandidateProofWorkflow
         "win-x86"
     ];
 
+    private static readonly uint[] Crc32Table = CreateCrc32Table();
+
     /// <summary>
     /// Inspects the supplied archive and writes deterministic static-gate evidence.
     /// </summary>
@@ -104,27 +106,37 @@ internal sealed class PythonParserCandidateProofWorkflow
         PythonParserCandidateProofRequest request,
         CancellationToken cancellationToken)
     {
-        var fileInfo = new FileInfo(request.CandidatePackagePath);
-        if (fileInfo.Length > MaximumArchiveBytesToInspect)
-        {
-            return CreateUninspectableArchiveEvidence(
-                fileInfo,
-                string.Empty,
-                0,
-                0,
-                $"Compressed archive exceeds the {MaximumArchiveBytesToInspect}-byte static inspection limit.");
-        }
-
-        await using var packageStream = File.OpenRead(request.CandidatePackagePath);
-        var sha256 = Convert.ToHexString(await SHA256.HashDataAsync(packageStream, cancellationToken));
+        var packageFileName = Path.GetFileName(request.CandidatePackagePath);
+        var compressedArchiveBytes = 0L;
+        var sha256 = string.Empty;
 
         try
         {
-            using var archive = ZipFile.OpenRead(request.CandidatePackagePath);
+            await using var packageStream = new FileStream(
+                request.CandidatePackagePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read);
+            compressedArchiveBytes = packageStream.Length;
+            if (compressedArchiveBytes > MaximumArchiveBytesToInspect)
+            {
+                return CreateUninspectableArchiveEvidence(
+                    packageFileName,
+                    compressedArchiveBytes,
+                    sha256,
+                    0,
+                    0,
+                    $"Compressed archive exceeds the {MaximumArchiveBytesToInspect}-byte static inspection limit.");
+            }
+
+            sha256 = Convert.ToHexString(await SHA256.HashDataAsync(packageStream, cancellationToken));
+            packageStream.Position = 0;
+            using var archive = new ZipArchive(packageStream, ZipArchiveMode.Read, leaveOpen: true);
             if (archive.Entries.Count > MaximumArchiveEntryCount)
             {
                 return CreateUninspectableArchiveEvidence(
-                    fileInfo,
+                    packageFileName,
+                    compressedArchiveBytes,
                     sha256,
                     archive.Entries.Count,
                     0,
@@ -135,7 +147,8 @@ internal sealed class PythonParserCandidateProofWorkflow
             if (uncompressedArchiveBytes is null)
             {
                 return CreateUninspectableArchiveEvidence(
-                    fileInfo,
+                    packageFileName,
+                    compressedArchiveBytes,
                     sha256,
                     archive.Entries.Count,
                     0,
@@ -145,7 +158,13 @@ internal sealed class PythonParserCandidateProofWorkflow
             var payloadFailure = await ValidateArchiveEntryPayloadsAsync(archive, cancellationToken);
             if (payloadFailure is not null)
             {
-                return CreateUninspectableArchiveEvidence(fileInfo, sha256, archive.Entries.Count, 0, payloadFailure);
+                return CreateUninspectableArchiveEvidence(
+                    packageFileName,
+                    compressedArchiveBytes,
+                    sha256,
+                    archive.Entries.Count,
+                    0,
+                    payloadFailure);
             }
 
             var metadata = ReadNuspecMetadata(archive);
@@ -170,9 +189,9 @@ internal sealed class PythonParserCandidateProofWorkflow
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
             return new PythonParserCandidateArchiveEvidence(
-                fileInfo.Name,
+                packageFileName,
                 sha256,
-                fileInfo.Length,
+                compressedArchiveBytes,
                 archive.Entries.Count,
                 uncompressedArchiveBytes.Value,
                 metadata,
@@ -187,7 +206,7 @@ internal sealed class PythonParserCandidateProofWorkflow
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException or SecurityException or XmlException or PackageIndexException or InvalidOperationException)
         {
-            return CreateUninspectableArchiveEvidence(fileInfo, sha256, 0, 0, $"{ex.GetType().Name}: {ex.Message}");
+            return CreateUninspectableArchiveEvidence(packageFileName, compressedArchiveBytes, sha256, 0, 0, $"{ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -255,14 +274,27 @@ internal sealed class PythonParserCandidateProofWorkflow
     {
         foreach (var value in bytes)
         {
-            crc32 ^= value;
+            crc32 = Crc32Table[(byte)(crc32 ^ value)] ^ (crc32 >> 8);
+        }
+
+        return crc32;
+    }
+
+    private static uint[] CreateCrc32Table()
+    {
+        var table = new uint[256];
+        for (var index = 0; index < table.Length; index++)
+        {
+            var crc32 = (uint)index;
             for (var bit = 0; bit < 8; bit++)
             {
                 crc32 = (crc32 >> 1) ^ ((crc32 & 1) == 0 ? 0U : 0xEDB88320U);
             }
+
+            table[index] = crc32;
         }
 
-        return crc32;
+        return table;
     }
 
     /// <summary>
@@ -278,15 +310,16 @@ internal sealed class PythonParserCandidateProofWorkflow
         || nextEntryLength > MaximumUncompressedArchiveBytes - currentTotal;
 
     private static PythonParserCandidateArchiveEvidence CreateUninspectableArchiveEvidence(
-        FileInfo fileInfo,
+        string packageFileName,
+        long compressedArchiveBytes,
         string sha256,
         int archiveEntryCount,
         long uncompressedArchiveBytes,
         string inspectionFailure) =>
         new(
-            fileInfo.Name,
+            packageFileName,
             sha256,
-            fileInfo.Length,
+            compressedArchiveBytes,
             archiveEntryCount,
             uncompressedArchiveBytes,
             new PythonParserCandidateNuspecMetadata(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty),
@@ -378,9 +411,9 @@ internal sealed class PythonParserCandidateProofWorkflow
         await JsonSerializer.SerializeAsync(
             stream,
             report,
-            new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase },
+            new JsonSerializerOptions { WriteIndented = true, NewLine = "\n", PropertyNamingPolicy = JsonNamingPolicy.CamelCase },
             cancellationToken);
-        await stream.WriteAsync(Encoding.UTF8.GetBytes(Environment.NewLine), cancellationToken);
+        await stream.WriteAsync(Encoding.UTF8.GetBytes("\n"), cancellationToken);
     }
 
     private static void ValidateRequest(PythonParserCandidateProofRequest request)

@@ -55,7 +55,6 @@
     <PackageVersion Include="ReportGenerator" Version="5.5.10" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.14.14" />
     <PackageVersion Include="SSH.NET" Version="2026.0.0" />
-    <PackageVersion Include="System.IO.Hashing" Version="10.0.2" />
     <PackageVersion Include="TextMateSharp" Version="2.0.3" />
     <PackageVersion Include="TextMateSharp.Grammars" Version="2.0.3" />
     <!-- TreeSitter.DotNet is the static multi-language parser substrate used by the opt-in Python docs harvester. -->

@@ -1252,7 +1252,7 @@ public sealed class TailwindCliManagerTests : IDisposable
         await File.WriteAllTextAsync(finalPath + ".lock", "ordinary lock file");
         var replacementTarget = Path.Join(_tempRoot, "replacement-target");
         Directory.CreateDirectory(replacementTarget);
-        await File.WriteAllTextAsync(Path.Join(replacementTarget, Path.GetFileName(finalPath) + ".lock"), "replacement lock file");
+        await File.WriteAllTextAsync(TestPathUtils.PathUnder(replacementTarget, Path.GetFileName(finalPath) + ".lock"), "replacement lock file");
         var movedDirectory = entryDirectory + ".moved";
         var downloadCalls = 0;
         var resolver = new TailwindCliResolver(

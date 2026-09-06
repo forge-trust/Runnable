@@ -727,6 +727,30 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_ShouldRejectInvalidPythonModuleOwnershipWithoutSuppressingCSharpDocs()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_testRoot, "InvalidOwnership.cs"),
+            """
+            namespace Test;
+
+            /// <summary>Host docs remain available.</summary>
+            [AppSurfacePythonModule("../sidecar/worker.py")]
+            public sealed class InvalidOwnership;
+            """);
+
+        var results = await _harvester.HarvestAsync(_testRoot);
+
+        var namespacePage = Assert.Single(results, node => node.Path == "Namespaces/Test");
+        Assert.Contains("InvalidOwnership", namespacePage.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-appsurfacedocs-python-owner", namespacePage.Content, StringComparison.Ordinal);
+        var diagnostic = Assert.Single(GetDiagnostics(_harvester));
+        Assert.Equal(DocHarvestDiagnosticCodes.PythonOwnershipInvalid, diagnostic.Code);
+        Assert.Equal(nameof(CSharpDocHarvester), diagnostic.HarvesterType);
+        Assert.Contains("AppSurfacePythonModule", diagnostic.Fix, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task HarvestAsync_ShouldHandleMalformedXmlGracefully()
     {
         // Arrange

@@ -1,16 +1,22 @@
-# AppSurface Docs Python parser candidate gate
+# AppSurface Docs Tree-sitter candidate record
 
 Issue: https://github.com/forge-trust/AppSurface/issues/771
 
-This record resolves the first gate in the approved [Python docstring harvesting spike](../../../../docs/designs/python-docstring-harvesting-spike.md). It is intentionally a candidate rejection, not a shipped Python feature or a general Python-public-API policy.
+This record preserves the dependency evidence for the approved [Python docstring harvesting spike](../../../../docs/designs/python-docstring-harvesting-spike.md).
+It is a bounded product decision, not a claim that every bundled grammar is a supported AppSurface Docs language.
 
 ## Decision
 
-Reject `TreeSitter.DotNet` `1.3.0` for the AppSurface Docs Python-docstring spike.
+Accept `TreeSitter.DotNet` `1.3.0` for the bounded Python harvesting spike.
 
-The candidate's compressed package delta is 53,401,399 bytes (50.93 MiB). The approved cap is 5,242,880 bytes (5 MiB), so the package exceeds the cap by 48,158,519 bytes (45.93 MiB). That hard failure ends this candidate's spike before any AppSurface Docs package reference, Python source kind, harvester, ownership marker, search change, or consumer fixture is added.
+The original review treated the 50.93 MiB compressed archive as a hard 5 MiB rejection. That preference was reversed:
+the package's all-grammar, multi-RID payload is a visible trade-off, but it supports the broader polyglot product
+direction and is not a hard stop. AppSurface Docs uses only its Python grammar in this slice. A future per-RID or
+smaller language-focused distribution would be an optimization, not a prerequisite.
 
-The static archive evidence below is useful for auditing the artifact, but it cannot turn an over-budget package into an accepted dependency. No native-load smoke was run: this candidate failed before runtime evaluation, and no parser fallback is selected by this record. A managed parser or a different package requires a new approved decision.
+The accompanying [machine-readable evidence](./tree-sitter-dotnet-1.3.0-proof.json) records the archive inspection
+with no automated rejection reasons. The static inspection tool still has a 64 MiB archive-read safety cap; that is an
+inspection resource limit, not a product package-size budget.
 
 ## Exact artifact measured
 
@@ -22,17 +28,16 @@ The static archive evidence below is useful for auditing the artifact, but it ca
 | SHA-256 | `9d64f6a3d084d2c1c3cbc61a14e7d93e4c4d92604bbf526236d85b8e0b23ccbf` |
 | Compressed archive bytes | 53,401,399 |
 | Compressed archive size | 50.93 MiB |
-| Approved compressed-delta budget | 5,242,880 bytes (5 MiB) |
-| Budget result | **Fail — 10.19× the limit** |
 | Archive entries | 266 |
 | Total uncompressed bytes | 617,084,456 |
+| Product decision | Accepted for the bounded multi-language spike; payload size is recorded trade-off evidence |
 
-The archive size, rather than the NuGet gallery's rounded display, is the acceptance measurement. The SHA-256 identifies the exact bytes that produced this result.
-The [machine-readable proof record](./tree-sitter-dotnet-1.3.0-proof.json) retains the bounded archive inventory, metadata, notice-path inventory, and static-gate result.
+The archive size, rather than the NuGet gallery's rounded display, is the decision measurement. The SHA-256 identifies
+the exact bytes that produced this inventory.
 
 ## Native payload inventory
 
-The package README says that it includes native tree-sitter libraries and a complete grammar set. Archive inspection found 257 native files under `runtimes/<rid>/native/`:
+The package advertises and the archive contains native libraries for these RIDs:
 
 | Runtime identifier | Native files |
 | --- | ---: |
@@ -46,49 +51,41 @@ The package README says that it includes native tree-sitter libraries and a comp
 | `win-x64` | 31 |
 | `win-x86` | 31 |
 
-This is the full Windows, Linux, and macOS RID set that the candidate advertises. It does not rescue the size gate: the all-grammar native payload is the reason the compressed artifact is over budget.
+The current spike uses the Python grammar and has a real native parser proof on macOS ARM64. It does not claim that a
+native load has been observed on every advertised RID. Verify package-consumer publishing and loading on Windows,
+Linux, and macOS before broad release adoption or a parser-package upgrade.
 
-## Published provenance and license metadata
+## Provenance and notices
 
-The artifact's single `.nuspec` declares the following metadata:
+The artifact's single `.nuspec` declares MIT licensing and source provenance at
+`https://github.com/mariusgreuel/tree-sitter-dotnet-bindings.git` commit
+`8cae484bc033dac6e492ed15166877f3d784850f`. It does not include a `LICENSE`, `NOTICE`, `COPYING`, or third-party
+notice file inside the nupkg. AppSurface Docs records the declared package license in
+[its third-party notices](../../../../Web/ForgeTrust.AppSurface.Docs/THIRD-PARTY-NOTICES.md).
 
-| Field | Value |
-| --- | --- |
-| License expression | `MIT` |
-| Repository type | `git` |
-| Repository URL | `https://github.com/mariusgreuel/tree-sitter-dotnet-bindings.git` |
-| Repository commit | `8cae484bc033dac6e492ed15166877f3d784850f` |
-| Target framework | `.NETStandard2.0` |
-
-That metadata is recorded for traceability only. The proof's sorted `licenseAndNoticePaths` inventory is empty: the archive has no in-package `LICENSE`, `NOTICE`, `COPYING`, or third-party-notice file. Its `provenanceReview.status` is `metadata_recorded_not_accepted`, so AppSurface has not accepted the candidate's provenance or notices for redistribution and has not added a third-party notice. Completing that human review would not change the already-failing size gate.
+This record is not a substitute for a release/legal review of changed upstream assets. Re-run the static archive
+inspection and update the notice review whenever the pinned version changes, especially because this package bundles
+multiple grammar artifacts.
 
 ## Static-inspection boundary
 
-The original spike proposed a disposable restore and child-process smoke. Security review established that a local NuGet feed and child process do not sandbox package build assets, managed assemblies, analyzers, or native libraries. This candidate has already failed its non-negotiable compressed-size gate, so executing its code would add risk without changing the rejection decision.
-
-The committed gate therefore performs bounded static inspection only: it reads the archive hash, central-directory metadata, native RID paths, notice-path inventory, and a root `.nuspec` whose size is capped at 512 KiB. It rejects archives above 64 MiB compressed, 1,024 entries, or 1 GiB declared uncompressed size before parsing package metadata. It never restores, builds, loads, or executes the candidate, and no AppSurface project references it.
-
-A future candidate that passes the static gate needs a separately approved, operating-system-level sandbox design before runtime initialization can be considered acceptance evidence. This record makes no claim that TreeSitter.DotNet initializes correctly on any RID.
+The `inspect-python-parser-candidate` command is deliberately static: it hashes and inventories a supplied `.nupkg`
+but never restores, builds, loads, or executes that archive. This is useful dependency provenance evidence; it is not
+the runtime proof. The product spike separately exercises the pinned dependency from the Docs test fixture with native
+load failures converted to an actionable harvest diagnostic.
 
 ## Reproduction
-
-Download the exact candidate, then verify the digest and archive measurements before treating any runtime observation as evidence:
 
 ```bash
 curl -fsSL --output /tmp/treesitter-dotnet-1.3.0.nupkg \
   https://api.nuget.org/v3-flatcontainer/treesitter.dotnet/1.3.0/treesitter.dotnet.1.3.0.nupkg
 shasum -a 256 /tmp/treesitter-dotnet-1.3.0.nupkg
-wc -c < /tmp/treesitter-dotnet-1.3.0.nupkg
-unzip -l /tmp/treesitter-dotnet-1.3.0.nupkg
-unzip -p /tmp/treesitter-dotnet-1.3.0.nupkg '*.nuspec'
 dotnet run --project tools/ForgeTrust.AppSurface.PackageIndex/ForgeTrust.AppSurface.PackageIndex.csproj -- \
   inspect-python-parser-candidate \
   --python-parser-package /tmp/treesitter-dotnet-1.3.0.nupkg \
   --python-parser-proof-report artifacts/python-parser-proof.json
 ```
 
-Run the command from the repository root with a new report filename. The recorded digest and size are listed above. If either differs, the candidate has changed and the gate must be rerun from the new artifact rather than reusing this result. The command writes an immutable JSON report only below the repository's `artifacts/` directory, refusing existing files and symbolic-link paths, and never adds, restores, builds, loads, or executes `TreeSitter.DotNet` in an AppSurface project.
-
-## Scope consequence
-
-The [approved spike plan](../../../../docs/designs/python-docstring-harvesting-spike.md) requires the candidate gate to pass before source integration. Accordingly, this change deliberately does **not** add `TreeSitter.DotNet` to any project, change a published package payload, or claim Python documentation support. The next work is a separately approved parser-selection decision, informed by this rejection and a real Python-host adoption convention.
+Run the command from the repository root and choose a new artifact filename. The command writes only below
+`artifacts/`, refuses existing targets and symbolic-link paths, and reports static integrity and inventory facts. It
+does not change project dependencies or execute the supplied package.

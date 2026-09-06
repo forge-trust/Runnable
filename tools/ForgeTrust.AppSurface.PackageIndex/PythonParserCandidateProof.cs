@@ -22,7 +22,6 @@ internal sealed class PythonParserCandidateProofWorkflow
 {
     internal const string CandidatePackageId = "TreeSitter.DotNet";
     internal const string CandidatePackageVersion = "1.3.0";
-    internal const long MaximumCompressedPackageBytes = 5L * 1024 * 1024;
     internal const long MaximumArchiveBytesToInspect = 64L * 1024 * 1024;
     internal const int MaximumArchiveEntryCount = 1_024;
     internal const long MaximumUncompressedArchiveBytes = 1L * 1024 * 1024 * 1024;
@@ -46,7 +45,7 @@ internal sealed class PythonParserCandidateProofWorkflow
     /// <summary>
     /// Inspects the supplied archive and writes deterministic static-gate evidence.
     /// </summary>
-    /// <param name="request">Repository, candidate archive, report, and size-budget inputs.</param>
+    /// <param name="request">Repository, candidate archive, and report inputs.</param>
     /// <param name="cancellationToken">Cancellation token propagated to file operations.</param>
     /// <returns>A machine-readable record of archive, native-asset, and provenance evidence.</returns>
     /// <exception cref="PackageIndexException">Thrown when the request has unsafe or incomplete paths.</exception>
@@ -64,11 +63,6 @@ internal sealed class PythonParserCandidateProofWorkflow
         }
         else
         {
-            if (archive.CompressedArchiveBytes > request.MaximumCompressedPackageBytes)
-            {
-                rejectionReasons.Add("compressed_archive_exceeds_budget");
-            }
-
             if (!string.Equals(archive.Metadata.PackageId, CandidatePackageId, StringComparison.Ordinal))
             {
                 rejectionReasons.Add("package_id_mismatch");
@@ -422,7 +416,6 @@ internal sealed class PythonParserCandidateProofWorkflow
         ArgumentException.ThrowIfNullOrWhiteSpace(request.RepositoryRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CandidatePackagePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.ReportPath);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MaximumCompressedPackageBytes);
         if (!Directory.Exists(request.RepositoryRoot))
         {
             throw new PackageIndexException($"Python parser candidate proof repository root '{request.RepositoryRoot}' does not exist.");
@@ -496,8 +489,7 @@ internal sealed class PythonParserCandidateProofWorkflow
 internal sealed record PythonParserCandidateProofRequest(
     string RepositoryRoot,
     string CandidatePackagePath,
-    string ReportPath,
-    long MaximumCompressedPackageBytes = PythonParserCandidateProofWorkflow.MaximumCompressedPackageBytes);
+    string ReportPath);
 
 /// <summary>
 /// Archive and provenance evidence for one parser candidate.

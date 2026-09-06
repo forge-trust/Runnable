@@ -15,17 +15,17 @@ public sealed class PythonParserCandidateProofTests : IDisposable
     }
 
     [Fact]
-    public async Task Workflow_RecordsArchiveInventoryAndRejectsPackageOverBudget()
+    public async Task Workflow_RecordsArchiveInventoryWithoutTreatingPackageSizeAsARejection()
     {
         var candidatePackagePath = CreateCandidatePackage();
         var workflow = new PythonParserCandidateProofWorkflow();
 
         var report = await workflow.RunAsync(
-            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath("report.json"), MaximumCompressedPackageBytes: 1),
+            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath("report.json")),
             CancellationToken.None);
 
-        Assert.False(report.IsEligibleForFurtherReview);
-        Assert.Contains("compressed_archive_exceeds_budget", report.RejectionReasons);
+        Assert.True(report.IsEligibleForFurtherReview);
+        Assert.Empty(report.RejectionReasons);
         Assert.Empty(report.Archive.MissingRuntimeIdentifiers);
         Assert.Empty(report.Archive.UnexpectedRuntimeIdentifiers);
         Assert.Empty(report.Archive.LicenseAndNoticePaths);
@@ -40,7 +40,7 @@ public sealed class PythonParserCandidateProofTests : IDisposable
         await using var reportStream = File.OpenRead(ReportPath("report.json"));
         using var reportJson = await JsonDocument.ParseAsync(reportStream);
         Assert.Equal("treesitter-dotnet-1.3.0.nupkg", reportJson.RootElement.GetProperty("archive").GetProperty("packageFileName").GetString());
-        Assert.Contains("compressed_archive_exceeds_budget", reportJson.RootElement.GetProperty("rejectionReasons").EnumerateArray().Select(value => value.GetString()));
+        Assert.Empty(reportJson.RootElement.GetProperty("rejectionReasons").EnumerateArray());
 
         var serializedReport = await File.ReadAllTextAsync(ReportPath("report.json"));
         Assert.DoesNotContain("\r", serializedReport, StringComparison.Ordinal);
@@ -60,7 +60,7 @@ public sealed class PythonParserCandidateProofTests : IDisposable
         var workflow = new PythonParserCandidateProofWorkflow();
 
         var report = await workflow.RunAsync(
-            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath("notice-inventory.json"), MaximumCompressedPackageBytes: long.MaxValue),
+            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath("notice-inventory.json")),
             CancellationToken.None);
 
         Assert.True(report.IsEligibleForFurtherReview);
@@ -86,7 +86,7 @@ public sealed class PythonParserCandidateProofTests : IDisposable
         var workflow = new PythonParserCandidateProofWorkflow();
 
         var report = await workflow.RunAsync(
-            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath($"{scenario}.json"), MaximumCompressedPackageBytes: long.MaxValue),
+            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath($"{scenario}.json")),
             CancellationToken.None);
 
         var expectedRejection = scenario switch
@@ -111,7 +111,7 @@ public sealed class PythonParserCandidateProofTests : IDisposable
         var workflow = new PythonParserCandidateProofWorkflow();
 
         var report = await workflow.RunAsync(
-            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath("unexpected-rid.json"), MaximumCompressedPackageBytes: long.MaxValue),
+            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath("unexpected-rid.json")),
             CancellationToken.None);
 
         Assert.Contains("native_runtime_identifier_unexpected", report.RejectionReasons);
@@ -125,7 +125,7 @@ public sealed class PythonParserCandidateProofTests : IDisposable
         var workflow = new PythonParserCandidateProofWorkflow();
 
         var report = await workflow.RunAsync(
-            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath("missing-rid.json"), MaximumCompressedPackageBytes: long.MaxValue),
+            new PythonParserCandidateProofRequest(_repositoryRoot, candidatePackagePath, ReportPath("missing-rid.json")),
             CancellationToken.None);
 
         Assert.Contains("native_runtime_identifier_missing", report.RejectionReasons);
@@ -489,14 +489,14 @@ public sealed class PythonParserCandidateProofTests : IDisposable
             inspectPythonParserCandidateAsync: (request, _) =>
             {
                 capturedRequest = request;
-                return Task.FromResult(CreateReport(["compressed_archive_exceeds_budget"]));
+                return Task.FromResult(CreateReport(["package_id_mismatch"]));
             });
 
         Assert.Equal(0, exitCode);
         Assert.NotNull(capturedRequest);
         Assert.Equal(candidatePackagePath, capturedRequest!.CandidatePackagePath);
         Assert.Equal(ReportPath("candidate-proof.json"), capturedRequest.ReportPath);
-        Assert.Contains("rejected (compressed_archive_exceeds_budget)", standardOut.ToString(), StringComparison.Ordinal);
+        Assert.Contains("rejected (package_id_mismatch)", standardOut.ToString(), StringComparison.Ordinal);
         Assert.Equal(string.Empty, standardError.ToString());
     }
 
@@ -727,7 +727,7 @@ public sealed class PythonParserCandidateProofTests : IDisposable
             new PythonParserCandidateArchiveEvidence(
                 "TreeSitter.DotNet.1.3.0.nupkg",
                 "ABC",
-                PythonParserCandidateProofWorkflow.MaximumCompressedPackageBytes + 1,
+                1,
                 1,
                 1,
                 new PythonParserCandidateNuspecMetadata(

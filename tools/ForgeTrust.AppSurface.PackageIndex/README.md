@@ -91,12 +91,15 @@ dotnet run --project tools/ForgeTrust.AppSurface.PackageIndex/ForgeTrust.AppSurf
 
 An exit code of `0` means the inspection completed and the report was written; it does **not** mean the candidate was
 accepted. Reports must be written below the repository's `artifacts/` directory. Read `rejectionReasons` and
-`isEligibleForFurtherReview` from the JSON before taking any dependency action. A candidate that passes static inspection
-still needs a separately approved operating-system-level sandbox design before runtime initialization can become evidence.
-Report destinations are immutable: choose a new filename for every run, because existing files and symbolic-link paths
-are rejected rather than overwritten.
-The [source-controlled TreeSitter.DotNet 1.3.0 rejection record](https://github.com/forge-trust/AppSurface/blob/main/Web/ForgeTrust.AppSurface.Docs.Tests/TestData/PythonParserDecision/README.md)
-is the current proof: its 50.93 MiB archive exceeds the approved 5 MiB cap, so it must not be referenced by product code.
+`isEligibleForFurtherReview` from the JSON before taking any dependency action. Archive size is recorded as decision
+evidence rather than a hard product budget; the command's separate 64 MiB archive-read limit protects the inspection
+process itself. Report destinations are immutable: choose a new filename for every run, because existing files and
+symbolic-link paths are rejected rather than overwritten.
+
+The [source-controlled TreeSitter.DotNet 1.3.0 candidate record](https://github.com/forge-trust/AppSurface/blob/main/Web/ForgeTrust.AppSurface.Docs.Tests/TestData/PythonParserDecision/README.md)
+documents the accepted bounded Python-docstring spike. Its 50.93 MiB all-grammar, multi-RID archive is an explicit
+distribution trade-off, not a reason to exclude it from product code. Package upgrades must repeat the archive,
+native-RID, and redistribution-notice review.
 
 ## Recovery and release boundary
 

@@ -1,3 +1,3 @@
 <!-- appsurface:unreleased-entry section="taking-shape" -->
 
-- Add bounded static inspection evidence for a Python parser candidate, enabling mixed .NET/Python repositories to evaluate parser compatibility without executing third-party package code.
+- Add opt-in, static Python docstring harvesting for mixed .NET/Python repositories, with bounded parser-package inspection evidence that never executes third-party package code.

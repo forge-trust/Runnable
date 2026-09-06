@@ -162,7 +162,8 @@ public sealed class AppSurfaceDocsThemeOptions
     /// <remarks>
     /// The default is <see cref="AppSurfaceDocsThemePreset.AppSurfaceDark"/>. When a shared AppSurface theme pair is
     /// registered, this preset maps its package-owned docs surfaces to that pair's System, Light, or Dark branch while
-    /// preserving this options object's supported override, density, and chrome contract. Graphite remains local and dark-only.
+    /// preserving this options object's supported override, density, and chrome contract. <see cref="AppSurfaceDocsThemePreset.GraphiteDark"/>
+    /// and <see cref="AppSurfaceDocsThemePreset.AppSurfaceLight"/> remain fixed Docs-local presets.
     /// </remarks>
     public AppSurfaceDocsThemePreset Preset { get; set; } = AppSurfaceDocsThemePreset.AppSurfaceDark;
 
@@ -190,7 +191,16 @@ public enum AppSurfaceDocsThemePreset
     /// <summary>
     /// A lower-saturation dark palette with graphite surfaces and cooler accents.
     /// </summary>
-    GraphiteDark = 1
+    GraphiteDark = 1,
+
+    /// <summary>
+    /// A fixed light palette for package-owned Docs chrome.
+    /// </summary>
+    /// <remarks>
+    /// This preset does not select a shared AppSurface theme pair and does not enable visitor-controlled appearance
+    /// preferences. Hosts can customize only the supported semantic accent and link roles.
+    /// </remarks>
+    AppSurfaceLight = 2
 }
 
 /// <summary>
@@ -2439,6 +2449,7 @@ public sealed class AppSurfaceDocsOptionsValidator : IValidateOptions<AppSurface
                    || trimmed.Equals("search.css", StringComparison.OrdinalIgnoreCase)
                    || trimmed.Equals("search-client.js", StringComparison.OrdinalIgnoreCase)
                    || trimmed.Equals("outline-client.js", StringComparison.OrdinalIgnoreCase)
+                   || trimmed.Equals("rich-authoring-client.js", StringComparison.OrdinalIgnoreCase)
                    || trimmed.Equals("minisearch.min.js", StringComparison.OrdinalIgnoreCase));
     }
 }

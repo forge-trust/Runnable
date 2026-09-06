@@ -46,7 +46,7 @@ public class AppSurfaceDocsViewsTests
         var layout = ReadLayoutMarkup();
         Assert.Contains("id=\"docs-search-input\"", layout);
         Assert.Contains("id=\"docs-search-results\"", layout);
-        Assert.Contains("AssetVersioner.BuildVersionedDocsAssetUrl(DocsUrlBuilder, \"search.css\")", layout);
+        Assert.Contains("assetVersioner.BuildVersionedDocsAssetUrl(docsUrlBuilder, \"search.css\")", layout);
         Assert.Contains("docsSearchIndexUrl", layout);
         Assert.Contains("var isSearchPage = string.Equals(", layout);
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
@@ -54,9 +54,9 @@ public class AppSurfaceDocsViewsTests
         Assert.DoesNotContain("src=\"~/docs/outline-client.js\"", layout);
         Assert.Contains("window.__appSurfaceDocsConfig", layout);
         Assert.Contains("rel=\"icon\" type=\"image/svg+xml\" href=\"@docsBrandIconUrl\"", layout);
-        Assert.Contains("AssetVersioner.BuildVersionedDocsAssetUrl(DocsUrlBuilder, \"search-client.js\")", layout);
-        Assert.Contains("AssetVersioner.BuildVersionedDocsAssetUrl(DocsUrlBuilder, \"minisearch.min.js\")", layout);
-        Assert.Contains("ThemeResolver.Theme", layout);
+        Assert.Contains("assetVersioner.BuildVersionedDocsAssetUrl(docsUrlBuilder, \"search-client.js\")", layout);
+        Assert.Contains("assetVersioner.BuildVersionedDocsAssetUrl(docsUrlBuilder, \"minisearch.min.js\")", layout);
+        Assert.Contains("themeResolver.Theme", layout);
         Assert.Contains("data-docs-theme-preset", layout);
         Assert.Contains("data-docs-density", layout);
         Assert.Contains("data-docs-chrome", layout);
@@ -167,6 +167,45 @@ public class AppSurfaceDocsViewsTests
         Assert.Equal("system", document.DocumentElement?.GetAttribute("data-as-theme-mode"));
         Assert.Empty(document.QuerySelectorAll("fieldset[data-as-theme-preference-control]"));
         Assert.DoesNotContain("Appearance follows your operating-system preference", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Layout_ShouldRenderTheFixedAppSurfaceLightThemeBeforePackageStylesheets()
+    {
+        using var services = CreateServiceProvider(
+            CreateDocs(),
+            new Dictionary<string, string?>
+            {
+                ["AppSurfaceDocs:Theme:Preset"] = "AppSurfaceLight",
+                ["AppSurfaceDocs:Theme:Colors:AccentColor"] = "#1e3a8a",
+                ["AppSurfaceDocs:Theme:Colors:AccentStrongColor"] = "#1e40af",
+                ["AppSurfaceDocs:Theme:Colors:LinkColor"] = "#1e3a8a",
+                ["AppSurfaceDocs:Theme:Colors:VisitedLinkColor"] = "#5b21b6"
+            },
+            configureServices: collection => collection.AddAppSurfaceWebThemePreferences());
+
+        var html = await RenderDocsViewAsync(services, "Index", controller => controller.Index());
+        var document = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+        var root = Assert.IsAssignableFrom<IElement>(document.DocumentElement);
+        var rootStyle = root.GetAttribute("style");
+
+        Assert.Equal("appsurface-light", root.GetAttribute("data-docs-theme-preset"));
+        Assert.Contains("docs-theme-preset-appsurface-light", root.GetAttribute("class"), StringComparison.Ordinal);
+        Assert.Contains("color-scheme: light;", rootStyle, StringComparison.Ordinal);
+        Assert.Contains("--docs-color-surface-canvas:#f8fafc;", rootStyle, StringComparison.Ordinal);
+        Assert.Contains("--docs-color-state-active-fill-strong:rgba(30, 64, 175, 0.34);", rootStyle, StringComparison.Ordinal);
+        Assert.Null(root.GetAttribute("appsurface-theme-root"));
+        Assert.Null(root.GetAttribute("data-as-theme"));
+        Assert.Null(root.GetAttribute("data-as-theme-mode"));
+        Assert.Null(root.GetAttribute("data-as-theme-color-scheme-conflict"));
+        Assert.Empty(document.QuerySelectorAll("fieldset[data-as-theme-preference-control]"));
+        Assert.Empty(document.QuerySelectorAll("script[data-as-theme-preference-bootstrap]"));
+        Assert.Empty(document.QuerySelectorAll("style[data-docs-theme-critical]"));
+        Assert.True(html.IndexOf("color-scheme: light;", StringComparison.Ordinal) < html.IndexOf("css/site.gen.css", StringComparison.Ordinal));
+        Assert.True(html.IndexOf("css/site.gen.css", StringComparison.Ordinal) < html.IndexOf("docs/search.css", StringComparison.Ordinal));
+
+        var tailwindEntryStylesheet = ReadTailwindEntryStylesheetMarkup();
+        Assert.Contains("html[data-docs-theme-preset=\"appsurface-light\"]", tailwindEntryStylesheet, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -728,14 +767,26 @@ public class AppSurfaceDocsViewsTests
         Assert.Contains(".docs-token-hover-border-accent:hover", tailwindEntryStylesheet);
         Assert.Contains(".docs-token-hover-bg-panel:hover", tailwindEntryStylesheet);
         Assert.Contains(".docs-token-group-hover-text-accent-soft", tailwindEntryStylesheet);
-        Assert.Contains("html[data-as-theme-mode=\"light\"] {", tailwindEntryStylesheet);
+        Assert.Contains("html[data-as-theme-mode=\"light\"],", tailwindEntryStylesheet);
+        Assert.Contains("html[data-docs-theme-preset=\"appsurface-light\"] {", tailwindEntryStylesheet);
         Assert.Contains("@media (prefers-color-scheme: light)", tailwindEntryStylesheet);
         Assert.Contains("html[data-as-theme-mode=\"system\"] {", tailwindEntryStylesheet);
         Assert.Contains("--color-slate-50: var(--docs-color-text-strong);", tailwindEntryStylesheet);
         Assert.Contains("--color-slate-950: var(--docs-color-surface-canvas);", tailwindEntryStylesheet);
-        Assert.Contains("--color-amber-100: var(--docs-color-visited-link);", tailwindEntryStylesheet);
+        Assert.Contains("--color-amber-100: var(--docs-color-link-visited);", tailwindEntryStylesheet);
         Assert.Contains("--color-emerald-100: var(--docs-color-link);", tailwindEntryStylesheet);
         Assert.Contains("--color-rose-100: var(--as-danger);", tailwindEntryStylesheet);
+        Assert.Contains(
+            "html[data-docs-theme-preset=\"appsurface-light\"] {\n    --color-amber-100: var(--docs-color-syntax-parameter);",
+            tailwindEntryStylesheet);
+        Assert.Contains("--color-amber-950: var(--docs-color-surface-panel-faint);", tailwindEntryStylesheet);
+        Assert.Contains("--color-emerald-100: var(--docs-color-syntax-inserted);", tailwindEntryStylesheet);
+        Assert.Contains("--color-emerald-950: var(--docs-color-surface-panel-faint);", tailwindEntryStylesheet);
+        Assert.Contains("--color-rose-100: var(--docs-color-syntax-deleted);", tailwindEntryStylesheet);
+        Assert.Contains("--color-rose-950: var(--docs-color-surface-panel-faint);", tailwindEntryStylesheet);
+        Assert.Contains("--color-sky-100: var(--docs-color-syntax-type);", tailwindEntryStylesheet);
+        Assert.Contains("--color-sky-950: var(--docs-color-surface-panel-faint);", tailwindEntryStylesheet);
+        Assert.Contains("--color-teal-100: var(--docs-brand-teal);", tailwindEntryStylesheet);
         Assert.Contains("--color-sky-100: var(--docs-color-link);", tailwindEntryStylesheet);
         Assert.Contains(".docs-token-bg-accent-strong.text-white", tailwindEntryStylesheet);
         Assert.Contains(".docs-content--markdown a:visited", tailwindEntryStylesheet);
@@ -3585,6 +3636,42 @@ public class AppSurfaceDocsViewsTests
         Assert.NotNull(tenantOutlineScript);
         Assert.Matches("^/tenant/docs/outline-client\\.js\\?v=.+", tenantOutlineScript!.GetAttribute("src") ?? string.Empty);
         Assert.DoesNotContain("data-doc-outline-client-loader=\"true\"", tenantHtml);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldOnlyLoadRichAuthoringClientForPackageGeneratedTabs()
+    {
+        const string tabsMarkup = """
+            <section class="docs-rich-tabs" data-appsurfacedocs-rich="tabs" data-appsurfacedocs-rich-tabs="true" data-appsurfacedocs-rich-tabs-token="trusted-token">
+              <section data-appsurfacedocs-rich-tab-panel="true" data-appsurfacedocs-rich-tab-label="First">First</section>
+              <section data-appsurfacedocs-rich-tab-panel="true" data-appsurfacedocs-rich-tab-label="Second">Second</section>
+            </section>
+            """;
+        var generatedDoc = new DocNode(
+            "Tabs",
+            "guides/tabs.md",
+            tabsMarkup)
+        {
+            RichAuthoringTabsTokens = ["trusted-token"]
+        };
+        var generatedHtml = await RenderDetailsViewWithPathBaseAsync(generatedDoc, "/tenant");
+        var generatedDocument = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(generatedHtml);
+
+        var script = generatedDocument.QuerySelector("script[data-doc-rich-authoring-client='true']");
+        Assert.NotNull(script);
+        Assert.Matches("^/tenant/docs/rich-authoring-client\\.js\\?v=.+", script!.GetAttribute("src") ?? string.Empty);
+        Assert.Equal("trusted-token", script.GetAttribute("data-appsurfacedocs-rich-tabs-tokens"));
+
+        var rawAuthorDoc = new DocNode("Raw tabs", "guides/raw-tabs.md", tabsMarkup);
+        var rawAuthorHtml = await RenderDetailsViewAsync(rawAuthorDoc);
+        var calloutOnlyDoc = new DocNode(
+            "Callout",
+            "guides/callout.md",
+            "<section data-appsurfacedocs-rich=\"callout\">Callout</section>");
+        var calloutOnlyHtml = await RenderDetailsViewAsync(calloutOnlyDoc);
+
+        Assert.DoesNotContain("data-doc-rich-authoring-client", rawAuthorHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-doc-rich-authoring-client", calloutOnlyHtml, StringComparison.Ordinal);
     }
 
     [Fact]

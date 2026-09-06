@@ -8,6 +8,122 @@ Documentation site generation and hosting for AppSurface web applications.
 
 If you are evaluating AppSurface Docs for your own repository, start with [Use AppSurface Docs in your repository](./use-appsurface-docs.md). That page explains the consumer model, host shape, authoring metadata, and adoption checklist before you drill into this package reference.
 
+## Named multi-instance hosting
+
+The named `AddAppSurfaceDocs` overload hosts multiple independent Docs products in one ASP.NET Core application. Each
+registration receives a complete configuration section and returns an `AppSurfaceDocsInstance` handle. Use this when
+products have separate source repositories, identities, route families, harvest state, or reader audiences—for example,
+public documentation at `/docs` and internal contributor documentation at `/internal/docs`:
+
+```json
+{
+  "AppSurfaceDocs": {
+    "Public": {
+      "Source": { "RepositoryRoot": "/srv/public-product" },
+      "Routing": { "RouteRootPath": "/docs" }
+    },
+    "Internal": {
+      "Source": { "RepositoryRoot": "/srv/internal-product" },
+      "Routing": { "RouteRootPath": "/internal/docs" }
+    }
+  }
+}
+```
+
+```csharp
+var publicDocs = builder.Services.AddAppSurfaceDocs(
+    "public",
+    builder.Configuration.GetSection("AppSurfaceDocs:Public"));
+var internalDocs = builder.Services.AddAppSurfaceDocs(
+    "internal",
+    builder.Configuration.GetSection("AppSurfaceDocs:Internal"));
+
+var app = builder.Build();
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseEndpoints(endpoints =>
+{
+    // One shared RazorWire transport serves the isolated Docs progress channels.
+    endpoints.MapRazorWire();
+    publicDocs.MapEndpoints(endpoints).AllowAnonymous();
+    internalDocs.MapEndpoints(endpoints)
+        .RequireAuthorization("InternalDocs");
+    endpoints.FinalizeAppSurfaceDocsInstances();
+});
+```
+
+The public handle explicitly uses `AllowAnonymous` so the Docs product remains public when its host configures a fallback
+authorization policy. The internal handle uses a host-owned ASP.NET Core policy; register `InternalDocs` and the host's
+authentication middleware yourself. `MapEndpoints` returns a deferred convention builder, so each convention applies to
+every endpoint owned by that Docs product, including its operational endpoints. AppSurface Docs does not create
+identities, authentication handlers, or authorization policies. See the [ASP.NET Core authorization guidance](https://learn.microsoft.com/aspnet/core/security/authorization/introduction)
+and the [consumer setup and authorization example](./use-appsurface-docs.md#run-multiple-independent-docs-products).
+
+Named registration adds RazorWire services for the live harvest observatory, but the host still maps its one shared
+transport with `endpoints.MapRazorWire()` (from `ForgeTrust.RazorWire`) as shown above. Its stream authorization
+remains host-owned; named Docs filters then enforce each product's diagnostics visibility/read policy and the complete
+authorization requirements attached to that product's handle, including default, role, authentication-scheme, and
+multiple named policies.
+
+Call `FinalizeAppSurfaceDocsInstances` once, after mapping every handle. It validates the named configuration,
+constructs the isolated runtimes, applies endpoint conventions, and publishes the route families. Each handle must be
+mapped exactly once on the same endpoint route builder; mapping after finalization, finalizing twice, or leaving a
+registered handle unmapped is a startup error. During host startup, each finalized runtime also receives the same
+Markdown-policy validation, diagnostics warning, and harvest warmup/preflight behavior as a legacy single-instance
+Docs host; a failure identifies the owning instance.
+
+### Request-time runtime selection
+
+Named endpoint groups carry an `AppSurfaceDocsEndpointMetadata` record containing the normalized instance name.
+Request-time package code and host-owned extensions that need the active product should resolve the
+`IAppSurfaceDocsRequestRuntimeAccessor` service and call `GetRequiredRuntime()`; the accessor reads the selected
+endpoint metadata and never guesses from the request path. The returned `AppSurfaceDocsRuntime` exposes the
+instance's `Name`, immutable `Options` snapshot, and `DocsUrlBuilder`. Use those properties when adding
+instance-aware views or integrations so URLs and configuration remain inside the selected product boundary:
+
+```csharp
+public sealed class DocsNavigationViewComponent(
+    IAppSurfaceDocsRequestRuntimeAccessor runtimeAccessor) : ViewComponent
+{
+    public IViewComponentResult Invoke()
+    {
+        var runtime = runtimeAccessor.GetRequiredRuntime();
+        return View(new
+        {
+            runtime.Name,
+            SearchUrl = runtime.DocsUrlBuilder.BuildSearchUrl()
+        });
+    }
+}
+```
+
+`AppSurfaceDocsRuntime` is created from the configuration snapshot during finalization and implements idempotent
+`Dispose`; hosts should not construct or dispose runtimes themselves. Do not resolve unkeyed Docs services or infer
+an instance from a route prefix when named composition is enabled, because either approach can select the wrong
+product after a route rewrite or custom endpoint mapping.
+
+Named composition has strict coexistence and collision rules:
+
+- Do not combine it with parameterless `AddAppSurfaceDocs()` or `AppSurfaceDocsWebModule`; choose one legacy/default
+  surface or named composition for the host.
+- Names are case-insensitive, must be unique, must be 1–64 characters, and may contain only ASCII letters, digits,
+  hyphens, and underscores. At most eight named instances may be registered.
+- Route families cannot overlap, including equal roots and ancestor/descendant roots. Use sibling roots such as
+  `/docs` and `/internal/docs`.
+- Every named product must explicitly configure `Source:RepositoryRoot`; repository-root discovery is intentionally
+  unavailable because it could cause two products to join the same source boundary. Roots must be distinct. A
+  configured branding asset request prefix must be disjoint from every other product's route family and from every
+  other configured branding prefix, including ancestor/descendant pairs.
+- Each instance is built from its own configuration snapshot; its source boundary, identity, routing, cache, search
+  state, and version catalog are not an ambient default shared with another instance.
+
+Named instances host both the live product routes and their configured published version archives. Static export itself
+remains a one-product-at-a-time operation: export each instance from a host configured for that instance, then point
+its named runtime at that product's catalog and trusted release root. Do not attempt to produce one combined static
+tree from a multi-instance host.
+
 ## Protected Markdown download
 
 AppSurface Docs can expose the exact source bytes for explicitly opted-in Markdown pages as a browser attachment. This v1 feature is disabled by default:
@@ -286,6 +402,64 @@ Supported normalized languages render highlighted output when the bundled TextMa
 - Do not assume every language alias supports custom semantics beyond normalization.
 - Do not use Shiki or Expressive Code line-marker syntax yet. V1 ignores code-fence metadata after the language.
 - Do not style highlighter output outside the AppSurface Docs package stylesheet. Code block styling belongs under `.docs-content` in `wwwroot/css/app.css`.
+
+## Rich authoring
+
+AppSurface Docs also supports two deliberately bounded Markdown primitives for content that benefits from a semantic
+signal rather than a custom HTML component: callouts for a risk or decision, and tabs for two to four mutually
+exclusive reader paths. Both render complete server HTML. A page stays readable in static export, with JavaScript
+disabled, and if the optional tabs enhancement cannot load.
+
+Start with a callout:
+
+```markdown
+:::callout danger
+Application startup must never apply database DDL.
+:::
+```
+
+The supported kinds are `note`, `tip`, `warning`, and `danger`. A callout can contain ordinary Markdown, lists, links,
+and fenced code blocks. It is a short signpost, not a replacement for a troubleshooting or operations section.
+
+Use tabs only when the reader must choose one genuine alternative. The opening line has a required contextual prompt;
+each panel has a required, unique quoted label, and the group has two through four panels:
+
+```markdown
+:::tabs "Which environment are you preparing?"
+:::tab "Local proof"
+Run the disposable local transcript.
+:::
+:::tab "Production"
+Follow the reviewed deployment workflow.
+:::
+:::
+```
+
+The server renders the prompt and every panel in source order with the honest baseline text “All paths are available
+below.” When the package-owned `rich-authoring-client.js` loads, it atomically replaces that baseline with manual
+[WAI-ARIA tabs](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/): arrow keys move focus, while Enter, Space, or a pointer selects a panel. A direct fragment inside a panel opens
+its owner panel before scrolling. Tabs are not outline headings, and search indexes the authored prompt, labels, and
+panel bodies once; it excludes generated labels and progressive-enhancement status chrome.
+
+The client enhances only tabs emitted by this Markdown grammar. Hand-authored HTML that resembles a tabs component
+remains ordinary visible content, so raw markup cannot hide authored documentation or impersonate package output.
+
+### Choose the smallest primitive
+
+| Reader need | Use | Avoid |
+| --- | --- | --- |
+| A sequence where every step matters | Normal Markdown headings and lists | Tabs; hiding sequential work makes recovery harder. |
+| A compact risk, limit, or decision | `:::callout` | A callout for ordinary emphasis. |
+| One of a small number of distinct environments or paths | `:::tabs` | Tabs for long tutorials, chronological operations, or five-plus choices. |
+
+Keep the closing `:::` fences exact. `tabs` cannot be nested; labels and prompts must be non-empty quoted text,
+labels are limited to 80 Unicode characters, and prompts to 160. Invalid rich directives do not disappear or become
+best-effort UI: AppSurface Docs renders their source markers and body visibly, then reports one of
+`appsurfacedocs.rich_authoring.invalid_callout`, `appsurfacedocs.rich_authoring.invalid_tabs`, or
+`appsurfacedocs.rich_authoring.invalid_tab` in harvest health with a problem, cause, and fix. This makes mixed package
+versions and copy-paste mistakes recoverable without a migration. To keep malformed source bounded, deeply unclosed
+directive runs remain literal source after the 16-level parser nesting limit rather than creating ever-longer internal
+fences.
 
 ## Harvest Health
 
@@ -1127,7 +1301,7 @@ Default route behavior:
 - Generated API docs and other non-Markdown docs keep the existing `.html` route shape, such as `{DocsRootPath}/Namespaces/ForgeTrust.AppSurface.Web.html`.
 - Fragments stay fragments. A harvested source path like `guides/intro.md#setup` publishes as `{DocsRootPath}/guides/intro#setup`.
 
-AppSurface Docs reserves document routes that belong to chrome, diagnostics, health, harvest operations, search, sections, versions, and assets. The reserved set includes the docs home, `search`, `search-index.json`, `_harvest`, `_harvest/rebuild`, `_health`, `_health.json`, `_routes`, `_routes.json`, `search.css`, `search-client.js`, `outline-client.js`, `minisearch.min.js`, `versions`, and the `sections/`, `_harvest/`, and `v/` route prefixes. Docs that resolve to reserved routes remain internally available for source lookup, but they are not public document winners and emit route diagnostics.
+AppSurface Docs reserves document routes that belong to chrome, diagnostics, health, harvest operations, search, sections, versions, and assets. The reserved set includes the docs home, `search`, `search-index.json`, `_harvest`, `_harvest/rebuild`, `_health`, `_health.json`, `_routes`, `_routes.json`, `search.css`, `search-client.js`, `outline-client.js`, `rich-authoring-client.js`, `minisearch.min.js`, `versions`, and the `sections/`, `_harvest/`, and `v/` route prefixes. Docs that resolve to reserved routes remain internally available for source lookup, but they are not public document winners and emit route diagnostics.
 
 Markdown route segments are normalized deterministically: Unicode is folded where possible, non-spacing marks are removed, ASCII letters are lower-cased, dots are preserved, and unsafe separators become hyphens. When that conversion is lossy, AppSurface Docs emits `DocLossySlugNormalization` so authors can decide whether to set an explicit route.
 
@@ -1356,7 +1530,7 @@ static web assets.
 - `AppSurfaceDocs:Theme:Preset`
   - Optional compatibility preset for package-owned docs chrome.
   - Defaults to `AppSurfaceDark`.
-  - Supported values are `AppSurfaceDark` and `GraphiteDark`.
+  - Supported values are `AppSurfaceDark`, `GraphiteDark`, and `AppSurfaceLight`.
   - Unknown enum values fail startup validation and list the supported values.
 - `AppSurfaceDocs:Theme:Colors:AccentColor`
   - Optional CSS hex color for primary accent text, active states, and highlights.
@@ -1417,11 +1591,33 @@ Full v1 theme configuration:
 }
 ```
 
-Environment variable spelling follows the normal double-underscore configuration convention, such as `AppSurfaceDocs__Theme__Preset=GraphiteDark`, `AppSurfaceDocs__Theme__Colors__AccentColor=#38bdf8`, and `AppSurfaceDocs__Theme__Layout__Density=Compact`.
+Environment variable spelling follows the normal double-underscore configuration convention, such as `AppSurfaceDocs__Theme__Preset=GraphiteDark`, `AppSurfaceDocs__Theme__Colors__AccentColor=#38bdf8`, and `AppSurfaceDocs__Theme__Layout__Density=Compact`. A complete fixed-light configuration uses `AppSurfaceDocs__Theme__Preset=AppSurfaceLight`, `AppSurfaceDocs__Theme__Colors__AccentColor=#1e3a8a`, `AppSurfaceDocs__Theme__Colors__AccentStrongColor=#1e40af`, `AppSurfaceDocs__Theme__Colors__LinkColor=#1e3a8a`, and `AppSurfaceDocs__Theme__Colors__VisitedLinkColor=#5b21b6`.
 
 Theme validation is part of the public contract. `Theme`, `Theme:Colors`, and `Theme:Layout` must not be null. Color values must be CSS hex colors, not CSS functions, variables, color names, or style declarations. Contrast failures name the config path, configured value, required ratio, tested preset background, and a fix hint so maintainers can correct the value without inspecting generated CSS.
 
-Use theme options when the host wants branded docs without owning views. `AppSurfaceDark` is the default Docs-local preset and also the bridge to a registered shared AppSurface theme pair; see [Theme pairs migration](#theme-pairs-migration). `GraphiteDark` remains a separate Docs-local fixed-dark preset. Do not use these options for arbitrary text or surface overrides, selector-level CSS compatibility, external theme packages, or a bespoke documentation template. Static exports and published release archives freeze the resolved theme variables in exported HTML, so host config changes do not rewrite already-exported archives.
+Use theme options when the host wants branded docs without owning views. `AppSurfaceDark` is the default Docs-local preset and also the bridge to a registered shared AppSurface theme pair; see [Theme pairs migration](#theme-pairs-migration). `GraphiteDark` remains a separate Docs-local fixed-dark preset. `AppSurfaceLight` is an additive fixed light preset with the same four validated color roles and no visitor-controlled appearance behavior. Do not use these options for arbitrary text or surface overrides, selector-level CSS compatibility, external theme packages, or a bespoke documentation template. Static exports and published release archives freeze the resolved theme variables in exported HTML, so host config changes do not rewrite already-exported archives.
+
+### Fixed AppSurfaceLight configuration
+
+Use this contrast-validated light recipe when a host needs a fixed light Docs surface without replacing package views or CSS:
+
+```json
+{
+  "AppSurfaceDocs": {
+    "Theme": {
+      "Preset": "AppSurfaceLight",
+      "Colors": {
+        "AccentColor": "#1e3a8a",
+        "AccentStrongColor": "#1e40af",
+        "LinkColor": "#1e3a8a",
+        "VisitedLinkColor": "#5b21b6"
+      }
+    }
+  }
+}
+```
+
+Docs resolves the selected preset into its complete package-owned token graph, applies only the four supported direct roles, and then regenerates dependent fills, borders, and focus treatment. `AppSurfaceLight` is fixed: it does not enable a visitor switcher, a cookie, local storage, a preference bootstrap script, or an additional stylesheet. It serializes `color-scheme: light` and the resolved package variables before `site.gen.css` and `search.css`, so live pages and static exports freeze the same configuration. The preset name, role coverage, validation behavior, and deterministic output are stable; exact package-owned palette values may evolve intentionally with release notes and visual verification. Do not treat raw `--docs-*` variables as an external override surface. Choose the [theme-pairs migration](#theme-pairs-migration) for host-owned System/Light/Dark preferences, or the [deliberate whole-layout override boundary](#default-razor-layout-and-deliberate-host-overrides) when a host needs broader surface or syntax control.
 
 ### Theme pairs migration
 
@@ -1463,6 +1659,7 @@ This keeps one canonical page and one static tree per Docs version. It is origin
 | --- | --- |
 | `AppSurfaceDark` produced only the established dark Docs variable graph. | It remains the default Docs preset and maps Docs-owned surfaces, code tokens, search states, tables, archive/status pages, and focus treatment to the shared Graphite System/Light/Dark semantic branch while keeping Docs variables internal. |
 | `GraphiteDark` was a dark preset. | It remains a Docs-local dark compatibility preset; it is not a shared pair. |
+| No fixed Docs-local light preset was available. | `AppSurfaceLight` is an additive fixed light preset with the existing four validated semantic role overrides. It does not use the shared preference bridge. |
 | `#rgb` color overrides were accepted. | They remain accepted and apply only to the supported Docs accent/link roles. Shared role values remain strict `#RRGGBB`. When a rendered branch cannot meet the documented contrast threshold, Docs keeps the safe semantic pair role instead of emitting the override; browser-local preferences therefore validate every Light and Dark branch, even if the host default is fixed. |
 
 Docs preserves density, chrome, layout override behavior, and the default dark experience when no shared resolver is registered. The package layout emits the Web root/head opt-ins plus a Docs-critical variable mapping before the package stylesheet. Published-tree rewriting preserves that root metadata and both critical styles, so static archives match live output apart from a host-request CSP nonce.
@@ -1798,6 +1995,7 @@ Supported public shapes:
 - attached `const name = (...) => ...` and `const name = function (...) { ... }` doclets, with one declarator per statement
 - attached `const name = value` doclets, with one declarator per statement
 - attached `window.Name = ...` or `window["Name"] = ...` doclets
+- attached named `class Name { ... }` and `export class Name { ... }` doclets, with an independently annotated constructor, method, getter, or setter for every member that should publish
 - standalone `@event event:name` doclets
 - standalone `@typedef {Type} Name` doclets
 - standalone `@attribute name` doclets for package-owned HTML or `data-*` attributes
@@ -1842,6 +2040,53 @@ Every valid generated JavaScript API symbol has the reader-facing lifecycle labe
 The built-in search index projects `apiLifecycle`, `apiLifecycleLabel`, `isDeprecated`, and `isGeneratedApiSymbol` only for validated generated JavaScript API fragments. The search client uses lifecycle values as searchable terms and ranks matching symbol fragments ahead of aggregate API group-body matches. Custom search clients should treat the fields as optional additions to the v1 payload and should not infer lifecycle from ordinary page metadata. Custom harvesters retain the public model shape, but lifecycle values are projected only when the built-in JavaScript harvester has recorded internal provenance and the fragment meets the canonical lifecycle contract.
 
 Invalid combinations skip only the affected item and emit structured diagnostics: repeated or mixed `@alpha`/`@beta` modifiers and conflicting nonblank `@deprecated` messages use `DocHarvestDiagnosticCodes.JavaScriptLifecycleConflict`; modifiers with content use `DocHarvestDiagnosticCodes.JavaScriptMalformedLifecycle`. These diagnostics remain warnings in best-effort discovery and become errors when `AppSurfaceDocs:Harvest:JavaScript:StrictHealth=true`. A configured JavaScript include boundary still makes either lifecycle diagnostic fail aggregate strict health, even when the individual diagnostic remains warning-severity.
+
+#### Five-minute class contract recipe
+
+Use a declaration-only class contract when the runtime is class-shaped but consumers receive a package-owned singleton. Keep the singleton config as the first thing readers discover, and document each public method independently:
+
+```js
+/**
+ * Singleton manager exposed to browser consumers.
+ * Consumers use `window.RazorWire.sectionCopyManager`; do not construct `SectionCopyManager`.
+ * @public
+ * @namespace RazorWire
+ * @config window.RazorWire.sectionCopyManager
+ * @type {SectionCopyManager}
+ */
+
+/**
+ * Declaration-only class contract for the singleton.
+ * @public
+ * @namespace RazorWire
+ * @class SectionCopyManager
+ */
+class SectionCopyManager {
+  /** @public @method scan */
+  scan() {}
+
+  /** @public @method prune */
+  prune() {}
+
+  /** @public @method getDiagnostics
+   * @returns {RazorWireSectionCopyDiagnostic[]}
+   */
+  getDiagnostics() {}
+
+  /** @public @method clearDiagnostics */
+  clearDiagnostics() {}
+}
+```
+
+Do not add a constructor to a singleton contract. The harvester renders the declaration-only class and only those methods or accessors that carry their own `@public` annotation; the docs-only manifest remains the authoritative contract because generated bundles and TypeScript source are intentionally not harvest inputs. For the real TypeScript implementation, add one exact begin/end source marker around the class and test marker uniqueness/order without parsing TypeScript or comparing method signatures.
+
+| Decision | Author this shape | Avoid this shape |
+| --- | --- | --- |
+| Consumers access one package-owned runtime instance | `@config window.RazorWire.sectionCopyManager` plus a declaration-only class | A public constructor example or a second manager instance |
+| Consumers need a named object payload | Same-group `@typedef` with `@property` fields | Repeating a large anonymous object in every method or event |
+| Consumers call stable operations | One independently `@public` method doclet per operation | One class-level property list that duplicates method contracts |
+| A method returns reusable diagnostics | Same-group typedef, referenced from `@returns` | An undocumented `object[]` or a second diagnostic schema |
+| Runtime code is TypeScript or generated JavaScript | Docs-only `.js` contract plus a source marker around authored implementation | Harvesting minified output or assuming TypeScript is parsed |
 
 Event doclets should include `@target`, `@firesWhen`, `@bubbles`, `@cancelable`, and detail payload fields through `@property detail.name` or an exact payload reference such as `@property {FormFailureDetail} detail`. Use `@detail none` only when the event deliberately carries no payload. Add `@example` when the event needs consumption guidance beyond the contract fields.
 
@@ -1948,7 +2193,7 @@ Browser-contract doclets should carry enough fields for readers to use them with
  */
 ```
 
-Unsupported public classes, CommonJS export inference, malformed public doclets, invalid lifecycle combinations, incomplete event contracts, missing or ambiguous exact typedef references, oversized files, parse failures, missing exact includes, configured reparse-point includes, and duplicate normalized anchors emit `DocHarvestDiagnostic` entries. Hosts should branch on `DocHarvestDiagnosticCodes.JavaScript*` constants rather than parsing log text. Unsupported shapes are skipped instead of rendered partially. The strict event diagnostic code is `DocHarvestDiagnosticCodes.JavaScriptIncompletePublicEventDoclet` (`appsurfacedocs.javascript.incomplete_public_event_doclet`). The configured-link diagnostic is `DocHarvestDiagnosticCodes.JavaScriptReparsePointSkipped` (`appsurfacedocs.javascript.reparse_point_skipped`); its problem, cause, and fix are redacted to repository-relative include paths and do not reveal the symlink target.
+Named, non-derived class declarations are supported when the class and every published constructor, method, or accessor have their own `@public` annotation; unnamed/default-exported classes, class expressions, fields, private or computed members, async/generator methods, static blocks, and derived classes are skipped with a `DocHarvestDiagnostic`. CommonJS export inference, malformed public doclets, invalid lifecycle combinations, incomplete event contracts, missing or ambiguous exact typedef references, oversized files, parse failures, missing exact includes, configured reparse-point includes, and duplicate normalized anchors follow the same diagnostic path. Hosts should branch on `DocHarvestDiagnosticCodes.JavaScript*` constants rather than parsing log text. Unsupported shapes are skipped instead of rendered partially. The strict event diagnostic code is `DocHarvestDiagnosticCodes.JavaScriptIncompletePublicEventDoclet` (`appsurfacedocs.javascript.incomplete_public_event_doclet`). The configured-link diagnostic is `DocHarvestDiagnosticCodes.JavaScriptReparsePointSkipped` (`appsurfacedocs.javascript.reparse_point_skipped`); its problem, cause, and fix are redacted to repository-relative include paths and do not reveal the symlink target.
 
 The event-dispatch verifier emits `DocHarvestDiagnosticCodes.JavaScriptEventDocletDispatchMissing` (`appsurfacedocs.javascript.event_doclet_dispatch_missing`) when a public `@event` doclet has no matching literal dispatch evidence, and `DocHarvestDiagnosticCodes.JavaScriptEventDispatchDocletMissing` (`appsurfacedocs.javascript.event_dispatch_doclet_missing`) when a literal `CustomEvent` dispatch has no matching public doclet. Both are warning diagnostics. They appear in health responses and successful `docs verify-health` warning output, but they are intentionally not strict blocking diagnostics.
 
@@ -1979,7 +2224,7 @@ Pitfalls:
 - Do not attach one public doclet to `const first = ..., second = ...`; split public JavaScript API constants or functions into one declaration statement per doclet.
 - Do not rely on automatic event inference from `dispatchEvent(new CustomEvent(...))`. V1 documents explicit public doclets only.
 - Do not pair `@detail none` with `@property detail.*`; either the event has no payload or its payload shape is documented.
-- Do not put `@public` on classes, default exports, or CommonJS exports until a later harvester slice supports those shapes.
+- Do not put `@public` on default exports, CommonJS exports, derived classes, class expressions, or classes with unsupported members. Named, non-derived class declarations support their own `@public` doclets and separately annotated constructors, methods, or accessors.
 - Do not treat Acornima as a runtime JavaScript execution engine. AppSurface Docs uses it only to parse configured source for documentation, and `ForgeTrust.AppSurface.Docs` carries `THIRD-PARTY-NOTICES.md` for the redistributed package.
 
 ### Published version catalog
@@ -2074,6 +2319,7 @@ Each `exactTreePath` directory is treated as a prebuilt static subtree for one e
 - `search.css` at the tree root. The bundled search stylesheet carries search-local fallbacks for the shared style tokens so exact release search controls remain styled even when a historical/static export does not include `site.gen.css`.
 - `search-client.js` at the tree root
 - `outline-client.js` at the tree root for outline-aware exports whose HTML references the page-local outline runtime
+- `rich-authoring-client.js` at the tree root for exports whose HTML references the page-local tabs enhancement
 - `/_content/ForgeTrust.RazorWire/razorwire/page-navigation.js` when exported HTML contains RazorWire page-navigation roots. The standard RazorWire scripts output lazy-loads this runtime from an inline detector, so static exports must materialize the package asset even though it is not a literal `<script src>` in the original HTML.
 - `minisearch.min.js` at the tree root
 - any section, detail, partial, and asset routes that belong to the exported docs surface for that release
@@ -2086,7 +2332,7 @@ AppSurface Docs does not regenerate these trees at request time. It resolves ext
 
 Use the limit for exported `.html` pages and the root `search-index.json` only. It is not a general docs file-size policy, it does not cap source harvesting, and it does not block images, fonts, CSS, JavaScript, or other streamed assets. When AppSurface Docs rejects an oversized rewritten artifact, diagnostics include the artifact type, observed size, configured limit, `AppSurfaceDocs:Versioning:MaxRewrittenFileSizeBytes`, the failure outcome, and this section name. Remediate by shrinking or re-exporting the artifact, or by setting a larger explicit limit within the supported range.
 
-When the hidden frozen route manifest is present, mounted archives also use it before file lookup to redirect archived source-shaped Markdown aliases and declared redirect aliases to the mount-local canonical route. For example, a manifest alias of `packages/README.md` with canonical route `packages` redirects to `/docs/v/1.2.3/packages` when the tree is mounted at `/docs/v/1.2.3`, or to `/foo/bar/packages` when the recommended release is mounted at a custom route root. Redirects preserve query strings; request fragments cannot be preserved because browsers do not send them to the server, but a manifest canonical route may still include its own fragment such as `guide#advanced`. Exporters should validate `.appsurface-docs-route-manifest.json`, `search-index.json`, `search.css`, `search-client.js`, `minisearch.min.js`, the RazorWire page-navigation runtime when page-navigation roots are present, and, for outline-aware exports, `outline-client.js` before publishing because a missing required runtime asset or a malformed search payload keeps that release unavailable or incomplete until the artifact is fixed. The version catalog intentionally does not crawl historical HTML to infer optional outline support; old exact archives stay immutable, and any future modernization should be an explicit rebuild from source into a new self-contained tree. Use the [RazorWire CLI](../ForgeTrust.RazorWire.Cli/README.md) or another static-export pipeline to publish those trees ahead of time.
+When the hidden frozen route manifest is present, mounted archives also use it before file lookup to redirect archived source-shaped Markdown aliases and declared redirect aliases to the mount-local canonical route. For example, a manifest alias of `packages/README.md` with canonical route `packages` redirects to `/docs/v/1.2.3/packages` when the tree is mounted at `/docs/v/1.2.3`, or to `/foo/bar/packages` when the recommended release is mounted at a custom route root. Redirects preserve query strings; request fragments cannot be preserved because browsers do not send them to the server, but a manifest canonical route may still include its own fragment such as `guide#advanced`. Exporters should validate `.appsurface-docs-route-manifest.json`, `search-index.json`, `search.css`, `search-client.js`, `minisearch.min.js`, the RazorWire page-navigation runtime when page-navigation roots are present, and all applicable page-local `outline-client.js` and/or `rich-authoring-client.js` runtimes for outline-aware or rich-authoring exports before publishing because a missing required runtime asset or a malformed search payload keeps that release unavailable or incomplete until the artifact is fixed. The version catalog intentionally does not crawl historical HTML to infer optional runtimes; old exact archives stay immutable, and any future modernization should be an explicit rebuild from source into a new self-contained tree. Use the [RazorWire CLI](../ForgeTrust.RazorWire.Cli/README.md) or another static-export pipeline to publish those trees ahead of time.
 
 If a strict search-index path failure appears after upgrade, inspect the affected tree's `search-index.json`, find the reported `documents[index]`, and rewrite valid docs pages back to canonical `/docs/...` paths. For example, replace `https://docs.example.com/foo/bar/guide.html`, `/some-base/docs/guide.html`, or `/foo/bar/guide.html` with `/docs/guide.html` before rebuilding or republishing the archive. Do not repair unsafe rows by pointing them at external sites or operational docs endpoints; those entries should be removed or regenerated from a valid docs route.
 

@@ -33,7 +33,7 @@ The result is a docs surface with:
 
 - section-first navigation such as Start Here, Examples, Releases, Troubleshooting, and API Reference
 - source-derived C# API pages
-- annotation-first JavaScript public API pages for browser events, globals, attributes, config, module contracts, and CSS hooks
+- annotation-first JavaScript public API pages for browser events, globals, attributes, config, module contracts, declaration-only class contracts, and CSS hooks
 - a search index that includes titles, summaries, headings, aliases, keywords, and page types
 - optional trust bars for release notes, policies, and provenance-heavy pages
 - optional `Source of truth` links back to the exact files readers should inspect or edit
@@ -60,6 +60,121 @@ Point the host at the repository you want to harvest:
 ```
 
 If `AppSurfaceDocs:Source:RepositoryRoot` is omitted, AppSurface Docs falls back to repository discovery from the app content root. That is convenient for local dogfooding, but production hosts should make the repository root explicit so the docs source is not guessed from deployment layout.
+
+## Run multiple independent Docs products
+
+Use the named `AddAppSurfaceDocs` overload when one host owns separate Docs products with different source
+boundaries, identities, route families, or authorization audiences. For example, a host can expose public product
+documentation at `/docs` and contributor documentation at `/internal/docs`, with each product reading a different
+configuration section:
+
+```json
+{
+  "AppSurfaceDocs": {
+    "Public": {
+      "Source": {
+        "RepositoryRoot": "/srv/public-product"
+      },
+      "Routing": {
+        "RouteRootPath": "/docs"
+      }
+    },
+    "Internal": {
+      "Source": {
+        "RepositoryRoot": "/srv/internal-product"
+      },
+      "Routing": {
+        "RouteRootPath": "/internal/docs"
+      }
+    }
+  }
+}
+```
+
+Register each section during service configuration, retain both returned handles, map each handle once, and apply
+host-owned authorization to the internal group. The public group below intentionally has no authorization convention,
+so it remains public/default; `RequireAuthorization` is an ASP.NET Core host policy, not a Docs package policy:
+
+```csharp
+var publicDocs = builder.Services.AddAppSurfaceDocs(
+    "public",
+    builder.Configuration.GetSection("AppSurfaceDocs:Public"));
+var internalDocs = builder.Services.AddAppSurfaceDocs(
+    "internal",
+    builder.Configuration.GetSection("AppSurfaceDocs:Internal"));
+
+var app = builder.Build();
+
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseEndpoints(endpoints =>
+{
+    // One shared RazorWire transport serves both isolated Docs progress channels.
+    endpoints.MapRazorWire();
+    publicDocs.MapEndpoints(endpoints);
+    internalDocs.MapEndpoints(endpoints)
+        .RequireAuthorization("InternalDocs");
+    endpoints.FinalizeAppSurfaceDocsInstances();
+});
+```
+
+`MapEndpoints` returns a deferred endpoint convention builder. The public mapping is the public/default audience;
+the internal convention applies to every endpoint in that Docs product, including its operational routes. Register the
+`InternalDocs` policy and the host's authentication middleware; AppSurface Docs does not create identities,
+authentication handlers, or authorization policies. See the [ASP.NET Core authorization guidance](https://learn.microsoft.com/aspnet/core/security/authorization/introduction)
+for policy design and the [AppSurface Docs operator-route guidance](./README.md#operator-diagnostics-routes) for the
+package's own diagnostic exposure settings.
+
+Named registration adds RazorWire services for the live harvest observatory, but does not map its shared HTTP
+transport. Add `endpoints.MapRazorWire()` from `ForgeTrust.RazorWire` once as shown above. Stream authorization stays
+host-owned; Docs additionally enforces the current product's diagnostics visibility/read policy and the complete
+authorization requirements attached through its `MapEndpoints` handle. That includes default, role,
+authentication-scheme, and multiple named `RequireAuthorization(...)` policies.
+
+Call `FinalizeAppSurfaceDocsInstances` exactly once, after every handle has been mapped. Finalization validates all
+named configuration, builds isolated runtimes, applies the deferred conventions, and publishes the route families.
+Do not map a handle twice, map after finalization, finalize before every handle is mapped, or finalize twice. All
+handles must be mapped on the same endpoint route builder. Host startup then runs Markdown-policy validation,
+diagnostics exposure warnings, and harvest warmup/preflight for every finalized instance; an error identifies its
+owning instance.
+
+If host-owned views or extensions need the active named product, inject
+`IAppSurfaceDocsRequestRuntimeAccessor` and call `GetRequiredRuntime()` during the request. Named endpoints carry
+`AppSurfaceDocsEndpointMetadata` with the normalized product name, so the accessor selects the runtime from endpoint
+metadata instead of guessing from a URL prefix. The returned `AppSurfaceDocsRuntime` provides the product `Name`,
+immutable `Options`, and instance-aware `DocsUrlBuilder`; it is created during finalization and should not be
+constructed or disposed by the host. See the [package reference for request-time runtime selection](./README.md#request-time-runtime-selection)
+for the extension example and lifecycle details.
+
+### Run the public/internal consumer proof
+
+The repository includes a real Kestrel-hosted [public and internal ConsumerFixture walkthrough](../ForgeTrust.AppSurface.Docs.ConsumerFixture/MULTI_INSTANCE_WALKTHROUGH.md).
+It compiles the same two registrations, one host-owned policy, two mappings, and one finalization call shown above.
+Its integration test proves anonymous public reading, an internal challenge, authenticated contributor reading,
+isolated search payloads, and distinct AppSurface/Graphite Docs themes in under five minutes. Treat the fixture header
+authentication mechanism as test-only: production hosts must register their own scheme, policies, and middleware.
+
+Named composition is strict and is not a second registration spelling for the legacy default surface:
+
+- Use either named composition or the legacy parameterless `AddAppSurfaceDocs()`/`AppSurfaceDocsWebModule` path for a
+  host, never both.
+- Instance names are unique case-insensitively, 1–64 characters, and may contain only ASCII letters, digits,
+  hyphens, and underscores. A host can declare at most eight named instances.
+- Route families must be disjoint. Do not use the same route root or an ancestor/descendant pair; choose sibling
+  roots such as `/docs` and `/internal/docs`.
+- Every named product must explicitly set `Source:RepositoryRoot`; repository-root discovery is unavailable because it
+  could merge product boundaries. Configured source roots must be different, and a configured branding asset request
+  prefix must be disjoint from every other route family and configured branding prefix, including ancestor/descendant
+  pairs.
+- Each instance gets a complete snapshot from its own configuration section. Do not expect one instance's options,
+  harvest cache, identity, search state, or version catalog to be shared with another.
+
+Named instances host both live routes and configured [published version archives](./README.md#published-version-catalog).
+Static export remains one-product-at-a-time: export each Docs product from a host configured for that product, then
+point the named runtime at that product's catalog and trusted release root. A multi-instance host does not produce one
+combined static tree.
 
 ### Five-minute protected Markdown download
 
@@ -212,7 +327,37 @@ Add theme settings when the consuming repository should make the built-in docs s
 }
 ```
 
-The default theme is `AppSurfaceDark` with comfortable density and standard chrome. `GraphiteDark` is the second dark-family preset for lower-saturation surfaces; it stays a fixed Docs-local dark preset, not a shared pair. Blank color values use the selected preset default. Color overrides must be CSS hex colors and must meet startup contrast checks for their role; validation messages name the exact config key, bad value, required contrast ratio, tested preset background, and fix. The same keys work through environment variables, for example `AppSurfaceDocs__Theme__Preset=GraphiteDark` and `AppSurfaceDocs__Theme__Colors__AccentColor=#38bdf8`.
+The default theme is `AppSurfaceDark` with comfortable density and standard chrome. `GraphiteDark` is the second dark-family preset for lower-saturation surfaces; it stays a fixed Docs-local dark preset, not a shared pair. `AppSurfaceLight` is a complete fixed light presentation for hosts that need a first-party light Docs surface without taking ownership of package CSS. Blank color values use the selected preset default. Color overrides must be CSS hex colors and must meet startup contrast checks for their role; validation messages name the exact config key, bad value, required contrast ratio, tested preset background, and fix. The same keys work through environment variables, for example `AppSurfaceDocs__Theme__Preset=AppSurfaceLight` and `AppSurfaceDocs__Theme__Colors__AccentColor=#1e3a8a`.
+
+Use this complete, accessible AppSurface-light recipe as a starting point:
+
+```json
+{
+  "AppSurfaceDocs": {
+    "Theme": {
+      "Preset": "AppSurfaceLight",
+      "Colors": {
+        "AccentColor": "#1e3a8a",
+        "AccentStrongColor": "#1e40af",
+        "LinkColor": "#1e3a8a",
+        "VisitedLinkColor": "#5b21b6"
+      }
+    }
+  }
+}
+```
+
+The equivalent environment variables use ordinary .NET double-underscore binding and do not receive special package-level precedence:
+
+```text
+AppSurfaceDocs__Theme__Preset=AppSurfaceLight
+AppSurfaceDocs__Theme__Colors__AccentColor=#1e3a8a
+AppSurfaceDocs__Theme__Colors__AccentStrongColor=#1e40af
+AppSurfaceDocs__Theme__Colors__LinkColor=#1e3a8a
+AppSurfaceDocs__Theme__Colors__VisitedLinkColor=#5b21b6
+```
+
+Preset resolution is deterministic: Docs builds the complete selected package-owned palette, applies valid direct role values, then regenerates dependent focus, border, fill, and alpha tokens. `AppSurfaceLight` remains fixed for each request and static export: it does not enable a visitor switcher, cookie, local storage, preference bootstrap, or a second stylesheet. Use the [browser-local appearance choice](#optional-browser-local-appearance-choice) only when `AppSurfaceDark` intentionally bridges to a host-owned shared pair. Use the [deliberate whole-layout override boundary](#default-razor-layout-and-deliberate-host-overrides) instead of depending on undocumented `--docs-*` names when a host needs control beyond the four supported roles.
 
 The supported Docs configuration contract is intentionally narrow. Use `Preset`, `Colors`, `Density`, and `Chrome` for package-owned docs chrome. Do not rely on `--docs-*` custom property names as a public API, do not use theme settings for arbitrary surface/text/syntax-token overrides, and do not expect view replacement, layout slots, or external theme packages in v1. Static exports and published release archives freeze the resolved Docs configuration into their exported HTML; changing host config later does not rewrite already-exported archives.
 
@@ -370,6 +515,8 @@ Start with pages that answer adoption questions before you tune visuals:
 - Troubleshooting pages for the failure modes your users actually hit.
 - `NAMESPACE.md` files beside package/project files when generated API reference needs human orientation above the symbol list. Docs-owned namespace README files such as `docs/ForgeTrust.RazorWire/README.md` are still supported for portable folder-index layouts, but `NAMESPACE.md` is the AppSurface house style.
 
+When a page needs a short risk signal or genuinely alternative reader paths, use the package’s [rich-authoring reference](./README.md#rich-authoring). Start with a `:::callout` and preview it. Use `:::tabs` only when the prompt asks the reader to choose between two to four complete alternatives; preserve sequential installation, recovery, and production operations as ordinary Markdown so every required step remains visible and searchable.
+
 Use sidecar metadata for portability-sensitive files such as README pages:
 
 ```yaml
@@ -480,6 +627,8 @@ Once the first pages render, improve the docs in layers:
 5. Add release notes and trust metadata when adoption depends on upgrade confidence.
 6. Add localization metadata when users need more than one language.
 7. Add versioned published trees only after the live source-backed docs are useful.
+
+For a browser singleton with a class-shaped implementation, start with the [JavaScript class authoring template and decision table](./README.md#five-minute-class-contract-recipe). Publish the singleton `@config` as the consumer entry point, keep the declaration-only class and each public method independently documented, and put a stable begin/end source marker around the real implementation. The harvester accepts the declaration-only JavaScript class contract; it intentionally does not parse TypeScript implementations or generated bundles.
 
 That order matters. A beautiful archive of weak docs is still weak docs.
 

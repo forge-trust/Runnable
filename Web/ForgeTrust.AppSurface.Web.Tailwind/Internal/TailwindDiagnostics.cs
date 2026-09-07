@@ -9,7 +9,7 @@ internal static class TailwindDiagnostics
     /// Documentation anchor included in emitted build diagnostics.
     /// </summary>
     public const string HelpUrl =
-        "https://github.com/forge-trust/AppSurface/tree/main/Web/ForgeTrust.AppSurface.Web.Tailwind#tailwind-diagnostics";
+        "https://github.com/forge-trust/AppSurface/tree/main/Web/ForgeTrust.AppSurface.Web.Tailwind#diagnostics";
 
     /// <summary>
     /// Diagnostic emitted when the build host operating system or architecture has no supported Tailwind release asset.
@@ -50,6 +50,28 @@ internal static class TailwindDiagnostics
     /// Diagnostic emitted when verified Tailwind CLI acquisition cannot complete.
     /// </summary>
     public const string AcquisitionFailed = "ASTW012";
+
+    /// <summary>
+    /// Gets the documented stable, kebab-case classification for an acquisition failure.
+    /// </summary>
+    /// <param name="failure">The resolver failure to render.</param>
+    /// <returns>The finite classification documented for <see cref="AcquisitionFailed"/>.</returns>
+    public static string GetAcquisitionFailureClassification(TailwindCliResolutionFailure failure)
+    {
+        return failure switch
+        {
+            TailwindCliResolutionFailure.InvalidVersion => "invalid-version",
+            TailwindCliResolutionFailure.NoCacheRoot => "no-cache-root",
+            TailwindCliResolutionFailure.InvalidCache => "invalid-cache",
+            TailwindCliResolutionFailure.ChecksumFailure => "checksum-failure",
+            TailwindCliResolutionFailure.NonWritableRoot => "non-writable-root",
+            TailwindCliResolutionFailure.NetworkFailure => "network-failure",
+            TailwindCliResolutionFailure.DownloadSizeLimit => "download-size-limit",
+            TailwindCliResolutionFailure.RetryExhausted => "retry-exhausted",
+            TailwindCliResolutionFailure.LockTimeout => "lock-timeout",
+            _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "The failure has no ASTW012 classification.")
+        };
+    }
 
     /// <summary>
     /// Formats a stable Tailwind diagnostic message.

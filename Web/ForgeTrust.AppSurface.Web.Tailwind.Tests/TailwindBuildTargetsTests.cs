@@ -55,10 +55,7 @@ public sealed class TailwindBuildTargetsTests : IDisposable
     [Fact]
     public async Task RunTailwindBuildTask_UsesExplicitPathWithoutAReleaseManifest()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        SkipWhenWindows();
 
         var projectDirectory = Path.Join(_tempRoot, "explicit");
         var markerPath = Path.Join(projectDirectory, "marker");
@@ -76,10 +73,7 @@ public sealed class TailwindBuildTargetsTests : IDisposable
     [Fact]
     public async Task RunTailwindBuildTask_UsesExplicitPathBeforeLoadingAnInvalidReleaseManifest()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        SkipWhenWindows();
 
         var projectDirectory = Path.Join(_tempRoot, "explicit-invalid-manifest");
         var markerPath = Path.Join(projectDirectory, "marker");
@@ -174,10 +168,7 @@ public sealed class TailwindBuildTargetsTests : IDisposable
     [Fact]
     public async Task RunTailwindBuildTask_ReportsAstw006ForNonZeroExplicitCliExit()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        SkipWhenWindows();
 
         var projectDirectory = Path.Join(_tempRoot, "non-zero-exit");
         var markerPath = Path.Join(projectDirectory, "marker");
@@ -195,10 +186,7 @@ public sealed class TailwindBuildTargetsTests : IDisposable
     [Fact]
     public async Task RunTailwindBuildTask_ReportsClassifiedOutputAndCapturedStderrForANonZeroExit()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        SkipWhenWindows();
 
         var projectDirectory = Path.Join(_tempRoot, "stderr-classification");
         var cliPath = await CreateOutputStubAsync(projectDirectory);
@@ -217,10 +205,7 @@ public sealed class TailwindBuildTargetsTests : IDisposable
     [Fact]
     public async Task RunTailwindBuildTask_ReportsAstw005WhenAnExplicitCliCannotStart()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return;
-        }
+        SkipWhenWindows();
 
         var projectDirectory = Path.Join(_tempRoot, "process-start");
         var toolDirectory = Path.Join(projectDirectory, "tools");
@@ -258,8 +243,10 @@ public sealed class TailwindBuildTargetsTests : IDisposable
         var result = task.Execute();
 
         Assert.False(result);
-        Assert.Contains(buildEngine.Errors, error => error.Message?.Contains("ASTW012", StringComparison.Ordinal) is true);
-        Assert.Contains(buildEngine.Errors, error => error.Message?.Contains("not valid JSON", StringComparison.Ordinal) is true);
+        Assert.Contains(buildEngine.Errors, error =>
+            error.Message?.Contains("ASTW012", StringComparison.Ordinal) is true
+            && error.Message.Contains("Classification: invalid-cache.", StringComparison.Ordinal)
+            && error.Message.Contains("Safe cache identity: tailwind-4.1.18/linux-x64.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -320,6 +307,33 @@ public sealed class TailwindBuildTargetsTests : IDisposable
         Assert.False(result);
         Assert.Contains(buildEngine.Errors, error =>
             error.Message?.Contains("ASTW012", StringComparison.Ordinal) is true
+            && error.Message.Contains("Classification: invalid-cache.", StringComparison.Ordinal)
+            && error.Message.Contains("Safe cache identity: tailwind-4.1.18/linux-x64.", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"schemaVersion\":1}")]
+    public void RunTailwindBuildTask_ReportsClassifiedAstw012ForAnInvalidReleaseManifest(string manifestContents)
+    {
+        var projectDirectory = Path.Join(_tempRoot, "invalid-release-manifest");
+        Directory.CreateDirectory(projectDirectory);
+        var manifestPath = Path.Join(projectDirectory, "tailwind.release.json");
+        File.WriteAllText(manifestPath, manifestContents);
+        var buildEngine = new RecordingBuildEngine();
+        var task = CreateTask(projectDirectory, buildEngine, configure: task =>
+        {
+            task.TailwindReleaseManifestPath = manifestPath;
+            task.TailwindVersion = "4.1.18";
+            task.TailwindTargetRid = "linux-x64";
+        });
+
+        var result = task.Execute();
+
+        Assert.False(result);
+        Assert.Contains(buildEngine.Errors, error =>
+            error.Message?.Contains("ASTW012", StringComparison.Ordinal) is true
+            && error.Message.Contains("Classification: invalid-cache.", StringComparison.Ordinal)
             && error.Message.Contains("Safe cache identity: tailwind-4.1.18/linux-x64.", StringComparison.Ordinal));
     }
 
@@ -411,32 +425,30 @@ public sealed class TailwindBuildTargetsTests : IDisposable
         return path;
     }
 
-    private static string GetRepositoryRoot()
-    {
-        for (var current = new DirectoryInfo(AppContext.BaseDirectory); current is not null; current = current.Parent)
-        {
-            if (File.Exists(Path.Join(current.FullName, "ForgeTrust.AppSurface.slnx")))
-            {
-                return current.FullName;
-            }
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the repository root.");
-    }
-
     private static string GetTailwindProjectPath()
     {
-        return Path.Join(GetRepositoryRoot(), "Web", "ForgeTrust.AppSurface.Web.Tailwind", "ForgeTrust.AppSurface.Web.Tailwind.csproj");
+        var repositoryRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        return Path.Join(repositoryRoot, "Web", "ForgeTrust.AppSurface.Web.Tailwind", "ForgeTrust.AppSurface.Web.Tailwind.csproj");
+    }
+
+    private static void SkipWhenWindows()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            throw Xunit.Sdk.SkipException.ForSkip("Unix executable stubs are not supported on Windows.");
+        }
     }
 
     private static string GetTailwindTargetsPath()
     {
-        return Path.Join(GetRepositoryRoot(), "Web", "ForgeTrust.AppSurface.Web.Tailwind", "build", "ForgeTrust.AppSurface.Web.Tailwind.targets");
+        var repositoryRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        return Path.Join(repositoryRoot, "Web", "ForgeTrust.AppSurface.Web.Tailwind", "build", "ForgeTrust.AppSurface.Web.Tailwind.targets");
     }
 
     private static string GetReleaseManifestPath()
     {
-        return Path.Join(GetRepositoryRoot(), "Web", "ForgeTrust.AppSurface.Web.Tailwind", "tailwind.release.json");
+        var repositoryRoot = TestPathUtils.FindRepoRoot(AppContext.BaseDirectory);
+        return Path.Join(repositoryRoot, "Web", "ForgeTrust.AppSurface.Web.Tailwind", "tailwind.release.json");
     }
 
     private sealed class RecordingBuildEngine : IBuildEngine

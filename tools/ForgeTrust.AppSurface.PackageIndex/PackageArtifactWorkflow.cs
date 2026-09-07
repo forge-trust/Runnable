@@ -168,6 +168,7 @@ internal sealed class PackageArtifactWorkflow
                 StringComparison.OrdinalIgnoreCase)))
         {
             DeleteFileIfPresent(tailwindProofReportPath);
+            var tailwindProofEvidencePublished = false;
             try
             {
                 await RunTailwindPackedConsumerProofAsync(
@@ -175,10 +176,25 @@ internal sealed class PackageArtifactWorkflow
                     tailwindProofWorkDirectory,
                     tailwindProofReportPath,
                     cancellationToken);
+                tailwindProofEvidencePublished = true;
+            }
+            catch (PackageIndexException ex)
+            {
+                await PublishTailwindProofFailureEvidenceAsync(
+                    request,
+                    report,
+                    tailwindProofReportPath,
+                    tailwindProofWorkDirectory,
+                    ex,
+                    cancellationToken);
+                throw;
             }
             finally
             {
-                TryDeleteProofWorkspace(tailwindProofWorkDirectory);
+                if (tailwindProofEvidencePublished)
+                {
+                    TryDeleteProofWorkspace(tailwindProofWorkDirectory);
+                }
             }
         }
         var coverageProofReport = await _coverageProofWorkflow.RunAsync(
@@ -375,6 +391,35 @@ internal sealed class PackageArtifactWorkflow
                     ["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1"
                 }),
             cancellationToken);
+    }
+
+    private static async Task PublishTailwindProofFailureEvidenceAsync(
+        PackageArtifactRequest request,
+        PackageArtifactValidationReport report,
+        string proofReportPath,
+        string proofWorkDirectory,
+        PackageIndexException exception,
+        CancellationToken cancellationToken)
+    {
+        var failureDetails = FormatFailureDetails(exception.Message);
+        CreateParentDirectoryIfPresent(proofReportPath);
+        await File.WriteAllTextAsync(
+            proofReportPath,
+            $"# Tailwind packed-consumer proof\n\nStatus: **failed**\n\n## Captured failure\n\n{failureDetails}",
+            cancellationToken);
+
+        CreateParentDirectoryIfPresent(request.ReportPath);
+        await File.WriteAllTextAsync(
+            request.ReportPath,
+            $"{PackageArtifactReportRenderer.RenderMarkdown(report)}\n## Tailwind packed-consumer proof\n\nStatus: **failed**\n\nProof report: `{proofReportPath}`\n\nWorkspace retained for investigation: `{proofWorkDirectory}`\n\n## Captured failure\n\n{failureDetails}",
+            cancellationToken);
+    }
+
+    private static string FormatFailureDetails(string details)
+    {
+        return string.Join(
+            Environment.NewLine,
+            details.Split(Environment.NewLine, StringSplitOptions.None).Select(static line => $"    {line}"));
     }
 
     private static void CleanPackageArtifacts(string artifactsOutputPath)

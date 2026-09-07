@@ -167,7 +167,7 @@ output. Both NuGet publication workflows call the reusable
 gate, which fails closed unless five actual configured hosts return tag-bound evidence
 for the exact package version and Tailwind manifest. Repository administrators must
 configure the protected `TAILWIND_NATIVE_HOST_RUNNERS` JSON variable described in the
-[CI critical path](../eng/ci-critical-path.md#tailwind-host-cache-and-package-proof);
+[CI critical path](../eng/ci-critical-path.md#tailwind-host-scoped-cli-in-ci);
 an unavailable host is a release failure, not a skipped proof or a cross-RID substitute.
 
 Stable publishing is intentionally separate from prerelease publishing so the

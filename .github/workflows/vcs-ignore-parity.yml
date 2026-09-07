@@ -45,6 +45,7 @@ jobs:
             10.0.x
 
       - name: Verify Tailwind companion package project remains buildable
+        shell: bash
         run: |
           dotnet restore Web/ForgeTrust.AppSurface.Web.Tailwind/runtimes/ForgeTrust.AppSurface.Web.Tailwind.Runtime.linux-x64.csproj
           dotnet build Web/ForgeTrust.AppSurface.Web.Tailwind/runtimes/ForgeTrust.AppSurface.Web.Tailwind.Runtime.linux-x64.csproj --no-restore

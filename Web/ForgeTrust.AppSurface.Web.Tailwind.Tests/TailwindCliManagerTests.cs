@@ -114,8 +114,11 @@ public sealed class TailwindCliManagerTests : IDisposable
         Assert.Equal(0, downloadCalls);
     }
 
-    [Fact]
-    public async Task Resolver_UsesInjectedHostAndCachePathWhenOptionsDoNotOverrideThem()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public async Task Resolver_UsesInjectedHostAndCachePathWhenRidOverrideIsUnset(string? ridOverride)
     {
         var payload = Encoding.UTF8.GetBytes("runtime injected host executable");
         var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
@@ -143,7 +146,7 @@ public sealed class TailwindCliManagerTests : IDisposable
             });
 
         var resolved = await resolver.ResolveAsync(
-            new TailwindCliResolverOptions(null, _tempRoot, cacheRoot, manifest.Version, null),
+            new TailwindCliResolverOptions(null, _tempRoot, cacheRoot, manifest.Version, ridOverride),
             CancellationToken.None);
 
         Assert.Equal(TailwindCliCacheState.Acquired, resolved.CacheState);
@@ -882,13 +885,18 @@ public sealed class TailwindCliManagerTests : IDisposable
     {
         var payload = Encoding.UTF8.GetBytes("checksum cancellation executable");
         var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        using var cancellationTokenSource = new CancellationTokenSource();
         var resolver = new TailwindCliResolver(
             manifest,
-            (_, _) => Task.FromCanceled<byte[]>(new CancellationToken(canceled: true)));
+            (_, _) =>
+            {
+                cancellationTokenSource.Cancel();
+                return Task.FromCanceled<byte[]>(cancellationTokenSource.Token);
+            });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => resolver.ResolveAsync(
             new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, "linux-x64"),
-            CancellationToken.None));
+            cancellationTokenSource.Token));
     }
 
     [Fact]
@@ -897,15 +905,88 @@ public sealed class TailwindCliManagerTests : IDisposable
         var payload = Encoding.UTF8.GetBytes("binary cancellation executable");
         var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
         var asset = manifest.GetAsset("linux-x64");
+        using var cancellationTokenSource = new CancellationTokenSource();
         var resolver = new TailwindCliResolver(
             manifest,
-            (uri, _) => uri.AbsolutePath.EndsWith("sha256sums.txt", StringComparison.Ordinal)
-                ? Task.FromResult(CreateDownload(uri, asset, payload))
-                : Task.FromCanceled<byte[]>(new CancellationToken(canceled: true)));
+            (uri, _) =>
+            {
+                if (uri.AbsolutePath.EndsWith("sha256sums.txt", StringComparison.Ordinal))
+                {
+                    return Task.FromResult(CreateDownload(uri, asset, payload));
+                }
+
+                cancellationTokenSource.Cancel();
+                return Task.FromCanceled<byte[]>(cancellationTokenSource.Token);
+            });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => resolver.ResolveAsync(
             new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
+            cancellationTokenSource.Token));
+    }
+
+    [Fact]
+    public async Task Resolver_RetriesTimeoutShapedChecksumCancellationWithoutCallerCancellation()
+    {
+        var payload = Encoding.UTF8.GetBytes("checksum timeout executable");
+        var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        var downloadCalls = 0;
+        var delayCalls = 0;
+        var resolver = new TailwindCliResolver(
+            manifest,
+            (_, _) =>
+            {
+                downloadCalls++;
+                return Task.FromException<byte[]>(new TaskCanceledException("simulated HTTP timeout"));
+            },
+            delay: (_, _) =>
+            {
+                delayCalls++;
+                return Task.CompletedTask;
+            });
+
+        var exception = await Assert.ThrowsAsync<TailwindCliResolutionException>(() => resolver.ResolveAsync(
+            new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, "linux-x64"),
             CancellationToken.None));
+
+        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
+        Assert.Equal(5, downloadCalls);
+        Assert.Equal(4, delayCalls);
+    }
+
+    [Fact]
+    public async Task Resolver_RetriesTimeoutShapedBinaryCancellationWithoutCallerCancellation()
+    {
+        var payload = Encoding.UTF8.GetBytes("binary timeout executable");
+        var manifest = TailwindReleaseManifest.LoadFromFile(WriteControlledManifest(payload));
+        var asset = manifest.GetAsset("linux-x64");
+        var binaryCalls = 0;
+        var delayCalls = 0;
+        var resolver = new TailwindCliResolver(
+            manifest,
+            (uri, _) =>
+            {
+                if (uri.AbsolutePath.EndsWith("sha256sums.txt", StringComparison.Ordinal))
+                {
+                    return Task.FromResult(CreateDownload(uri, asset, payload));
+                }
+
+                binaryCalls++;
+                return Task.FromException<byte[]>(new TaskCanceledException("simulated HTTP timeout"));
+            },
+            delay: (_, _) =>
+            {
+                delayCalls++;
+                return Task.CompletedTask;
+            });
+
+        var exception = await Assert.ThrowsAsync<TailwindCliResolutionException>(() => resolver.ResolveAsync(
+            new TailwindCliResolverOptions(null, _tempRoot, Path.Join(_tempRoot, "cache"), manifest.Version, asset.Rid),
+            CancellationToken.None));
+
+        Assert.Equal(TailwindCliResolutionFailure.RetryExhausted, exception.Failure);
+        Assert.Equal(5, binaryCalls);
+        Assert.Equal(4, delayCalls);
+        Assert.DoesNotContain(Directory.EnumerateFiles(_tempRoot, "*.partial-*", SearchOption.AllDirectories), static _ => true);
     }
 
     [Fact]
@@ -1360,25 +1441,59 @@ public sealed class TailwindCliManagerTests : IDisposable
         Assert.True(File.Exists(fallback));
     }
 
-    [Theory]
-    [InlineData(nameof(TailwindCliResolutionFailure.NoCacheRoot), true)]
-    [InlineData(nameof(TailwindCliResolutionFailure.NonWritableRoot), true)]
-    [InlineData(nameof(TailwindCliResolutionFailure.NetworkFailure), true)]
-    [InlineData(nameof(TailwindCliResolutionFailure.RetryExhausted), true)]
-    [InlineData(nameof(TailwindCliResolutionFailure.LockTimeout), true)]
-    [InlineData(nameof(TailwindCliResolutionFailure.UnsupportedRid), true)]
-    [InlineData(nameof(TailwindCliResolutionFailure.InvalidCache), false)]
-    [InlineData(nameof(TailwindCliResolutionFailure.ChecksumFailure), false)]
-    [InlineData(nameof(TailwindCliResolutionFailure.DownloadSizeLimit), false)]
-    [InlineData(nameof(TailwindCliResolutionFailure.MissingManifest), false)]
-    [InlineData(nameof(TailwindCliResolutionFailure.InvalidCliPath), false)]
-    [InlineData(nameof(TailwindCliResolutionFailure.MissingVersion), false)]
-    [InlineData(nameof(TailwindCliResolutionFailure.InvalidVersion), false)]
-    public void Manager_UsesPathFallbackOnlyForAvailabilityFailures(string failureName, bool expected)
+    [Fact]
+    public void Manager_UsesPathFallbackOnlyForExplicitlyClassifiedAvailabilityFailures()
     {
-        var failure = Enum.Parse<TailwindCliResolutionFailure>(failureName);
+        var availabilityFailures = new HashSet<TailwindCliResolutionFailure>
+        {
+            TailwindCliResolutionFailure.NoCacheRoot,
+            TailwindCliResolutionFailure.NonWritableRoot,
+            TailwindCliResolutionFailure.NetworkFailure,
+            TailwindCliResolutionFailure.RetryExhausted,
+            TailwindCliResolutionFailure.LockTimeout,
+            TailwindCliResolutionFailure.UnsupportedRid
+        };
 
-        Assert.Equal(expected, TailwindCliManager.CanUseDevelopmentPathFallback(failure));
+        foreach (var failure in Enum.GetValues<TailwindCliResolutionFailure>())
+        {
+            Assert.Equal(availabilityFailures.Contains(failure), TailwindCliManager.CanUseDevelopmentPathFallback(failure));
+        }
+    }
+
+    [Fact]
+    public void Diagnostics_MapsEveryAstw012FailureToTheDocumentedKebabCaseClassification()
+    {
+        var expectedClassifications = new Dictionary<TailwindCliResolutionFailure, string>
+        {
+            [TailwindCliResolutionFailure.InvalidVersion] = "invalid-version",
+            [TailwindCliResolutionFailure.NoCacheRoot] = "no-cache-root",
+            [TailwindCliResolutionFailure.InvalidCache] = "invalid-cache",
+            [TailwindCliResolutionFailure.ChecksumFailure] = "checksum-failure",
+            [TailwindCliResolutionFailure.NonWritableRoot] = "non-writable-root",
+            [TailwindCliResolutionFailure.NetworkFailure] = "network-failure",
+            [TailwindCliResolutionFailure.DownloadSizeLimit] = "download-size-limit",
+            [TailwindCliResolutionFailure.RetryExhausted] = "retry-exhausted",
+            [TailwindCliResolutionFailure.LockTimeout] = "lock-timeout"
+        };
+        var nonAcquisitionFailures = new HashSet<TailwindCliResolutionFailure>
+        {
+            TailwindCliResolutionFailure.MissingManifest,
+            TailwindCliResolutionFailure.UnsupportedRid,
+            TailwindCliResolutionFailure.InvalidCliPath,
+            TailwindCliResolutionFailure.MissingVersion
+        };
+
+        foreach (var failure in Enum.GetValues<TailwindCliResolutionFailure>())
+        {
+            if (nonAcquisitionFailures.Contains(failure))
+            {
+                Assert.Throws<ArgumentOutOfRangeException>(
+                    () => TailwindDiagnostics.GetAcquisitionFailureClassification(failure));
+                continue;
+            }
+
+            Assert.Equal(expectedClassifications[failure], TailwindDiagnostics.GetAcquisitionFailureClassification(failure));
+        }
     }
 
     [Fact]

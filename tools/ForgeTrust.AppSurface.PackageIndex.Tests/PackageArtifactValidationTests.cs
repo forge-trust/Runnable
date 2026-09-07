@@ -2893,6 +2893,92 @@ public sealed class PackageArtifactValidationTests : IDisposable
         Assert.Contains("version property must be a JSON string", error.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("[]", "manifest root must be a JSON object")]
+    [InlineData("\"4.1.0\"", "manifest root must be a JSON object")]
+    [InlineData("{\"version\":\"\"}", "version property must not be empty or whitespace")]
+    [InlineData("{\"version\":\"   \"}", "version property must not be empty or whitespace")]
+    public void PackageArtifactValidator_RejectsMalformedTailwindManifestShape(string manifestJson, string expectedFailure)
+    {
+        var artifactDirectory = CombineSafeChildPath(_repositoryRoot, "artifacts");
+        Directory.CreateDirectory(artifactDirectory);
+        var entries = TailwindMainPackageEntries();
+        entries["build/tailwind.release.json"] = Encoding.UTF8.GetBytes(manifestJson);
+        WritePackage(
+            artifactDirectory,
+            "ForgeTrust.AppSurface.Web.Tailwind",
+            PackageVersion,
+            EmptyDependencies,
+            rawEntries: entries);
+
+        var error = Assert.Throws<PackageIndexException>(
+            () => new PackageArtifactValidator().Validate(
+                new PackagePublishPlan([
+                    new PackagePublishPlanEntry(
+                        "Web/ForgeTrust.AppSurface.Web.Tailwind/ForgeTrust.AppSurface.Web.Tailwind.csproj",
+                        "ForgeTrust.AppSurface.Web.Tailwind",
+                        PackagePublishDecision.Publish,
+                        [],
+                        IsTool: false)
+                ]),
+                artifactDirectory,
+                PackageVersion));
+
+        Assert.Contains(expectedFailure, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PackageArtifactValidator_RejectsTailwindManifestThatViolatesRuntimeContract()
+    {
+        var cases = new (string Manifest, string ExpectedFailure)[]
+        {
+            (TailwindManifestJson(schemaVersion: "2"), "Unsupported Tailwind release manifest schema '2'"),
+            (TailwindManifestJson(schemaVersion: "\"1\""), "schemaVersion property must be a JSON integer"),
+            (TailwindManifestJson(version: "\"04.1.0\""), "version is not canonical stable major.minor.patch"),
+            (TailwindManifestJson(baseUrl: "\"http://example.test/release\""), "baseUrl must be an absolute HTTPS URL"),
+            (TailwindManifestJson(assets: "{}"), "assets property must be a JSON array"),
+            (TailwindManifestJson(assets: "[null]"), "Every Tailwind release manifest asset must be a JSON object"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace("\"rid\"", "\"unsupported\"", StringComparison.Ordinal)), "rid property must be a non-empty JSON string"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace("\"linux-x64\"", "\"\"", StringComparison.Ordinal)), "rid property must be a non-empty JSON string"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace("\"binaryName\"", "\"unsupported\"", StringComparison.Ordinal)), "binaryName property must be a non-empty JSON string"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace("\"sha256\"", "\"unsupported\"", StringComparison.Ordinal)), "sha256 property must be a non-empty JSON string"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace("\"linux-x64\"", "\"linux-arm\"", StringComparison.Ordinal)), "unsupported or duplicate asset RID"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace("\"linux-arm64\"", "\"linux-x64\"", StringComparison.Ordinal)), "unsupported or duplicate asset RID"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace("tailwindcss-linux-x64", "tailwindcss-linux-arm64", StringComparison.Ordinal)), "asset 'linux-x64' is invalid"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace(new string('a', 64), new string('A', 64), StringComparison.Ordinal)), "asset 'linux-x64' is invalid"),
+            (TailwindManifestJson(assets: "[]"), "must contain exactly the five supported Tailwind assets")
+        };
+
+        for (var index = 0; index < cases.Length; index++)
+        {
+            var artifactDirectory = CombineSafeChildPath(_repositoryRoot, $"artifacts-{index}");
+            Directory.CreateDirectory(artifactDirectory);
+            var entries = TailwindMainPackageEntries();
+            entries["build/tailwind.release.json"] = Encoding.UTF8.GetBytes(cases[index].Manifest);
+            WritePackage(
+                artifactDirectory,
+                "ForgeTrust.AppSurface.Web.Tailwind",
+                PackageVersion,
+                EmptyDependencies,
+                rawEntries: entries);
+
+            var error = Assert.Throws<PackageIndexException>(
+                () => new PackageArtifactValidator().Validate(
+                    new PackagePublishPlan([
+                        new PackagePublishPlanEntry(
+                            "Web/ForgeTrust.AppSurface.Web.Tailwind/ForgeTrust.AppSurface.Web.Tailwind.csproj",
+                            "ForgeTrust.AppSurface.Web.Tailwind",
+                            PackagePublishDecision.Publish,
+                            [],
+                            IsTool: false)
+                    ]),
+                    artifactDirectory,
+                    PackageVersion));
+
+            Assert.Contains(cases[index].ExpectedFailure, error.Message, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public void PackageArtifactValidator_ThrowsWhenTailwindVersionDisagreesWithManifestVersion()
     {
@@ -7249,8 +7335,10 @@ public sealed class PackageArtifactValidationTests : IDisposable
         Assert.True(File.Exists(artifactManifestPath), $"Expected artifact manifest at {artifactManifestPath}.");
     }
 
-    [Fact]
-    public async Task PackageArtifactWorkflow_RunsTailwindProofOutsideTheUploadedArtifactDirectory()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PackageArtifactWorkflow_HandlesTailwindProofEvidenceLifecycle(bool proofFails)
     {
         await WriteFileAsync("packages/package-index.yml",
             """
@@ -7305,7 +7393,7 @@ public sealed class PackageArtifactValidationTests : IDisposable
         var tailwindProofReportPath = CombineSafeChildPath(artifactDirectory, "tailwind-package-consumer-proof.md");
         Directory.CreateDirectory(artifactDirectory);
         await File.WriteAllTextAsync(tailwindProofReportPath, "stale successful proof", Encoding.UTF8);
-        var commandRunner = new TailwindPackageRecordingCommandRunner();
+        var commandRunner = new TailwindPackageRecordingCommandRunner(proofFails);
         var workflow = new PackageArtifactWorkflow(
             CreateResolver(new Dictionary<string, PackageProjectMetadata>(StringComparer.OrdinalIgnoreCase)
             {
@@ -7321,27 +7409,50 @@ public sealed class PackageArtifactValidationTests : IDisposable
             new RecordingCoverageCliConsumerProofWorkflow(succeeded: true),
             new RecordingDocsPackageConsumerProofWorkflow(succeeded: true));
 
-        await workflow.RunAsync(
-            new PackageArtifactRequest(
-                _repositoryRoot,
-                ManifestPath,
-                artifactDirectory,
-                reportPath,
-                PackageVersion,
-                artifactManifestPath,
-                CombineSafeChildPath(artifactDirectory, "coverage-proof"),
-                CombineSafeChildPath(artifactDirectory, "coverage-proof.md"),
-                CombineSafeChildPath(artifactDirectory, "docs-proof"),
-                CombineSafeChildPath(artifactDirectory, "docs-proof.md"),
-                "https://api.nuget.org/v3/index.json"));
+        var request = new PackageArtifactRequest(
+            _repositoryRoot,
+            ManifestPath,
+            artifactDirectory,
+            reportPath,
+            PackageVersion,
+            artifactManifestPath,
+            CombineSafeChildPath(artifactDirectory, "coverage-proof"),
+            CombineSafeChildPath(artifactDirectory, "coverage-proof.md"),
+            CombineSafeChildPath(artifactDirectory, "docs-proof"),
+            CombineSafeChildPath(artifactDirectory, "docs-proof.md"),
+            "https://api.nuget.org/v3/index.json");
+        if (proofFails)
+        {
+            var error = await Assert.ThrowsAsync<PackageIndexException>(() => workflow.RunAsync(request));
+            Assert.Contains("simulated tailwind proof stderr", error.Message, StringComparison.Ordinal);
+        }
+        else
+        {
+            await workflow.RunAsync(request);
+        }
 
         var proofRequest = Assert.Single(commandRunner.Requests, request => request.OperationName == "Tailwind packed consumer proof");
         var workDirectory = proofRequest.Arguments[proofRequest.Arguments.ToList().IndexOf("--work-directory") + 1];
         var reportDestination = proofRequest.Arguments[proofRequest.Arguments.ToList().IndexOf("--report-path") + 1];
         Assert.False(workDirectory.StartsWith(artifactDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
         Assert.Equal(CombineSafeChildPath(artifactDirectory, "tailwind-package-consumer-proof.md"), reportDestination);
-        Assert.False(Directory.Exists(workDirectory), "The external proof workspace should be removed after its report is written.");
-        Assert.False(File.Exists(tailwindProofReportPath), "A failed or incomplete rerun must not retain a stale successful proof report.");
+        if (proofFails)
+        {
+            Assert.True(Directory.Exists(workDirectory), "A failed proof workspace should be retained for investigation.");
+            Assert.True(File.Exists(tailwindProofReportPath), "A failed proof must publish failure evidence instead of retaining stale success evidence.");
+            var proofReport = await File.ReadAllTextAsync(tailwindProofReportPath);
+            Assert.Contains("Status: **failed**", proofReport, StringComparison.Ordinal);
+            Assert.Contains("simulated tailwind proof stderr", proofReport, StringComparison.Ordinal);
+            var validationReport = await File.ReadAllTextAsync(reportPath);
+            Assert.Contains("Workspace retained for investigation", validationReport, StringComparison.Ordinal);
+            Assert.Contains("simulated tailwind proof stderr", validationReport, StringComparison.Ordinal);
+            Assert.False(File.Exists(artifactManifestPath), "A failed Tailwind proof must not produce a publishable artifact manifest.");
+        }
+        else
+        {
+            Assert.False(Directory.Exists(workDirectory), "The external proof workspace should be removed after its report is written.");
+            Assert.False(File.Exists(tailwindProofReportPath), "A successful rerun should remove stale failure evidence.");
+        }
     }
 
     [Fact]
@@ -7765,9 +7876,17 @@ public sealed class PackageArtifactValidationTests : IDisposable
             CombineSafeChildPath(repositoryRoot, ".github/workflows/nuget-stable-publish.yml"));
 
         Assert.Contains("workflow_call:", nativeHostWorkflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("workflow_dispatch:", nativeHostWorkflow, StringComparison.Ordinal);
         Assert.Contains("TAILWIND_NATIVE_HOST_RUNNERS", nativeHostWorkflow, StringComparison.Ordinal);
         Assert.Contains("aggregate-evidence:", nativeHostWorkflow, StringComparison.Ordinal);
         Assert.Contains("test \"$MATRIX_RESULT\" = success", nativeHostWorkflow, StringComparison.Ordinal);
+        Assert.Contains("shell: bash", nativeHostWorkflow, StringComparison.Ordinal);
+        Assert.Contains("ForgeTrust.AppSurface.Web.Tailwind.$PACKAGE_VERSION.nupkg", nativeHostWorkflow, StringComparison.Ordinal);
+        Assert.Contains("package_sha256", nativeHostWorkflow, StringComparison.Ordinal);
+        Assert.Contains("(.artifacts | length) == 3", nativeHostWorkflow, StringComparison.Ordinal);
+        Assert.Contains("consumer/obj/project.assets.json", nativeHostWorkflow, StringComparison.Ordinal);
+        Assert.Contains("tailwind-package-consumer-proof.md", nativeHostWorkflow, StringComparison.Ordinal);
+        Assert.Contains("test(\"^[0-9a-f]{64}$\")", nativeHostWorkflow, StringComparison.Ordinal);
         Assert.Contains("linux-x64", nativeHostWorkflow, StringComparison.Ordinal);
         Assert.Contains("linux-arm64", nativeHostWorkflow, StringComparison.Ordinal);
         Assert.Contains("osx-x64", nativeHostWorkflow, StringComparison.Ordinal);
@@ -9326,13 +9445,41 @@ public sealed class PackageArtifactValidationTests : IDisposable
         }
     }
 
-    private static Dictionary<string, byte[]> TailwindMainPackageEntries() =>
-        new(StringComparer.OrdinalIgnoreCase)
+    private static Dictionary<string, byte[]> TailwindMainPackageEntries()
+    {
+        return new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase)
         {
-            ["build/tailwind.release.json"] = Encoding.UTF8.GetBytes("{\"version\":\"4.1.0\"}"),
+            ["build/tailwind.release.json"] = Encoding.UTF8.GetBytes(TailwindManifestJson()),
             ["build/tailwind.version"] = Encoding.UTF8.GetBytes("4.1.0"),
             ["build/ForgeTrust.AppSurface.Web.Tailwind.targets"] = Encoding.UTF8.GetBytes("<Project />")
         };
+    }
+
+    private const string TailwindAssetsJson = """
+        [
+          { "rid": "linux-x64", "binaryName": "tailwindcss-linux-x64", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+          { "rid": "linux-arm64", "binaryName": "tailwindcss-linux-arm64", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+          { "rid": "osx-x64", "binaryName": "tailwindcss-macos-x64", "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" },
+          { "rid": "osx-arm64", "binaryName": "tailwindcss-macos-arm64", "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
+          { "rid": "win-x64", "binaryName": "tailwindcss-windows-x64.exe", "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
+        ]
+        """;
+
+    private static string TailwindManifestJson(
+        string schemaVersion = "1",
+        string version = "\"4.1.0\"",
+        string baseUrl = "\"https://github.com/tailwindlabs/tailwindcss/releases/download/v4.1.0\"",
+        string? assets = null)
+    {
+        return $$"""
+            {
+              "schemaVersion": {{schemaVersion}},
+              "version": {{version}},
+              "baseUrl": {{baseUrl}},
+              "assets": {{assets ?? TailwindAssetsJson}}
+            }
+            """;
+    }
 
     private static string CreateNuspec(
         string packageId,
@@ -9720,6 +9867,13 @@ public sealed class PackageArtifactValidationTests : IDisposable
 
     private sealed class TailwindPackageRecordingCommandRunner : ICommandRunner
     {
+        private readonly bool _failTailwindProof;
+
+        public TailwindPackageRecordingCommandRunner(bool failTailwindProof = false)
+        {
+            _failTailwindProof = failTailwindProof;
+        }
+
         public List<CommandRunRequest> Requests { get; } = [];
 
         public Task<CommandRunResult> RunAsync(CommandRunRequest request, CancellationToken cancellationToken)
@@ -9743,6 +9897,11 @@ public sealed class PackageArtifactValidationTests : IDisposable
                     rawEntries: string.Equals(packageId, "ForgeTrust.AppSurface.Web.Tailwind", StringComparison.Ordinal)
                         ? TailwindMainPackageEntries()
                         : null);
+            }
+
+            if (_failTailwindProof && request.OperationName == "Tailwind packed consumer proof")
+            {
+                return Task.FromException<CommandRunResult>(new PackageIndexException("simulated tailwind proof stderr"));
             }
 
             return Task.FromResult(new CommandRunResult(string.Empty, string.Empty));

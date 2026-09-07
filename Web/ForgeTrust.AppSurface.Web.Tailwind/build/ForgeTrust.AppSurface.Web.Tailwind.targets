@@ -71,7 +71,7 @@
       <_TailwindSameInputOutput>$([System.String]::Copy('$(_TailwindInputPathComparable)').Equals('$(_TailwindOutputPathComparable)'))</_TailwindSameInputOutput>
     </PropertyGroup>
 
-    <Error Text="ASTW008: TailwindInputPath and TailwindOutputPath must point to different files. Cause: Tailwind would overwrite its own source input. Fix: Set TailwindOutputPath to a different generated CSS file. See: https://github.com/forge-trust/AppSurface/tree/main/Web/ForgeTrust.AppSurface.Web.Tailwind#tailwind-diagnostics"
+    <Error Text="ASTW008: TailwindInputPath and TailwindOutputPath must point to different files. Cause: Tailwind would overwrite its own source input. Fix: Set TailwindOutputPath to a different generated CSS file. See: https://github.com/forge-trust/AppSurface/tree/main/Web/ForgeTrust.AppSurface.Web.Tailwind#diagnostics"
            Condition="'$(_TailwindSameInputOutput)' == 'True'" />
   </Target>
 
@@ -96,10 +96,10 @@
       <_TailwindTaskAssemblyDisplay Condition="'$(_TailwindTaskAssemblyDisplay)' == ''">$(_TailwindTaskAssemblyPackage)</_TailwindTaskAssemblyDisplay>
     </PropertyGroup>
 
-    <Error Text="ASTW005: Tailwind MSBuild task assembly could not be found. Cause: '$(_TailwindTaskAssemblyDisplay)' does not exist. Fix: Restore and build ForgeTrust.AppSurface.Web.Tailwind.Tasks, or consume the packed ForgeTrust.AppSurface.Web.Tailwind package. See: https://github.com/forge-trust/AppSurface/tree/main/Web/ForgeTrust.AppSurface.Web.Tailwind#tailwind-diagnostics"
+    <Error Text="ASTW005: Tailwind MSBuild task assembly could not be found. Cause: '$(_TailwindTaskAssemblyDisplay)' does not exist. Fix: Restore and build ForgeTrust.AppSurface.Web.Tailwind.Tasks, or consume the packed ForgeTrust.AppSurface.Web.Tailwind package. See: https://github.com/forge-trust/AppSurface/tree/main/Web/ForgeTrust.AppSurface.Web.Tailwind#diagnostics"
            Condition="'$(_TailwindTaskAssembly)' == '' or !Exists('$(_TailwindTaskAssembly)')" />
 
-    <Error Text="ASTW012: Tailwind release manifest could not be found. Cause: '$(_TailwindReleaseManifestPackage)' is missing from the package or source tree. Fix: restore the package again or set TailwindCliPath to an existing compatible CLI. See: https://github.com/forge-trust/AppSurface/tree/main/Web/ForgeTrust.AppSurface.Web.Tailwind#tailwind-diagnostics"
+    <Error Text="ASTW012: Tailwind release manifest could not be found. Cause: package candidate '$(_TailwindReleaseManifestPackage)' and source-tree candidate '$(_TailwindReleaseManifestSource)' could not be opened. Fix: restore the package again or set TailwindCliPath to an existing compatible CLI. See: https://github.com/forge-trust/AppSurface/tree/main/Web/ForgeTrust.AppSurface.Web.Tailwind#diagnostics"
            Condition="'$(TailwindCliPath)' == '' and ('$(_TailwindReleaseManifest)' == '' or !Exists('$(_TailwindReleaseManifest)'))" />
 
     <ForgeTrust.AppSurface.Web.Tailwind.Tasks.RunTailwindBuildTask

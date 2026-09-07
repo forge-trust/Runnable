@@ -125,7 +125,7 @@ internal sealed class TailwindCliResolver
                 version: options.TailwindVersion);
         }
 
-        var rid = options.RidOverride ?? _getCurrentRid();
+        var rid = string.IsNullOrWhiteSpace(options.RidOverride) ? _getCurrentRid() : options.RidOverride;
         if (string.Equals(rid, "unknown", StringComparison.Ordinal)
             || string.IsNullOrWhiteSpace(TailwindRuntimeMap.GetRuntimeBinaryName(rid)))
         {
@@ -383,9 +383,17 @@ internal sealed class TailwindCliResolver
 
                 return payload;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
+            }
+            catch (OperationCanceledException ex)
+            {
+                lastException = ex;
+                if (attempt < DownloadRetryCount)
+                {
+                    await _delay(TimeSpan.FromMilliseconds(RetryDelayMilliseconds), cancellationToken);
+                }
             }
             catch (TailwindDownloadSizeLimitException ex)
             {
@@ -450,9 +458,18 @@ internal sealed class TailwindCliResolver
 
                 return await DownloadBinaryToFileAsync(uri, destinationPath, cancellationToken);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
+            }
+            catch (OperationCanceledException ex)
+            {
+                lastException = ex;
+                TryDeleteOwnedArtifact(destinationPath);
+                if (attempt < DownloadRetryCount)
+                {
+                    await _delay(TimeSpan.FromMilliseconds(RetryDelayMilliseconds), cancellationToken);
+                }
             }
             catch (TailwindDownloadSizeLimitException ex)
             {

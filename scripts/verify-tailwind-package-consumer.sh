@@ -169,7 +169,17 @@ if grep -Fq 'ForgeTrust.AppSurface.Web.Tailwind.Runtime.' "$consumer_directory/o
   exit 1
 fi
 
-if find "$consumer_directory/bin" "$consumer_directory/obj" -type f -name 'tailwindcss-*' -print -quit | grep -q .; then
+if [[ ! -d "$consumer_directory/bin" || ! -d "$consumer_directory/obj" ]]; then
+  printf 'The packed Tailwind consumer did not produce both bin and obj directories for native-output inspection.\n' >&2
+  exit 1
+fi
+
+if ! native_executable="$(find "$consumer_directory/bin" "$consumer_directory/obj" -type f -name 'tailwindcss-*' -print -quit)"; then
+  printf 'The packed Tailwind consumer native-output inspection failed.\n' >&2
+  exit 1
+fi
+
+if [[ -n "$native_executable" ]]; then
   printf 'The packed Tailwind consumer copied a native Tailwind executable into a build output.\n' >&2
   exit 1
 fi

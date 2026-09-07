@@ -1310,6 +1310,11 @@ internal sealed class PackageArtifactValidator
         try
         {
             using var document = JsonDocument.Parse(packedManifest);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidDataException("The manifest root must be a JSON object.");
+            }
+
             var version = document.RootElement.GetProperty("version");
             if (version.ValueKind != JsonValueKind.String)
             {
@@ -1318,6 +1323,12 @@ internal sealed class PackageArtifactValidator
 
             manifestVersion = version.GetString()
                 ?? throw new InvalidDataException("The version property is missing.");
+            if (string.IsNullOrWhiteSpace(manifestVersion))
+            {
+                throw new InvalidDataException("The version property must not be empty or whitespace.");
+            }
+
+            ValidateTailwindReleaseManifestContract(document.RootElement, manifestVersion);
         }
         catch (Exception ex) when (ex is JsonException or InvalidDataException or KeyNotFoundException or InvalidOperationException)
         {
@@ -1348,6 +1359,95 @@ internal sealed class PackageArtifactValidator
             throw new PackageIndexException(
                 $"Package '{packageId}' build/tailwind.release.json does not byte-match the checked-in source manifest.");
         }
+    }
+
+    private static void ValidateTailwindReleaseManifestContract(JsonElement manifest, string version)
+    {
+        if (!manifest.TryGetProperty("schemaVersion", out var schemaVersion)
+            || schemaVersion.ValueKind != JsonValueKind.Number
+            || !schemaVersion.TryGetInt32(out var schemaVersionValue))
+        {
+            throw new InvalidDataException("The schemaVersion property must be a JSON integer.");
+        }
+
+        if (schemaVersionValue != 1)
+        {
+            throw new InvalidDataException($"Unsupported Tailwind release manifest schema '{schemaVersionValue}'.");
+        }
+
+        if (!IsCanonicalTailwindVersion(version))
+        {
+            throw new InvalidDataException("The Tailwind release manifest version is not canonical stable major.minor.patch.");
+        }
+
+        var baseUrl = GetRequiredManifestString(manifest, "baseUrl");
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri)
+            || !string.Equals(baseUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The Tailwind release manifest baseUrl must be an absolute HTTPS URL.");
+        }
+
+        if (!manifest.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException("The Tailwind release manifest assets property must be a JSON array.");
+        }
+
+        var assetRids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var asset in assets.EnumerateArray())
+        {
+            if (asset.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidDataException("Every Tailwind release manifest asset must be a JSON object.");
+            }
+
+            var rid = GetRequiredManifestString(asset, "rid");
+            if (!TailwindRuntimeBinaryNames.Keys.Contains(rid, StringComparer.Ordinal)
+                || !assetRids.Add(rid))
+            {
+                throw new InvalidDataException("The Tailwind release manifest has an unsupported or duplicate asset RID.");
+            }
+
+            var binaryName = GetRequiredManifestString(asset, "binaryName");
+            var sha256 = GetRequiredManifestString(asset, "sha256");
+            if (!string.Equals(binaryName, TailwindRuntimeBinaryNames[rid], StringComparison.Ordinal)
+                || !IsLowercaseSha256(sha256))
+            {
+                throw new InvalidDataException($"The Tailwind release manifest asset '{rid}' is invalid.");
+            }
+        }
+
+        if (assetRids.Count != TailwindRuntimeBinaryNames.Count
+            || TailwindRuntimeBinaryNames.Keys.Any(rid => !assetRids.Contains(rid)))
+        {
+            throw new InvalidDataException("The Tailwind release manifest must contain exactly the five supported Tailwind assets.");
+        }
+    }
+
+    private static string GetRequiredManifestString(JsonElement source, string propertyName)
+    {
+        if (!source.TryGetProperty(propertyName, out var property)
+            || property.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(property.GetString()))
+        {
+            throw new InvalidDataException($"The {propertyName} property must be a non-empty JSON string.");
+        }
+
+        return property.GetString()!;
+    }
+
+    private static bool IsCanonicalTailwindVersion(string version)
+    {
+        var parts = version.Split('.');
+        return parts.Length == 3
+            && parts.All(static part => part.Length is > 0 and <= 9
+                && (part.Length == 1 || part[0] != '0')
+                && part.All(static character => character is >= '0' and <= '9'));
+    }
+
+    private static bool IsLowercaseSha256(string value)
+    {
+        return value.Length == 64
+            && value.All(static character => character is >= '0' and <= '9' or >= 'a' and <= 'f');
     }
 
     /// <summary>

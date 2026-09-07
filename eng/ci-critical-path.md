@@ -115,6 +115,10 @@ reports a different RID, or a record cannot be bound to the exact tag commit, pa
 version, and release-manifest digest. Do not substitute cross-RID execution or reuse a
 successful artifact from an earlier workflow run.
 
+Every selected native runner must provide Bash, `jq`, and either `sha256sum` or
+`shasum`. Treat a missing prerequisite as a host-configuration failure and install the
+tool before enabling the runner label in `TAILWIND_NATIVE_HOST_RUNNERS`.
+
 Cache misses are normal after dependency updates, lock-file updates, or cache eviction. The cache is only useful if warm runs reduce selected workflow time or runner minutes without regressing the all-green decision path. For cache experiments, record at least:
 
 | Run | Cache state | Setup .NET | Locked restore | Build/tests/docs | Workflow total | Notes |

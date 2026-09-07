@@ -133,7 +133,10 @@ public class TailwindCliManager
     /// Determines whether a failed verified resolution is an availability condition for which watch mode may use its unverified development fallback.
     /// </summary>
     /// <param name="failure">The verified-resolution failure classification.</param>
-    /// <returns><see langword="true" /> only for failures that do not undermine the manifest, cache, or digest trust boundary.</returns>
+    /// <returns>
+    /// <see langword="true" /> only for availability failures. Manifest, cache, path, checksum, and size-limit
+    /// trust-boundary failures never permit the unverified development-path fallback.
+    /// </returns>
     internal static bool CanUseDevelopmentPathFallback(TailwindCliResolutionFailure failure)
     {
         return failure is TailwindCliResolutionFailure.NoCacheRoot

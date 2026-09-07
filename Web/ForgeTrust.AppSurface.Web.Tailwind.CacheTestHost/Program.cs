@@ -41,7 +41,7 @@ static async Task ResolveAsync(
 
             if (!string.Equals(binaryReadyPath, "-", StringComparison.Ordinal))
             {
-                await File.WriteAllTextAsync(binaryReadyPath, "binary-download-started", cancellationToken);
+                WriteReadySignal(binaryReadyPath, "binary-download-started");
             }
 
             if (binaryDelayMilliseconds > 0)
@@ -74,7 +74,7 @@ static async Task ResolveAndHoldPartialAsync(string cacheRoot, string payloadPat
         delay: static (_, cancellationToken) => Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken),
         afterPartialOpened: partialPath =>
         {
-            File.WriteAllText(partialReadyPath, partialPath);
+            WriteReadySignal(partialReadyPath, partialPath);
             Thread.Sleep(Timeout.Infinite);
         });
 
@@ -110,6 +110,15 @@ static int ParseDelayMilliseconds(string value)
     return int.TryParse(value, out var milliseconds) && milliseconds >= 0
         ? milliseconds
         : throw new ArgumentException("The binary delay must be a non-negative integer number of milliseconds.");
+}
+
+static void WriteReadySignal(string path, string contents)
+{
+    var directory = Path.GetDirectoryName(path)
+        ?? throw new ArgumentException("The ready signal path must include a directory.", nameof(path));
+    var temporaryPath = Path.Join(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+    File.WriteAllText(temporaryPath, contents);
+    File.Move(temporaryPath, path, overwrite: true);
 }
 
 /// <summary>Locates the non-packable cache-behavior child process from Tailwind tests.</summary>

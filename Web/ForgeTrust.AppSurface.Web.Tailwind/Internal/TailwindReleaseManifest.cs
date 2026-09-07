@@ -13,7 +13,7 @@ namespace ForgeTrust.AppSurface.Web.Tailwind.Internal;
 /// checked as an audit signal, but it cannot be the sole source of trust because it is
 /// downloaded from the same location as the executable.
 /// </remarks>
-internal sealed class TailwindReleaseManifest
+internal sealed partial class TailwindReleaseManifest
 {
     private const int SchemaVersion = 1;
     private static readonly string[] SupportedRids = ["linux-x64", "linux-arm64", "osx-x64", "osx-arm64", "win-x64"];
@@ -142,17 +142,28 @@ internal sealed class TailwindReleaseManifest
     }
 
     /// <summary>Determines whether a value is the allowed canonical Tailwind version form.</summary>
+    /// <param name="version">The candidate version, or <see langword="null"/>.</param>
+    /// <returns>
+    /// <see langword="true"/> when <paramref name="version"/> is a stable <c>major.minor.patch</c> value
+    /// without leading zeroes, whitespace, or integer overflow; otherwise, <see langword="false"/>.
+    /// </returns>
     public static bool IsCanonicalStableVersion(string? version)
     {
         return version is not null
-            && Regex.IsMatch(version, "^(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$", RegexOptions.CultureInvariant)
+            && CanonicalStableVersionRegex().IsMatch(version)
             && version.Split('.').All(static part => int.TryParse(part, out _));
     }
 
     private static bool IsLowercaseSha256(string? value)
     {
-        return value is not null && Regex.IsMatch(value, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant);
+        return value is not null && LowercaseSha256Regex().IsMatch(value);
     }
+
+    [GeneratedRegex(@"\A(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\z", RegexOptions.CultureInvariant)]
+    private static partial Regex CanonicalStableVersionRegex();
+
+    [GeneratedRegex(@"\A[0-9a-f]{64}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex LowercaseSha256Regex();
 
     private static bool IsSafeFileName(string? value)
     {
@@ -199,32 +210,68 @@ internal sealed record TailwindResolvedCli(string Path, string Rid, string Versi
 /// <summary>Identifies the source of a resolved Tailwind executable.</summary>
 internal enum TailwindCliCacheState
 {
+    /// <summary>An explicitly configured executable path bypassed cache resolution.</summary>
     Explicit,
+
+    /// <summary>A previously acquired and reverified host-cache executable was reused.</summary>
     Reused,
+
+    /// <summary>A missing host-cache executable was downloaded, verified, and published.</summary>
     Acquired
 }
 
 /// <summary>Classifies a deterministic Tailwind CLI resolution failure.</summary>
 internal enum TailwindCliResolutionFailure
 {
+    /// <summary>The required release manifest could not be located or parsed.</summary>
     MissingManifest,
+
+    /// <summary>The active build host has no supported Tailwind runtime identifier.</summary>
     UnsupportedRid,
+
+    /// <summary>An explicitly configured Tailwind executable path is invalid.</summary>
     InvalidCliPath,
+
+    /// <summary>The requested Tailwind version is absent.</summary>
     MissingVersion,
+
+    /// <summary>The requested Tailwind version is malformed or differs from the pinned manifest version.</summary>
     InvalidVersion,
+
+    /// <summary>No usable host-cache root is configured for CLI acquisition.</summary>
     NoCacheRoot,
+
+    /// <summary>The configured cache root or one of its entries crosses a filesystem trust boundary.</summary>
     InvalidCache,
+
+    /// <summary>The official checksum payload does not validate the manifest-pinned binary digest.</summary>
     ChecksumFailure,
+
+    /// <summary>The configured host-cache root cannot be created or written.</summary>
     NonWritableRoot,
+
+    /// <summary>An official release request failed without exhausting its retry policy.</summary>
     NetworkFailure,
+
+    /// <summary>An official release payload exceeded its bounded download size.</summary>
     DownloadSizeLimit,
+
+    /// <summary>All retryable official release requests failed.</summary>
     RetryExhausted,
+
+    /// <summary>Another process retained the cache-entry lock past the bounded wait period.</summary>
     LockTimeout
 }
 
 /// <summary>Represents a resolver failure that callers can map to stable build or watch diagnostics.</summary>
 internal sealed class TailwindCliResolutionException : Exception
 {
+    /// <summary>Creates a classified Tailwind CLI resolution failure.</summary>
+    /// <param name="failure">The deterministic failure classification.</param>
+    /// <param name="message">The safe, user-facing failure message.</param>
+    /// <param name="rid">The affected host RID, when known.</param>
+    /// <param name="version">The affected Tailwind version, when known.</param>
+    /// <param name="innerException">The underlying failure, when available.</param>
     public TailwindCliResolutionException(TailwindCliResolutionFailure failure, string message, string? rid = null, string? version = null, Exception? innerException = null)
         : base(message, innerException)
     {
@@ -233,9 +280,12 @@ internal sealed class TailwindCliResolutionException : Exception
         Version = version;
     }
 
+    /// <summary>Gets the stable failure classification.</summary>
     public TailwindCliResolutionFailure Failure { get; }
 
+    /// <summary>Gets the affected host RID, when known.</summary>
     public string? Rid { get; }
 
+    /// <summary>Gets the affected Tailwind version, when known.</summary>
     public string? Version { get; }
 }

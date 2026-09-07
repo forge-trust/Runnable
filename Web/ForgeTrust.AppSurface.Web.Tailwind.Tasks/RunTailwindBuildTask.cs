@@ -268,13 +268,14 @@ public sealed class RunTailwindBuildTask : Microsoft.Build.Utilities.Task, ICanc
             LogResolverFailure(ex);
             return null;
         }
-        catch (InvalidDataException ex)
+        catch (InvalidDataException)
         {
-            Log.LogError(TailwindDiagnostics.Format(
-                TailwindDiagnostics.AcquisitionFailed,
+            LogAcquisitionFailure(
+                TailwindCliResolutionFailure.InvalidCache,
                 "Tailwind release manifest is invalid.",
-                ex.Message,
-                "Restore the package or set TailwindCliPath to an existing compatible CLI."));
+                "The package release manifest did not satisfy its checked-in contract.",
+                TailwindTargetRid,
+                TailwindVersion);
             return null;
         }
         catch (Exception ex) when (ex is IOException
@@ -283,11 +284,12 @@ public sealed class RunTailwindBuildTask : Microsoft.Build.Utilities.Task, ICanc
             or NotSupportedException
             or PathTooLongException)
         {
-            Log.LogError(TailwindDiagnostics.Format(
-                TailwindDiagnostics.AcquisitionFailed,
+            LogAcquisitionFailure(
+                TailwindCliResolutionFailure.InvalidCache,
                 "Tailwind release manifest could not be opened.",
-                ex.Message,
-                "Restore the package or set TailwindCliPath to an existing compatible CLI."));
+                "The package release manifest could not be opened from the configured package or source-tree location.",
+                TailwindTargetRid,
+                TailwindVersion);
             return null;
         }
     }
@@ -306,11 +308,12 @@ public sealed class RunTailwindBuildTask : Microsoft.Build.Utilities.Task, ICanc
 
         if (ex.Failure == TailwindCliResolutionFailure.MissingManifest)
         {
-            Log.LogError(TailwindDiagnostics.Format(
-                TailwindDiagnostics.AcquisitionFailed,
+            LogAcquisitionFailure(
+                TailwindCliResolutionFailure.InvalidCache,
                 "The package Tailwind release manifest is missing.",
-                ex.Message,
-                "Restore the package or set TailwindCliPath to an existing compatible CLI."));
+                "Neither the packed manifest nor the source-tree manifest was available.",
+                ex.Rid ?? TailwindTargetRid,
+                ex.Version ?? TailwindVersion);
             return;
         }
 
@@ -334,13 +337,26 @@ public sealed class RunTailwindBuildTask : Microsoft.Build.Utilities.Task, ICanc
             return;
         }
 
-        var identity = ex.Rid is null || ex.Version is null
+        LogAcquisitionFailure(ex.Failure, "Tailwind CLI acquisition failed.", ex.Message, ex.Rid, ex.Version);
+    }
+
+    private void LogAcquisitionFailure(
+        TailwindCliResolutionFailure failure,
+        string problem,
+        string cause,
+        string? rid,
+        string? version)
+    {
+        var classification = TailwindDiagnostics.GetAcquisitionFailureClassification(failure);
+        var identity = failure == TailwindCliResolutionFailure.InvalidVersion
             ? "unavailable"
-            : $"tailwind-{ex.Version}/{ex.Rid}";
+            : rid is null || version is null
+                ? "unavailable"
+                : $"tailwind-{version}/{rid}";
         Log.LogError(TailwindDiagnostics.Format(
             TailwindDiagnostics.AcquisitionFailed,
-            $"Tailwind CLI acquisition failed ({ex.Failure}).",
-            $"{ex.Message} Safe cache identity: {identity}.",
+            $"{problem} Classification: {classification}.",
+            $"{cause} Safe cache identity: {identity}.",
             "Set TailwindCliPath, prewarm TailwindDownloadCacheRoot, or consult the Tailwind package diagnostics."));
     }
 

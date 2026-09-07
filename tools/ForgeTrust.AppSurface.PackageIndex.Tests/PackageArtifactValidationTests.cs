@@ -2932,10 +2932,17 @@ public sealed class PackageArtifactValidationTests : IDisposable
     {
         var cases = new (string Manifest, string ExpectedFailure)[]
         {
+            ("{\"version\":\"4.1.0\",\"baseUrl\":\"https://example.test/release\",\"assets\":[]}", "schemaVersion property must be a JSON integer"),
             (TailwindManifestJson(schemaVersion: "2"), "Unsupported Tailwind release manifest schema '2'"),
             (TailwindManifestJson(schemaVersion: "\"1\""), "schemaVersion property must be a JSON integer"),
+            (TailwindManifestJson(version: "\"4.1\""), "version is not canonical stable major.minor.patch"),
             (TailwindManifestJson(version: "\"04.1.0\""), "version is not canonical stable major.minor.patch"),
+            (TailwindManifestJson(version: "\"4..0\""), "version is not canonical stable major.minor.patch"),
+            (TailwindManifestJson(version: "\"1234567890.1.0\""), "version is not canonical stable major.minor.patch"),
+            (TailwindManifestJson(version: "\"4.x.0\""), "version is not canonical stable major.minor.patch"),
             (TailwindManifestJson(baseUrl: "\"http://example.test/release\""), "baseUrl must be an absolute HTTPS URL"),
+            (TailwindManifestJson(baseUrl: "\"not a URI\""), "baseUrl must be an absolute HTTPS URL"),
+            ("{\"schemaVersion\":1,\"version\":\"4.1.0\",\"baseUrl\":\"https://example.test/release\"}", "assets property must be a JSON array"),
             (TailwindManifestJson(assets: "{}"), "assets property must be a JSON array"),
             (TailwindManifestJson(assets: "[null]"), "Every Tailwind release manifest asset must be a JSON object"),
             (TailwindManifestJson(assets: TailwindAssetsJson.Replace("\"rid\"", "\"unsupported\"", StringComparison.Ordinal)), "rid property must be a non-empty JSON string"),
@@ -2946,6 +2953,7 @@ public sealed class PackageArtifactValidationTests : IDisposable
             (TailwindManifestJson(assets: TailwindAssetsJson.Replace("\"linux-arm64\"", "\"linux-x64\"", StringComparison.Ordinal)), "unsupported or duplicate asset RID"),
             (TailwindManifestJson(assets: TailwindAssetsJson.Replace("tailwindcss-linux-x64", "tailwindcss-linux-arm64", StringComparison.Ordinal)), "asset 'linux-x64' is invalid"),
             (TailwindManifestJson(assets: TailwindAssetsJson.Replace(new string('a', 64), new string('A', 64), StringComparison.Ordinal)), "asset 'linux-x64' is invalid"),
+            (TailwindManifestJson(assets: TailwindAssetsJson.Replace(new string('a', 64), new string('a', 63), StringComparison.Ordinal)), "asset 'linux-x64' is invalid"),
             (TailwindManifestJson(assets: "[]"), "must contain exactly the five supported Tailwind assets")
         };
 

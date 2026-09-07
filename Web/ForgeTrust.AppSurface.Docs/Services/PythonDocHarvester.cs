@@ -215,6 +215,10 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
                             modules.Add(module);
                         }
                     }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
                     catch (Exception ex) when (IsFileReadException(ex))
                     {
                         diagnostics.Add(CreateDiagnostic(

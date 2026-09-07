@@ -4,6 +4,7 @@ using ForgeTrust.AppSurface.Docs.Models;
 using ForgeTrust.AppSurface.Docs.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ForgeTrust.AppSurface.Docs.Tests;
@@ -236,6 +237,337 @@ public sealed class PythonDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_UsesContextProgressForDecoratedTupleExports()
+    {
+        await WriteAsync(
+            "sidecar/__init__.py",
+            """
+            ''' Sidecar module. '''
+            __all__ = ("Worker", "deliver")
+
+            @public_api
+            class Worker:
+                ''' Worker docs. '''
+
+                @public_api
+                async def run(self):
+                    '''\tRuns with normalized indentation.\n\t  Extra detail. '''
+
+            @public_api
+            def deliver():
+                '''Delivers work.'''
+            """);
+        var options = CreateEnabledOptions("sidecar/**/*.py");
+        var harvester = CreateHarvester(options);
+        using var provider = new ServiceCollection().BuildServiceProvider();
+        var reporter = new AppSurfaceDocsHarvestProgressReporter(
+            provider,
+            NullLogger<AppSurfaceDocsHarvestProgressReporter>.Instance);
+        var progressId = nameof(PythonDocHarvester);
+        var runId = await reporter.BeginRunAsync(
+        [
+            new AppSurfaceDocsHarvesterRegistration(
+                progressId,
+                nameof(PythonDocHarvester),
+                IsBuiltInProgressHarvester: true)
+        ]);
+        var context = new DocHarvestContext(
+            _testRoot,
+            new AppSurfaceDocsHarvestPathPolicy(options, NullLogger<AppSurfaceDocsHarvestPathPolicy>.Instance),
+            reporter.CreateSession(runId, progressId));
+
+        var docs = await harvester.HarvestAsync(context);
+
+        var module = Assert.Single(docs, document => document.Path == "api/python/sidecar");
+        Assert.Contains("Sidecar module.", module.Content, StringComparison.Ordinal);
+        Assert.Contains("Runs with normalized indentation.", module.Content, StringComparison.Ordinal);
+        Assert.Contains("Extra detail.", module.Content, StringComparison.Ordinal);
+        Assert.Contains(docs, document => document.Path == "api/python/sidecar#class-worker");
+        Assert.Contains(docs, document => document.Path == "api/python/sidecar#async-method-class-worker-run");
+        Assert.Contains(docs, document => document.Path == "api/python/sidecar#function-deliver");
+        var progress = Assert.Single(reporter.CurrentSnapshot.Harvesters, item => item.ProgressId == progressId);
+        Assert.Equal(AppSurfaceDocsHarvestProgressPhase.Finalizing, progress.Phase);
+        Assert.Equal(1, progress.SourceUnitsProcessed);
+        Assert.Equal(docs.Count, progress.DocCount);
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_RejectsEveryUnsupportedLiteralBoundaryShape()
+    {
+        await WriteAsync("annotated.py", "__all__: list[str] = [\"run\"]\ndef run():\n    '''Run.'''\n");
+        await WriteAsync("multiple.py", "__all__ = [\"run\"]\n__all__ = [\"run\"]\ndef run():\n    '''Run.'''\n");
+        await WriteAsync("augmented.py", "__all__ = [\"run\"]\n__all__ += [\"other\"]\ndef run():\n    '''Run.'''\n");
+        await WriteAsync("non-string.py", "__all__ = [\"run\", 1]\ndef run():\n    '''Run.'''\n");
+        var harvester = CreateHarvester(CreateEnabledOptions("*.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Empty(docs);
+        Assert.Equal(
+            4,
+            GetDiagnostics(harvester).Count(diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.PythonPublicBoundaryInvalid));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_DoesNotPublishExportsWithoutADocstringOrDocumentedMembers()
+    {
+        await WriteAsync(
+            "undocumented.py",
+            """
+            __all__ = ["run", "Worker"]
+
+            def run():
+                pass
+
+            class Worker:
+                def work(self):
+                    pass
+            """);
+        var harvester = CreateHarvester(CreateEnabledOptions("undocumented.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Empty(docs);
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_HonorsPythonExcludesAndRejectsCollidingModuleRoutes()
+    {
+        await WriteAsync("included.py", "__all__ = [\"run\"]\ndef run():\n    '''Included.'''\n");
+        await WriteAsync("excluded.py", "__all__ = [\"run\"]\ndef run():\n    '''Excluded.'''\n");
+        await WriteAsync("sidecar/foo_bar.py", "__all__ = [\"run\"]\ndef run():\n    '''First collision.'''\n");
+        await WriteAsync("sidecar/foo-bar.py", "__all__ = [\"run\"]\ndef run():\n    '''Second collision.'''\n");
+        var options = CreateEnabledOptions("*.py", "sidecar/*.py");
+        options.Harvest.Python.ExcludeGlobs = ["excluded.py"];
+        var harvester = CreateHarvester(options);
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Contains(docs, document => document.Path == "api/python/included#function-run");
+        Assert.DoesNotContain(docs, document => document.Path.Contains("excluded", StringComparison.Ordinal));
+        Assert.DoesNotContain(docs, document => document.Path == "api/python/sidecar-foo-bar");
+        Assert.Equal(
+            2,
+            GetDiagnostics(harvester).Count(diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.PythonSlugCollision));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ReportsUnavailableNativeParserAsWarningWithoutStrictHealth()
+    {
+        await WriteAsync("worker.py", "__all__ = [\"run\"]\ndef run():\n    '''Run.'''\n");
+        var options = CreateEnabledOptions("worker.py");
+        var harvester = new PythonDocHarvester(
+            options,
+            NullLogger<PythonDocHarvester>.Instance,
+            new AppSurfaceDocsHarvestPathPolicy(options, NullLogger<AppSurfaceDocsHarvestPathPolicy>.Instance),
+            static () => throw new DllNotFoundException("Tree-sitter native asset is unavailable."));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Empty(docs);
+        Assert.Equal(DocHarvestDiagnosticSeverity.Warning, Assert.Single(GetDiagnostics(harvester)).Severity);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_PropagatesCancellationAfterAPathPolicyAdmitsACandidate()
+    {
+        var workerPath = await WriteAsync("worker.py", "__all__ = [\"run\"]\ndef run():\n    '''Run.'''\n");
+        var options = CreateEnabledOptions("worker.py");
+        var harvester = CreateHarvester(options);
+        using var cancellation = new CancellationTokenSource();
+        var context = new DocHarvestContext(
+            _testRoot,
+            new CancellingCandidatePathPolicy(workerPath, cancellation));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harvester.HarvestAsync(context, cancellation.Token));
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ContinuesAfterAnUnreadableCandidate()
+    {
+        var unreadableCandidate = Path.Combine(_testRoot, "unreadable.py");
+        Directory.CreateDirectory(unreadableCandidate);
+        var workerPath = await WriteAsync("worker.py", "__all__ = [\"run\"]\ndef run():\n    '''Run.'''\n");
+        var options = CreateEnabledOptions("*.py");
+        var harvester = CreateHarvester(options);
+        var context = new DocHarvestContext(
+            _testRoot,
+            new ListedCandidatePathPolicy(unreadableCandidate, workerPath));
+
+        var docs = await harvester.HarvestAsync(context);
+
+        Assert.Contains(docs, document => document.Path == "api/python/worker#function-run");
+        var diagnostic = Assert.Single(GetDiagnostics(harvester));
+        Assert.Equal(DocHarvestDiagnosticCodes.PythonParseFailed, diagnostic.Code);
+        Assert.Contains("could not be read", diagnostic.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_NormalizesActualTabAndCarriageReturnDocstringsWithoutPublishingBinaryStrings()
+    {
+        await WriteAsync(
+            "worker.py",
+            "'''  Worker module.  '''\n"
+            + "__all__ = [\"run\", \"binary\"]\n"
+            + "def run():\n"
+            + "    '''First line\r\n\tSecond line.'''\n"
+            + "def binary():\n"
+            + "    b'not a static docstring'\n");
+        var harvester = CreateHarvester(CreateEnabledOptions("worker.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        var module = Assert.Single(docs, document => document.Path == "api/python/worker");
+        Assert.Contains("Worker module.", module.Content, StringComparison.Ordinal);
+        Assert.Contains("First line<br />Second line.", module.Content, StringComparison.Ordinal);
+        Assert.Contains(docs, document => document.Path == "api/python/worker#function-run");
+        Assert.DoesNotContain(docs, document => document.Path == "api/python/worker#function-binary");
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_SupportsEveryPlainStringDelimiterAndRetainsAnEmptyDeclaredDocstring()
+    {
+        await WriteAsync(
+            "delimiters.py",
+            "'''Delimiter module.'''\n"
+            + "__all__ = ['single', \"double\", 'empty']\n"
+            + "def single():\n"
+            + "    'Single quoted.'\n"
+            + "def double():\n"
+            + "    \"Double quoted.\"\n"
+            + "def empty():\n"
+            + "    ''\n");
+        var harvester = CreateHarvester(CreateEnabledOptions("delimiters.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        var module = Assert.Single(docs, document => document.Path == "api/python/delimiters");
+        Assert.Contains("Single quoted.", module.Content, StringComparison.Ordinal);
+        Assert.Contains("Double quoted.", module.Content, StringComparison.Ordinal);
+        Assert.Contains(docs, document => document.Path == "api/python/delimiters#function-empty");
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_NormalizesConfiguredIncludesAndPublishesADocumentedEmptyBoundary()
+    {
+        await WriteAsync(
+            "sidecar/worker.py",
+            "'''A module that intentionally exports no symbols.'''\n__all__ = ()\n");
+        var options = CreateEnabledOptions(
+            " ",
+            "sidecar\\**\\*.py",
+            "sidecar/**/*.py",
+            "../outside.py",
+            "/rooted.py");
+        var harvester = CreateHarvester(options);
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        var module = Assert.Single(docs);
+        Assert.Equal("api/python/sidecar-worker", module.Path);
+        Assert.Contains("intentionally exports no symbols", module.Content, StringComparison.Ordinal);
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_PublishesDocumentedClassMembersWhenTheClassHasNoDocstring()
+    {
+        await WriteAsync(
+            "worker.py",
+            "'''Worker module.'''\n__all__ = [\"Worker\"]\nclass Worker:\n    def run(self):\n        '''Runs.'''\n");
+        var harvester = CreateHarvester(CreateEnabledOptions("worker.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        var module = Assert.Single(docs, document => document.Path == "api/python/worker");
+        Assert.DoesNotContain("Python Class</span><h2>Worker</h2><div class=\"doc-body\"><p>", module.Content, StringComparison.Ordinal);
+        Assert.Contains("Runs.", module.Content, StringComparison.Ordinal);
+        Assert.Contains(docs, document => document.Path == "api/python/worker#class-worker");
+        Assert.Contains(docs, document => document.Path == "api/python/worker#method-class-worker-run");
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_DoesNotTreatAnInterpolatedFirstStatementAsADocstring()
+    {
+        await WriteAsync(
+            "worker.py",
+            "'''Worker module.'''\n__all__ = [\"dynamic\"]\ndef dynamic():\n    f'Not a docstring: {1}'\n");
+        var harvester = CreateHarvester(CreateEnabledOptions("worker.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Contains(docs, document => document.Path == "api/python/worker");
+        Assert.DoesNotContain(docs, document => document.Path == "api/python/worker#function-dynamic");
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_RejectsLiteralBoundariesWhoseRightHandSideIsNotACollection()
+    {
+        await WriteAsync("invalid.py", "__all__ = 'run'\ndef run():\n    '''Run.'''\n");
+        var harvester = CreateHarvester(CreateEnabledOptions("invalid.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Empty(docs);
+        Assert.Contains(
+            GetDiagnostics(harvester),
+            diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.PythonPublicBoundaryInvalid);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_UsesFallbackPythonSettingsWhenConfiguredSettingsAreNull()
+    {
+        await WriteAsync("worker.py", "__all__ = [\"run\"]\ndef run():\n    '''Run.'''\n");
+        var options = CreateEnabledOptions("worker.py");
+        var harvester = CreateHarvester(options);
+        options.Harvest.Python = null!;
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Empty(docs);
+        Assert.Equal(DocHarvestDiagnosticCodes.PythonMissingInclude, Assert.Single(GetDiagnostics(harvester)).Code);
+        Assert.False(((IDocHarvesterActivation)harvester).IsEnabled);
+        Assert.False(((IDocHarvesterHealthParticipation)harvester).ParticipatesInStrictHealth);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_RequiresAnActualDocstringForAnOtherwiseEmptyPackageInitializer()
+    {
+        await WriteAsync("sidecar/__init__.py", "f\"dynamic package description\"\n");
+        var harvester = CreateHarvester(CreateEnabledOptions("sidecar/**/*.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Empty(docs);
+        Assert.Equal(
+            DocHarvestDiagnosticCodes.PythonPublicBoundaryMissing,
+            Assert.Single(GetDiagnostics(harvester)).Code);
+    }
+
+    [Fact]
+    public void HarvesterContracts_ReflectConfiguredPythonActivationAndHealthParticipation()
+    {
+        var disabledOptions = new AppSurfaceDocsOptions();
+        disabledOptions.Harvest.Python.Enabled = false;
+        disabledOptions.Harvest.Python.IncludeGlobs = [];
+        var disabled = new PythonDocHarvester(disabledOptions, NullLogger<PythonDocHarvester>.Instance);
+        var enabledOptions = CreateEnabledOptions("worker.py");
+        var enabled = CreateHarvester(enabledOptions);
+
+        Assert.False(((IDocHarvesterActivation)disabled).IsEnabled);
+        Assert.False(((IDocHarvesterHealthParticipation)disabled).ParticipatesInStrictHealth);
+        Assert.True(((IDocHarvesterActivation)enabled).IsEnabled);
+        Assert.True(((IDocHarvesterHealthParticipation)enabled).ParticipatesInStrictHealth);
+    }
+
+    [Fact]
     public async Task GetSearchIndexPayloadAsync_ProjectsPythonSymbolsAsGeneratedApiEntries()
     {
         await WriteAsync(
@@ -336,6 +668,26 @@ public sealed class PythonDocHarvesterTests : IDisposable
         Assert.Contains("AppSurfaceDocs:Harvest:Python:MaxFileSizeBytes must be greater than zero.", validation.Failures!);
     }
 
+    [Fact]
+    public void AppSurfaceDocsOptionsValidator_RejectsNullPythonSettings()
+    {
+        var options = CreateEnabledOptions("worker.py");
+        options.Harvest.Python = null!;
+
+        var validation = new AppSurfaceDocsOptionsValidator().Validate(null, options);
+
+        Assert.False(validation.Succeeded);
+        Assert.Contains("AppSurfaceDocs:Harvest:Python must not be null.", validation.Failures!);
+    }
+
+    [Fact]
+    public void AppSurfacePythonModuleAttribute_RetainsTheDeclaredModulePath()
+    {
+        var attribute = new AppSurfacePythonModuleAttribute("sidecar/worker.py");
+
+        Assert.Equal("sidecar/worker.py", attribute.ModulePath);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))
@@ -357,10 +709,69 @@ public sealed class PythonDocHarvesterTests : IDisposable
     private static IReadOnlyList<DocHarvestDiagnostic> GetDiagnostics(PythonDocHarvester harvester) =>
         ((IDocHarvesterDiagnosticProvider)harvester).GetHarvestDiagnostics();
 
-    private async Task WriteAsync(string relativePath, string content)
+    private async Task<string> WriteAsync(string relativePath, string content)
     {
         var path = TestPathUtils.PathUnder(_testRoot, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, content);
+        return path;
+    }
+
+    private sealed class CancellingCandidatePathPolicy(string workerPath, CancellationTokenSource cancellation) : IHarvestPathPolicy
+    {
+        public AppSurfaceDocsHarvestPathDecision Evaluate(
+            string relativePath,
+            AppSurfaceDocsHarvestSourceKind sourceKind)
+        {
+            var included = ShouldIncludeFilePath(relativePath, sourceKind);
+            return new AppSurfaceDocsHarvestPathDecision(
+                included,
+                relativePath,
+                sourceKind,
+                AppSurfaceDocsHarvestPathDecisionCode.IncludedByGlobalInclude,
+                [],
+                []);
+        }
+
+        public bool ShouldIncludeFilePath(string relativePath, AppSurfaceDocsHarvestSourceKind sourceKind)
+        {
+            cancellation.Cancel();
+            return true;
+        }
+
+        public bool ShouldPruneDirectory(string relativeDirectory, AppSurfaceDocsHarvestSourceKind sourceKind) => false;
+
+        public IEnumerable<string> EnumerateCandidateFiles(
+            string rootPath,
+            AppSurfaceDocsHarvestSourceKind sourceKind,
+            string searchPattern,
+            CancellationToken cancellationToken)
+        {
+            yield return workerPath;
+        }
+    }
+
+    private sealed class ListedCandidatePathPolicy(params string[] candidatePaths) : IHarvestPathPolicy
+    {
+        public AppSurfaceDocsHarvestPathDecision Evaluate(
+            string relativePath,
+            AppSurfaceDocsHarvestSourceKind sourceKind) =>
+            new(
+                ShouldIncludeFilePath(relativePath, sourceKind),
+                relativePath,
+                sourceKind,
+                AppSurfaceDocsHarvestPathDecisionCode.IncludedByGlobalInclude,
+                [],
+                []);
+
+        public bool ShouldIncludeFilePath(string relativePath, AppSurfaceDocsHarvestSourceKind sourceKind) => true;
+
+        public bool ShouldPruneDirectory(string relativeDirectory, AppSurfaceDocsHarvestSourceKind sourceKind) => false;
+
+        public IEnumerable<string> EnumerateCandidateFiles(
+            string rootPath,
+            AppSurfaceDocsHarvestSourceKind sourceKind,
+            string searchPattern,
+            CancellationToken cancellationToken) => candidatePaths;
     }
 }

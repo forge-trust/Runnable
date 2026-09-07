@@ -2539,7 +2539,7 @@ public class DocAggregator
                         + entryPointSearchText);
                     var snippet = TruncateSnippetAtWordBoundary(bodyText, SearchSnippetMaxLength);
                     var title = ResolveSearchIndexTitle(d);
-                    var summary = ShouldUseSearchSnippetForRichAuthoringSummary(content, d.Metadata?.Summary)
+                    var summary = ShouldUseSearchSnippetForRichAuthoringSummary(d.Content, d.Metadata?.Summary)
                         ? snippet
                         : d.Metadata?.Summary ?? snippet;
                     var summaryPresentation = DocsSearchSummaryPresentationProjector.Project(summary);

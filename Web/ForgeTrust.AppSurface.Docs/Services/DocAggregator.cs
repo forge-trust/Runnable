@@ -1107,6 +1107,7 @@ public class DocAggregator
                                .Select(node => node.Path)
                                .ToHashSet(StringComparer.Ordinal);
                            var finalRouteIdentityCatalog = DocRouteIdentityCatalog.Create(docsByPath.Values, _docsUrlBuilder);
+                           docsByPath = ResolveTypedNamespaceEntryPointHrefs(docsByPath, finalRouteIdentityCatalog);
                            var (markdownDownloadSources, markdownDownloadDiagnostic) = BuildMarkdownDownloadSources(
                                harvesterResults,
                                docsByPath,
@@ -1891,6 +1892,14 @@ public class DocAggregator
     private CSharpNamespaceDocument ResolveTypedNamespaceSourceHrefs(DocNode doc)
     {
         var document = doc.CSharpNamespaceDocument!;
+        if (document.SymbolSourceProvenance.Count == 0)
+        {
+            // This is the normal path for a typed tree supplied by a direct test fixture or a source set with no
+            // contributor links. Keep the immutable semantic document intact instead of allocating a value-equal
+            // clone merely to resolve an empty set of placeholders.
+            return document;
+        }
+
         var provenanceCounts = document.SymbolSourceProvenance
             .GroupBy(provenance => provenance.AnchorId, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
@@ -1902,7 +1911,7 @@ public class DocAggregator
                 .Select(
                     type => type with
                     {
-                        SourceHref = ResolveTypedSymbolSourceHref(type.AnchorId, hrefsByAnchor),
+                        SourceHref = hrefsByAnchor.GetValueOrDefault(type.AnchorId),
                         MethodGroups = type.MethodGroups
                             .Select(
                                 group => group with
@@ -1911,7 +1920,7 @@ public class DocAggregator
                                         .Select(
                                             overload => overload with
                                             {
-                                                SourceHref = ResolveTypedSymbolSourceHref(overload.AnchorId, hrefsByAnchor)
+                                                SourceHref = hrefsByAnchor.GetValueOrDefault(overload.AnchorId)
                                             })
                                         .ToArray()
                                 })
@@ -1920,7 +1929,7 @@ public class DocAggregator
                             .Select(
                                 property => property with
                                 {
-                                    SourceHref = ResolveTypedSymbolSourceHref(property.AnchorId, hrefsByAnchor)
+                                    SourceHref = hrefsByAnchor.GetValueOrDefault(property.AnchorId)
                                 })
                             .ToArray()
                     })
@@ -1929,17 +1938,86 @@ public class DocAggregator
                 .Select(
                     enumDocument => enumDocument with
                     {
-                        SourceHref = ResolveTypedSymbolSourceHref(enumDocument.AnchorId, hrefsByAnchor)
+                        SourceHref = hrefsByAnchor.GetValueOrDefault(enumDocument.AnchorId)
                     })
                 .ToArray()
         };
     }
 
-    private static string? ResolveTypedSymbolSourceHref(
-        string anchorId,
-        IReadOnlyDictionary<string, string> hrefsByAnchor)
+    /// <summary>
+    /// Resolves docs-local namespace entry-point hrefs in the built-in typed C# projection against the final route
+    /// identity catalog.
+    /// </summary>
+    /// <remarks>
+    /// Namespace README metadata is authored before route identity is available and can therefore use a source-shaped
+    /// generated C# path. The typed renderer must receive a canonical browser URL directly: unlike legacy HTML, its
+    /// Razor output is never passed through <see cref="DocContentLinkRewriter"/>. Fragment entry points and non-Docs
+    /// app-relative destinations intentionally remain unchanged.
+    /// </remarks>
+    private Dictionary<string, DocNode> ResolveTypedNamespaceEntryPointHrefs(
+        IReadOnlyDictionary<string, DocNode> docsByPath,
+        DocRouteIdentityCatalog routeIdentityCatalog)
     {
-        return hrefsByAnchor.TryGetValue(anchorId, out var href) ? href : null;
+        ArgumentNullException.ThrowIfNull(docsByPath);
+        ArgumentNullException.ThrowIfNull(routeIdentityCatalog);
+
+        return docsByPath.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.CSharpNamespaceDocument is { } typedNamespace
+                ? pair.Value with
+                {
+                    CSharpNamespaceDocument = ResolveTypedNamespaceEntryPointHrefs(typedNamespace, routeIdentityCatalog)
+                }
+                : pair.Value,
+            StringComparer.Ordinal);
+    }
+
+    private CSharpNamespaceDocument ResolveTypedNamespaceEntryPointHrefs(
+        CSharpNamespaceDocument document,
+        DocRouteIdentityCatalog routeIdentityCatalog)
+    {
+        if ((document.EntryPoints?.Count ?? 0) == 0)
+        {
+            return document;
+        }
+
+        return document with
+        {
+            EntryPoints = document.EntryPoints!
+                .Select(
+                    entry => !string.IsNullOrWhiteSpace(entry.Target)
+                        ? entry
+                        : entry with { Href = ResolveTypedNamespaceEntryPointHref(entry.Href, routeIdentityCatalog) })
+                .ToArray()
+        };
+    }
+
+    private string? ResolveTypedNamespaceEntryPointHref(
+        string? href,
+        DocRouteIdentityCatalog routeIdentityCatalog)
+    {
+        var normalizedHref = NormalizeMetadataText(href);
+        if (normalizedHref is null || normalizedHref.StartsWith("#", StringComparison.Ordinal))
+        {
+            return normalizedHref;
+        }
+
+        var fragmentIndex = normalizedHref.IndexOf('#');
+        var routePath = fragmentIndex < 0 ? normalizedHref : normalizedHref[..fragmentIndex];
+        var fragment = fragmentIndex < 0 ? string.Empty : normalizedHref[fragmentIndex..];
+        var docsRootPath = _docsUrlBuilder.CurrentDocsRootPath;
+        if (!DocsUrlBuilder.IsUnderRoot(routePath, docsRootPath)
+            || string.Equals(routePath, docsRootPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return normalizedHref;
+        }
+
+        var docsRelativePath = string.Equals(docsRootPath, "/", StringComparison.Ordinal)
+            ? routePath.TrimStart('/')
+            : routePath[(docsRootPath.Length + 1)..];
+        return routeIdentityCatalog.TryGetPublicRoutePath(docsRelativePath, out var publicRoutePath)
+            ? _docsUrlBuilder.BuildDocUrl(publicRoutePath) + fragment
+            : normalizedHref;
     }
 
     private async Task<DocContributorProvenanceViewModel?> ResolveContributorProvenanceAsync(
@@ -2116,6 +2194,13 @@ public class DocAggregator
     {
         var normalized = NormalizeMetadataText(href);
         if (normalized is null)
+        {
+            return null;
+        }
+
+        // Browsers can canonicalize a rooted path containing a backslash into a network-path reference. Reject it
+        // before accepting root-relative contributor overrides so untrusted front matter cannot change link origin.
+        if (normalized.Contains('\\'))
         {
             return null;
         }
@@ -2972,7 +3057,7 @@ public class DocAggregator
                     {
                         var entryPointDiagnostics = ValidateTypedNamespaceEntryPoints(
                             namespaceName,
-                            typedNamespace.Outline,
+                            mergedOutline ?? [],
                             effectiveEntryPoints);
                         diagnostics.AddRange(entryPointDiagnostics);
                         foreach (var diagnostic in entryPointDiagnostics)
@@ -2992,10 +3077,12 @@ public class DocAggregator
                         IntroHtml = introHtml,
                         EntryPoints = effectiveEntryPoints,
                         Outline = mergedOutline ?? [],
-                        ReaderText = BuildTypedNamespaceReaderText(
-                            typedNamespace.ReaderText,
-                            introHtml,
-                            effectiveEntryPoints)
+                        ReaderText = renderEntryPointPanel
+                            ? BuildTypedNamespaceReaderText(
+                                typedNamespace.ReaderText,
+                                introHtml,
+                                effectiveEntryPoints)
+                            : typedNamespace.ReaderText
                     };
                     var mergedTypedNode = namespaceNode with
                     {

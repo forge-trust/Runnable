@@ -1,4 +1,5 @@
 @using ForgeTrust.AppSurface.Docs.Models
+@using ForgeTrust.AppSurface.Docs.Services
 @using ForgeTrust.RazorWire
 @model DocDetailsViewModel
 @inject ForgeTrust.AppSurface.Docs.IAppSurfaceDocsRequestRuntimeAccessor RuntimeAccessor
@@ -15,12 +16,19 @@
         .ThenBy(entry => entry.SourceIndex)
         .ToArray();
     var entryPointsHeadingId = "common-entry-points-" + StringUtils.ToSafeId(document.FullNamespace, appendHash: true);
+    var introHtml = string.IsNullOrWhiteSpace(document.IntroHtml)
+        ? null
+        : DocContentLinkRewriter.PrefixPathBaseForDocsUrls(
+            document.IntroHtml,
+            runtime.DocsUrlBuilder.CurrentDocsRootPath,
+            Context.Request.PathBase.Value,
+            runtime.DocsUrlBuilder.RouteRootPath);
 }
 
 @if (document.ChildNamespaces.Count > 0)
 {
     <section class="doc-namespace-groups" aria-labelledby="child-namespaces-heading">
-        <h4 id="child-namespaces-heading">Namespaces</h4>
+        <h2 id="child-namespaces-heading">Namespaces</h2>
         <ul>
             @foreach (var childNamespace in document.ChildNamespaces)
             {
@@ -34,10 +42,10 @@
     </section>
 }
 
-@if (!string.IsNullOrWhiteSpace(document.IntroHtml))
+@if (introHtml is not null)
 {
     @* Safe: the namespace intro passed through the standard Markdown sanitizer before it was attached to this projection. *@
-    @Html.Raw(document.IntroHtml)
+    @Html.Raw(introHtml)
 }
 
 @if (entryPoints.Length > 0)

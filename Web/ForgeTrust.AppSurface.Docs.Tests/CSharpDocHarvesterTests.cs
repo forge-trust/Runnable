@@ -413,6 +413,7 @@ public class CSharpDocHarvesterTests : IDisposable
                 /// <summary>Gets a result for <paramref name="name"/>.</summary>
                 /// <param name="name">The name.</param>
                 /// <returns>A result.</returns>
+                /// <remarks><code>/// route</code></remarks>
                 public string Get(string name) => name;
             }
             """);
@@ -429,10 +430,69 @@ public class CSharpDocHarvesterTests : IDisposable
         Assert.Equal("Get", overload.Signature.Name);
         Assert.Contains("summary", typedDocument.ReaderText, StringComparison.Ordinal);
         Assert.Contains("name", typedDocument.ReaderText, StringComparison.Ordinal);
+        Assert.Equal(
+            "Gets a result for name.",
+            string.Concat(
+                overload.Documentation.Sections
+                    .Single(section => section.Kind == CSharpDocumentationSectionKind.Summary)
+                    .Content
+                    .Select(node => node.Text)));
+        Assert.Equal(
+            "/// route",
+            overload.Documentation.Sections
+                .Single(section => section.Kind == CSharpDocumentationSectionKind.Remarks)
+                .Content
+                .Single(node => node.Kind == CSharpXmlNodeKind.CodeBlock)
+                .Text);
 
         var legacyNamespace = Assert.Single(legacyResults, node => node.Path == "Namespaces/Product.Api");
         Assert.Null(legacyNamespace.CSharpNamespaceDocument);
         Assert.Contains("doc-type", legacyNamespace.Content, StringComparison.Ordinal);
+        Assert.Contains("/// route", legacyNamespace.Content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_WithBuiltInContextShouldDeduplicateOutlineAnchorsAcrossSourceFiles()
+    {
+        await File.WriteAllTextAsync(
+            CombineUnder(_testRoot, "First.cs"),
+            """
+            namespace Product.Api;
+
+            /// <summary>First service.</summary>
+            public sealed partial class Service
+            {
+                /// <summary>First operation.</summary>
+                public void First() {}
+            }
+            """);
+        await File.WriteAllTextAsync(
+            CombineUnder(_testRoot, "Second.cs"),
+            """
+            namespace Product.Api;
+
+            /// <summary>Second service declaration.</summary>
+            public sealed partial class Service
+            {
+                /// <summary>Second operation.</summary>
+                public void Second() {}
+            }
+            """);
+
+        var results = await _harvester.HarvestAsync(CreateContextWithDefaultPolicy());
+
+        var typedNamespace = Assert.Single(results, node => node.Path == "Namespaces/Product.Api");
+        var typedDocument = Assert.IsType<CSharpNamespaceDocument>(typedNamespace.CSharpNamespaceDocument);
+        var type = Assert.Single(typedDocument.Types);
+        Assert.Equal(
+            ["First", "Second"],
+            type.MethodGroups.Select(group => group.Name).OrderBy(name => name, StringComparer.Ordinal));
+        Assert.Equal(
+            typedDocument.Outline.Count,
+            typedDocument.Outline.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count());
+        Assert.Single(typedDocument.Outline, item => item.Id == "Product-Api-Service");
+        Assert.Contains("First service", typedDocument.ReaderText, StringComparison.Ordinal);
+        Assert.Contains("Second service declaration", typedDocument.ReaderText, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -24,7 +24,7 @@
 @if (typeParameters.Length > 0)
 {
     <div class="doc-typeparams">
-        <h4>Type parameters</h4>
+        @await Html.PartialAsync("/Views/Docs/CSharp/_DocumentationHeading.cshtml", "Type parameters")
         <ul>
             @foreach (var documentationSection in typeParameters)
             {
@@ -43,7 +43,7 @@
 @if (parameters.Length > 0)
 {
     <div class="doc-params">
-        <h4>Parameters</h4>
+        @await Html.PartialAsync("/Views/Docs/CSharp/_DocumentationHeading.cshtml", "Parameters")
         <ul>
             @foreach (var documentationSection in parameters)
             {
@@ -62,7 +62,7 @@
 @foreach (var documentationSection in documentationSections.Where(item => item.Kind == CSharpDocumentationSectionKind.Returns))
 {
     <div class="doc-returns">
-        <h4>Returns</h4>
+        @await Html.PartialAsync("/Views/Docs/CSharp/_DocumentationHeading.cshtml", "Returns")
         @if (CSharpDocumentationMarkup.HasBlockNodes(documentationSection.Content))
         {
             @await Html.PartialAsync("/Views/Docs/CSharp/_XmlNodes.cshtml", documentationSection.Content)
@@ -77,7 +77,7 @@
 @if (exceptions.Length > 0)
 {
     <div class="doc-exceptions">
-        <h4>Exceptions</h4>
+        @await Html.PartialAsync("/Views/Docs/CSharp/_DocumentationHeading.cshtml", "Exceptions")
         <ul>
             @foreach (var documentationSection in exceptions)
             {
@@ -96,7 +96,7 @@
 @foreach (var documentationSection in documentationSections.Where(item => item.Kind == CSharpDocumentationSectionKind.Remarks))
 {
     <div class="doc-remarks">
-        <h4>Remarks</h4>
+        @await Html.PartialAsync("/Views/Docs/CSharp/_DocumentationHeading.cshtml", "Remarks")
         @if (CSharpDocumentationMarkup.HasBlockNodes(documentationSection.Content))
         {
             @await Html.PartialAsync("/Views/Docs/CSharp/_XmlNodes.cshtml", documentationSection.Content)
@@ -111,7 +111,7 @@
 @foreach (var documentationSection in documentationSections.Where(item => item.Kind == CSharpDocumentationSectionKind.Example))
 {
     <div class="doc-example">
-        <h4>Example</h4>
+        @await Html.PartialAsync("/Views/Docs/CSharp/_DocumentationHeading.cshtml", "Example")
         @if (CSharpDocumentationMarkup.HasBlockNodes(documentationSection.Content))
         {
             @await Html.PartialAsync("/Views/Docs/CSharp/_XmlNodes.cshtml", documentationSection.Content)

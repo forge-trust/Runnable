@@ -1929,6 +1929,12 @@ body {
     border-top: 1px solid var(--docs-color-border-muted);
 }
 
+.docs-content .doc-overload-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 0.75rem;
+}
+
 .docs-content .doc-summary > p {
     margin: 0 0 0.8rem;
     color: var(--docs-color-text-default);
@@ -2053,7 +2059,7 @@ body {
     margin-top: 0.9rem;
 }
 
-.docs-content h4 {
+.docs-content .doc-documentation-heading {
     margin: 0 0 0.4rem;
     font-size: 0.72rem;
     letter-spacing: 0.09em;

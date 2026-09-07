@@ -624,6 +624,7 @@ public sealed class MarkdownFrontMatterParserTests
     [InlineData("/docs/bad path")]
     [InlineData("/docs/search?query=api")]
     [InlineData("//docs.example.test/path")]
+    [InlineData("/\\\\docs.example.test/path")]
     [InlineData("https://example.test/docs")]
     public void ExtractWithDiagnostics_ShouldDropUnsupportedNamespaceEntryPointHrefs(string href)
     {

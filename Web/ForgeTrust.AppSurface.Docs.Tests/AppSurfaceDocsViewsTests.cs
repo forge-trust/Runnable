@@ -72,6 +72,22 @@ public class AppSurfaceDocsViewsTests
     }
 
     [Fact]
+    public void Layout_ShouldRevealTargetedDetailsForInitialHashChangesAndPageNavigation()
+    {
+        var layout = ReadLayoutMarkup();
+
+        Assert.Contains("function revealTargetDetails(target)", layout, StringComparison.Ordinal);
+        Assert.Contains("let details = target.closest(\"details\");", layout, StringComparison.Ordinal);
+        Assert.Contains("details.open = true;", layout, StringComparison.Ordinal);
+        Assert.Contains("revealTargetDetails(target);", layout, StringComparison.Ordinal);
+        Assert.Contains("function revealRazorWireOutlineTargetDetails(event)", layout, StringComparison.Ordinal);
+        Assert.Contains("revealTargetDetails(document.getElementById(targetId));", layout, StringComparison.Ordinal);
+        Assert.Contains("document.addEventListener(\"click\", revealRazorWireOutlineTargetDetails, true);", layout, StringComparison.Ordinal);
+        Assert.Contains("if (getCurrentHashTarget())", layout, StringComparison.Ordinal);
+        Assert.Contains("window.addEventListener(\"hashchange\", restoreMainScrollPosition);", layout, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewStarts_ShouldSelectPackageSpecificAbsoluteLayout()
     {
         var projectRoot = GetDocsProjectRoot();
@@ -3032,7 +3048,7 @@ public class AppSurfaceDocsViewsTests
         var typedDocument = new CSharpNamespaceDocument(
             "Test",
             "Test",
-            [new CSharpChildNamespace("Namespaces/Test.Advanced", "Advanced")],
+            [new CSharpChildNamespace("Namespaces/Test.Advanced.html", "Advanced")],
             [
                 new CSharpTypeDocument(
                     typeAnchor,
@@ -3044,7 +3060,13 @@ public class AppSurfaceDocsViewsTests
                             null,
                             null,
                             null,
-                            [new CSharpXmlNode(CSharpXmlNodeKind.Paragraph, Children: [new CSharpXmlNode(CSharpXmlNodeKind.Text, "Adds <safe> values.")])])
+                            [new CSharpXmlNode(CSharpXmlNodeKind.Paragraph, Children: [new CSharpXmlNode(CSharpXmlNodeKind.Text, "Adds <safe> values.")])]),
+                        new CSharpDocumentationSection(
+                            CSharpDocumentationSectionKind.Remarks,
+                            null,
+                            null,
+                            null,
+                            [new CSharpXmlNode(CSharpXmlNodeKind.Text, "Direct type documentation.")])
                     ]),
                     [
                         new CSharpMethodGroupDocument(
@@ -3083,7 +3105,7 @@ public class AppSurfaceDocsViewsTests
             ],
             [],
             "Calculator Process Name",
-            IntroHtml: "<section class=\"doc-namespace-intro\"><p>Intro text.</p></section>",
+            IntroHtml: "<section class=\"doc-namespace-intro\"><p><a href=\"/docs/guides/intro\">Intro text.</a></p></section>",
             EntryPoints:
             [
                 new DocNamespaceEntryPoint { Label = "Process", Target = groupAnchor },
@@ -3110,11 +3132,12 @@ public class AppSurfaceDocsViewsTests
         Assert.Equal("Calculator <unsafe>", document.QuerySelector($"#{typeAnchor} h2")?.TextContent.Trim());
         Assert.Contains("Adds &lt;safe&gt; values.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Adds <safe> values.", html, StringComparison.Ordinal);
-        Assert.Equal("h4", document.QuerySelector(".doc-namespace-groups > h4")?.LocalName);
-        Assert.Equal("/mounted/docs/Namespaces/Test.Advanced", document.QuerySelector(".doc-namespace-groups a")?.GetAttribute("href"));
+        Assert.Equal("h2", document.QuerySelector(".doc-namespace-groups > h2")?.LocalName);
+        Assert.Equal("/mounted/docs/Namespaces/Test.Advanced.html", document.QuerySelector(".doc-namespace-groups a")?.GetAttribute("href"));
         Assert.True(
             html.IndexOf("doc-namespace-groups", StringComparison.Ordinal)
             < html.IndexOf("doc-namespace-intro", StringComparison.Ordinal));
+        Assert.Equal("/mounted/docs/guides/intro", document.QuerySelector(".doc-namespace-intro a")?.GetAttribute("href"));
         Assert.True(
             html.IndexOf("doc-namespace-intro", StringComparison.Ordinal)
             < html.IndexOf("doc-namespace-entry-points", StringComparison.Ordinal));
@@ -3127,6 +3150,9 @@ public class AppSurfaceDocsViewsTests
         Assert.Equal("/mounted/source/Calculator.cs#L12", document.QuerySelector($"#{overloadAnchor} .doc-symbol-source-link")?.GetAttribute("href"));
         Assert.Equal("details", document.QuerySelector($"#{overloadAnchor}")?.LocalName);
         Assert.True(document.QuerySelector($"#{overloadAnchor}")!.HasAttribute("open"));
+        Assert.Empty(document.QuerySelectorAll($"#{overloadAnchor} summary a"));
+        Assert.Equal("h3", document.QuerySelector($"#{typeAnchor} .doc-remarks > h3")?.LocalName);
+        Assert.Equal("h4", document.QuerySelector($"#{overloadAnchor} .doc-params > h4")?.LocalName);
         Assert.Equal("Method", document.QuerySelector($"#{groupAnchor} .doc-kind")?.TextContent.Trim());
         Assert.Equal("article", document.QuerySelector($"#{propertyAnchor} .doc-property")?.LocalName);
         Assert.Equal("Property", document.QuerySelector($"#{propertyAnchor} .doc-kind")?.TextContent.Trim());

@@ -2464,6 +2464,41 @@ public class DocAggregatorTests : IDisposable
     }
 
     [Fact]
+    public async Task GetDocDetailsAsync_ShouldHideContributorProvenance_WhenRootedOverridesContainBackslashes()
+    {
+        var harvester = A.Fake<IDocHarvester>();
+        A.CallTo(() => harvester.HarvestAsync(A<string>._, A<CancellationToken>._))
+            .Returns(
+            [
+                new DocNode(
+                    "Web",
+                    "Namespaces/ForgeTrust.AppSurface.Web",
+                    "<p>Namespace page</p>",
+                    Metadata: DocMetadataFactory.CreateApiReferenceMetadata("Web", "ForgeTrust.AppSurface.Web") with
+                    {
+                        Contributor = new DocContributorMetadata
+                        {
+                            SourceUrlOverride = "/\\evil.example/source.md",
+                            EditUrlOverride = "/\\evil.example/edit.md"
+                        }
+                    })
+            ]);
+
+        var aggregator = CreateContributorAggregator(
+            harvester,
+            new AppSurfaceDocsContributorOptions
+            {
+                Enabled = true,
+                LastUpdatedMode = AppSurfaceDocsLastUpdatedMode.None
+            },
+            resolveGitLastUpdatedUtcAsync: null);
+
+        var details = await aggregator.GetDocDetailsAsync("Namespaces/ForgeTrust.AppSurface.Web");
+
+        Assert.Null(details?.ContributorProvenance);
+    }
+
+    [Fact]
     public async Task GetDocDetailsAsync_ShouldDropProtocolRelativeHrefValues_WhenExplicitTimestampKeepsContributorProvenanceVisible()
     {
         var expectedLastUpdatedUtc = new DateTimeOffset(2026, 5, 1, 12, 34, 56, TimeSpan.Zero);
@@ -3459,6 +3494,83 @@ public class DocAggregatorTests : IDisposable
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_ShouldMergeNamespaceReadmeIntoTypedCSharpDocument()
+    {
+        var validTarget = "ForgeTrust-Web-AddWeb";
+        var typedDocument = new CSharpNamespaceDocument(
+            "ForgeTrust.Web",
+            "Web",
+            [],
+            [],
+            [],
+            [new DocOutlineItem { Id = validTarget, Title = "AddWeb" }],
+            [],
+            string.Empty);
+        var harvestedDocs = new List<DocNode>
+        {
+            new(
+                "Web",
+                "Namespaces/ForgeTrust.Web",
+                string.Empty,
+                Outline: [
+                    new DocOutlineItem { Id = validTarget, Title = "AddWeb" },
+                    new DocOutlineItem { Id = "namespace-intro", Title = "Namespace intro" }
+                ])
+            {
+                CSharpNamespaceDocument = typedDocument
+            },
+            new(
+                "README",
+                "docs/ForgeTrust.Web/README.md",
+                "<p>Sanitized namespace intro.</p>",
+                Metadata: new DocMetadata
+                {
+                    EntryPoints =
+                    [
+                        new DocNamespaceEntryPoint
+                        {
+                            Label = "Add Web services",
+                            Summary = "Register Web services.",
+                            Target = validTarget,
+                            Keywords = ["web registration"]
+                        },
+                        new DocNamespaceEntryPoint
+                        {
+                            Label = "Missing Web API",
+                            Summary = "This target is not generated.",
+                            Target = "ForgeTrust-Web-Missing"
+                        }
+                    ]
+                },
+                Outline: [new DocOutlineItem { Id = "namespace-intro", Title = "Namespace intro" }])
+        };
+        A.CallTo(() => _harvesterFake.HarvestAsync(A<string>._, A<CancellationToken>._)).Returns(harvestedDocs);
+
+        var docs = (await _aggregator.GetDocsAsync()).ToList();
+        var health = await _aggregator.GetHarvestHealthAsync();
+
+        var namespaceNode = Assert.Single(docs, node => node.Path == "Namespaces/ForgeTrust.Web");
+        var document = Assert.IsType<CSharpNamespaceDocument>(namespaceNode.CSharpNamespaceDocument);
+        var entryPoints = Assert.IsAssignableFrom<IReadOnlyList<DocNamespaceEntryPoint>>(document.EntryPoints);
+
+        Assert.Equal(string.Empty, namespaceNode.Content);
+        Assert.Contains("Sanitized namespace intro.", document.IntroHtml, StringComparison.Ordinal);
+        Assert.Equal(["Add Web services", "Missing Web API"], entryPoints.Select(entry => entry.Label));
+        Assert.Contains(document.Outline, item => item.Id == validTarget);
+        Assert.Single(document.Outline, item => item.Id == "namespace-intro");
+        Assert.Contains("Sanitized namespace intro.", document.ReaderText, StringComparison.Ordinal);
+        Assert.Contains("Add Web services", document.ReaderText, StringComparison.Ordinal);
+        Assert.Contains("Register Web services.", document.ReaderText, StringComparison.Ordinal);
+        Assert.Contains("web registration", document.ReaderText, StringComparison.Ordinal);
+        Assert.DoesNotContain("source text", document.ReaderText, StringComparison.Ordinal);
+        Assert.Contains(
+            health.Diagnostics,
+            diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.NamespaceEntryPointTargetUnresolved
+                          && diagnostic.Severity == DocHarvestDiagnosticSeverity.Warning
+                          && diagnostic.Problem.Contains("Missing Web API", StringComparison.Ordinal));
     }
 
     [Fact]

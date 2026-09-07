@@ -1,9 +1,5 @@
 @using ForgeTrust.AppSurface.Docs.Models
 @model CSharpPropertyDocument
-@inject ForgeTrust.AppSurface.Docs.IAppSurfaceDocsRequestRuntimeAccessor RuntimeAccessor
-@{
-    var runtime = RuntimeAccessor.GetRequiredRuntime();
-}
 
 <section id="@Model.AnchorId" class="doc-method-group" aria-labelledby="@(Model.AnchorId + "-heading")">
     <header class="doc-method-group-header">
@@ -19,7 +15,10 @@
             }
         </div>
         <div class="doc-overload-body">
-            @await Html.PartialAsync("/Views/Docs/CSharp/_Documentation.cshtml", Model.Documentation)
+            @await Html.PartialAsync(
+                "/Views/Docs/CSharp/_Documentation.cshtml",
+                Model.Documentation,
+                new ViewDataDictionary(ViewData) { ["CSharpDocumentationHeadingLevel"] = 4 })
         </div>
     </article>
 </section>

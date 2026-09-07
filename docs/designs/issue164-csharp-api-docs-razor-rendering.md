@@ -1259,26 +1259,20 @@ dotnet test Web/ForgeTrust.RazorWire.IntegrationTests/ForgeTrust.RazorWire.Integ
 ./scripts/coverage-solution.sh
 ```
 
-The four focused commands report one intentional contract family each: semantic harvest;
-aggregate/copy/search/route/sidebar preservation; hosted Details DOM and PathBase behavior;
-and public plus static-export compatibility. The README states that no one command proves
+The four focused commands report one intentional contract family each: semantic harvest and
+checked-in manifest validation; aggregate/copy/search/route/sidebar preservation; hosted Details
+DOM behavior; and source-host/export/exact-version archive compatibility. The README states that no one command proves
 the full migration. Each successful focused run reports the test-runner's normal
 `Passed` summary; the full coverage script is the release gate. A failure-to-owner table
 maps semantic to `CSharpDocHarvester`, snapshot/search/route to `DocAggregator`, DOM to
-`Details.cshtml` and typed partials, and public/export compatibility to the serializer and
+`Details.cshtml` and typed partials, and hosted/export compatibility to the serializer and
 export/consumer fixtures.
 
-The manifest is generated only by the named compatibility test in an isolated worktree:
-
-```bash
-APPSURFACE_DOCS_UPDATE_ISSUE164_MANIFEST=1 dotnet test Web/ForgeTrust.AppSurface.Docs.Tests/ForgeTrust.AppSurface.Docs.Tests.csproj --filter "FullyQualifiedName~Issue164CSharpCompatibilityManifest"
-```
-
-That switch writes canonical, sorted UTF-8 JSON with normalized newlines. It is never used
-as a blind update: the contributor reviews the fixture diff, records the route/fragment or
-HTML-compatibility decision in the PR, unsets the switch, and reruns the read-only
-compatibility test. A changed manifest without that decision is a release-blocking
-regression.
+The checked-in manifest is validated read-only by `Issue164CSharpSemanticContractTests`.
+There is currently no manifest-generation command or update switch in the test suite. Any
+future manifest writer must be introduced with the real compatibility test, require an
+explicit compatibility decision, and be documented only after its project and filter exist.
+A changed manifest without that decision is a release-blocking regression.
 
 The same task extends the existing
 `Web/ForgeTrust.AppSurface.Docs.ConsumerFixture/` project, which already participates in
@@ -1394,7 +1388,9 @@ public-contract seam.
 **Revalidation date:** 2026-09-06
 **Issue:** #164 — C# API Docs Semantic Tree and Razor Partial Rendering
 **Base:** `HEAD` at `5d8c8134` (detached worktree)
-**Verdict:** Approved for implementation; implementation has not started.
+**Verdict:** Approved for implementation; implementation completed on `codex/issue-164-csharp-razor-docs` and awaiting final validation.
+
+**Execution-status note (2026-09-06):** The unchecked task lists above are the preserved pre-implementation planning ledger, not a claim that work has not begun. The branch implements the internal semantic model, exact built-in-harvester typed boundary, typed aggregation/search/source composition, Razor partial dispatch, semantic/aggregation/DOM regressions, a real hosted/export/exact-version archive regression, maintainer reference, and unreleased migration note. The checked-in manifest is validated read-only. The remaining delivery gates are final QA/coverage evidence and the draft pull request; their results will be appended to this report rather than rewriting the original review record.
 
 The CEO, design, developer-experience, and engineering passes agree on an internal-only semantic
 tree and an explicit compatibility boundary: direct public or derived/custom harvesters keep

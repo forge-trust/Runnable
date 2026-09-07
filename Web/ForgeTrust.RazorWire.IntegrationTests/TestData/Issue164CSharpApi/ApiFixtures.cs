@@ -13,22 +13,7 @@ public sealed class FixtureService<TItem>
     /// <param name="attempt">The optional attempt number.</param>
     /// <returns>A rendered result.</returns>
     /// <exception cref="T:System.InvalidOperationException">Thrown when processing cannot continue.</exception>
-    /// <remarks>
-    /// <para>Hostile XML-like text: &lt;script&gt;must remain text&lt;/script&gt;.</para>
-    /// <para>
-    /// References <see cref="T:System.String"/>,
-    /// <see href="https://example.com/issue164">external documentation</see>,
-    /// <see langword="null"/>, and <typeparamref name="TItem"/>.
-    /// Unknown markup <unknown>must fall back to text</unknown>.
-    /// </para>
-    /// <list type="number">
-    /// <item><description>First ordered item.</description></item>
-    /// <item><description>Second ordered item.</description></item>
-    /// </list>
-    /// <list type="bullet">
-    /// <item><description>Bullet item.</description></item>
-    /// </list>
-    /// </remarks>
+    /// <remarks><para>Hostile XML-like text: &lt;script&gt;must remain text&lt;/script&gt;.</para></remarks>
     /// <example><code>var value = service.Process(item);</code></example>
     public string Process(TItem item, int attempt = 1) => item?.ToString() ?? string.Empty;
 

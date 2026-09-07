@@ -26,6 +26,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
     private IReadOnlyList<DocHarvestDiagnostic> _lastDiagnostics = [];
 
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex DocumentationCommentPrefixRegex = new(@"^[\t ]*/// ?", RegexOptions.Compiled | RegexOptions.Multiline);
 
     /// <summary>
     /// Initializes a new instance of <see cref="CSharpDocHarvester"/> with the provided logger.
@@ -280,7 +281,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
             var namespacePage = GetOrCreateTypedNamespacePage(pages, GetNamespaceName(typeDeclaration));
             var qualifiedTypeName = GetQualifiedName(typeDeclaration);
             var typeAnchor = StringUtils.ToSafeId(qualifiedTypeName);
-            AddOutlineItem(namespacePage.Outline, GetDisplayTypeName(typeDeclaration), typeAnchor, level: 2);
+            AddTypedOutlineItem(namespacePage, GetDisplayTypeName(typeDeclaration), typeAnchor, level: 2);
             AddSymbolSourceProvenance(namespacePage.SymbolSourceProvenance, typeAnchor, relativePath, typeDeclaration);
 
             var methodGroups = methods
@@ -289,7 +290,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
                     group =>
                     {
                         var groupAnchor = GetMethodGroupId(group.Key, qualifiedTypeName);
-                        AddOutlineItem(namespacePage.Outline, group.Key, groupAnchor, level: 3);
+                        AddTypedOutlineItem(namespacePage, group.Key, groupAnchor, level: 3);
                         var overloads = group.Select(
                                 item =>
                                 {
@@ -309,7 +310,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
                     item =>
                     {
                         var anchor = GetPropertyId(item.Property, qualifiedTypeName);
-                        AddOutlineItem(namespacePage.Outline, item.Property.Identifier.Text, anchor, level: 3);
+                        AddTypedOutlineItem(namespacePage, item.Property.Identifier.Text, anchor, level: 3);
                         AddSymbolSourceProvenance(namespacePage.SymbolSourceProvenance, anchor, relativePath, item.Property);
                         return new CSharpPropertyDocument(
                             anchor,
@@ -345,7 +346,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
 
             var namespacePage = GetOrCreateTypedNamespacePage(pages, GetNamespaceName(enumDeclaration));
             var anchor = StringUtils.ToSafeId(GetQualifiedName(enumDeclaration));
-            AddOutlineItem(namespacePage.Outline, enumDeclaration.Identifier.Text, anchor, level: 2);
+            AddTypedOutlineItem(namespacePage, enumDeclaration.Identifier.Text, anchor, level: 2);
             AddSymbolSourceProvenance(namespacePage.SymbolSourceProvenance, anchor, relativePath, enumDeclaration);
             namespacePage.Enums.Add(
                 new CSharpEnumDocument(
@@ -374,7 +375,11 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
             var targetPage = GetOrCreateTypedNamespacePage(namespacePages, sourcePage.FullNamespace);
             targetPage.Types.AddRange(sourcePage.Types);
             targetPage.Enums.AddRange(sourcePage.Enums);
-            targetPage.Outline.AddRange(sourcePage.Outline);
+            foreach (var outlineItem in sourcePage.Outline)
+            {
+                AddTypedOutlineItem(targetPage, outlineItem.Title, outlineItem.Id, outlineItem.Level);
+            }
+
             targetPage.SymbolSourceProvenance.AddRange(sourcePage.SymbolSourceProvenance);
         }
 
@@ -470,7 +475,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
 
         try
         {
-            var cleanXml = xml.ToString().Replace("///", string.Empty, StringComparison.Ordinal).Trim();
+            var cleanXml = NormalizeDocumentationCommentXml(xml);
             var root = XDocument.Parse($"<doc>{cleanXml}</doc>", LoadOptions.PreserveWhitespace).Root!;
             var sections = new List<CSharpDocumentationSection>();
             AddTypedDocumentationSection(sections, CSharpDocumentationSectionKind.Summary, root.Element("summary"));
@@ -546,7 +551,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
             {
                 case XText text:
                     {
-                        var value = NormalizeWhitespace(text.Value).Trim();
+                        var value = NormalizeWhitespace(text.Value);
                         if (!string.IsNullOrWhiteSpace(value))
                         {
                             result.Add(new CSharpXmlNode(CSharpXmlNodeKind.Text, value));
@@ -679,16 +684,16 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
             AccessorSignature: GetPropertyAccessorSignature(property));
     }
 
-    private static void AddOutlineItem(ICollection<DocOutlineItem> outline, string title, string id, int level)
+    private static void AddTypedOutlineItem(TypedNamespacePage namespacePage, string title, string id, int level)
     {
         if (string.IsNullOrWhiteSpace(title)
             || string.IsNullOrWhiteSpace(id)
-            || outline.Any(item => string.Equals(item.Id, id, StringComparison.Ordinal)))
+            || !namespacePage.OutlineIds.Add(id.Trim()))
         {
             return;
         }
 
-        outline.Add(new DocOutlineItem { Title = title.Trim(), Id = id.Trim(), Level = level });
+        namespacePage.Outline.Add(new DocOutlineItem { Title = title.Trim(), Id = id.Trim(), Level = level });
     }
 
     private static void AddSymbolSourceProvenance(
@@ -785,6 +790,8 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
 
         internal List<DocOutlineItem> Outline { get; } = [];
 
+        internal HashSet<string> OutlineIds { get; } = new(StringComparer.Ordinal);
+
         internal List<DocSymbolSourceProvenance> SymbolSourceProvenance { get; } = [];
 
         internal HashSet<string> ChildNamespaces { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -793,10 +800,16 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
         {
             var children = ChildNamespaces
                 .OrderBy(namespaceName => namespaceName, StringComparer.OrdinalIgnoreCase)
-                .Select(namespaceName => new CSharpChildNamespace(BuildNamespaceDocPath(namespaceName), GetNamespaceTitle(namespaceName)))
+                .Select(
+                    namespaceName => new CSharpChildNamespace(
+                        DocRoutePath.BuildCanonicalPath(BuildNamespaceDocPath(namespaceName)),
+                        GetNamespaceTitle(namespaceName)))
                 .ToArray();
-            var types = Types.ToArray();
-            var enums = Enums.ToArray();
+            var types = MergeTypedTypes(Types);
+            var enums = Enums
+                .GroupBy(@enum => @enum.AnchorId, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .ToArray();
             return new CSharpNamespaceDocument(
                 FullNamespace,
                 Title,
@@ -807,6 +820,54 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
                 SymbolSourceProvenance.ToArray(),
                 BuildNamespaceReaderText(FullNamespace, Title, children, types, enums));
         }
+    }
+
+    private static IReadOnlyList<CSharpTypeDocument> MergeTypedTypes(IEnumerable<CSharpTypeDocument> types)
+    {
+        return types
+            .GroupBy(type => type.AnchorId, StringComparer.Ordinal)
+            .Select(
+                group =>
+                {
+                    var first = group.First();
+                    if (group.Count() == 1)
+                    {
+                        return first;
+                    }
+
+                    return first with
+                    {
+                        Documentation = MergeTypedDocumentation(group.Select(type => type.Documentation)),
+                        MethodGroups = group
+                            .SelectMany(type => type.MethodGroups)
+                            .GroupBy(methodGroup => methodGroup.AnchorId, StringComparer.Ordinal)
+                            .Select(
+                                methodGroup => methodGroup.First() with
+                                {
+                                    Overloads = methodGroup
+                                        .SelectMany(item => item.Overloads)
+                                        .GroupBy(overload => overload.AnchorId, StringComparer.Ordinal)
+                                        .Select(overload => overload.First())
+                                        .ToArray()
+                                })
+                            .ToArray(),
+                        Properties = group
+                            .SelectMany(type => type.Properties)
+                            .GroupBy(property => property.AnchorId, StringComparer.Ordinal)
+                            .Select(property => property.First())
+                            .ToArray()
+                    };
+                })
+            .ToArray();
+    }
+
+    private static CSharpDocumentation? MergeTypedDocumentation(IEnumerable<CSharpDocumentation?> documentation)
+    {
+        var sections = documentation
+            .Where(item => item is not null)
+            .SelectMany(item => item!.Sections)
+            .ToArray();
+        return sections.Length == 0 ? null : new CSharpDocumentation(sections);
     }
 
     private static string BuildNamespaceReaderText(
@@ -1480,7 +1541,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
 
         try
         {
-            var cleanXml = xml.ToString().Replace("///", "").Trim();
+            var cleanXml = NormalizeDocumentationCommentXml(xml);
             var wrappedXml = $"<doc>{cleanXml}</doc>";
             var xdoc = XDocument.Parse(wrappedXml, LoadOptions.PreserveWhitespace);
             var root = xdoc.Root!;
@@ -1755,6 +1816,11 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
     private static string NormalizeWhitespace(string value)
     {
         return WhitespaceRegex.Replace(value, " ");
+    }
+
+    private static string NormalizeDocumentationCommentXml(DocumentationCommentTriviaSyntax xml)
+    {
+        return DocumentationCommentPrefixRegex.Replace(xml.ToString(), string.Empty).Trim();
     }
 
     /// <summary>

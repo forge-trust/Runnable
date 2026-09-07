@@ -2213,7 +2213,11 @@ public class DocsController : Controller
             CanonicalUrl = currentHref,
             Summary = summary,
             ShowSummary = showSummary,
-            IsCSharpApiDoc = csharpRenderKind == CSharpRenderKind.TypedNamespace,
+            // Preserve the existing presentation classification for public/derived harvesters that retain the
+            // legacy HTML contract. CSharpRenderKind alone selects the internal partial suite, because namespace
+            // routes are extensionless and an HTML-only C# document must never be promoted to typed rendering.
+            IsCSharpApiDoc = csharpRenderKind == CSharpRenderKind.TypedNamespace
+                            || doc.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase),
             CSharpRenderKind = csharpRenderKind,
             IsApiSurfaceDoc = IsApiSurfaceDoc(doc),
             PageTypeBadge = pageTypeBadge,

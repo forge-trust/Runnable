@@ -1,9 +1,5 @@
 @using ForgeTrust.AppSurface.Docs.Models
 @model CSharpTypeDocument
-@inject ForgeTrust.AppSurface.Docs.IAppSurfaceDocsRequestRuntimeAccessor RuntimeAccessor
-@{
-    var runtime = RuntimeAccessor.GetRequiredRuntime();
-}
 
 <section id="@Model.AnchorId" class="doc-type">
     <header class="doc-type-header">

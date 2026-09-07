@@ -84,12 +84,37 @@ public sealed class Issue164CSharpDetailsRenderingTests : IDisposable
             "Processes a item and returns a safe System.String value.",
             NormalizeReaderText(overloads[0].QuerySelector(".doc-summary")?.TextContent));
 
+        var parameters = Assert.Single(overloads[0].QuerySelectorAll(".doc-params"));
+        Assert.Equal(["item", "attempt"], parameters.QuerySelectorAll("li code").Select(code => code.TextContent.Trim()));
+        Assert.Contains(
+            overloads[0].QuerySelectorAll(".doc-summary code"),
+            code => code.TextContent.Trim() == "item");
+        Assert.NotNull(overloads[0].QuerySelector(".doc-returns"));
+        Assert.Contains("A rendered result.", overloads[0].QuerySelector(".doc-returns")?.TextContent, StringComparison.Ordinal);
+        var exception = Assert.Single(overloads[0].QuerySelectorAll(".doc-exceptions code[data-csharp-cref]"));
+        Assert.Equal("T:System.InvalidOperationException", exception.GetAttribute("data-csharp-cref"));
+        Assert.Equal("System.InvalidOperationException", exception.TextContent.Trim());
+        var exampleCode = Assert.Single(overloads[0].QuerySelectorAll(".doc-example pre code"));
+        Assert.Equal("var value = service.Process(item);", exampleCode.TextContent.Trim());
+
         var enumSection = Assert.Single(document.QuerySelectorAll("section.doc-enum"));
         Assert.Equal("FixtureState", enumSection.QuerySelector("h2")?.TextContent.Trim());
 
         var remarks = Assert.Single(document.QuerySelectorAll(".doc-remarks"));
         Assert.Contains("Hostile XML-like text: <script>must remain text</script>.", remarks.TextContent, StringComparison.Ordinal);
         Assert.Empty(remarks.QuerySelectorAll("script"));
+        Assert.Equal(2, remarks.QuerySelectorAll("p").Length);
+        Assert.Equal(2, remarks.QuerySelectorAll("ol li").Length);
+        Assert.Single(remarks.QuerySelectorAll("ul li"));
+        Assert.Contains(
+            remarks.QuerySelectorAll("code[data-csharp-cref]"),
+            code => code.GetAttribute("data-csharp-cref") == "T:System.String" && code.TextContent.Trim() == "System.String");
+        Assert.Contains(
+            remarks.QuerySelectorAll("code[data-csharp-cref]"),
+            code => code.GetAttribute("data-csharp-cref") == "https://example.com/issue164"
+                    && code.TextContent.Trim() == "external documentation");
+        Assert.Contains("TItem", remarks.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Unknown markup must fall back to text.", remarks.TextContent, StringComparison.Ordinal);
     }
 
     public void Dispose()

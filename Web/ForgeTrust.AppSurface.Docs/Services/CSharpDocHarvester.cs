@@ -591,10 +591,15 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
         if (name == "see")
         {
             var target = element.Attribute("cref")?.Value?.Trim() ?? element.Attribute("href")?.Value?.Trim();
+            var childText = BuildXmlReaderText(ToTypedXmlNodes(element.Nodes()));
             var display = element.Attribute("langword")?.Value?.Trim()
-                ?? SimplifyCref(element.Attribute("cref")?.Value)
-                ?? element.Attribute("href")?.Value?.Trim()
-                ?? BuildXmlReaderText(ToTypedXmlNodes(element.Nodes()));
+                ?? SimplifyCref(element.Attribute("cref")?.Value);
+            if (string.IsNullOrWhiteSpace(display))
+            {
+                // An href can supply a useful fallback, but authored element text is the reader-facing label.
+                display = string.IsNullOrWhiteSpace(childText) ? element.Attribute("href")?.Value?.Trim() : childText;
+            }
+
             if (!string.IsNullOrWhiteSpace(display))
             {
                 result.Add(new CSharpXmlNode(CSharpXmlNodeKind.Cref, display, target));
@@ -935,13 +940,22 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
             sections.Add(string.Join(' ', enumParts.Where(part => !string.IsNullOrWhiteSpace(part))));
         }
 
-        return string.Join("\n", sections.Where(part => !string.IsNullOrWhiteSpace(part)))
-            .Split('\n')
-            .Select(NormalizeWhitespace)
-            .Where(part => !string.IsNullOrWhiteSpace(part))
-            .Aggregate(new StringBuilder(), (builder, part) => builder.AppendLine(part))
-            .ToString()
-            .Trim();
+        // Normalize each semantic section as it is appended. Joining the whole namespace and splitting it again made
+        // a second, full-page string and array for every generated API page.
+        var readerText = new StringBuilder();
+        foreach (var section in sections)
+        {
+            foreach (var line in section.Split('\n'))
+            {
+                var normalizedLine = NormalizeWhitespace(line);
+                if (!string.IsNullOrWhiteSpace(normalizedLine))
+                {
+                    readerText.AppendLine(normalizedLine);
+                }
+            }
+        }
+
+        return readerText.ToString().Trim();
     }
 
     private static void AddSignatureReaderText(ICollection<string> parts, CSharpSignature signature)

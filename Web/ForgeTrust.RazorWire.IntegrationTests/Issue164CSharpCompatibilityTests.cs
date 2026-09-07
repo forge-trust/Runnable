@@ -49,6 +49,8 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
         var liveDocument = new HtmlParser().ParseDocument(liveHtml);
         AssertTypedNamespaceContract(liveDocument);
         AssertCanonicalNavigationContract(liveDocument);
+        var liveSearchDocument = await WaitForSearchDocumentAsync(sourceClient, "/docs/search-index.json");
+        AssertTypedSearchIndexContract(liveSearchDocument, "/docs/Namespaces/Issue164.Api.html");
 
         // RazorWire crawls an application host from its origin. AppSurface Docs is emitted beneath its stable `/docs`
         // subtree, which is then promoted as one exact release tree before the manifest is pinned by the catalog.
@@ -73,7 +75,9 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
             mode: ExportMode.Cdn,
             redirectStrategy: ExportRedirectStrategy.Html);
 
-        using var exportCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // Exporting the fixture fans out across the docs corpus. Coverage instrumentation can make that work
+        // substantially slower than the normal integration path, so retain a bounded but CI-tolerant limit.
+        using var exportCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         try
         {
             await new ExportEngine(
@@ -83,7 +87,7 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
         }
         catch (OperationCanceledException) when (exportCancellation.IsCancellationRequested)
         {
-            throw new TimeoutException("The Issue 164 compatibility export did not finish within 30 seconds.");
+            throw new TimeoutException("The Issue 164 compatibility export did not finish within 90 seconds.");
         }
 
         PromoteDocsSubtreeToExactTree(exportTree, exactTree);
@@ -105,6 +109,10 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
         AssertTypedNamespaceContract(publishedDocument);
         AssertEquivalentRenderedContract(liveDocument, publishedDocument);
         AssertVersionedNavigationContract(publishedDocument);
+        var publishedSearchDocument = await WaitForSearchDocumentAsync(
+            publishedClient,
+            "/docs/v/1.2.3/search-index.json");
+        AssertTypedSearchIndexContract(publishedSearchDocument, "/docs/v/1.2.3/Namespaces/Issue164.Api.html");
     }
 
     public void Dispose()
@@ -237,6 +245,52 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
         }
     }
 
+    private static async Task<JsonElement> WaitForSearchDocumentAsync(HttpClient client, string path)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try
+        {
+            while (true)
+            {
+                try
+                {
+                    using var response = await client.GetAsync(path, timeout.Token);
+                    var json = await response.Content.ReadAsStringAsync(timeout.Token);
+                    if (response.StatusCode == HttpStatusCode.OK)
+                    {
+                        using var payload = JsonDocument.Parse(json);
+                        if (payload.RootElement.TryGetProperty("documents", out var documents)
+                            && documents.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var document in documents.EnumerateArray())
+                            {
+                                if (document.TryGetProperty("id", out var id)
+                                    && string.Equals(
+                                        id.GetString(),
+                                        "Namespaces/Issue164.Api.html",
+                                        StringComparison.Ordinal))
+                                {
+                                    return document.Clone();
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (HttpRequestException) when (!timeout.IsCancellationRequested)
+                {
+                    // Kestrel has not accepted the in-process request yet.
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(150), timeout.Token);
+            }
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"The Issue 164 search record did not become available at '{path}' within 30 seconds.");
+        }
+    }
+
     private static void AssertTypedNamespaceContract(IDocument document)
     {
         Assert.Single(document.QuerySelectorAll("h1.docs-detail-title"));
@@ -258,6 +312,26 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
             "Common entry points",
             "FixtureService",
             "FixtureState");
+    }
+
+    private static void AssertTypedSearchIndexContract(JsonElement document, string expectedPath)
+    {
+        Assert.Equal("Namespaces/Issue164.Api.html", document.GetProperty("id").GetString());
+        Assert.Equal(expectedPath, document.GetProperty("path").GetString());
+        Assert.Equal("Issue164.Api", document.GetProperty("title").GetString());
+        Assert.Equal("Namespaces/Issue164.Api", document.GetProperty("sourcePath").GetString());
+        Assert.Equal("csharp", document.GetProperty("language").GetString());
+        Assert.Equal("C#", document.GetProperty("languageLabel").GetString());
+
+        var headings = document.GetProperty("headings").EnumerateArray().Select(heading => heading.GetString()).ToArray();
+        Assert.Contains(headings, heading => heading?.Contains("FixtureService", StringComparison.Ordinal) == true);
+
+        var bodyText = document.GetProperty("bodyText").GetString();
+        Assert.Contains("Issue 164 integration intro", bodyText, StringComparison.Ordinal);
+        Assert.Contains("FixtureService", bodyText, StringComparison.Ordinal);
+        Assert.Contains("Process fixture", bodyText, StringComparison.Ordinal);
+        Assert.Contains("<script>must remain text</script>", bodyText, StringComparison.Ordinal);
+        Assert.DoesNotContain("https://source.example.test", bodyText, StringComparison.Ordinal);
     }
 
     private static void AssertEquivalentRenderedContract(IDocument live, IDocument published)

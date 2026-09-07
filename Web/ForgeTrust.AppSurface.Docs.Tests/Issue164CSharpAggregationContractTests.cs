@@ -55,6 +55,11 @@ public sealed class Issue164CSharpAggregationContractTests : IDisposable
                     {
                         Label = "Child namespace",
                         Href = "/docs/namespaces/Issue164.Api.Child"
+                    },
+                    new DocNamespaceEntryPoint
+                    {
+                        Label = "Outside docs",
+                        Href = "/account/settings"
                     }
                 ]
             },
@@ -92,7 +97,7 @@ public sealed class Issue164CSharpAggregationContractTests : IDisposable
         Assert.Contains("doc-namespace-intro", typedDocument.IntroHtml, StringComparison.Ordinal);
         Assert.Contains("Fixture introduction explains typed setup.", typedDocument.IntroHtml, StringComparison.Ordinal);
         Assert.Equal(
-            ["Process fixture", "Missing fixture", "Fixture intro", "Child namespace"],
+            ["Process fixture", "Missing fixture", "Fixture intro", "Child namespace", "Outside docs"],
             entryPoints.Select(entry => entry.Label));
         Assert.Equal(
             "Namespaces/Issue164.Api.Child.html",
@@ -100,6 +105,7 @@ public sealed class Issue164CSharpAggregationContractTests : IDisposable
         Assert.Equal(
             "/docs/Namespaces/Issue164.Api.Child.html",
             Assert.Single(entryPoints, entry => entry.Label == "Child namespace").Href);
+        Assert.Null(Assert.Single(entryPoints, entry => entry.Label == "Outside docs").Href);
         Assert.Contains(typedDocument.Outline, item => item.Id == "fixture-intro");
         Assert.Contains(typedDocument.Outline, item => item.Id == entryPointTarget);
         Assert.Contains("Fixture introduction explains typed setup.", typedDocument.ReaderText, StringComparison.Ordinal);

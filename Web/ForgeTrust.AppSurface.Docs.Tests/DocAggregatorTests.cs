@@ -3480,9 +3480,10 @@ public class DocAggregatorTests : IDisposable
             var indexedDocument = Assert.Single(search.Documents, item => item.Id == "Namespaces/Product.Api.html");
 
             Assert.Equal(string.Empty, namespaceNode.Content);
-            Assert.All(
-                new[] { type.SourceHref, overload.SourceHref, property.SourceHref, @enum.SourceHref },
-                href => Assert.StartsWith("https://example.test/blob/deadbeef/Api.cs#L", href, StringComparison.Ordinal));
+            Assert.Equal("https://example.test/blob/deadbeef/Api.cs#L4", type.SourceHref);
+            Assert.Equal("https://example.test/blob/deadbeef/Api.cs#L7", overload.SourceHref);
+            Assert.Equal("https://example.test/blob/deadbeef/Api.cs#L10", property.SourceHref);
+            Assert.Equal("https://example.test/blob/deadbeef/Api.cs#L14", @enum.SourceHref);
             Assert.Contains("Typed service summary.", indexedDocument.BodyText, StringComparison.Ordinal);
             Assert.Contains("Gets the typed value.", indexedDocument.BodyText, StringComparison.Ordinal);
             Assert.Contains("The typed display name.", indexedDocument.BodyText, StringComparison.Ordinal);

@@ -1951,8 +1951,10 @@ public class DocAggregator
     /// <remarks>
     /// Namespace README metadata is authored before route identity is available and can therefore use a source-shaped
     /// generated C# path. The typed renderer must receive a canonical browser URL directly: unlike legacy HTML, its
-    /// Razor output is never passed through <see cref="DocContentLinkRewriter"/>. Fragment entry points and non-Docs
-    /// app-relative destinations intentionally remain unchanged.
+    /// Razor output is never passed through <see cref="DocContentLinkRewriter"/>. Fragment entry points stay local to
+    /// the page; app-relative destinations must resolve to a known route beneath the active Docs root before Razor sees
+    /// them. This prevents trusted metadata from turning the internal typed rendering path into a same-origin navigation
+    /// escape hatch.
     /// </remarks>
     private Dictionary<string, DocNode> ResolveTypedNamespaceEntryPointHrefs(
         IReadOnlyDictionary<string, DocNode> docsByPath,
@@ -2006,10 +2008,14 @@ public class DocAggregator
         var routePath = fragmentIndex < 0 ? normalizedHref : normalizedHref[..fragmentIndex];
         var fragment = fragmentIndex < 0 ? string.Empty : normalizedHref[fragmentIndex..];
         var docsRootPath = _docsUrlBuilder.CurrentDocsRootPath;
-        if (!DocsUrlBuilder.IsUnderRoot(routePath, docsRootPath)
-            || string.Equals(routePath, docsRootPath, StringComparison.OrdinalIgnoreCase))
+        if (!DocsUrlBuilder.IsUnderRoot(routePath, docsRootPath))
         {
-            return normalizedHref;
+            return null;
+        }
+
+        if (string.Equals(routePath, docsRootPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return _docsUrlBuilder.BuildHomeUrl() + fragment;
         }
 
         var docsRelativePath = string.Equals(docsRootPath, "/", StringComparison.Ordinal)
@@ -2017,7 +2023,7 @@ public class DocAggregator
             : routePath[(docsRootPath.Length + 1)..];
         return routeIdentityCatalog.TryGetPublicRoutePath(docsRelativePath, out var publicRoutePath)
             ? _docsUrlBuilder.BuildDocUrl(publicRoutePath) + fragment
-            : normalizedHref;
+            : null;
     }
 
     private async Task<DocContributorProvenanceViewModel?> ResolveContributorProvenanceAsync(

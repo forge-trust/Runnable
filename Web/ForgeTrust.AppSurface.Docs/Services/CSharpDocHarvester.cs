@@ -739,10 +739,9 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
 
     private static DocHarvestDiagnostic CreateCSharpParseDiagnostic(string relativePath, Diagnostic? diagnostic)
     {
-        var location = diagnostic?.Location.IsInSource == true
-            ? diagnostic.Location.GetLineSpan().StartLinePosition
-            : default;
-        var locationText = diagnostic?.Location.IsInSource == true
+        var sourceLocation = diagnostic is { Location.IsInSource: true } ? diagnostic.Location : null;
+        var location = sourceLocation?.GetLineSpan().StartLinePosition ?? default;
+        var locationText = sourceLocation is not null
             ? $" at line {location.Line + 1}, column {location.Character + 1}"
             : string.Empty;
         return new DocHarvestDiagnostic(
@@ -961,6 +960,18 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
     private static void AddSignatureReaderText(ICollection<string> parts, CSharpSignature signature)
     {
         parts.Add(signature.Type);
+
+        // Keep the search projection aligned with the mutually exclusive signature shapes rendered by _Signature.cshtml.
+        // Properties expose accessors rather than a callable member shape, while explicit-interface methods display the
+        // qualification immediately before the member name.
+        if (!string.IsNullOrWhiteSpace(signature.AccessorSignature))
+        {
+            parts.Add(signature.Name);
+            parts.Add(signature.AccessorSignature);
+            return;
+        }
+
+        parts.Add(signature.ExplicitInterface ?? string.Empty);
         parts.Add(signature.Name);
         foreach (var typeParameter in signature.TypeParameters)
         {

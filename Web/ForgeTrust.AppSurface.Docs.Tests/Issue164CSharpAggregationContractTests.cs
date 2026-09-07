@@ -124,6 +124,50 @@ public sealed class Issue164CSharpAggregationContractTests : IDisposable
                           && diagnostic.Problem.Contains("Fixture intro", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task BuiltInTypedSnapshot_ShouldIndexEveryRenderedSignatureComponent()
+    {
+        await File.WriteAllTextAsync(
+            Path.Join(_root, "SearchableSignatures.cs"),
+            """
+            namespace Issue164.Search;
+
+            public interface IRunner
+            {
+                void Run();
+            }
+
+            public sealed class SearchableService : IRunner
+            {
+                /// <summary>Runs through the explicit interface contract.</summary>
+                void IRunner.Run() { }
+
+                /// <summary>Gets the configured item count.</summary>
+                public int Count { get; init; }
+            }
+            """);
+
+        var options = new AppSurfaceDocsOptions
+        {
+            Source = new AppSurfaceDocsSourceOptions { RepositoryRoot = _root }
+        };
+        var environment = new TestWebHostEnvironment(_root);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var aggregator = new DocAggregator(
+            [new CSharpDocHarvester(options, NullLogger<CSharpDocHarvester>.Instance)],
+            options,
+            environment,
+            new Memo(cache),
+            new AppSurfaceDocsHtmlSanitizer(),
+            NullLogger<DocAggregator>.Instance);
+
+        var search = await aggregator.GetSearchIndexPayloadAsync();
+        var searchDocument = Assert.Single(search.Documents, document => document.Id == "Namespaces/Issue164.Search.html");
+
+        Assert.Contains("IRunner.", searchDocument.BodyText, StringComparison.Ordinal);
+        Assert.Contains("{ get; init; }", searchDocument.BodyText, StringComparison.Ordinal);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

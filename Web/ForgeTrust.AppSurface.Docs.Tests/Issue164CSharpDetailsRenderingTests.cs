@@ -214,7 +214,7 @@ public sealed class Issue164CSharpDetailsRenderingTests : IDisposable
             Document = doc,
             Title = string.IsNullOrWhiteSpace(metadata?.Title) ? doc.Title : metadata!.Title!.Trim(),
             Summary = metadata?.Summary,
-            ShowSummary = !string.IsNullOrWhiteSpace(metadata?.Summary) && metadata?.SummaryIsDerived != true,
+            ShowSummary = !string.IsNullOrWhiteSpace(metadata?.Summary) && metadata.SummaryIsDerived != true,
             IsCSharpApiDoc = doc.CSharpNamespaceDocument is not null,
             CSharpRenderKind = doc.CSharpNamespaceDocument is null
                 ? CSharpRenderKind.Legacy

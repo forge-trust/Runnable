@@ -452,6 +452,47 @@ public class CSharpDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_WithBuiltInContextShouldHideCallerInfoParametersFromTypedDocumentation()
+    {
+        await File.WriteAllTextAsync(
+            CombineUnder(_testRoot, "CallerInfo.cs"),
+            """
+            using System.Runtime.CompilerServices;
+
+            namespace Product.Api;
+
+            /// <summary>Records a value.</summary>
+            public sealed class CallerInfoService
+            {
+                /// <summary>Records a value with compiler-supplied context.</summary>
+                /// <param name="value">The value to record.</param>
+                /// <param name="source">The caller source path.</param>
+                /// <param name="line">The caller source line.</param>
+                /// <param name="member">The caller member.</param>
+                public void Record(
+                    string value,
+                    [CallerFilePath] string source = "",
+                    [CallerLineNumber] int line = 0,
+                    [CallerMemberName] string member = "") { }
+            }
+            """);
+
+        var results = await _harvester.HarvestAsync(CreateContextWithDefaultPolicy());
+
+        var typedNamespace = Assert.Single(results, node => node.Path == "Namespaces/Product.Api");
+        var typedDocument = Assert.IsType<CSharpNamespaceDocument>(typedNamespace.CSharpNamespaceDocument);
+        var type = Assert.Single(typedDocument.Types);
+        var overload = Assert.Single(Assert.Single(type.MethodGroups).Overloads);
+
+        Assert.Equal(["value"], overload.Signature.Parameters.Select(parameter => parameter.Name));
+        Assert.Equal(
+            ["value"],
+            overload.Documentation.Sections
+                .Where(section => section.Kind == CSharpDocumentationSectionKind.Parameter)
+                .Select(section => section.Name));
+    }
+
+    [Fact]
     public async Task HarvestAsync_WithBuiltInContextShouldDeduplicateOutlineAnchorsAcrossSourceFiles()
     {
         await File.WriteAllTextAsync(
@@ -513,6 +554,44 @@ public class CSharpDocHarvesterTests : IDisposable
         Assert.Equal(DocHarvestDiagnosticCodes.CSharpParseFailed, diagnostic.Code);
         Assert.Equal(DocHarvestDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Broken.cs", diagnostic.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_WithBuiltInContextShouldOmitUnreadableFileAtomically_AndContinueWithSibling()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return;
+        }
+
+        var unreadablePath = CombineUnder(_testRoot, "Unreadable.cs");
+        await File.WriteAllTextAsync(
+            CombineUnder(_testRoot, "Valid.cs"),
+            CreateDocumentedClassSource("ValidService"));
+        await File.WriteAllTextAsync(
+            unreadablePath,
+            CreateDocumentedClassSource("UnreadableService"));
+        File.SetUnixFileMode(unreadablePath, UnixFileMode.None);
+
+        try
+        {
+            var results = await _harvester.HarvestAsync(CreateContextWithDefaultPolicy());
+            var diagnostics = GetDiagnostics(_harvester);
+
+            var typedNamespace = Assert.Single(results, node => node.Path == "Namespaces/Product.Api");
+            var typedDocument = Assert.IsType<CSharpNamespaceDocument>(typedNamespace.CSharpNamespaceDocument);
+            Assert.Single(typedDocument.Types, type => type.DisplayName == "ValidService");
+            Assert.DoesNotContain(typedDocument.Types, type => type.DisplayName == "UnreadableService");
+
+            var diagnostic = Assert.Single(diagnostics);
+            Assert.Equal(DocHarvestDiagnosticCodes.CSharpParseFailed, diagnostic.Code);
+            Assert.Equal(DocHarvestDiagnosticSeverity.Error, diagnostic.Severity);
+            Assert.Contains("Unreadable.cs", diagnostic.Problem, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.SetUnixFileMode(unreadablePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
     }
 
     [Fact]
@@ -1167,13 +1246,14 @@ public class RichDocs
     /// </summary>
     /// <typeparam name=""TResult"">Result type.</typeparam>
     /// <param name=""value""><para>Input value.</para></param>
-    /// <param name=""callerFilePath"">Filtered path.</param>
-    /// <param name=""callerLineNumber"">Filtered line.</param>
+    /// <param name=""source"">Filtered path.</param>
+    /// <param name=""line"">Filtered line.</param>
+    /// <param name=""member"">Filtered member.</param>
     /// <returns><code>return default;</code></returns>
     /// <exception cref=""T:System.InvalidOperationException"">Boom</exception>
     /// <remarks>Use <b>carefully</b>.</remarks>
     /// <example> </example>
-    public TResult Compute<TResult>(int value = 42, [CallerFilePath] string source = """", [CallerLineNumber] int line = 0)
+    public TResult Compute<TResult>(int value = 42, [CallerFilePath] string source = """", [CallerLineNumber] int line = 0, [CallerMemberName] string member = """")
         => default!;
 
     /// <summary>Legacy path.</summary>
@@ -1209,8 +1289,9 @@ public class RichDocs
         Assert.Contains("fallback", namespaceNode.Content);
 
         // Compiler-injected doc params are filtered from the rendered parameter table.
-        Assert.DoesNotContain("<code>callerFilePath</code>", namespaceNode.Content);
-        Assert.DoesNotContain("<code>callerLineNumber</code>", namespaceNode.Content);
+        Assert.DoesNotContain("<code>source</code>", namespaceNode.Content);
+        Assert.DoesNotContain("<code>line</code>", namespaceNode.Content);
+        Assert.DoesNotContain("<code>member</code>", namespaceNode.Content);
 
         // Display signature hides caller metadata parameters while preserving defaults.
         Assert.Contains("TResult", namespaceNode.Content);

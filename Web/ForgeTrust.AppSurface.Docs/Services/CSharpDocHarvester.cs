@@ -477,13 +477,19 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
         {
             var cleanXml = NormalizeDocumentationCommentXml(xml);
             var root = XDocument.Parse($"<doc>{cleanXml}</doc>", LoadOptions.PreserveWhitespace).Root!;
+            var excludedParameterNames = node is MethodDeclarationSyntax method
+                ? GetCompilerGeneratedCallerParameterNames(method)
+                : null;
             var sections = new List<CSharpDocumentationSection>();
             AddTypedDocumentationSection(sections, CSharpDocumentationSectionKind.Summary, root.Element("summary"));
             AddTypedNamedDocumentationSections(sections, CSharpDocumentationSectionKind.TypeParameter, root.Elements("typeparam"), "name");
             AddTypedNamedDocumentationSections(
                 sections,
                 CSharpDocumentationSectionKind.Parameter,
-                root.Elements("param").Where(element => !IsCompilerGeneratedDocParameter(element.Attribute("name")?.Value)),
+                root.Elements("param").Where(
+                    element => !IsExcludedDocumentationParameter(
+                        element.Attribute("name")?.Value,
+                        excludedParameterNames)),
                 "name");
             AddTypedDocumentationSection(sections, CSharpDocumentationSectionKind.Returns, root.Element("returns"));
             AddTypedNamedDocumentationSections(sections, CSharpDocumentationSectionKind.Exception, root.Elements("exception"), attributeName: null, crefAttributeName: "cref");
@@ -672,6 +678,20 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
             parameters,
             method.TypeParameterList?.Parameters.Select(parameter => parameter.Identifier.Text).ToArray() ?? [],
             method.ExplicitInterfaceSpecifier?.ToString().Trim());
+    }
+
+    private static HashSet<string> GetCompilerGeneratedCallerParameterNames(MethodDeclarationSyntax method)
+    {
+        return method.ParameterList.Parameters
+            .Where(IsCompilerGeneratedCallerParameter)
+            .Select(parameter => parameter.Identifier.Text)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static bool IsExcludedDocumentationParameter(string? parameterName, ISet<string>? excludedParameterNames)
+    {
+        return !string.IsNullOrWhiteSpace(parameterName)
+            && excludedParameterNames?.Contains(parameterName.Trim()) == true;
     }
 
     private static CSharpSignature CreatePropertySignature(PropertyDeclarationSyntax property)
@@ -1260,14 +1280,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
         finally
         {
             _lastDiagnostics = diagnostics.ToArray();
-            foreach (var diagnostic in diagnostics)
-            {
-                _logger.Log(
-                    diagnostic.Severity >= DocHarvestDiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning,
-                    "AppSurface Docs C# harvest diagnostic {DiagnosticCode}: {Problem}",
-                    diagnostic.Code,
-                    diagnostic.Problem);
-            }
+            LogDiagnostics(diagnostics);
         }
     }
 
@@ -1509,7 +1522,7 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
     }
 
     /// <summary>
-    /// Determines whether a parameter is a compiler-generated caller information parameter (e.g., [CallerFilePath]).
+    /// Determines whether a parameter is a compiler-generated caller information parameter (for example, [CallerFilePath]).
     /// </summary>
     /// <param name="parameter">The parameter declaration syntax.</param>
     /// <returns><c>true</c> if the parameter should be hidden from documentation; otherwise, <c>false</c>.</returns>
@@ -1522,7 +1535,9 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
                 name.EndsWith("CallerFilePath", StringComparison.Ordinal)
                 || name.EndsWith("CallerFilePathAttribute", StringComparison.Ordinal)
                 || name.EndsWith("CallerLineNumber", StringComparison.Ordinal)
-                || name.EndsWith("CallerLineNumberAttribute", StringComparison.Ordinal));
+                || name.EndsWith("CallerLineNumberAttribute", StringComparison.Ordinal)
+                || name.EndsWith("CallerMemberName", StringComparison.Ordinal)
+                || name.EndsWith("CallerMemberNameAttribute", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -1545,6 +1560,9 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
             var wrappedXml = $"<doc>{cleanXml}</doc>";
             var xdoc = XDocument.Parse(wrappedXml, LoadOptions.PreserveWhitespace);
             var root = xdoc.Root!;
+            var excludedParameterNames = node is MethodDeclarationSyntax method
+                ? GetCompilerGeneratedCallerParameterNames(method)
+                : null;
 
             var html = new StringBuilder();
 
@@ -1559,7 +1577,10 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
                 html,
                 "doc-params",
                 "Parameters",
-                root.Elements("param").Where(e => !IsCompilerGeneratedDocParameter(e.Attribute("name")?.Value)),
+                root.Elements("param").Where(
+                    element => !IsExcludedDocumentationParameter(
+                        element.Attribute("name")?.Value,
+                        excludedParameterNames)),
                 e => e.Attribute("name")?.Value);
             AppendTextSection(html, "doc-returns", root.Element("returns"), "Returns");
             AppendNamedListSection(
@@ -1874,16 +1895,6 @@ public class CSharpDocHarvester : IDocHarvester, IDocHarvesterDiagnosticProvider
         }
 
         return string.IsNullOrWhiteSpace(simplified) ? null : simplified;
-    }
-
-    /// <summary>
-    /// Determines whether a parameter name corresponds to a compiler-generated caller information parameter.
-    /// </summary>
-    /// <param name="parameterName">The name of the parameter to check.</param>
-    /// <returns><c>true</c> if it is a compiler-generated parameter; otherwise, <c>false</c>.</returns>
-    private static bool IsCompilerGeneratedDocParameter(string? parameterName)
-    {
-        return parameterName is "callerFilePath" or "callerLineNumber";
     }
 
     /// <summary>

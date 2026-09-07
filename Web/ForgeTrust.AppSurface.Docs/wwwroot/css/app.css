@@ -1885,10 +1885,11 @@ body {
 }
 
 .docs-content .doc-overload > summary code {
+    min-width: 0;
     color: var(--docs-color-text-default);
     font-weight: 500;
     white-space: normal;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
 .docs-content .doc-signature .sig-return {
@@ -2059,6 +2060,7 @@ body {
     margin-top: 0.9rem;
 }
 
+.docs-content h4,
 .docs-content .doc-documentation-heading {
     margin: 0 0 0.4rem;
     font-size: 0.72rem;

@@ -205,6 +205,7 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
     private static async Task<string> WaitForHtmlAsync(HttpClient client, string path, string expectedText)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        HttpRequestException? lastRequestException = null;
         try
         {
             while (true)
@@ -219,9 +220,10 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
                         return html;
                     }
                 }
-                catch (HttpRequestException) when (!timeout.IsCancellationRequested)
+                catch (HttpRequestException exception) when (!timeout.IsCancellationRequested)
                 {
                     // Kestrel has not accepted the in-process request yet.
+                    lastRequestException = exception;
                 }
 
                 await Task.Delay(TimeSpan.FromMilliseconds(150), timeout.Token);
@@ -230,7 +232,8 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             throw new TimeoutException(
-                $"The Issue 164 compatibility route '{path}' did not render '{expectedText}' within 30 seconds.");
+                $"The Issue 164 compatibility route '{path}' did not render '{expectedText}' within 30 seconds.",
+                lastRequestException);
         }
     }
 
@@ -334,7 +337,7 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
 
     private static string FixturePath(string fileName)
     {
-        return Path.Join(AppContext.BaseDirectory, "TestData", "Issue164CSharpApi", fileName);
+        return TestPathUtils.PathUnder(AppContext.BaseDirectory, "TestData", "Issue164CSharpApi", fileName);
     }
 
     private static void PromoteDocsSubtreeToExactTree(string exportTree, string exactTree)
@@ -347,7 +350,7 @@ public sealed class Issue164CSharpCompatibilityTests : IDisposable
         foreach (var sourcePath in Directory.EnumerateFiles(docsTree, "*", SearchOption.AllDirectories))
         {
             var relativePath = Path.GetRelativePath(docsTree, sourcePath);
-            var targetPath = Path.Join(exportTree, relativePath);
+            var targetPath = TestPathUtils.PathUnder(exportTree, relativePath);
             var targetDirectory = Path.GetDirectoryName(targetPath);
             Assert.False(string.IsNullOrWhiteSpace(targetDirectory));
             Directory.CreateDirectory(targetDirectory!);

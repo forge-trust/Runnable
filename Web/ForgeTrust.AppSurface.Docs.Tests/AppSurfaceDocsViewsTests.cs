@@ -958,6 +958,16 @@ public class AppSurfaceDocsViewsTests
     }
 
     [Fact]
+    public void Stylesheets_ShouldWrapTypedCSharpOverloadSignaturesWithinNarrowCards()
+    {
+        var stylesheet = ReadTailwindEntryStylesheetMarkup();
+
+        Assert.Matches(
+            @"(?s)\.docs-content \.doc-overload > summary code\s*\{(?:(?!\}).)*min-width: 0;(?:(?!\}).)*overflow-wrap: anywhere;",
+            stylesheet);
+    }
+
+    [Fact]
     public void Layout_ShouldKeepSidebarVisibleByDefault_ForNoScriptFallback()
     {
         var layout = ReadLayoutMarkup();

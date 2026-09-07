@@ -377,6 +377,14 @@ dotnet test Web/ForgeTrust.RazorWire.IntegrationTests/ForgeTrust.RazorWire.Integ
 
 The semantic test owns the internal Roslyn-to-model contract and validates the checked-in manifest values. The aggregation test owns snapshot composition, intro and entry-point merging, outline/search text, and unresolved-entry-point diagnostics. The rendering test owns the Details shell, typed partial DOM, overload disclosure, and Razor encoding. The integration test starts a real source-backed standalone host, exports its generated namespace page and release manifest, pins that manifest in a version catalog, and then serves the verified tree at its exact-version route. It compares semantic elements, fragments, reader order, hostile-text encoding, source links, child-namespace links, and entry-point fragments without hand-writing archive HTML or manifest data. The first and third commands use the internal test friend assembly deliberately; external consumers do not receive internals visibility.
 
+### Timing evidence and repeatability
+
+The live `Issue164CSharpCompatibilityTests` export-and-archive command is the timing fixture for this migration because it exercises snapshot preparation, one typed Details response, static export, and a versioned archive mount without a rendered-page cache. It is a verification fixture, not a microbenchmark: use it to detect a bounded end-to-end regression only on a quiescent development host.
+
+On 2026-09-07, one `--no-build --no-restore` timing attempt was stopped after 147 seconds while unrelated solution-level test hosts were running in another worktree. That contention prevented a useful result, so it is deliberately **not** recorded as a page-performance baseline and no benchmark harness or cache was added for Issue #164. The structural tests above establish the remaining performance invariant: Roslyn extraction, source-link normalization, `ReaderText`, anchors, and namespace composition happen during the cached aggregate snapshot; the request-time partial only consumes the immutable typed model.
+
+Before using this fixture as a regression baseline, run it at least three times on the same otherwise-idle host and record the completed durations, commit, command, fixture revision, and whether build/restore were skipped. Treat materially divergent results as host noise rather than a renderer claim; investigate with a profiler before adding a representative benchmark under `benchmarks/AppSurfaceBenchmarks`. Do not add a second rendered-output cache or per-page timing workaround merely to improve this measurement.
+
 ## Details Page Heading Ownership
 
 AppSurface Docs details pages render the page title in the package-owned shell for authored Markdown pages. The title comes from `DocDetailsViewModel.Title`, which resolves metadata `title` first, then a leading Markdown H1, then the harvested file or folder fallback.

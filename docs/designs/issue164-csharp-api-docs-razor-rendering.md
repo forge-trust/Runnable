@@ -410,23 +410,23 @@ No row is silent, untested, and unrescued. There are zero critical rescue gaps.
 
 ### CEO Implementation Tasks
 
-- [ ] **C1 (P1, human: ~2h / CC: ~15min)** — `DocNode` and routing helpers — add the internal typed C# projection and centralized semantic presence predicate; preserve it in every aggregator reconstruction.
+- [x] **C1 (P1, human: ~2h / CC: ~15min)** — `DocNode` and routing helpers — add the internal typed C# projection and centralized semantic presence predicate; preserve it in every aggregator reconstruction.
   - Surfaced by: CEO Sections 1 and 4; direct `Content` checks in route, sidebar, sequence, and snapshot paths.
   - Files: `Models/DocModels.cs`, `Services/DocAggregator.cs`, `Services/DocPathResolver.cs`, `Services/DocRouteIdentityCatalog.cs`, `ViewComponents/SidebarDisplayHelper.cs`.
   - Verify: typed-page-empty-content routing/sidebar/sequence regression tests.
-- [ ] **C2 (P1, human: ~2h / CC: ~15min)** — namespace composition — replace C# README insertion and `NamespaceEntryPointPanelRenderer` HTML regex/splicing with typed composition and a Razor entry-points partial.
+- [x] **C2 (P1, human: ~2h / CC: ~15min)** — namespace composition — replace C# README insertion and `NamespaceEntryPointPanelRenderer` HTML regex/splicing with typed composition and a Razor entry-points partial.
   - Surfaced by: CEO Sections 1, 2, and 3.
   - Files: `Services/DocAggregator.cs`, `Services/NamespaceEntryPointPanelRenderer.cs`, `Views/Docs/`.
   - Verify: ordered intro/entry-point/API render and unresolved-target diagnostic tests.
-- [ ] **C3 (P1, human: ~1h / CC: ~10min)** — Details heading contract — make typed render-kind dispatch explicit while retaining exactly one shell-owned H1.
+- [x] **C3 (P1, human: ~1h / CC: ~10min)** — Details heading contract — make typed render-kind dispatch explicit while retaining exactly one shell-owned H1.
   - Surfaced by: CEO Section 11 and independent CEO review.
   - Files: `Controllers/DocsController.cs`, `Models/DocModels.cs`, `Views/Docs/Details.cshtml`, view tests.
   - Verify: extensionless typed namespace page has one `docs-detail-title` H1.
-- [ ] **C4 (P1, human: ~3h / CC: ~20min)** — C# semantic/search/source vertical slice — derive source links and search text from typed data, not placeholders or tag stripping.
+- [x] **C4 (P1, human: ~3h / CC: ~20min)** — C# semantic/search/source vertical slice — derive source links and search text from typed data, not placeholders or tag stripping.
   - Surfaced by: CEO Sections 2, 3, and 6.
   - Files: `Services/CSharpDocHarvester.cs`, `Services/DocAggregator.cs`, C# and aggregator tests.
   - Verify: manifest fixture, PathBase source links, hostile text, duplicate provenance, and search-exclusion cases.
-- [ ] **C5 (P2, human: ~1h / CC: ~10min)** — Docs reference documentation — explain the private typed contract, legacy `Content` boundary, and contributor migration/testing rules.
+- [x] **C5 (P2, human: ~1h / CC: ~10min)** — Docs reference documentation — explain the private typed contract, legacy `Content` boundary, and contributor migration/testing rules.
   - Surfaced by: CEO Section 10.
   - Files: `Web/ForgeTrust.AppSurface.Docs/README.md`, XML docs in touched internal APIs.
   - Verify: documentation links resolve and no new public renderer is described.
@@ -541,15 +541,15 @@ Before legacy C# HTML deletion, generate a normalized fixture characterization: 
 
 ### Design Implementation Tasks
 
-- [ ] **D1 (P1, human: ~1h / CC: ~10min)** — Details/typed partial contract — render a shell-owned H1 independently of C# classification and preserve the complete DOM/class/heading hierarchy in Razor partials.
+- [x] **D1 (P1, human: ~1h / CC: ~10min)** — Details/typed partial contract — render a shell-owned H1 independently of C# classification and preserve the complete DOM/class/heading hierarchy in Razor partials.
   - Surfaced by: Design Passes 1 and 4; `Details.cshtml` currently hides the H1 when `IsCSharpApiDoc` becomes true.
   - Files: `Views/Docs/Details.cshtml`, new internal C# partials, `AppSurfaceDocsViewsTests.cs`.
   - Verify: parsed DOM characterization and one-H1 extensionless typed namespace test.
-- [ ] **D2 (P1, human: ~1h / CC: ~10min)** — typed reader-state semantics — define container namespace reader content and retain localized malformed XML, entry-point, and source-link outcomes.
+- [x] **D2 (P1, human: ~1h / CC: ~10min)** — typed reader-state semantics — define container namespace reader content and retain localized malformed XML, entry-point, and source-link outcomes.
   - Surfaced by: Design Pass 2.
   - Files: typed model/composition services and their tests.
   - Verify: child-only namespace, README-only namespace, unresolved entry-point, invalid provenance, malformed XML fixtures.
-- [ ] **D3 (P1, human: ~1h / CC: ~10min)** — outline/disclosure parity — retain level 2/3 item projection, target/header IDs/classes, native details/summary, and first-open overload behavior.
+- [x] **D3 (P1, human: ~1h / CC: ~10min)** — outline/disclosure parity — retain level 2/3 item projection, target/header IDs/classes, native details/summary, and first-open overload behavior.
   - Surfaced by: Design Passes 3 and 6.
   - Files: C# typed model, Razor partials, `outline-client.js` integration/view tests.
   - Verify: every manifest outline target resolves; copy controls enhance headers; compact/desktop class semantics stay unchanged.
@@ -705,35 +705,35 @@ The independent `combo/sub` reviewer independently found the physical-layout, co
 
 #### DX Implementation Checklist
 
-- [ ] A contributor can locate extraction, model, aggregation, and Razor ownership from one README section and run the focused `Test` namespace proof in five minutes or less.
-- [ ] `Models/CSharpDocModels.cs` contains the internal semantic tree; `DocModels.cs` gains only the `DocNode` attachment and diagnostic codes.
-- [ ] `Views/Docs/CSharp/` contains only internal focused partials, while `Details.cshtml` remains the shell/dispatch owner.
-- [ ] Public `CSharpDocHarvester.HarvestAsync` continues to produce legacy `DocNode.Content`; the internal aggregation path alone selects typed rendering.
-- [ ] All `DocAggregator` record transformations preserve `CSharpNamespaceDocument`, `GeneratedApiSymbol`, and JavaScript lifecycle provenance.
-- [ ] `CSharpParseFailed` and `CSharpXmlCommentMalformed` publish redacted problem/cause/fix diagnostics to harvest health and leave unaffected documents available.
-- [ ] Tests distinguish semantic-tree assertions, aggregation/route/search assertions, and AngleSharp DOM/render assertions.
-- [ ] README documents XML authoring, custom-harvester legacy behavior, no host migration, the focused command, and the full coverage gate.
-- [ ] The release entry says consumer setup is unchanged and links to the package README migration/troubleshooting section.
+- [x] A contributor can locate extraction, model, aggregation, and Razor ownership from one README section and run the focused `Test` namespace proof in five minutes or less.
+- [x] `Models/CSharpDocModels.cs` contains the internal semantic tree; `DocModels.cs` gains only the `DocNode` attachment and diagnostic codes.
+- [x] `Views/Docs/CSharp/` contains only internal focused partials, while `Details.cshtml` remains the shell/dispatch owner.
+- [x] Public `CSharpDocHarvester.HarvestAsync` continues to produce legacy `DocNode.Content`; the internal aggregation path alone selects typed rendering.
+- [x] All `DocAggregator` record transformations preserve `CSharpNamespaceDocument`, `GeneratedApiSymbol`, and JavaScript lifecycle provenance.
+- [x] `CSharpParseFailed` and `CSharpXmlCommentMalformed` publish redacted problem/cause/fix diagnostics to harvest health and leave unaffected documents available.
+- [x] Tests distinguish semantic-tree assertions, aggregation/route/search assertions, and AngleSharp DOM/render assertions.
+- [x] README documents XML authoring, custom-harvester legacy behavior, no host migration, the focused command, and the full coverage gate.
+- [x] The release entry says consumer setup is unchanged and links to the package README migration/troubleshooting section.
 
 ### DX Implementation Tasks
 
-- [ ] **DX1 (P1, human: ~2h / CC: ~15min)** — internal C# ownership layout and compatibility adapter — keep public direct harvester HTML behavior while routing the exact internal aggregation call through the typed model; put the tree and partial suite in discoverable internal locations.
+- [x] **DX1 (P1, human: ~2h / CC: ~15min)** — internal C# ownership layout and compatibility adapter — keep public direct harvester HTML behavior while routing the exact internal aggregation call through the typed model; put the tree and partial suite in discoverable internal locations.
   - Surfaced by: DX Passes 1, 2, and 5; independent DX reviewer Issue 1.
   - Files: `Services/CSharpDocHarvester.cs`, `Models/DocModels.cs`, new `Models/CSharpDocModels.cs`, new `Views/Docs/CSharp/` partials.
   - Verify: public-overload compatibility test and internal-context typed-selection test; no public C# renderer API is added.
-- [ ] **DX2 (P1, human: ~1h / CC: ~10min)** — preserve internal `DocNode` projections across aggregation — replace manual record reconstruction with explicit `with` transformations and prove all non-positional properties survive sanitization, link rewriting, and README composition.
+- [x] **DX2 (P1, human: ~1h / CC: ~10min)** — preserve internal `DocNode` projections across aggregation — replace manual record reconstruction with explicit `with` transformations and prove all non-positional properties survive sanitization, link rewriting, and README composition.
   - Surfaced by: DX Pass 2; independent DX reviewer Issue 2.
   - Files: `Services/DocAggregator.cs`, `Models/DocModels.cs`, `DocModelsTests.cs`, `DocAggregatorTests.cs`.
   - Verify: typed namespace remains routeable/searchable/renderable after all three transformations and legacy JavaScript metadata remains intact.
-- [ ] **DX3 (P1, human: ~2h / CC: ~15min)** — C# diagnostic parity — add redacted structured diagnostics for fatal C# harvest/parser failures and malformed XML comments, then expose/test them through the existing health snapshot.
+- [x] **DX3 (P1, human: ~2h / CC: ~15min)** — C# diagnostic parity — add redacted structured diagnostics for fatal C# harvest/parser failures and malformed XML comments, then expose/test them through the existing health snapshot.
   - Surfaced by: DX Pass 3; independent DX reviewer Issue 3.
   - Files: `Models/DocModels.cs`, `Services/CSharpDocHarvester.cs`, `Services/DocAggregator.cs`, C# and aggregator health tests.
   - Verify: `appsurfacedocs.csharp.parse_failed` and `appsurfacedocs.csharp.xml_comment_malformed` include a safe problem/cause/fix and affected siblings still publish.
-- [ ] **DX4 (P2, human: ~1h / CC: ~10min)** — maintainer and XML-authoring runbook — add the C# architecture map, legacy/typed boundary, supported XML behavior, health recovery, and semantic-versus-DOM test recipes to the package README.
+- [x] **DX4 (P2, human: ~1h / CC: ~10min)** — maintainer and XML-authoring runbook — add the C# architecture map, legacy/typed boundary, supported XML behavior, health recovery, and semantic-versus-DOM test recipes to the package README.
   - Surfaced by: DX Passes 1, 4, 6, and 8; independent DX reviewer Issue 5.
   - Files: `Web/ForgeTrust.AppSurface.Docs/README.md`, focused Docs tests if snippets are contract-tested.
   - Verify: README links resolve, the copyable focused test command is correct, and no documentation advertises an unsupported public typed renderer.
-- [ ] **DX5 (P2, human: ~30min / CC: ~5min)** — release and upgrade statement — add an append-only release entry stating that host setup and custom-harvester migration are not required, while directing maintainers to the new rendering/troubleshooting reference.
+- [x] **DX5 (P2, human: ~30min / CC: ~5min)** — release and upgrade statement — add an append-only release entry stating that host setup and custom-harvester migration are not required, while directing maintainers to the new rendering/troubleshooting reference.
   - Surfaced by: DX Pass 5.
   - Files: `releases/unreleased.entries/`, package README.
   - Verify: release-entry contract tests pass and the wording does not claim a public API addition.
@@ -942,16 +942,16 @@ conventions. A meaningful regression needs an observed baseline and repeated res
 
 ### Engineering Tasks
 
-- [ ] **E1 (P1, human: ~2h / CC: ~15min)** — make the typed harvest boundary and failure outcome explicit — create immutable internal C# semantic records; attach them only from the exact built-in internal harvest context; retain public/derived legacy HTML; inspect Roslyn diagnostics and distinguish absent from malformed XML documentation.
+- [x] **E1 (P1, human: ~2h / CC: ~15min)** — make the typed harvest boundary and failure outcome explicit — create immutable internal C# semantic records; attach them only from the exact built-in internal harvest context; retain public/derived legacy HTML; inspect Roslyn diagnostics and distinguish absent from malformed XML documentation.
   - Files: Services/CSharpDocHarvester.cs, new Models/CSharpDocModels.cs, Models/DocModels.cs, CSharpDocHarvesterTests.cs, health-focused aggregator tests.
   - Verify: public/derived calls stay legacy; internal built-in call preserves all semantic fields; malformed XML retains its symbol shell; syntax/XML diagnostics are redacted and siblings publish.
-- [ ] **E2 (P1, human: ~2h / CC: ~15min)** — make the aggregate snapshot typed-safe — convert semantic-preserving DocNode transforms to record with copies; add reader-content/fragment-stub semantics; project typed source URLs and ReaderText at snapshot time.
+- [x] **E2 (P1, human: ~2h / CC: ~15min)** — make the aggregate snapshot typed-safe — convert semantic-preserving DocNode transforms to record with copies; add reader-content/fragment-stub semantics; project typed source URLs and ReaderText at snapshot time.
   - Files: Services/DocAggregator.cs, Services/DocRouteIdentityCatalog.cs, Services/DocPathResolver.cs, ViewModels/SidebarDisplayHelper.cs, DocModelsTests.cs, DocAggregatorTests.cs.
   - Verify: all non-positional DocNode properties survive sanitize/rewrite/README composition; typed documents route/search/outline correctly and search lacks legacy source residue.
-- [ ] **E3 (P1, human: ~2h / CC: ~15min)** — render the typed namespace safely and with shell parity — add a render kind plus focused C# partials, direct typed entry-point rendering, exactly-one-H1 behavior, and PathBase-aware normalized source links.
+- [x] **E3 (P1, human: ~2h / CC: ~15min)** — render the typed namespace safely and with shell parity — add a render kind plus focused C# partials, direct typed entry-point rendering, exactly-one-H1 behavior, and PathBase-aware normalized source links.
   - Files: Controllers/DocsController.cs, ViewModels/DocDetailsViewModel.cs, Views/Docs/Details.cshtml, new Views/Docs/CSharp/ partials, NamespaceEntryPointPanelRenderer.cs, AppSurfaceDocsViewsTests.cs.
   - Verify: DOM tests cover headings, sections, anchors, outline, entry points, source links, PathBase, hostile text encoding, README bridge sanitization, and legacy rendering parity.
-- [ ] **E4 (P2, human: ~1h / CC: ~10min)** — close the operational proof — add the README/release guidance and record the bounded typed-page timing comparison without adding a cache or public renderer API.
+- [x] **E4 (P2, human: ~1h / CC: ~10min)** — close the operational proof — add the README/release guidance and record the bounded typed-page timing comparison without adding a cache or public renderer API.
   - Files: Web/ForgeTrust.AppSurface.Docs/README.md, releases/unreleased.entries, focused Docs tests, existing timing/benchmark surface only if stable.
   - Verify: links and focused commands work, release wording states no host/custom-harvester migration, test coverage satisfies changed branches, and the timing record documents its fixture and repeatability.
 
@@ -1155,7 +1155,7 @@ by HasReaderContent, localized XML omission, omitted unsafe links, and unresolve
 
 ### Revalidation Tasks
 
-- [ ] **R1 (P1, human: ~30min / CC: ~5min)** — extend the semantic/model and search contract with Cref target/display fields and explicit ReaderText separators.
+- [x] **R1 (P1, human: ~30min / CC: ~5min)** — extend the semantic/model and search contract with Cref target/display fields and explicit ReaderText separators.
   - Files: Models/CSharpDocModels.cs, Services/CSharpDocHarvester.cs, Services/DocAggregator.cs, CSharpDocHarvesterTests.cs, DocAggregatorTests.cs.
   - Verify: Cref text is encoded while target data remains available internally; search fixtures cannot match across unintended symbol/XML boundaries.
 
@@ -1337,19 +1337,19 @@ is documentation of affected internal APIs and decisions, not a new public rende
 
 ### Revalidation Tasks
 
-- [ ] **R2 (P1, human: ~1h / CC: ~10min)** — lock the semantic/legacy rendering boundary, vocabulary, and README architecture map.
+- [x] **R2 (P1, human: ~1h / CC: ~10min)** — lock the semantic/legacy rendering boundary, vocabulary, and README architecture map.
   - Files: Models/DocModels.cs, Models/CSharpDocModels.cs, Services/CSharpDocHarvester.cs, Services/DocAggregator.cs, Controllers/DocsController.cs, Views/Docs/Details.cshtml, README.md.
   - Verify: Each caller row, truth-table state, and typed namespace route has a direct contract test; no path suffix decides render kind.
 
-- [ ] **R3 (P1, human: ~1h / CC: ~10min)** — make C# source-file failure atomic, publish strict diagnostic/health semantics, and document local recovery.
+- [x] **R3 (P1, human: ~1h / CC: ~10min)** — make C# source-file failure atomic, publish strict diagnostic/health semantics, and document local recovery.
   - Files: Services/CSharpDocHarvester.cs, Services/DocAggregator.cs, Models/DocModels.cs (`DocHarvestDiagnosticCodes`), CSharpDocHarvesterTests.cs, DocAggregatorTests.cs, AppSurfaceDocsHarvestHealthResponseTests.cs, README.md.
   - Verify: Inspect `tree.GetDiagnostics()` before semantic extraction. Build every file's declarations, stubs, outline entries, provenance, reader text, and compatibility serialization in a file-local result; merge only after the entire file succeeds. A fixture containing a valid documented declaration followed by invalid C# proves that the bad file contributes no partial symbols/stubs/search text, a valid sibling still publishes, health degrades with one redacted repository-relative location, and malformed XML alone remains a healthy warning with its declaration shell/anchor.
 
-- [ ] **R4 (P1, human: ~2h / CC: ~15min)** — establish the Issue 164 fixture, layered tests, public-consumer compile proof, compatibility manifest, and live-to-published-artifact parity.
+- [x] **R4 (P1, human: ~2h / CC: ~15min)** — establish the Issue 164 fixture, layered tests, public-consumer compile proof, compatibility manifest, and live-to-published-artifact parity.
   - Files: TestData/Issue164CSharpApi/ApiFixtures.cs, TestData/Issue164CSharpApi/compatibility-manifest.json, CSharpDocHarvesterTests.cs, DocAggregatorTests.cs, AppSurfaceDocsViewsTests.cs, AppSurfaceDocsPublishedTreeHandlerTests.cs, Web/ForgeTrust.RazorWire.Cli/ExportEngine.cs, Web/ForgeTrust.RazorWire.Cli.Tests/ExportEngineTests.cs, Web/ForgeTrust.AppSurface.Docs.ConsumerFixture/, Web/ForgeTrust.RazorWire.IntegrationTests/.
   - Verify: Generate the Issue 164 namespace page through the real publishing/export path, parse the resulting artifact, and compare it with the live Details response for one H1, existing classes, fragment IDs, native first-overload disclosure, reader order, and encoded hostile XML text. Mount the verified artifact with `AppSurfaceDocsPublishedTreeHandler` at a versioned docs root and prove child-namespace, entry-point, fragment, and source URLs use the archive mount. Keep `AppSurfaceDocsThemePairStaticExportTests` as rewriter/theme-unit coverage, not as API-page export parity. All four focused runbook commands pass, manifest changes require an explicit compatibility decision, and the public consumer test has no friend-assembly access.
 
-- [ ] **R5 (P2, human: ~30min / CC: ~5min)** — publish qualified release/migration wording and unsupported-shape recovery rules.
+- [x] **R5 (P2, human: ~30min / CC: ~5min)** — publish qualified release/migration wording and unsupported-shape recovery rules.
   - Files: Web/ForgeTrust.AppSurface.Docs/README.md, releases/unreleased.entries/, typed-model XML documentation.
   - Verify: Documentation distinguishes public source compatibility from intentional internal DOM/search/diagnostic evolution and forbids per-page raw-HTML escapes.
 

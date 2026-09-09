@@ -388,7 +388,7 @@ public sealed class PythonDocHarvesterTests : IDisposable
     [Fact]
     public async Task HarvestAsync_ContinuesAfterAnUnreadableCandidate()
     {
-        var unreadableCandidate = Path.Combine(_testRoot, "unreadable.py");
+        var unreadableCandidate = Path.Join(_testRoot, "unreadable.py");
         Directory.CreateDirectory(unreadableCandidate);
         var workerPath = await WriteAsync("worker.py", "__all__ = [\"run\"]\ndef run():\n    '''Run.'''\n");
         var options = CreateEnabledOptions("*.py");

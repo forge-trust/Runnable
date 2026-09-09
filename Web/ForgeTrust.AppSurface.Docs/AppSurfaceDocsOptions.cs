@@ -2477,6 +2477,7 @@ public sealed class AppSurfaceDocsOptionsValidator : IValidateOptions<AppSurface
                    || trimmed.Equals("search.css", StringComparison.OrdinalIgnoreCase)
                    || trimmed.Equals("search-client.js", StringComparison.OrdinalIgnoreCase)
                    || trimmed.Equals("outline-client.js", StringComparison.OrdinalIgnoreCase)
+                   || trimmed.Equals("rich-authoring-client.js", StringComparison.OrdinalIgnoreCase)
                    || trimmed.Equals("minisearch.min.js", StringComparison.OrdinalIgnoreCase));
     }
 }

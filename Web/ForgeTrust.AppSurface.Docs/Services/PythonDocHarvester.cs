@@ -506,9 +506,9 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
                 .Select(static child => CreateDeclaration(child!))
                 .Where(static declaration => declaration is not null)
                 .Select(static declaration => declaration! with { Kind = GetMethodKind(declaration!) })
-                .Where(static declaration => declaration.Docstring is not null)
                 .GroupBy(static declaration => declaration.Name, StringComparer.Ordinal)
                 .Select(static group => group.Last())
+                .Where(static declaration => declaration.Docstring is not null)
                 .OrderBy(static declaration => declaration.StartLine)
                 .ToArray();
 
@@ -875,7 +875,8 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         }
 
         var seed = segments.Count == 0 ? "module" : string.Join('-', segments);
-        return UnsafeSlugCharacterRegex.Replace(seed.ToLowerInvariant(), "-").Trim('-');
+        var slug = UnsafeSlugCharacterRegex.Replace(seed.ToLowerInvariant(), "-").Trim('-');
+        return string.IsNullOrEmpty(slug) ? "module" : slug;
     }
 
     private static string CreateAnchor(PythonDeclaration declaration, string? parentName)

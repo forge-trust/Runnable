@@ -99,6 +99,12 @@ internal static partial class DocPolyglotOwnershipLinker
         IReadOnlyDictionary<DocNode, OwnershipLink> linksByPythonNode,
         IReadOnlyDictionary<(DocNode Node, string Anchor), OwnershipLink> linksByCSharpNodeAndAnchor)
     {
+        if (!node.Content.Contains(PythonModuleMarkerAttribute, StringComparison.Ordinal)
+            && !node.Content.Contains(PythonOwnerMarkerAttribute, StringComparison.Ordinal))
+        {
+            return node;
+        }
+
         var content = PythonModuleMarkerRegex().Replace(
             node.Content,
             match =>

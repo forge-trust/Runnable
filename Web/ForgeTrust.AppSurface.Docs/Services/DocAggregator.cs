@@ -1546,7 +1546,8 @@ public class DocAggregator
         var harvesterType = harvester.GetType();
         return harvesterType == typeof(MarkdownHarvester)
                || harvesterType == typeof(CSharpDocHarvester)
-               || harvesterType == typeof(JavaScriptDocHarvester);
+               || harvesterType == typeof(JavaScriptDocHarvester)
+               || harvesterType == typeof(PythonDocHarvester);
     }
 
     private static bool ParticipatesInStrictHealth(IDocHarvester harvester)
@@ -1559,27 +1560,41 @@ public class DocAggregator
         IDocHarvester harvester,
         IReadOnlyList<DocHarvestDiagnostic> diagnostics)
     {
-        if (harvester is not JavaScriptDocHarvester)
+        if (harvester is JavaScriptDocHarvester)
+        {
+            var eventDiagnostic = diagnostics.FirstOrDefault(static diagnostic =>
+                diagnostic.Code == DocHarvestDiagnosticCodes.JavaScriptIncompletePublicEventDoclet);
+            if (eventDiagnostic is not null || !ParticipatesInStrictHealth(harvester))
+            {
+                return eventDiagnostic;
+            }
+
+            return diagnostics.FirstOrDefault(static diagnostic => diagnostic.Code is
+                DocHarvestDiagnosticCodes.JavaScriptFileTooLarge
+                or DocHarvestDiagnosticCodes.JavaScriptMissingInclude
+                or DocHarvestDiagnosticCodes.JavaScriptParseFailed
+                or DocHarvestDiagnosticCodes.JavaScriptReparsePointSkipped
+                or DocHarvestDiagnosticCodes.JavaScriptUnsupportedPublicShape
+                or DocHarvestDiagnosticCodes.JavaScriptMalformedPublicDoclet
+                or DocHarvestDiagnosticCodes.JavaScriptLifecycleConflict
+                or DocHarvestDiagnosticCodes.JavaScriptMalformedLifecycle);
+        }
+
+        if (harvester is not PythonDocHarvester || !ParticipatesInStrictHealth(harvester))
         {
             return null;
         }
 
-        var eventDiagnostic = diagnostics.FirstOrDefault(static diagnostic =>
-            diagnostic.Code == DocHarvestDiagnosticCodes.JavaScriptIncompletePublicEventDoclet);
-        if (eventDiagnostic is not null || !ParticipatesInStrictHealth(harvester))
-        {
-            return eventDiagnostic;
-        }
-
         return diagnostics.FirstOrDefault(static diagnostic => diagnostic.Code is
-            DocHarvestDiagnosticCodes.JavaScriptFileTooLarge
-            or DocHarvestDiagnosticCodes.JavaScriptMissingInclude
-            or DocHarvestDiagnosticCodes.JavaScriptParseFailed
-            or DocHarvestDiagnosticCodes.JavaScriptReparsePointSkipped
-            or DocHarvestDiagnosticCodes.JavaScriptUnsupportedPublicShape
-            or DocHarvestDiagnosticCodes.JavaScriptMalformedPublicDoclet
-            or DocHarvestDiagnosticCodes.JavaScriptLifecycleConflict
-            or DocHarvestDiagnosticCodes.JavaScriptMalformedLifecycle);
+            DocHarvestDiagnosticCodes.PythonFileTooLarge
+            or DocHarvestDiagnosticCodes.PythonMissingInclude
+            or DocHarvestDiagnosticCodes.PythonParserUnavailable
+            or DocHarvestDiagnosticCodes.PythonParseFailed
+            or DocHarvestDiagnosticCodes.PythonPublicBoundaryMissing
+            or DocHarvestDiagnosticCodes.PythonPublicBoundaryInvalid
+            or DocHarvestDiagnosticCodes.PythonExportNotSupported
+            or DocHarvestDiagnosticCodes.PythonExportNotFound
+            or DocHarvestDiagnosticCodes.PythonSlugCollision);
     }
 
     private static Task<IReadOnlyList<DocNode>> HarvestWithContextAsync(
@@ -1595,6 +1610,11 @@ public class DocAggregator
         if (harvester is JavaScriptDocHarvester javaScriptDocHarvester)
         {
             return javaScriptDocHarvester.HarvestAsync(context, cancellationToken);
+        }
+
+        if (harvester is PythonDocHarvester pythonDocHarvester)
+        {
+            return pythonDocHarvester.HarvestAsync(context, cancellationToken);
         }
 
         return harvester.HarvestAsync(context.RepositoryRoot, cancellationToken);

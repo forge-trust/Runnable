@@ -153,6 +153,54 @@ public sealed class PythonDocHarvesterTests : IDisposable
     }
 
     [Fact]
+    public async Task HarvestAsync_DropsAClassMemberWhenItsLastRedefinitionHasNoDocstring()
+    {
+        await WriteAsync(
+            "worker.py",
+            """"
+            __all__ = ["Worker"]
+
+            class Worker:
+                """Worker."""
+
+                def execute(self):
+                    """Stale method."""
+
+                def execute(self):
+                    pass
+            """");
+        var harvester = CreateHarvester(CreateEnabledOptions("worker.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        var module = Assert.Single(docs, document => document.Path == "api/python/worker");
+        Assert.Contains("Worker.", module.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("Stale method.", module.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain(docs, document => document.Path == "api/python/worker#method-class-worker-execute");
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_UsesModuleFallbackForAnEmptyNormalizedSourceName()
+    {
+        await WriteAsync(
+            "---.py",
+            """"
+            __all__ = ["run"]
+
+            def run():
+                """Runs."""
+            """");
+        var harvester = CreateHarvester(CreateEnabledOptions("---.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Contains(docs, document => document.Path == "api/python/module");
+        Assert.Contains(docs, document => document.Path == "api/python/module#function-run");
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
     public async Task HarvestAsync_RejectsMissingAndDynamicPublicBoundaries()
     {
         await WriteAsync("missing.py", "def visible():\n    \"\"\"Visible.\"\"\"\n");
@@ -565,6 +613,82 @@ public sealed class PythonDocHarvesterTests : IDisposable
         Assert.False(((IDocHarvesterHealthParticipation)disabled).ParticipatesInStrictHealth);
         Assert.True(((IDocHarvesterActivation)enabled).IsEnabled);
         Assert.True(((IDocHarvesterHealthParticipation)enabled).ParticipatesInStrictHealth);
+    }
+
+    [Fact]
+    public async Task GetDocsAsync_WithBuiltInPythonHarvesterAppliesVcsIgnoreSnapshotAndHealthDiagnostic()
+    {
+        await WriteAsync(".gitignore", "ignored/\n");
+        await WriteAsync(
+            "ignored/hidden.py",
+            """"
+            __all__ = ["hidden"]
+
+            def hidden():
+                """Hidden."""
+            """");
+        await WriteAsync(
+            "visible.py",
+            """"
+            __all__ = ["visible"]
+
+            def visible():
+                """Visible."""
+            """");
+        var options = CreateEnabledOptions("visible.py", "ignored/hidden.py");
+        options.Source.RepositoryRoot = _testRoot;
+        options.Contributor.Enabled = false;
+        var environment = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => environment.ContentRootPath).Returns(_testRoot);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var aggregator = new DocAggregator(
+            [CreateHarvester(options)],
+            options,
+            environment,
+            new Memo(cache),
+            new AppSurfaceDocsHtmlSanitizer(),
+            NullLogger<DocAggregator>.Instance);
+
+        var docs = await aggregator.GetDocsAsync();
+        var health = await aggregator.GetHarvestHealthAsync();
+
+        Assert.Contains(docs, document => document.Path == "api/python/visible");
+        Assert.DoesNotContain(docs, document => document.Path == "api/python/ignored-hidden");
+        Assert.Contains(health.Diagnostics, diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.VcsIgnoreSummary);
+    }
+
+    [Fact]
+    public async Task GetHarvestHealthAsync_CountsStrictPythonParserFailures()
+    {
+        var options = CreateEnabledOptions("worker.py");
+        options.Source.RepositoryRoot = _testRoot;
+        options.Harvest.Python.StrictHealth = true;
+        options.Contributor.Enabled = false;
+        var harvester = new PythonDocHarvester(
+            options,
+            NullLogger<PythonDocHarvester>.Instance,
+            new AppSurfaceDocsHarvestPathPolicy(options, NullLogger<AppSurfaceDocsHarvestPathPolicy>.Instance),
+            static () => throw new DllNotFoundException("Tree-sitter native asset is unavailable."));
+        var environment = A.Fake<IWebHostEnvironment>();
+        A.CallTo(() => environment.ContentRootPath).Returns(_testRoot);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var aggregator = new DocAggregator(
+            [harvester],
+            options,
+            environment,
+            new Memo(cache),
+            new AppSurfaceDocsHtmlSanitizer(),
+            NullLogger<DocAggregator>.Instance);
+
+        var health = await aggregator.GetHarvestHealthAsync();
+
+        Assert.Equal(DocHarvestHealthStatus.Failed, health.Status);
+        Assert.Equal(1, health.FailedHarvesters);
+        Assert.Contains(
+            health.Harvesters,
+            item => item.HarvesterType == nameof(PythonDocHarvester)
+                    && item.Status == DocHarvesterHealthStatus.Failed);
+        Assert.Contains(health.Diagnostics, diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.PythonParserUnavailable);
     }
 
     [Fact]

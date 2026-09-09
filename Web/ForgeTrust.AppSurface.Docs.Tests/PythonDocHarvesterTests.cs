@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using TreeSitter;
 
 namespace ForgeTrust.AppSurface.Docs.Tests;
 
@@ -61,6 +62,98 @@ public sealed class PythonDocHarvesterTests : IDisposable
         Assert.Equal(DocHarvestDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains(nameof(DllNotFoundException), diagnostic.Cause, StringComparison.Ordinal);
         Assert.True(((IDocHarvesterHealthParticipation)harvester).ParticipatesInStrictHealth);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_ReportsUnavailableNativeParserWhenFixedPreflightReturnsNull()
+    {
+        var options = CreateEnabledOptions("worker.py");
+        var harvester = new PythonDocHarvester(
+            options,
+            NullLogger<PythonDocHarvester>.Instance,
+            new AppSurfaceDocsHarvestPathPolicy(options, NullLogger<AppSurfaceDocsHarvestPathPolicy>.Instance),
+            static () => new Language("Python"),
+            static (_, _) => null);
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        Assert.Empty(docs);
+        var diagnostic = Assert.Single(GetDiagnostics(harvester));
+        Assert.Equal(DocHarvestDiagnosticCodes.PythonParserUnavailable, diagnostic.Code);
+        Assert.Contains("could not parse the fixed preflight source", diagnostic.Cause, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HarvestAsync_DoesNotOverwriteNewerDiagnosticsWhenAnEarlierParserRunFinishesLate()
+    {
+        var firstParseStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstParse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var options = CreateEnabledOptions("*.py");
+        var pathPolicy = new AppSurfaceDocsHarvestPathPolicy(options, NullLogger<AppSurfaceDocsHarvestPathPolicy>.Instance);
+        var harvester = new PythonDocHarvester(
+            options,
+            NullLogger<PythonDocHarvester>.Instance,
+            pathPolicy,
+            static () => new Language("Python"),
+            (parser, source) =>
+            {
+                if (source.Contains("first parser failure", StringComparison.Ordinal))
+                {
+                    firstParseStarted.TrySetResult();
+                    releaseFirstParse.Task.GetAwaiter().GetResult();
+                    throw new InvalidOperationException("first parser failure");
+                }
+
+                if (source.Contains("second parser failure", StringComparison.Ordinal))
+                {
+                    throw new NotSupportedException("second parser failure");
+                }
+
+                return parser.Parse(source);
+            });
+        var firstPath = await WriteAsync(
+            "first.py",
+            """"
+            __all__ = ["run"]
+
+            def run():
+                """first parser failure"""
+            """");
+        var secondPath = await WriteAsync(
+            "second.py",
+            """"
+            __all__ = ["run"]
+
+            def run():
+                """second parser failure"""
+            """");
+        var firstRun = harvester.HarvestAsync(
+            new DocHarvestContext(_testRoot, new ListedCandidatePathPolicy(firstPath)));
+
+        try
+        {
+            await firstParseStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+            var secondDocs = await harvester.HarvestAsync(
+                new DocHarvestContext(_testRoot, new ListedCandidatePathPolicy(secondPath)));
+
+            Assert.Empty(secondDocs);
+            Assert.Contains(
+                GetDiagnostics(harvester),
+                diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.PythonParseFailed
+                              && diagnostic.Cause.Contains(nameof(NotSupportedException), StringComparison.Ordinal));
+        }
+        finally
+        {
+            releaseFirstParse.TrySetResult();
+        }
+
+        await firstRun;
+
+        Assert.Contains(
+            GetDiagnostics(harvester),
+            diagnostic => diagnostic.Code == DocHarvestDiagnosticCodes.PythonParseFailed
+                          && diagnostic.Cause.Contains(nameof(NotSupportedException), StringComparison.Ordinal));
     }
 
     [Fact]
@@ -177,6 +270,36 @@ public sealed class PythonDocHarvesterTests : IDisposable
         Assert.Contains("Worker.", module.Content, StringComparison.Ordinal);
         Assert.DoesNotContain("Stale method.", module.Content, StringComparison.Ordinal);
         Assert.DoesNotContain(docs, document => document.Path == "api/python/worker#method-class-worker-execute");
+        Assert.Empty(GetDiagnostics(harvester));
+    }
+
+    [Fact]
+    public async Task HarvestAsync_PublishesCaseDistinctExportsWithStableUniqueFragments()
+    {
+        await WriteAsync(
+            "worker.py",
+            """"
+            __all__ = ["Foo", "foo"]
+
+            def Foo():
+                """Uppercase symbol."""
+
+            def foo():
+                """Lowercase symbol."""
+            """");
+        var harvester = CreateHarvester(CreateEnabledOptions("worker.py"));
+
+        var docs = await harvester.HarvestAsync(_testRoot);
+
+        var module = Assert.Single(docs, document => document.Path == "api/python/worker");
+        var uppercase = Assert.Single(docs, document => document.Title == "Foo");
+        var lowercase = Assert.Single(docs, document => document.Title == "foo");
+        Assert.Equal("api/python/worker#function-foo", uppercase.Path);
+        Assert.Equal("api/python/worker#function-foo-666f6f", lowercase.Path);
+        Assert.Contains("Uppercase symbol.", module.Content, StringComparison.Ordinal);
+        Assert.Contains("Lowercase symbol.", module.Content, StringComparison.Ordinal);
+        Assert.Contains("id=\"function-foo\"", module.Content, StringComparison.Ordinal);
+        Assert.Contains("id=\"function-foo-666f6f\"", module.Content, StringComparison.Ordinal);
         Assert.Empty(GetDiagnostics(harvester));
     }
 

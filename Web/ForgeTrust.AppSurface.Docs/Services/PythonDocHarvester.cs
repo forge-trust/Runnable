@@ -27,6 +27,9 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
     private readonly ILogger<PythonDocHarvester> _logger;
     private readonly AppSurfaceDocsHarvestPathPolicy _pathPolicy;
     private readonly Func<Language> _createLanguage;
+    private readonly Func<Parser, string, Tree?> _parseSource;
+    private readonly object _diagnosticsGate = new();
+    private long _latestHarvestGeneration;
     private IReadOnlyList<DocHarvestDiagnostic> _lastDiagnostics = [];
 
     /// <summary>
@@ -60,6 +63,10 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
     /// <param name="logger">Logger used for non-fatal Python harvest diagnostics.</param>
     /// <param name="pathPolicy">Shared harvest path policy used to decide which Python candidates publish.</param>
     /// <param name="createLanguage">Factory used to initialize the native Tree-sitter Python grammar.</param>
+    /// <param name="parseSource">
+    /// Optional parser operation used by tests to model a native parse that outlives a canceled harvest. Production uses
+    /// <see cref="Parser.Parse(string)"/>.
+    /// </param>
     /// <remarks>
     /// The default constructor supplies the registered Python grammar. This internal seam lets package tests verify that
     /// unavailable native assets are converted into diagnostics rather than escaping the harvest pipeline.
@@ -68,7 +75,8 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         AppSurfaceDocsOptions options,
         ILogger<PythonDocHarvester> logger,
         AppSurfaceDocsHarvestPathPolicy pathPolicy,
-        Func<Language> createLanguage)
+        Func<Language> createLanguage,
+        Func<Parser, string, Tree?>? parseSource = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -79,6 +87,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         _logger = logger;
         _pathPolicy = pathPolicy;
         _createLanguage = createLanguage;
+        _parseSource = parseSource ?? (static (parser, source) => parser.Parse(source));
     }
 
     /// <summary>
@@ -117,6 +126,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
 
+        var harvestGeneration = BeginHarvestDiagnostics();
         var diagnostics = new List<DocHarvestDiagnostic>();
         try
         {
@@ -143,7 +153,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
                 await progress.TransitionAsync(AppSurfaceDocsHarvestProgressPhase.Discovering);
             }
 
-            if (!TryCreateParser(_createLanguage, out var language, out var parser, out var parserFailure))
+            if (!TryCreateParser(_createLanguage, _parseSource, out var language, out var parser, out var parserFailure))
             {
                 diagnostics.Add(CreateDiagnostic(
                     DocHarvestDiagnosticCodes.PythonParserUnavailable,
@@ -197,7 +207,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
                             continue;
                         }
 
-                        using var tree = activeParser.Parse(readResult.Source!);
+                        using var tree = _parseSource(activeParser, readResult.Source!);
                         if (tree is null || tree.RootNode.HasError)
                         {
                             diagnostics.Add(CreateDiagnostic(
@@ -255,7 +265,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         }
         finally
         {
-            _lastDiagnostics = diagnostics.ToArray();
+            PublishHarvestDiagnostics(harvestGeneration, diagnostics);
             foreach (var diagnostic in diagnostics)
             {
                 _logger.Log(
@@ -278,14 +288,23 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         }
     }
 
-    IReadOnlyList<DocHarvestDiagnostic> IDocHarvesterDiagnosticProvider.GetHarvestDiagnostics() => _lastDiagnostics;
+    IReadOnlyList<DocHarvestDiagnostic> IDocHarvesterDiagnosticProvider.GetHarvestDiagnostics()
+    {
+        lock (_diagnosticsGate)
+        {
+            return _lastDiagnostics;
+        }
+    }
 
     private static bool TryCreateParser(
         Func<Language> createLanguage,
+        Func<Parser, string, Tree?> parseSource,
         out Language? language,
         out Parser? parser,
         out string failure)
     {
+        ArgumentNullException.ThrowIfNull(parseSource);
+
         language = null;
         parser = null;
         failure = string.Empty;
@@ -293,7 +312,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         {
             language = createLanguage();
             parser = new Parser(language);
-            using var tree = parser.Parse("pass");
+            using var tree = parseSource(parser, "pass");
             if (tree is null || tree.RootNode.HasError)
             {
                 parser.Dispose();
@@ -314,6 +333,25 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
             language = null;
             failure = $"The Tree-sitter binding returned {ex.GetType().Name} during a fixed parser preflight.";
             return false;
+        }
+    }
+
+    private long BeginHarvestDiagnostics()
+    {
+        lock (_diagnosticsGate)
+        {
+            return ++_latestHarvestGeneration;
+        }
+    }
+
+    private void PublishHarvestDiagnostics(long harvestGeneration, List<DocHarvestDiagnostic> diagnostics)
+    {
+        lock (_diagnosticsGate)
+        {
+            if (harvestGeneration == _latestHarvestGeneration)
+            {
+                _lastDiagnostics = diagnostics.ToArray();
+            }
         }
     }
 
@@ -730,6 +768,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
     {
         var modulePath = $"api/python/{module.Slug}";
         var title = $"{module.DisplayName} Python API";
+        var anchors = CreateAnchorMap(module.Declarations);
         var content = new StringBuilder();
         var outline = new List<DocOutlineItem>();
         var provenance = new List<DocSymbolSourceProvenance>();
@@ -742,7 +781,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
 
         foreach (var declaration in module.Declarations)
         {
-            AppendDeclaration(content, outline, provenance, module.RelativePath, declaration, headingLevel: 2, parentAnchor: null);
+            AppendDeclaration(content, outline, provenance, module.RelativePath, declaration, anchors, headingLevel: 2);
         }
 
         content.Append("</div></section>");
@@ -759,7 +798,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
 
         foreach (var declaration in module.Declarations)
         {
-            AddSymbolNodes(nodes, modulePath, module, declaration, parentDisplayName: null, parentAnchor: null);
+            AddSymbolNodes(nodes, modulePath, module, declaration, anchors, parentDisplayName: null);
         }
 
         return nodes;
@@ -770,10 +809,10 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         string modulePath,
         PythonModule module,
         PythonDeclaration declaration,
-        string? parentDisplayName,
-        string? parentAnchor)
+        IReadOnlyDictionary<PythonDeclaration, string> anchors,
+        string? parentDisplayName)
     {
-        var anchor = CreateAnchor(declaration, parentAnchor);
+        var anchor = anchors[declaration];
         var title = parentDisplayName is null ? declaration.Name : $"{parentDisplayName}.{declaration.Name}";
         nodes.Add(
             new DocNode(
@@ -798,7 +837,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
 
         foreach (var member in declaration.Members)
         {
-            AddSymbolNodes(nodes, modulePath, module, member, declaration.Name, anchor);
+            AddSymbolNodes(nodes, modulePath, module, member, anchors, declaration.Name);
         }
     }
 
@@ -808,10 +847,10 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         ICollection<DocSymbolSourceProvenance> provenance,
         string relativePath,
         PythonDeclaration declaration,
-        int headingLevel,
-        string? parentAnchor)
+        IReadOnlyDictionary<PythonDeclaration, string> anchors,
+        int headingLevel)
     {
-        var anchor = CreateAnchor(declaration, parentAnchor);
+        var anchor = anchors[declaration];
         outline.Add(new DocOutlineItem { Id = anchor, Title = declaration.Name, Level = headingLevel });
         provenance.Add(new DocSymbolSourceProvenance { AnchorId = anchor, SourcePath = relativePath, StartLine = declaration.StartLine });
         content.Append($"<section id=\"{WebUtility.HtmlEncode(anchor)}\" class=\"doc-method-group doc-python-item doc-python-{GetKindSlug(declaration.Kind)}\"><header class=\"doc-method-group-header\"><span class=\"doc-kind\">{GetKindLabel(declaration.Kind)}</span><h{headingLevel}>{WebUtility.HtmlEncode(declaration.Name)}</h{headingLevel}><span data-appsurfacedocs-symbol-source=\"{WebUtility.HtmlEncode(anchor)}\"></span></header><div class=\"doc-body\">");
@@ -822,7 +861,7 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
 
         foreach (var member in declaration.Members)
         {
-            AppendDeclaration(content, outline, provenance, relativePath, member, headingLevel + 1, anchor);
+            AppendDeclaration(content, outline, provenance, relativePath, member, anchors, headingLevel + 1);
         }
 
         content.Append("</div></section>");
@@ -883,6 +922,44 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
     {
         var name = parentName is null ? declaration.Name : $"{parentName}-{declaration.Name}";
         return $"{GetKindSlug(declaration.Kind)}-{UnsafeSlugCharacterRegex.Replace(name.ToLowerInvariant(), "-").Trim('-')}";
+    }
+
+    private static IReadOnlyDictionary<PythonDeclaration, string> CreateAnchorMap(
+        IReadOnlyList<PythonDeclaration> declarations)
+    {
+        var anchors = new Dictionary<PythonDeclaration, string>(ReferenceEqualityComparer.Instance);
+        AddAnchors(declarations, parentAnchor: null, anchors);
+        return anchors;
+    }
+
+    private static void AddAnchors(
+        IReadOnlyList<PythonDeclaration> declarations,
+        string? parentAnchor,
+        IDictionary<PythonDeclaration, string> anchors)
+    {
+        foreach (var group in declarations
+                     .Select(declaration => new AnchorCandidate(declaration, CreateAnchor(declaration, parentAnchor)))
+                     .GroupBy(static candidate => candidate.Anchor, StringComparer.Ordinal))
+        {
+            var candidates = group
+                .OrderBy(static candidate => candidate.Declaration.Name, StringComparer.Ordinal)
+                .ThenBy(static candidate => candidate.Declaration.StartLine)
+                .ToArray();
+            for (var index = 0; index < candidates.Length; index++)
+            {
+                var candidate = candidates[index];
+                anchors.Add(
+                    candidate.Declaration,
+                    index == 0
+                        ? candidate.Anchor
+                        : $"{candidate.Anchor}-{Convert.ToHexString(Encoding.UTF8.GetBytes(candidate.Declaration.Name)).ToLowerInvariant()}");
+            }
+        }
+
+        foreach (var declaration in declarations)
+        {
+            AddAnchors(declaration.Members, anchors[declaration], anchors);
+        }
     }
 
     private static string GetKindSlug(PythonApiKind kind) => kind switch
@@ -947,6 +1024,8 @@ public sealed class PythonDocHarvester : IDocHarvester, IDocHarvesterDiagnosticP
         int StartLine,
         string? Docstring,
         IReadOnlyList<PythonDeclaration> Members);
+
+    private sealed record AnchorCandidate(PythonDeclaration Declaration, string Anchor);
 
     private enum PythonApiKind
     {

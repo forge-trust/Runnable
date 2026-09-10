@@ -12,7 +12,7 @@ Branch at design time: `main`
 
 Implementation baseline: `48c6db61ac5f742bea9f1ee434860daf72df791c` (`origin/main`, includes Work exits)
 
-Status: DRAFT
+Status: APPROVED
 
 Mode: Builder
 
@@ -313,10 +313,11 @@ No product-scope questions remain after D1/D3. Implementation review must verify
 
 - You approved the distinction between frozen contract facts and the custom codec author's concurrency obligations.
 - You chose **B**, the shared snapshot, accepting the additional compatibility work in exchange for one internal source of truth.
+- You approved the reviewed design on 2026-09-10.
 - This session produced a design only. Code, package publication, issue updates, and provider execution are separate work.
 
 ## Specification review
 
 Three adversarial review rounds completed. The first identified 14 actionable clarifications; the second confirmed those fixes and requested one final Flow evaluation rule. All 15 were addressed. The final reviewer returned PASS and a subjective quality score of 10/10, with no residual concerns. This assesses the design, not an implementation.
 
-All 24 relative repository links were verified against the pinned implementation baseline. No implementation tests were run in this design session. Final document approval remains pending.
+All 24 relative repository links were verified against the pinned implementation baseline. No implementation tests were run in this design session. Final document approval was received on 2026-09-10.

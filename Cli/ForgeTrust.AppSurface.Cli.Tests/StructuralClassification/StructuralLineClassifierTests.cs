@@ -11,6 +11,7 @@ namespace ForgeTrust.AppSurface.Cli.Tests;
 /// <summary>
 /// Verifies the test-only #781 structural classifier against immutable patch evidence.
 /// </summary>
+[Collection(ProgramEntryPointCollection.Name)]
 public sealed class StructuralLineClassifierTests
 {
     private static readonly IReadOnlyList<MetadataReference> PlatformReferences =
@@ -31,7 +32,7 @@ public sealed class StructuralLineClassifierTests
     }
 
     [Fact]
-    public async Task Classify_RealPatchEvidence_AcceptsAutoProperty_AndDoesNotMutateCoverageGateArtifacts()
+    public async Task Classify_RealPatchEvidence_AcceptsAutoProperty_AndDoesNotMutateCoverageGateArtifactsOrOutcomes()
     {
         const string source = """
             namespace Fixture;
@@ -54,14 +55,20 @@ public sealed class StructuralLineClassifierTests
             null,
             fixture.PatchRequest);
         var before = await CoverageGateEvaluator.EvaluateAsync(gateRequest, CancellationToken.None);
-        await CoverageGateReportWriter.WriteAsync(before, gateRequest, CancellationToken.None);
-        var beforeArtifacts = SnapshotFiles(fixture.RootPath);
+        var passingOutputPath = Path.Join(fixture.RootPath, "gate-pass");
+        var failingOutputPath = Path.Join(fixture.RootPath, "gate-fail");
+        var beforePassingExitCode = await RunCoverageGateThroughEntryPointAsync(fixture, passingOutputPath, "0");
+        var beforeFailingExitCode = await RunCoverageGateThroughEntryPointAsync(fixture, failingOutputPath, "100");
+        var beforePassingArtifacts = SnapshotFiles(passingOutputPath);
+        var beforeFailingArtifacts = SnapshotFiles(failingOutputPath);
 
         var audit = new StructuralLineClassifier().Classify(fixture.Analysis, context.Compilation, context.Manifest);
 
         var after = await CoverageGateEvaluator.EvaluateAsync(gateRequest, CancellationToken.None);
-        await CoverageGateReportWriter.WriteAsync(after, gateRequest, CancellationToken.None);
-        var afterArtifacts = SnapshotFiles(fixture.RootPath);
+        var afterPassingExitCode = await RunCoverageGateThroughEntryPointAsync(fixture, passingOutputPath, "0");
+        var afterFailingExitCode = await RunCoverageGateThroughEntryPointAsync(fixture, failingOutputPath, "100");
+        var afterPassingArtifacts = SnapshotFiles(passingOutputPath);
+        var afterFailingArtifacts = SnapshotFiles(failingOutputPath);
 
         var entry = Assert.Single(audit.Entries);
         Assert.Equal(StructuralLineDisposition.Accepted, entry.Disposition);
@@ -83,8 +90,15 @@ public sealed class StructuralLineClassifierTests
         Assert.Equal(before.PatchLineCoverage, after.PatchLineCoverage);
         Assert.Equal(before.PatchBranchCoverage, after.PatchBranchCoverage);
         Assert.Equal(before.Passed, after.Passed);
-        Assert.Equal(beforeArtifacts, afterArtifacts);
-        Assert.DoesNotContain(afterArtifacts.Keys, path => path.Contains("structural", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, beforePassingExitCode);
+        Assert.NotEqual(0, beforeFailingExitCode);
+        Assert.Equal(beforePassingExitCode, afterPassingExitCode);
+        Assert.Equal(beforeFailingExitCode, afterFailingExitCode);
+        AssertSnapshotBytesEqual(beforePassingArtifacts, afterPassingArtifacts);
+        AssertSnapshotBytesEqual(beforeFailingArtifacts, afterFailingArtifacts);
+        Assert.DoesNotContain(
+            afterPassingArtifacts.Keys.Concat(afterFailingArtifacts.Keys),
+            path => path.Contains("structural", StringComparison.OrdinalIgnoreCase));
     }
 
     [Theory]
@@ -485,18 +499,18 @@ public sealed class StructuralLineClassifierTests
         GC.WaitForPendingFinalizers();
         GC.Collect();
 
-        var controlSamples = new List<long>();
+        var evidenceTraversalControlSamples = new List<long>();
         var samples = new List<long>();
         var constructionSamples = new List<long>();
         long maxAllocatedBytes = 0;
         for (var iteration = 0; iteration < 25; iteration++)
         {
             var stopwatch = Stopwatch.StartNew();
-            var controlLineCount = analysis.Lines.Count;
+            var observedEvidence = TraverseRawEvidence(analysis);
             stopwatch.Stop();
 
-            Assert.Equal(candidateCount, controlLineCount);
-            controlSamples.Add(stopwatch.ElapsedTicks);
+            Assert.Equal(candidateCount * 2, observedEvidence);
+            evidenceTraversalControlSamples.Add(stopwatch.ElapsedTicks);
         }
 
         for (var iteration = 0; iteration < 25; iteration++)
@@ -520,14 +534,14 @@ public sealed class StructuralLineClassifierTests
             constructionSamples.Add(stopwatch.ElapsedTicks);
         }
 
-        controlSamples.Sort();
+        evidenceTraversalControlSamples.Sort();
         samples.Sort();
         constructionSamples.Sort();
         var tickToMilliseconds = 1000d / Stopwatch.Frequency;
-        var controlP50Milliseconds = controlSamples[PercentileIndex(controlSamples.Count, 0.50)] * tickToMilliseconds;
+        var evidenceTraversalControlP50Milliseconds = evidenceTraversalControlSamples[PercentileIndex(evidenceTraversalControlSamples.Count, 0.50)] * tickToMilliseconds;
         var classificationP50Milliseconds = samples[PercentileIndex(samples.Count, 0.50)] * tickToMilliseconds;
         output.WriteLine(
-            "#781 structural classifier benchmark: candidates={0}; samples=25; minMs={1:F4}; p50Ms={2:F4}; p95Ms={3:F4}; maxMs={4:F4}; maxAllocatedBytes={5}; allocationBudgetBytes={6}; noClassifierControlP50Ms={7:F4}; classificationDeltaP50Ms={8:F4}; compilationSamples=10; compilationMinMs={9:F4}; compilationP50Ms={10:F4}; compilationP95Ms={11:F4}",
+            "#781 structural classifier benchmark: candidates={0}; samples=25; minMs={1:F4}; p50Ms={2:F4}; p95Ms={3:F4}; maxMs={4:F4}; maxAllocatedBytes={5}; allocationBudgetBytes={6}; rawEvidenceTraversalControlP50Ms={7:F4}; compilationSamples=10; compilationMinMs={8:F4}; compilationP50Ms={9:F4}; compilationP95Ms={10:F4}",
             candidateCount,
             samples[0] * tickToMilliseconds,
             classificationP50Milliseconds,
@@ -535,8 +549,7 @@ public sealed class StructuralLineClassifierTests
             samples[^1] * tickToMilliseconds,
             maxAllocatedBytes,
             allocationBudgetBytes,
-            controlP50Milliseconds,
-            classificationP50Milliseconds - controlP50Milliseconds,
+            evidenceTraversalControlP50Milliseconds,
             constructionSamples[0] * tickToMilliseconds,
             constructionSamples[PercentileIndex(constructionSamples.Count, 0.50)] * tickToMilliseconds,
             constructionSamples[PercentileIndex(constructionSamples.Count, 0.95)] * tickToMilliseconds);
@@ -593,12 +606,72 @@ public sealed class StructuralLineClassifierTests
         return new PatchCoverageAnalysis(sourceReport, PatchLineMode.Measurable, lines, metrics);
     }
 
-    private static IReadOnlyDictionary<string, string> SnapshotFiles(string rootPath) =>
+    private static async Task<int> RunCoverageGateThroughEntryPointAsync(
+        PatchEvidenceFixture fixture,
+        string outputPath,
+        string minimumCoverage)
+    {
+        var originalExitCode = Environment.ExitCode;
+        try
+        {
+            Environment.ExitCode = 0;
+            await ProgramEntryPoint.RunAsync(
+            [
+                "coverage",
+                "gate",
+                "--coverage", fixture.CoveragePath,
+                "--output", outputPath,
+                "--repository-root", fixture.RootPath,
+                "--diff-file", fixture.DiffPath,
+                "--min-line", minimumCoverage,
+                "--min-branch", minimumCoverage,
+                "--min-patch-line", minimumCoverage,
+                "--min-patch-branch", minimumCoverage,
+                "--patch-line-mode", "measurable",
+                "--no-github-summary",
+            ]);
+            return Environment.ExitCode;
+        }
+        finally
+        {
+            Environment.ExitCode = originalExitCode;
+        }
+    }
+
+    private static void AssertSnapshotBytesEqual(
+        IReadOnlyDictionary<string, byte[]> expected,
+        IReadOnlyDictionary<string, byte[]> actual)
+    {
+        Assert.Equal(
+            expected.Keys.OrderBy(path => path, StringComparer.Ordinal),
+            actual.Keys.OrderBy(path => path, StringComparer.Ordinal));
+        foreach (var (path, expectedBytes) in expected)
+        {
+            Assert.True(actual.TryGetValue(path, out var actualBytes), $"Missing artifact '{path}'.");
+            Assert.Equal(expectedBytes, actualBytes);
+        }
+    }
+
+    private static int TraverseRawEvidence(PatchCoverageAnalysis analysis)
+    {
+        var observed = 0;
+        foreach (var line in analysis.Lines)
+        {
+            observed += line.IsMeasured ? 1 : 0;
+            observed += line.LineCovered is false ? 1 : 0;
+            _ = line.CoveredConditions;
+            _ = line.ValidConditions;
+        }
+
+        return observed;
+    }
+
+    private static IReadOnlyDictionary<string, byte[]> SnapshotFiles(string rootPath) =>
         Directory.EnumerateFiles(rootPath, "*", SearchOption.AllDirectories)
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToDictionary(
                 path => Path.GetRelativePath(rootPath, path),
-                File.ReadAllText,
+                File.ReadAllBytes,
                 StringComparer.Ordinal);
 
     private static int LineOf(string source, string text)
@@ -632,11 +705,13 @@ public sealed class StructuralLineClassifierTests
         private PatchEvidenceFixture(
             string rootPath,
             string coveragePath,
+            string diffPath,
             CoveragePatchRequest patchRequest,
             PatchCoverageAnalysis analysis)
         {
             RootPath = rootPath;
             CoveragePath = coveragePath;
+            DiffPath = diffPath;
             PatchRequest = patchRequest;
             Analysis = analysis;
         }
@@ -644,6 +719,8 @@ public sealed class StructuralLineClassifierTests
         public string RootPath { get; }
 
         public string CoveragePath { get; }
+
+        public string DiffPath { get; }
 
         public CoveragePatchRequest PatchRequest { get; }
 
@@ -657,6 +734,8 @@ public sealed class StructuralLineClassifierTests
             var coveragePath = Path.Join(rootPath, "coverage.cobertura.xml");
             await File.WriteAllTextAsync(coveragePath, BuildCoverage(changedLines), new UTF8Encoding(false));
             var diffText = BuildDiff(changedLines);
+            var diffPath = Path.Join(rootPath, "fixture.diff");
+            await File.WriteAllTextAsync(diffPath, diffText, new UTF8Encoding(false));
             var patchRequest = new CoveragePatchRequest(
                 rootPath,
                 "fixture-base",
@@ -666,7 +745,7 @@ public sealed class StructuralLineClassifierTests
                 coveragePath,
                 patchRequest,
                 CancellationToken.None);
-            return new PatchEvidenceFixture(rootPath, coveragePath, patchRequest, analysis);
+            return new PatchEvidenceFixture(rootPath, coveragePath, diffPath, patchRequest, analysis);
         }
 
         public void Dispose()

@@ -46,7 +46,7 @@ public class AppSurfaceDocsViewsTests
         var layout = ReadLayoutMarkup();
         Assert.Contains("id=\"docs-search-input\"", layout);
         Assert.Contains("id=\"docs-search-results\"", layout);
-        Assert.Contains("AssetVersioner.BuildVersionedDocsAssetUrl(DocsUrlBuilder, \"search.css\")", layout);
+        Assert.Contains("assetVersioner.BuildVersionedDocsAssetUrl(docsUrlBuilder, \"search.css\")", layout);
         Assert.Contains("docsSearchIndexUrl", layout);
         Assert.Contains("var isSearchPage = string.Equals(", layout);
         Assert.Contains("crossorigin=\"use-credentials\"", layout);
@@ -54,9 +54,9 @@ public class AppSurfaceDocsViewsTests
         Assert.DoesNotContain("src=\"~/docs/outline-client.js\"", layout);
         Assert.Contains("window.__appSurfaceDocsConfig", layout);
         Assert.Contains("rel=\"icon\" type=\"image/svg+xml\" href=\"@docsBrandIconUrl\"", layout);
-        Assert.Contains("AssetVersioner.BuildVersionedDocsAssetUrl(DocsUrlBuilder, \"search-client.js\")", layout);
-        Assert.Contains("AssetVersioner.BuildVersionedDocsAssetUrl(DocsUrlBuilder, \"minisearch.min.js\")", layout);
-        Assert.Contains("ThemeResolver.Theme", layout);
+        Assert.Contains("assetVersioner.BuildVersionedDocsAssetUrl(docsUrlBuilder, \"search-client.js\")", layout);
+        Assert.Contains("assetVersioner.BuildVersionedDocsAssetUrl(docsUrlBuilder, \"minisearch.min.js\")", layout);
+        Assert.Contains("themeResolver.Theme", layout);
         Assert.Contains("data-docs-theme-preset", layout);
         Assert.Contains("data-docs-density", layout);
         Assert.Contains("data-docs-chrome", layout);
@@ -3636,6 +3636,42 @@ public class AppSurfaceDocsViewsTests
         Assert.NotNull(tenantOutlineScript);
         Assert.Matches("^/tenant/docs/outline-client\\.js\\?v=.+", tenantOutlineScript!.GetAttribute("src") ?? string.Empty);
         Assert.DoesNotContain("data-doc-outline-client-loader=\"true\"", tenantHtml);
+    }
+
+    [Fact]
+    public async Task DetailsView_ShouldOnlyLoadRichAuthoringClientForPackageGeneratedTabs()
+    {
+        const string tabsMarkup = """
+            <section class="docs-rich-tabs" data-appsurfacedocs-rich="tabs" data-appsurfacedocs-rich-tabs="true" data-appsurfacedocs-rich-tabs-token="trusted-token">
+              <section data-appsurfacedocs-rich-tab-panel="true" data-appsurfacedocs-rich-tab-label="First">First</section>
+              <section data-appsurfacedocs-rich-tab-panel="true" data-appsurfacedocs-rich-tab-label="Second">Second</section>
+            </section>
+            """;
+        var generatedDoc = new DocNode(
+            "Tabs",
+            "guides/tabs.md",
+            tabsMarkup)
+        {
+            RichAuthoringTabsTokens = ["trusted-token"]
+        };
+        var generatedHtml = await RenderDetailsViewWithPathBaseAsync(generatedDoc, "/tenant");
+        var generatedDocument = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(generatedHtml);
+
+        var script = generatedDocument.QuerySelector("script[data-doc-rich-authoring-client='true']");
+        Assert.NotNull(script);
+        Assert.Matches("^/tenant/docs/rich-authoring-client\\.js\\?v=.+", script!.GetAttribute("src") ?? string.Empty);
+        Assert.Equal("trusted-token", script.GetAttribute("data-appsurfacedocs-rich-tabs-tokens"));
+
+        var rawAuthorDoc = new DocNode("Raw tabs", "guides/raw-tabs.md", tabsMarkup);
+        var rawAuthorHtml = await RenderDetailsViewAsync(rawAuthorDoc);
+        var calloutOnlyDoc = new DocNode(
+            "Callout",
+            "guides/callout.md",
+            "<section data-appsurfacedocs-rich=\"callout\">Callout</section>");
+        var calloutOnlyHtml = await RenderDetailsViewAsync(calloutOnlyDoc);
+
+        Assert.DoesNotContain("data-doc-rich-authoring-client", rawAuthorHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-doc-rich-authoring-client", calloutOnlyHtml, StringComparison.Ordinal);
     }
 
     [Fact]

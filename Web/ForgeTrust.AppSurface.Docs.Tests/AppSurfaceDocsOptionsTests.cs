@@ -1427,6 +1427,7 @@ public sealed class AppSurfaceDocsOptionsTests
     [InlineData("search.css")]
     [InlineData("search-client.js")]
     [InlineData("outline-client.js")]
+    [InlineData("rich-authoring-client.js")]
     [InlineData("minisearch.min.js")]
     [InlineData("fr/docs")]
     [InlineData("..")]
@@ -1615,6 +1616,36 @@ public sealed class AppSurfaceDocsOptionsTests
                 .Build());
 
         services.AddAppSurfaceDocs();
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<AppSurfaceProductIntelligenceOptions>>().Value;
+
+        Assert.Equal(shouldEnableDocsEvents, options.IsExperimentalEventEnabled(AppSurfaceProductEventRegistry.DocsSearchSubmitted));
+        Assert.Equal(shouldEnableDocsEvents, options.IsExperimentalEventEnabled(AppSurfaceProductEventRegistry.DocsSearchFilterChanged));
+        Assert.Equal(shouldEnableDocsEvents, options.IsExperimentalEventEnabled(AppSurfaceProductEventRegistry.DocsSearchFrictionFeedbackSubmitted));
+        Assert.False(options.IsExperimentalEventEnabled(AppSurfaceProductEventRegistry.RazorWireFormFailed));
+    }
+
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    public void AddNamedAppSurfaceDocs_ShouldEnableDocsExperimentalEventsOnlyForHostedMetricsCollection(
+        bool metricsEnabled,
+        bool hostedCollectionEnabled,
+        bool shouldEnableDocsEvents)
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Docs:Metrics:Enabled"] = metricsEnabled.ToString(CultureInfo.InvariantCulture),
+                    ["Docs:Metrics:HostedCollection:Enabled"] = hostedCollectionEnabled.ToString(CultureInfo.InvariantCulture)
+                })
+            .Build();
+        services.AddAppSurfaceDocs("Public", configuration.GetSection("Docs"));
 
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<AppSurfaceProductIntelligenceOptions>>().Value;

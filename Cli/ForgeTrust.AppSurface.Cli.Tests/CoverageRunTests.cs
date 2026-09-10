@@ -6,7 +6,9 @@ using System.Text.Json;
 using CliFx;
 using CliFx.Infrastructure;
 using ForgeTrust.AppSurface.Cli;
+using ForgeTrust.AppSurface.Evidence.Coverage;
 using ForgeTrust.AppSurface.Testing;
+using CommandException = ForgeTrust.AppSurface.Evidence.Coverage.CoverageExecutionException;
 
 namespace ForgeTrust.AppSurface.Cli.Tests;
 
@@ -537,6 +539,79 @@ public sealed class CoverageRunTests
         Assert.DoesNotContain("--no-build", testCommand.Arguments);
         Assert.DoesNotContain("[ForgeTrust.AppSurface.", string.Join(" ", testCommand.Arguments), StringComparison.Ordinal);
         Assert.DoesNotContain("build", runner.Commands.Select(command => command.Arguments.FirstOrDefault()));
+    }
+
+    [Fact]
+    public async Task CoverageProjectManifest_WriteAsync_ShouldUseSolutionRelativePathWhenAncestorIsLink()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var repo = TempDirectory.Create("appsurface-coverage-manifest-");
+        var physicalRootDirectory = Directory.CreateDirectory(TestPathUtils.PathUnder(repo.Path, "physical-root")).FullName;
+        var physicalSolutionDirectory = Directory.CreateDirectory(TestPathUtils.PathUnder(physicalRootDirectory, "solution")).FullName;
+        var linkedRootDirectory = TestPathUtils.PathUnder(repo.Path, "solution-root");
+        Directory.CreateSymbolicLink(linkedRootDirectory, "physical-root");
+        var linkedSolutionDirectory = Path.Join(linkedRootDirectory, "solution");
+        var projectPath = TestPathUtils.PathUnder(physicalSolutionDirectory, "tests", "Sample.Tests", "Sample.Tests.csproj");
+        Directory.CreateDirectory(Path.GetDirectoryName(projectPath)!);
+        await File.WriteAllTextAsync(projectPath, "<Project />");
+        var projectOutputDirectory = Directory.CreateDirectory(TestPathUtils.PathUnder(repo.Path, "coverage-output", "projects", "sample-tests")).FullName;
+
+        await CoverageProjectManifest.WriteAsync(
+            projectOutputDirectory,
+            linkedSolutionDirectory,
+            new CoverageRunProject("tests/Sample.Tests/Sample.Tests.csproj", projectPath, "sample-tests", IsExclusive: false),
+            CancellationToken.None);
+
+        using var manifest = System.Text.Json.JsonDocument.Parse(File.ReadAllText(TestPathUtils.PathUnder(projectOutputDirectory, CoverageProjectManifest.FileName)));
+        Assert.Equal("tests/Sample.Tests/Sample.Tests.csproj", manifest.RootElement.GetProperty("projectPath").GetString());
+    }
+
+    [Fact]
+    public async Task CoverageProjectManifest_WriteAsync_ShouldRejectMissingSolutionDirectory()
+    {
+        using var repo = TempDirectory.Create("appsurface-coverage-manifest-");
+        var projectOutputDirectory = Directory.CreateDirectory(TestPathUtils.PathUnder(repo.Path, "coverage-output", "projects", "sample-tests")).FullName;
+        var missingSolutionDirectory = TestPathUtils.PathUnder(repo.Path, "missing-solution");
+
+        var exception = await Assert.ThrowsAsync<IOException>(() => CoverageProjectManifest.WriteAsync(
+            projectOutputDirectory,
+            missingSolutionDirectory,
+            new CoverageRunProject("tests/Sample.Tests/Sample.Tests.csproj", TestPathUtils.PathUnder(missingSolutionDirectory, "tests", "Sample.Tests", "Sample.Tests.csproj"), "sample-tests", IsExclusive: false),
+            CancellationToken.None));
+
+        Assert.Contains("does not exist", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CoverageProjectManifest_WriteAsync_ShouldRejectExcessiveDirectoryLinkResolution()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var repo = TempDirectory.Create("appsurface-coverage-manifest-");
+        var physicalSolutionDirectory = Directory.CreateDirectory(TestPathUtils.PathUnder(repo.Path, "physical-solution")).FullName;
+        var target = physicalSolutionDirectory;
+        for (var index = 40; index >= 0; index--)
+        {
+            var link = TestPathUtils.PathUnder(repo.Path, $"solution-link-{index}");
+            Directory.CreateSymbolicLink(link, target);
+            target = link;
+        }
+
+        var projectOutputDirectory = Directory.CreateDirectory(TestPathUtils.PathUnder(repo.Path, "coverage-output", "projects", "sample-tests")).FullName;
+        var exception = await Assert.ThrowsAsync<IOException>(() => CoverageProjectManifest.WriteAsync(
+            projectOutputDirectory,
+            target,
+            new CoverageRunProject("tests/Sample.Tests/Sample.Tests.csproj", TestPathUtils.PathUnder(physicalSolutionDirectory, "tests", "Sample.Tests", "Sample.Tests.csproj"), "sample-tests", IsExclusive: false),
+            CancellationToken.None));
+
+        Assert.Contains("40-link resolution limit", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -3230,7 +3305,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV120", exception.Message, StringComparison.Ordinal);
@@ -3337,7 +3412,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV101", exception.Message, StringComparison.Ordinal);
@@ -3378,7 +3453,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV101", exception.Message, StringComparison.Ordinal);
@@ -3423,7 +3498,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV101", exception.Message, StringComparison.Ordinal);
@@ -3440,7 +3515,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV101", exception.Message, StringComparison.Ordinal);
@@ -3459,7 +3534,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV111", exception.Message, StringComparison.Ordinal);
@@ -3477,7 +3552,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV101", exception.Message, StringComparison.Ordinal);
@@ -3517,7 +3592,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV101", exception.Message, StringComparison.Ordinal);
@@ -3535,7 +3610,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV101", exception.Message, StringComparison.Ordinal);
@@ -3570,7 +3645,7 @@ public sealed class CoverageRunTests
         };
         using var console = new FakeInMemoryConsole();
 
-        var exception = await Assert.ThrowsAsync<CommandException>(
+        var exception = await Assert.ThrowsAsync<CliFx.CommandException>(
             async () => await command.ExecuteAsync(console, CancellationToken.None));
 
         Assert.Contains("ASCOV101", exception.Message, StringComparison.Ordinal);
@@ -3830,7 +3905,7 @@ public sealed class CoverageRunTests
             CoverageRunWatchdogMode.Fail,
             TimeSpan.Zero,
             TimeSpan.FromSeconds(1),
-            console,
+            CoverageTextWriters.Create(console.Output, console.Error),
             TimeProvider.System,
             safetyCancellation.Token);
         using var operation = watchdog.Start("project", "tests/Child.Tests/Child.Tests.csproj");

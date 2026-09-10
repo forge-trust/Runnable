@@ -14,6 +14,10 @@ appsurface docs verify-archive --catalog ./docs-versions.json --version 1.2.3
 
 The CLI also includes public coverage commands for private-by-default CI coverage enforcement. `appsurface coverage run` discovers or accepts instrumented .NET test projects, writes local coverage artifacts, and merges Cobertura through the package-owned ReportGenerator dependency in the same command. `appsurface coverage merge` fans in existing Cobertura shards from matrix or custom test workflows without reading a consumer tool manifest. `appsurface coverage gate` evaluates the merged local Cobertura XML, writes JSON and Markdown reports, and can append the same Markdown to GitHub Actions step summaries without uploading coverage data to a hosted coverage service. `appsurface coverage clean` previews or explicitly removes those private artifacts; its default ownership-marker mode is narrow, while [`--all`](#appsurface-coverage-clean) provides a deliberate worktree-wide `TestResults` sweep.
 
+`appsurface evidence` adds a contract-first evidence layer above those local tools. It resolves a checked-in changed-risk policy from explicit paths or a CI-provided diff, explains the selected profile before work begins, diagnoses external prerequisites, records canonical plan/manifest artifacts, and refuses to call an incomplete or skipped profile complete evidence. Start with the [EvidenceHost guide](../../start-here/evidencehost.md).
+
+`appsurface release compose` gives any consumer project the same append-only release-note workflow AppSurface uses: each change adds its own Markdown entry, then one release owner validates and composes a deterministic note. It does not run AppSurface's repository-owned release cockpit, touch a shared `CHANGELOG.md`, create tags, or publish packages.
+
 ### Coverage proof levels and driver boundary
 
 There are two different coverage questions, and they have different commands:
@@ -109,6 +113,7 @@ dotnet tool run appsurface --version
 dotnet tool run appsurface docs --repo .
 dotnet tool run appsurface coverage run --solution ./MyApp.slnx --dry-run
 dotnet tool run appsurface coverage run --solution ./MyApp.slnx
+dotnet tool run appsurface -- release compose --root .
 dotnet tool run appsurface coverage gate --coverage ./TestResults/coverage-merged/coverage.cobertura.xml --min-line 95 --min-branch 85 --diff-base origin/main --min-patch-line 95 --patch-line-mode codecov --min-patch-branch 85
 ```
 
@@ -120,6 +125,59 @@ dotnet tool run appsurface --version
 ```
 
 ## Commands
+
+### `appsurface release compose`
+
+Use this command when multiple contributors or automated work streams need to describe release-facing changes without all editing the same living note or changelog. Each change writes one independent entry file; a release owner composes those entries in deterministic filename order. The command works in any project that adopts the small Markdown convention below—its section names belong to the consumer's template, not to AppSurface.
+
+Create a stable living-note template once, with one marker per section:
+
+```markdown
+# Unreleased
+
+## Added
+<!-- appsurface:unreleased-entries section="added" -->
+
+## Fixed
+<!-- appsurface:unreleased-entries section="fixed" -->
+```
+
+Then let each change add its own file under `releases/unreleased.entries/`. File names must be `YYYY-MM-DD-topic.md`, and the first line selects one template section:
+
+```markdown
+<!-- appsurface:unreleased-entry section="added" -->
+
+- Added a consumer-facing capability.
+```
+
+Entries may contain ordinary Markdown and nested `###` headings, but not new `#` or `##` sections, nested directories, symbolic links, composition markers, terminal control characters, or a section that the template does not declare. Section identifiers use lowercase letters, digits, and single hyphens. Relative Markdown links are rebased from an entry to the composed destination. Without `--output`, preview composes as though the template is the destination; with `--output`, both preview and `--apply` compose for that output file. Consequently, when the template and selected output live in different directories, those two previews can contain different relative link targets. Links inside inline, fenced, and indented code examples remain unchanged. Templates and entries may use tabs and normal line breaks, but other control characters are rejected so a preview cannot alter the maintainer's terminal.
+
+Preview the complete composed document without writing any files:
+
+```bash
+dotnet tool run appsurface -- release compose --root .
+```
+
+Write a versioned or reviewable release note only after inspecting the preview:
+
+```bash
+dotnet tool run appsurface -- release compose \
+  --root . \
+  --output releases/v1.4.0.md \
+  --apply
+```
+
+`--apply` always requires a distinct `--output`; the command never overwrites the stable template, deletes source entries, creates tags, updates a shared `CHANGELOG.md`, or publishes anything. It rejects pre-existing links in selected path components, but should run under an operator-controlled root: pathname validation cannot make a directory shared with an untrusted local principal safe from a replacement after validation. Keep changelog rollover and entry consumption in your own reviewed release workflow. AppSurface's repository-owned [`./eng/release`](../../tools/ForgeTrust.AppSurface.Release/README.md) cockpit adds those project-specific responsibilities and itself uses this same composition component; it is not part of the public tool contract.
+
+| Option | Default | Behavior |
+| --- | --- | --- |
+| `--root <directory>` | Current directory | Existing physical project root that bounds all selected paths. Linked roots and linked path components below the root are rejected. |
+| `--entries <directory>` | `releases/unreleased.entries` | Flat append-only entry directory below `--root`. A missing directory composes an empty template. |
+| `--template <file>` | `releases/unreleased.md` | Markdown template below `--root` that declares entry sections with composition markers. |
+| `--output <file>` | Standard output | Destination below `--root`. Without `--apply`, reports the exact prospective write; with `--apply`, it must differ from `--template`. |
+| `--apply` | Off | Writes the composed document to `--output`; otherwise the operation is preview-only. |
+
+Start with this command when the problem is concurrent release-note or changelog authoring. Use the repository cockpit only when you own AppSurface's versioned evidence, package policy, tag binding, and publication workflows.
 
 ### `appsurface canary poll`
 
@@ -435,6 +493,24 @@ clears local transfer evidence and never changes the Google Secret Manager versi
 `Production` is a valid local namespace label. It does not turn the laptop into a production host. A host application
 that resolves a local namespace other than `Development`, `Local`, or `Dev` must explicitly set
 `LocalSecretsPostureMode.SingleMachineSelfHosted`; the transfer CLI does not make that host configuration.
+
+### `appsurface evidence`
+
+Use EvidenceHost when a CI gate must explain why evidence is required for a changed path and must never promote a skipped or incomplete test profile into a full-coverage claim. Start with the [EvidenceHost guide](../../start-here/evidencehost.md). A selected coverage producer carries its exact `coverageGate` thresholds in the checked-in policy and `run` evaluates the existing gate in-process against that resolved policy.
+
+```bash
+appsurface evidence init --sample
+appsurface evidence doctor --path src/Orders/SubmitOrder.cs
+appsurface evidence explain --path src/Orders/SubmitOrder.cs
+appsurface evidence run --diff-file ./artifacts/changed.patch --solution ./App.slnx
+appsurface evidence verify ./TestResults/evidence/evidence-manifest.json
+```
+
+`init --sample` is safe to run in an existing repository: it creates a marked policy, host skeleton, and README and refuses to overwrite unmarked files. `doctor` does not start tests or resources; it reports whether the selected policy needs Docker, a browser runtime, or a protected release envelope. `explain` writes `evidence-plan.json` and a concise human summary before any producer runs. `run` writes the plan, `evidence-manifest.json`, and `evidence-summary.json`; it also appends a short claim summary to `$GITHUB_STEP_SUMMARY` when that CI-provided path exists. `verify` validates plan/manifest digest binding without rerunning producers.
+
+The built-in producer reuses the private [`ForgeTrust.AppSurface.Evidence.Coverage`](../../Evidence/ForgeTrust.AppSurface.Evidence.Coverage/README.md) engine used by `coverage run` and `coverage gate`; it writes the normal gate and patch-target artifacts beside its coverage output. When a policy requires patch thresholds, `evidence run` measures the same bounded `--diff-file` snapshot used to plan the selected profile, rather than reopening that path after execution starts. Browser E2E and resource-backed evidence belong in the separate consumer-owned [`ForgeTrust.AppSurface.Evidence.Aspire`](../../Evidence/ForgeTrust.AppSurface.Evidence.Aspire/README.md) lifecycle. An explicit policy-selected empty profile may claim `NoEvidenceRequired`; unavailable capability, filtered required tests, a failed producer, a missing assertion, an unready declared resource, or a failed declared coverage threshold produces `ClaimKind.None` and command failure. `--observation-only` records a diagnostic claim that is deliberately ineligible for a PR or release gate.
+
+The v1 workflow has no outbound telemetry, no automatic assembly/test discovery, no Docker sandbox, no independent artifact attestation, and no semantic classifier that silently labels arbitrary getters or constructors low value. Keep generated-code exclusions and the coverage thresholds in the reviewed Evidence policy explicit. See the [EvidenceHost cookbook](../../guides/evidencehost-cookbook.md) for policy, E2E, release-envelope, and incomplete-profile patterns.
 
 ### `appsurface coverage run`
 

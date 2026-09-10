@@ -17,6 +17,7 @@
 ForgeTrust.AppSurface is a collection of .NET libraries designed to provide a lightweight, modular startup pipeline for both console and web applications.
 
 If you are deciding which package to install first, start with the [AppSurface package chooser](./packages/README.md). If you are choosing among Auth packages, use the [AppSurface Auth adoption ladder](./start-here/auth-adoption-ladder.md) before installing optional auth adapters.
+If your CI gate should distinguish an explicit low-risk change from an incomplete test run, start with the [EvidenceHost guide](./start-here/evidencehost.md).
 
 ## Vision
 
@@ -66,7 +67,7 @@ This approach aims to:
 - [**ForgeTrust.AppSurface.Auth.AspNetCore**](./Auth/ForgeTrust.AppSurface.Auth.AspNetCore/README.md) – ASP.NET Core adapter that maps existing host request auth context and named policies into AppSurface auth results without owning schemes, middleware, challenges, forbids, redirects, or identity-provider setup. Run the [Auth Web/RazorWire proof](./examples/auth-web-razorwire-proof/README.md) to see one host policy drive both API and rendered UI state.
 - [**ForgeTrust.AppSurface.Auth.AspNetCore.DevAuth**](./Auth/ForgeTrust.AppSurface.Auth.AspNetCore.DevAuth/README.md) – Development-by-default selectable persona auth for local/proof AppSurface policy proofs, with a visible control page, an embeddable marker that stays fixed on desktop and flows with narrow layouts, a named fake scheme, a startup guard, explicit environment opt-in, and no production identity-provider behavior.
 - [**ForgeTrust.AppSurface.Auth.AspNetCore.Oidc**](./Auth/ForgeTrust.AppSurface.Auth.AspNetCore.Oidc/README.md) – ASP.NET Core cookie + OIDC convenience registration with explicit AppSurface scheme names, conservative token defaults, passive prompt helpers, and safe diagnostics without silent default-scheme takeover or identity-provider ownership.
-- [**ForgeTrust.AppSurface.Auth.Aspire.Keycloak**](./Auth/ForgeTrust.AppSurface.Auth.Aspire.Keycloak/README.md) – AppHost-only local Keycloak proof for real AppSurface OIDC sign-in, with deterministic realm import, secret-safe web projection, readiness probes, fixed-port diagnostics, and no runtime web dependency on Keycloak packages.
+- [**ForgeTrust.AppSurface.Auth.Aspire.Keycloak**](./Auth/ForgeTrust.AppSurface.Auth.Aspire.Keycloak/README.md) – AppHost-only local Keycloak proof for real AppSurface OIDC sign-in, with deterministic realm import, a cached finite `RealmReady` gate, ordered consumer-owned local seed projects with scoped typed-secret bindings, secret-safe web projection, fixed-port diagnostics, and no runtime web dependency on Keycloak packages.
 - [**ForgeTrust.AppSurface.Auth.Testing**](./Auth/ForgeTrust.AppSurface.Auth.Testing/README.md) – Test-only ASP.NET Core harness for deterministic AppSurface auth personas, WebApplicationFactory integration tests, canonical auth result assertions, and ProblemDetails checks without becoming production authentication or Dev Auth.
 
 ### [Intelligence](./Intelligence/ForgeTrust.AppSurface.Intelligence/README.md)
@@ -101,13 +102,20 @@ The Durable packages are coordinated public previews. The [Slice 7 discovery and
 - [**ForgeTrust.AppSurface.Web.OpenApi**](./Web/ForgeTrust.AppSurface.Web.OpenApi/README.md) – Optional module that adds OpenAPI generation with development-only endpoint exposure by default.
 - [**ForgeTrust.RazorWire**](./Web/ForgeTrust.RazorWire/README.md) – Adds reactive Razor-based streaming, islands, and CDN-default export tooling for server-rendered web apps.
 - [**ForgeTrust.RazorWire.Auth.AspNetCore**](./Web/ForgeTrust.RazorWire.Auth.AspNetCore/README.md) – ASP.NET Core adapter for RazorWire auth projection helpers, delegating rendered UI state to host-owned AppSurface policy evaluation without adding auth schemes, redirects, or endpoint enforcement.
-- [**ForgeTrust.AppSurface.Docs**](./Web/ForgeTrust.AppSurface.Docs/README.md) – Reusable Razor Class Library package that serves harvested source docs with section-first landing, sidebar, search, built-in trust plus contributor-provenance details, and optional published-version archive surfaces.
+- [**ForgeTrust.AppSurface.Docs**](./Web/ForgeTrust.AppSurface.Docs/README.md) – Reusable Razor Class Library package that serves harvested source docs with section-first landing, sidebar, search, built-in trust plus contributor-provenance details, optional published-version archive surfaces, and [independently configured named Docs products in one host](./Web/ForgeTrust.AppSurface.Docs/use-appsurface-docs.md#run-multiple-independent-docs-products) with separate source, route, branding, and authorization boundaries.
 - [**ForgeTrust.AppSurface.Docs.Standalone**](./Web/ForgeTrust.AppSurface.Docs.Standalone/README.md) – Thin export host for exporting or serving AppSurface Docs as an application.
 - [**ForgeTrust.AppSurface.Web.Scalar**](./Web/ForgeTrust.AppSurface.Web.Scalar/README.md) – Optional module that serves the Scalar API reference UI when both Scalar and OpenAPI exposure gates allow it.
 
 ### [CLI](./Cli/ForgeTrust.AppSurface.Cli/README.md)
 
-- [**ForgeTrust.AppSurface.Cli**](./Cli/ForgeTrust.AppSurface.Cli/README.md) – Public `appsurface` command-line tool, including [`appsurface canary poll`](./Cli/ForgeTrust.AppSurface.Cli/README.md#appsurface-canary-poll) bounded read-only deployment proof for protected AppSurface Web named canaries, `appsurface docs` preview/export workflows, `appsurface secrets` local-secret diagnostics, `appsurface coverage run` package-consumer test orchestration, `appsurface coverage merge` Cobertura fan-in, and `appsurface coverage gate` local threshold enforcement.
+- [**ForgeTrust.AppSurface.Cli**](./Cli/ForgeTrust.AppSurface.Cli/README.md) – Public `appsurface` command-line tool, including [`appsurface evidence`](./Cli/ForgeTrust.AppSurface.Cli/README.md#appsurface-evidence) policy-aware CI evidence planning, [`appsurface release compose`](./Cli/ForgeTrust.AppSurface.Cli/README.md#appsurface-release-compose) deterministic release-note composition, [`appsurface canary poll`](./Cli/ForgeTrust.AppSurface.Cli/README.md#appsurface-canary-poll) bounded read-only deployment proof for protected AppSurface Web named canaries, `appsurface docs` preview/export workflows, `appsurface secrets` local-secret diagnostics, `appsurface coverage run` package-consumer test orchestration, `appsurface coverage merge` Cobertura fan-in, and `appsurface coverage gate` local threshold enforcement.
+
+### [EvidenceHost](./start-here/evidencehost.md)
+
+- [**EvidenceHost guide**](./start-here/evidencehost.md) – Contract-first changed-risk planning so CI can require meaningful coverage or E2E evidence without turning an intentionally low-risk change or an incomplete test profile into a misleading coverage claim.
+- [**ForgeTrust.AppSurface.Evidence.Contracts**](./Evidence/ForgeTrust.AppSurface.Evidence.Contracts/README.md) – Versioned plans, producers, manifests, claims, and canonical digest verification.
+- [**ForgeTrust.AppSurface.Evidence.Planner**](./Evidence/ForgeTrust.AppSurface.Evidence.Planner/README.md) – Deterministic explicit-diff policy resolution with conservative fallback and ambiguity rejection.
+- [**ForgeTrust.AppSurface.Evidence.Aspire**](./Evidence/ForgeTrust.AppSurface.Evidence.Aspire/README.md) – Separate, explicit consumer-owned lifecycle for Aspire readiness and browser/E2E producers; it is never mixed into normal application startup.
 
 ### [Dependency](./Dependency/README.md)
 
@@ -116,6 +124,7 @@ The Durable packages are coordinated public previews. The [Slice 7 discovery and
 ### [Aspire](./Aspire/README.md)
 
 - [**ForgeTrust.AppSurface.Aspire**](./Aspire/ForgeTrust.AppSurface.Aspire/README.md) – Local .NET Aspire AppHost composition with AppSurface modules, CLI-selectable profiles, reusable Aspire components, and native publish/verification integration for explicitly annotated resources.
+- [**ForgeTrust.AppSurface.Evidence.Aspire**](./Evidence/ForgeTrust.AppSurface.Evidence.Aspire/README.md) – Test/CI-only explicit EvidenceHost lifecycle for consumer-owned Aspire readiness and E2E producers, separate from the normal AppHost.
 
 ### [Deployment](./Deployment/README.md)
 
@@ -394,7 +403,7 @@ how to use this project.
   descriptors.
 - [Aspire AppHost example](examples/aspire-apphost/README.md) – shows local Aspire AppHost
   composition with AppSurface profiles and reusable Aspire components.
-- [Auth Aspire Keycloak AppHost proof](examples/auth-aspire-keycloak-apphost/README.md) – starts local Keycloak, imports a deterministic AppSurface realm, runs the OIDC web proof, and provides a noninteractive verifier for the real-provider flow.
+- [Auth Aspire Keycloak AppHost proof](examples/auth-aspire-keycloak-apphost/README.md) – starts local Keycloak, proves its finite baseline-readiness gate before the OIDC web proof, and provides a noninteractive verifier for the real-provider flow without adding a runtime Keycloak dependency.
 - [Web app example](examples/web-app/README.md) – shows a minimal ASP.NET Core app that
   composes middleware and endpoints from modules.
 - [Web error-page proof](examples/web-error-pages/README.md) – runs a one-command verifier

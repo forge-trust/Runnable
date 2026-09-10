@@ -1,7 +1,7 @@
 <!-- /autoplan restore point: /Users/andrew/.gstack/projects/forge-trust-AppSurface/main-autoplan-restore-20260910-093630.md -->
 # Implementation plan: typed Durable Work definitions (#800)
 
-Status: REVIEW COMPLETE — autoplan final approval pending.
+Status: APPROVED — user approved the reviewed plan and all recommendations on 2026-09-10.
 
 The [approved design](../designs/issue-800-typed-work-definitions.md) is the normative public API and compatibility contract. This plan supplies implementation tasks and review amendments for [#800](https://github.com/forge-trust/AppSurface/issues/800); it preserves the user's selected shared internal snapshot (approach B), all three binding forms, and explicit request choices.
 
@@ -287,7 +287,7 @@ A fresh native specification reviewer then checked the CEO amendments against th
 | Future | Internal 4/5, public 2/5 reversibility; one follow-up item |
 | Visual design | Skipped — no UI scope |
 | Required artifacts | NOT in scope, reuse, dream delta, error table and 8-row failure registry written |
-| Open items | T1 recommendation at final gate; no critical design gap; implementation unverified |
+| Open items | T1 recommendation approved; no unresolved plan decisions or critical design gaps; implementation unverified |
 
 ## Developer experience review
 
@@ -550,7 +550,7 @@ Its final recheck confirmed these four concerns were covered and requested that 
 
 The [task list](issue-800-typed-work-definitions-tasks.md) aggregates 11 distinct records from the latest CEO, DX and engineering phase artifacts for this branch/commit window. It retains possible overlaps explicitly: C2/D2 are one migration/documentation effort, and C3 supplies scenarios for G3/G4. Implement the dependency-ordered work decomposition above; aggregation priority order is not build order.
 
-**T1 — required correctness proof versus a required external timing study.** Recommendation: ship #800 with direct/factory equivalence, real PostgreSQL terminal completion, migration examples and preserved accepted-state evidence; keep real-user and competitor timing as follow-up evidence. The alternative is to wait for an external adopter study before accepting the API; it offers stronger usability evidence but depends on participant availability and work owned by the broader adoption rail. Neither choice authorizes claiming a speed improvement without measurements. This is the only taste choice; no settled public API or shared-snapshot decision is being challenged.
+**T1 — required correctness proof versus a required external timing study.** Approved recommendation (2026-09-10): ship #800 with direct/factory equivalence, real PostgreSQL terminal completion, migration examples and preserved accepted-state evidence; keep real-user and competitor timing as follow-up evidence. The alternative was to wait for an external adopter study before accepting the API; it offers stronger usability evidence but depends on participant availability and work owned by the broader adoption rail. Neither choice authorizes claiming a speed improvement without measurements. This was the only taste choice; no settled public API or shared-snapshot decision was challenged.
 
 ## Pre-gate verification
 
@@ -565,13 +565,12 @@ The [task list](issue-800-typed-work-definitions-tasks.md) aggregates 11 distinc
 
 | Review | Trigger | Why | Runs | Status | Findings |
 | --- | --- | --- | --- | --- | --- |
-| CEO | autoplan selective expansion | Strategy/scope | 1 + specification check | Complete; approval pending | 5 outside concerns addressed or represented by T1; final spec score 9.3/10, subjective |
-| DX | autoplan DX POLISH | Developer adoption | 1 | Complete; approval pending | 5 outside requirements covered; plan score 7.6 → 8.8/10; TTHW unmeasured |
-| Engineering | autoplan FULL_REVIEW | Architecture and verification | 1 + final recheck | Complete; approval pending | 4 outside concerns covered; 5 primary clarifications; 20 planned verification groups |
+| CEO | autoplan selective expansion | Strategy/scope | 1 + specification check | Approved | 5 outside concerns addressed or resolved by approved T1; final spec score 9.3/10, subjective |
+| DX | autoplan DX POLISH | Developer adoption | 1 | Approved | 5 outside requirements covered; plan score 7.6 → 8.8/10; TTHW unmeasured |
+| Engineering | autoplan FULL_REVIEW | Architecture and verification | 1 + final recheck | Approved | 4 outside concerns covered; 5 primary clarifications; 20 planned verification groups |
 | Visual design | UI applicability check | Screens/interactions | 0 | Not applicable | No UI scope |
 | Outside voice transport | Native combo/sub | Fresh independent context | Per applicable phase | Subagent-only | No separate Codex CLI/Claude pass or verified cross-model consensus |
 
-**VERDICT:** Review complete with no unresolved critical design findings. Final plan approval is pending; implementation and its tests have not run. Approval logs are written only after the user approves this amended plan.
+**VERDICT:** APPROVED by the user on 2026-09-10, accepting all review recommendations including T1. No unresolved plan decisions or critical design findings remain. Implementation and its tests have not run; this approval records the reviewed implementation plan.
 
-**UNRESOLVED DECISIONS:**
-- Final approval of the amended plan, including T1's recommendation to keep external timing studies outside the #800 release gate.
+**NO UNRESOLVED DECISIONS.**

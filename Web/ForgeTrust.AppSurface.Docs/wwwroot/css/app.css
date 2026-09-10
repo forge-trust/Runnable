@@ -1885,10 +1885,11 @@ body {
 }
 
 .docs-content .doc-overload > summary code {
+    min-width: 0;
     color: var(--docs-color-text-default);
     font-weight: 500;
     white-space: normal;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
 .docs-content .doc-signature .sig-return {
@@ -1927,6 +1928,12 @@ body {
 .docs-content .doc-overload-body {
     padding: 0.9rem 1rem 1rem;
     border-top: 1px solid var(--docs-color-border-muted);
+}
+
+.docs-content .doc-overload-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 0.75rem;
 }
 
 .docs-content .doc-summary > p {
@@ -2053,7 +2060,8 @@ body {
     margin-top: 0.9rem;
 }
 
-.docs-content h4 {
+.docs-content h4,
+.docs-content .doc-documentation-heading {
     margin: 0 0 0.4rem;
     font-size: 0.72rem;
     letter-spacing: 0.09em;

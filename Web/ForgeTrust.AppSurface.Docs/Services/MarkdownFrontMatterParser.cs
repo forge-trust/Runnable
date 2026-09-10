@@ -734,6 +734,7 @@ internal static class MarkdownFrontMatterParser
                     || href.StartsWith('/') && !href.StartsWith("//", StringComparison.Ordinal);
         if (valid
             && !href.Contains('?', StringComparison.Ordinal)
+            && !href.Contains('\\', StringComparison.Ordinal)
             && !href.Any(char.IsWhiteSpace))
         {
             return href;
